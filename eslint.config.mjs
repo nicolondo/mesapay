@@ -53,6 +53,9 @@ const MIGRATED = [
   "src/app/r/\\[slug\\]/reserva/\\[code\\]/**/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/menu/page.tsx",
   "src/app/t/\\[slug\\]/menu/MenuClient.tsx",
+  // Aviso «¡Agregado!» del carrito: nació trilingüe, queda blindado.
+  "src/app/t/\\[slug\\]/menu/CartAddedHint.tsx",
+  "src/app/t/\\[slug\\]/menu/cartHint.ts",
   "src/app/t/\\[slug\\]/page.tsx",
   "src/app/t/\\[slug\\]/order/\\[orderId\\]/*.{ts,tsx}",
   // Pantalla de "el cobro lo hace el administrador" del mesero. El resto

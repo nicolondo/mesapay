@@ -22,6 +22,8 @@ import {
 } from "@/lib/countries";
 import type { MenuTag } from "@/lib/menuTags";
 import { CallWaiterFab } from "./CallWaiterFab";
+import { CartAddedHint, CartHintRing } from "./CartAddedHint";
+import { useCartAddedHint, type CartHintPhase } from "./cartHint";
 
 type MenuLayout = "list" | "grid" | "editorial";
 
@@ -320,6 +322,15 @@ export function MenuClient({
   // endpoint). Sirve para confirmar en pantalla que el descuento aplica.
   const [identifiedName, setIdentifiedName] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  // Aviso «¡Agregado!» que apunta al botón del carrito: sale sólo con el
+  // primer plato de cada carrito y se va solo a los 2 s (ver ./cartHint.ts).
+  // Mientras la hoja del plato está abierta el dock no se pinta, así que el
+  // aviso espera a que se cierre para empezar a contar.
+  const cartHint = useCartAddedHint({
+    enabled: hydrated && !readOnly,
+    count: cart.length,
+    dockVisible: !openItem,
+  });
   const [query, setQuery] = useState("");
   // Hay búsqueda activa sólo con al menos un carácter útil (letra o
   // número): "!!!" no cuenta y la carta se muestra completa.
@@ -1070,8 +1081,9 @@ export function MenuClient({
         // pb-36 reserva espacio para el dock fijo (carrito / orden activa) y
         // que el último plato no quede tapado. Sin dock ese padding es puro
         // vacío al final de la carta — en móvil se sentía como "sigue bajando
-        // y queda en blanco". Lo dejamos chico cuando no hay dock.
-        (!readOnly && cart.length > 0 ? "pb-60" : !readOnly && activeOrder ? "pb-36" : "pb-12")
+        // y queda en blanco". Lo dejamos chico cuando no hay dock. (El aviso
+        // del carrito flota sobre la carta y dura 2 s: no reserva espacio.)
+        (!readOnly && (cart.length > 0 || activeOrder) ? "pb-36" : "pb-12")
       }
       style={
         // CSS var consumida por los modales del menú (cart sheet,
@@ -1591,9 +1603,6 @@ export function MenuClient({
             dockBottomClass
           }
         >
-          {cart.length > 0 && <p role="status" className="rounded-xl border border-terracotta/25 bg-paper px-3 py-2 text-xs text-ink leading-relaxed shadow-sm">
-            {tMenu(isCounter ? "cartAddedPayHint" : "cartAddedHint")}
-          </p>}
           <div className="flex gap-2 items-stretch">
           {activeOrder && (
             <button
@@ -1631,6 +1640,8 @@ export function MenuClient({
               onServingModeChange={setServingMode}
               showServingMode={!isCounter}
               prepay={isCounter}
+              hintPhase={cartHint.phase}
+              onOpen={cartHint.dismiss}
             />
           )}
           </div>
@@ -1699,7 +1710,7 @@ export function MenuClient({
   );
 }
 
-function CartBar({
+export function CartBar({
   lines,
   menuItems,
   subtotal,
@@ -1715,6 +1726,8 @@ function CartBar({
   onServingModeChange,
   showServingMode,
   prepay,
+  hintPhase = "hidden",
+  onOpen,
 }: {
   lines: CartLine[];
   // Used to resolve modifier labels for each line — `selections` only
@@ -1734,6 +1747,10 @@ function CartBar({
   onServingModeChange: (m: "asReady" | "together") => void;
   showServingMode: boolean;
   prepay: boolean;
+  /** Fase del aviso «¡Agregado!» que apunta a este botón. */
+  hintPhase?: CartHintPhase;
+  /** Se llama al tocar el botón (cierra el aviso en el acto). */
+  onOpen?: () => void;
 }) {
   const t = useTranslations("menu");
   // Línea cuya nota se está editando (una a la vez).
@@ -1746,15 +1763,27 @@ function CartBar({
   }, [menuItems]);
   const [open, setOpen] = useState(false);
   return (
-    <div className={split ? "flex-1 min-w-0 basis-0" : "w-full"}>
+    <div
+      data-cart-column=""
+      className={(split ? "flex-1 min-w-0 basis-0" : "w-full") + " relative"}
+    >
+      <CartAddedHint
+        phase={hintPhase}
+        align={split ? "end" : "center"}
+        prepay={prepay}
+      />
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          onOpen?.();
+          setOpen(true);
+        }}
         className={
           (split ? "w-full px-4 py-3" : "w-full px-5 py-4") +
-          " bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 slide-up text-left"
+          " relative bg-ink text-bone rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center gap-3 slide-up text-left"
         }
       >
+        <CartHintRing phase={hintPhase} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium leading-snug">
             {t(prepay ? "reviewAndPay" : "reviewAndSend")}

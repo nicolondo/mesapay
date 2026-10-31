@@ -53,9 +53,11 @@ for (const width of [390, 1440]) {
       await expect(page.getByRole("button", { name: /Nicolás de prueba/ })).toBeVisible();
       await expect(page.getByRole("dialog", { name: es.menu.whatToCallYou })).toHaveCount(0);
       await page.locator(`#menu-item-${f.water.id}`).getByRole("button", { name: es.menu.addToOrder, exact: true }).click();
-      await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: es.menu.cartHintTitle })).toBeVisible();
       await expect(page.getByRole("button", { name: /Ver y enviar pedido/ })).toBeInViewport();
       await page.screenshot({ animations: "disabled", path: test.info().outputPath(`cart-guidance-${width}.png`) });
+      // El aviso dura 2 s y se va solo.
+      await expect(page.getByRole("status").filter({ hasText: es.menu.cartHintTitle })).toHaveCount(0, { timeout: 5000 });
       await page.getByRole("button", { name: /Ver y enviar pedido/ }).click();
       await expect(page.getByRole("button", { name: es.menu.sendToKitchen, exact: true })).toBeVisible();
       await expect(page.getByRole("dialog", { name: es.menu.whatToCallYou })).toHaveCount(0);
@@ -71,7 +73,7 @@ for (const width of [390, 1440]) {
       expect(order.items[0]).toMatchObject({ menuItemId: f.water.id, qty: 1, guestName: "Nicolás de prueba" });
       await page.goto(f.qr);
       await page.locator(`#menu-item-${f.water.id}`).getByRole("button", { name: es.menu.addToOrder, exact: true }).click();
-      await expect(page.getByRole("status").filter({ hasText: "Agregado al carrito" })).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: es.menu.cartHintTitle })).toBeVisible();
       await expect(page.getByRole("button", { name: /Ver y enviar pedido/ })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ animations: "disabled", path: test.info().outputPath(`active-order-cart-${width}.png`) });

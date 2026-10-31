@@ -13,6 +13,7 @@ import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
 import { emitDianCreditNote } from "@/lib/dian/emitCreditNote";
+import { closeInvoiceRequestsAfterDeferredAcceptance } from "@/lib/dian/invoiceRequestClosure";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,10 @@ async function POSTHandler(
       simpleInvoiceId: true,
       kind: true,
       creditNoteId: true,
+      // Para el cierre de solicitudes al aceptarse: la orden de la tirilla
+      // y el XML enviado (de ahí sale el instante de emisión).
+      xmlZip: true,
+      simpleInvoice: { select: { orderId: true } },
     },
   });
   if (!doc || doc.restaurantId !== ctx.restaurantId) {
@@ -107,6 +112,13 @@ async function POSTHandler(
     await db.dianConfig.update({
       where: { id: config.configId },
       data: { status: "enabled" },
+    });
+    // El otro riel del cierre automático de solicitudes de factura (ver
+    // dian/emitInvoice.ts): las de antes de la emisión pasan a
+    // `generated`, las que llegaron después quedan pendientes. No lanza.
+    await closeInvoiceRequestsAfterDeferredAcceptance({
+      orderId: doc.simpleInvoice?.orderId,
+      xmlZip: doc.xmlZip,
     });
     // La DIAN valida asíncrono: para un documento que quedó `pending` la
     // aceptación se entera ACÁ, no en el emit. Es el otro riel del envío

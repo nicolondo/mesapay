@@ -46,6 +46,8 @@ import {
 import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
+import { closeInvoiceRequestsOnAcceptance } from "@/lib/dian/invoiceRequestClosure";
+import { acceptedInvoiceClosureCutoff } from "@/lib/dian/invoiceRequestCoverage";
 import {
   formatInvoiceNumber,
   frozenSalesTax,
@@ -177,13 +179,15 @@ export async function emitDianInvoice(opts: {
             },
           },
           // La solicitud de factura más reciente de la orden, sin filtrar
-          // por `status` (cuando esto corre ya pasó a `generated`) — el
-          // mismo criterio que usa el envío del correo. Es lo que decide
-          // si el adquiriente es el comensal o el consumidor final.
+          // por `status` — el mismo criterio que usa el envío del correo.
+          // Es lo que decide si el adquiriente es el comensal o el
+          // consumidor final. Su `createdAt` es además el corte del cierre
+          // automático de solicitudes al aceptarse (ver abajo).
           invoiceRequests: {
             orderBy: { createdAt: "desc" },
             take: 1,
             select: {
+              createdAt: true,
               customerName: true,
               docType: true,
               docNumber: true,
@@ -390,6 +394,19 @@ export async function emitDianInvoice(opts: {
   // puede tumbar la emisión ni duplicar el correo si además lo manda el
   // riel de la consulta diferida.
   if (t.state === "accepted") {
+    // La solicitud que se usó para el adquiriente (y las anteriores de la
+    // misma orden) quedan cumplidas: pasan solas a `generated`. Una que
+    // haya llegado después de leerla no entró en la factura y queda
+    // pendiente — es el caso "llegó después" que muestra la pantalla de
+    // Facturas. No lanza.
+    await closeInvoiceRequestsOnAcceptance({
+      orderId: inv.order.id,
+      cutoff: acceptedInvoiceClosureCutoff({
+        rail: "emit",
+        usedRequestCreatedAt: inv.order.invoiceRequests[0]?.createdAt,
+      }),
+      now,
+    });
     await sendDianInvoiceEmail({
       documentId: claim.id,
       environment: config.environment,

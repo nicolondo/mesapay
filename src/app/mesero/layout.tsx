@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
+import type { Locale } from "@/i18n/config";
+import { hasHelpFor } from "@/lib/help/content";
+import { MESERO_HELP_BASE } from "@/lib/help/constants";
 import { PushSetup } from "./PushSetup";
 
 /**
@@ -47,6 +51,10 @@ export default async function MeseroLayout({
     redirect("/");
   }
 
+  // Acceso a la ayuda: sólo si ya hay artículos para meseros en este idioma.
+  const tHelp = await getTranslations("help");
+  const showHelp = hasHelpFor((await getLocale()) as Locale, "mesero");
+
   return (
     <div className="flex flex-col min-h-screen bg-paper">
       {/* `min-h-screen` (100vh) en vez de `100dvh` — iOS Safari/PWA
@@ -74,19 +82,30 @@ export default async function MeseroLayout({
         }
       >
         <div className="font-display text-lg">Mesero</div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/signin" });
-          }}
-        >
-          <button
-            type="submit"
-            className="text-xs text-op-muted hover:text-ink"
+        <div className="flex items-center gap-4">
+          {showHelp && (
+            <Link
+              href={MESERO_HELP_BASE}
+              prefetch={false}
+              className="text-xs text-op-muted hover:text-ink"
+            >
+              {tHelp("meseroNavLabel")}
+            </Link>
+          )}
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/signin" });
+            }}
           >
-            Salir
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="text-xs text-op-muted hover:text-ink"
+            >
+              Salir
+            </button>
+          </form>
+        </div>
       </header>
 
       {/* Push opt-in banner — disappears once subscribed or on

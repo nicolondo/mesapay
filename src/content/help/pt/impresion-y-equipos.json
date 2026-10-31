@@ -1,0 +1,255 @@
+{
+  "title": "Impressão e equipamentos",
+  "description": "Programa de impressão, impressoras, comandas, maquininhas, tablets da cozinha e cópias de segurança.",
+  "articles": [
+    {
+      "slug": "como-imprimir-las-comandas",
+      "title": "Escolha como imprimir as comandas",
+      "summary": "As duas formas de imprimir um ticket na cozinha ou no bar quando chega um pedido (o programa de impressão ou uma aba do navegador) e como ativá-las por estação.",
+      "keywords": [
+        "imprimir",
+        "impressão",
+        "comanda",
+        "ticket",
+        "impressora térmica",
+        "cozinha",
+        "bar",
+        "marchar automaticamente",
+        "largura do papel",
+        "80 mm",
+        "58 mm",
+        "aba do navegador",
+        "impressão silenciosa",
+        "kiosk printing",
+        "não imprime"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O MESAPAY pode imprimir um ticket (a comanda) na cozinha ou no bar toda vez que chega um pedido. Há duas formas de fazer isso; este guia ajuda você a escolher e deixar funcionando.\n\n## As duas formas\n\n- **Programa de impressão (recomendado)**: um programa para Windows que roda num computador do local e manda as comandas para impressoras térmicas ligadas à rede. Imprime mesmo sem ninguém com uma tela aberta, guarda na fila o que não conseguiu imprimir e pelo painel você vê se cada impressora responde. Veja [Instale o programa de impressão no computador](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n- **Aba do navegador**: você abre uma página do MESAPAY no computador ligado à impressora e a deixa aberta. Serve para começar, mas se a aba fechar ou o computador entrar em suspensão, nada sai.\n\n> ⚠ Use uma só forma por estação. Se o programa já imprime a cozinha e você também deixa a aba da cozinha aberta, cada comanda sai duas vezes.\n\n## Ative a impressão por estação\n\n1. Entre em [Configurações › Estações de preparo](/operator/settings/estaciones).\n2. Em **Impressão de tickets**, ligue **Cozinha** e, se tiver bar, **Bar**.\n3. Escolha a **Largura do papel**: 80 mm (a mais comum) ou 58 mm.\n4. Se quiser que a comanda saia assim que o pedido chega, sem ninguém tocar no quadro, ative **Marchar automaticamente quando o pedido chega** nessa estação.\n\nSem a marcha automática, a comanda da cozinha sai quando alguém passa o pedido de **A preparar** para **Na cozinha** no quadro; a do bar, quando passa para **Em preparo**.\n\n## Imprimir por uma aba do navegador\n\n1. No computador com a impressora térmica, deixe-a como impressora padrão do sistema.\n2. Entre no MESAPAY com um usuário Operador e, em **Estações de preparo**, toque em **🖨️ Abrir impressora da cozinha** (ou **🖨️ Abrir impressora do bar**).\n3. Toque em **Imprimir teste** para conferir se sai papel.\n4. Deixe essa aba aberta. Ela deve mostrar **Escutando pedidos…**.\n\nNo bar, se você tiver subestações, escolha em **Esta impressora:** qual delas essa aba imprime.\n\n> A primeira comanda abre a janela de impressão do navegador. Para as próximas saírem sozinhas, ative no navegador a opção de imprimir sem diálogo ou abra o Chrome com a opção `--kiosk-printing`. No Mac, a opção fica em Sistema › Impressoras › imprimir sem avisos.\n\n## Avisos que você pode ver\n\n- **A impressão está ligada, mas não há nenhuma impressora ativa**: você usa o programa de impressão, mas nenhuma impressora atende essa estação. As comandas são marchadas e não saem. Ligue ou adicione a impressora no programa.\n- **A marcha automática está ligada com a impressão desligada**: os pedidos passam sozinhos para o preparo, mas nenhuma comanda sai. Ligue a impressão dessa estação ou desligue a marcha automática.\n- **Sem conexão, tentando reconectar** (na aba): o computador perdeu a internet e a aba se reconecta sozinha. O que chegou enquanto estava sem conexão não é impresso: confira no quadro.\n- **A impressão para esta estação está desligada** (na aba): ligue em Estações de preparo.",
+      "links": [
+        {
+          "label": "Ir para Estações de preparo",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "instalar-el-agente-de-impresion",
+      "title": "Instale o programa de impressão no computador",
+      "summary": "Baixe o agente de impressão para Windows, instale-o como serviço, vincule-o ao seu restaurante e adicione cada impressora da rede. Faz-se uma única vez.",
+      "keywords": [
+        "agente de impressão",
+        "programa de impressão",
+        "instalar",
+        "baixar",
+        "Windows",
+        "serviço",
+        "token",
+        "mpa_",
+        "vincular",
+        "impressora de rede",
+        "IP",
+        "porta 9100",
+        "127.0.0.1:9110",
+        "FEED",
+        "SmartScreen",
+        "Prompt de Comando",
+        "desinstalar"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O programa de impressão do MESAPAY é instalado num computador com Windows do local e manda as comandas para as impressoras térmicas pela rede. Instala-se uma única vez e ele fica funcionando sozinho, mesmo que ninguém faça login no computador.\n\n## Antes de começar\n\n- Um computador com Windows 64 bits que fique ligado durante o serviço.\n- O computador e as impressoras ligados à mesma rede.\n- O endereço IP de cada impressora. No final explicamos como descobrir.\n\n> A página de configuração do próprio programa está em espanhol. Abaixo, cada texto em espanhol vem com a tradução.\n\n## 1. Baixe o programa\n\nToque em **Baixar o agente para Windows**, no alto deste artigo ou na página inicial da [Ajuda](/operator/ayuda). É um único arquivo.\n\n> Na primeira vez que você abrir, o Windows pode avisar que não reconhece o aplicativo, porque o programa ainda não está assinado. Não é um erro nem um vírus: toque em **Mais informações** e depois em **Executar assim mesmo**.\n\n## 2. Copie para uma pasta fixa\n\nCrie esta pasta e deixe ali o arquivo que você baixou:\n\n```\nC:\\Program Files\\MESAPAY\\mesapay-print-agent.exe\n```\n\n> ⚠ Não deixe na Área de Trabalho nem em Downloads: o serviço fica apontando para esse caminho e, se alguém mover o arquivo, ele para de iniciar.\n\n## 3. Instale como serviço\n\n1. Abra o **Prompt de Comando** como administrador: botão direito → **Executar como administrador**.\n2. Digite estas linhas, uma de cada vez, apertando Enter depois de cada uma:\n\n```\ncd \"C:\\Program Files\\MESAPAY\"\nmesapay-print-agent.exe install\nmesapay-print-agent.exe start\n```\n\n3. Confira que ele iniciou com:\n\n```\nsc.exe query MesapayPrintAgent\n```\n\nTem que aparecer `STATE : 4 RUNNING`. Ele fica em início automático: liga junto com o computador, sem ninguém fazer login, e o Windows o reinicia se ele cair.\n\n## 4. Vincule ao seu restaurante\n\n1. No MESAPAY, entre em [Configurações › Impressoras de rede](/operator/settings/impresoras).\n2. Em **Cadastrar um computador**, escreva um nome (por exemplo, «PC da cozinha») e toque em **Gerar token**.\n3. Toque em **Copiar**. O token começa com `mpa_` e aparece uma única vez. Quando tiver copiado, toque em **Já copiei**.\n4. Num navegador DESSE computador, abra `http://127.0.0.1:9110`. É a página de configuração do programa e só abre nesse computador.\n5. Cole o token em **Token de vinculación** (token de vínculo) e toque em **Probar la conexión** (testar a conexão).\n6. Quando aparecer **Conectado**, toque em **Guardar configuración** (salvar configuração).\n\n> Se disser que o token foi rejeitado, quase sempre ficou cortado ou com um espaço na frente: copie de novo. Se você o perdeu, cadastre o computador de novo e revogue o anterior.\n\n## 5. Adicione cada impressora\n\nNa mesma página do programa, toque em **+ Agregar impresora** (adicionar impressora) para cada uma e preencha:\n\n- **Nombre** (nome): para reconhecê-la («Cozinha», «Bar», «Caixa»).\n- **IP o nombre en la red** (IP ou nome na rede): o endereço da impressora na rede do local.\n- **Puerto** (porta): 9100, salvo se a impressora indicar outra.\n- **Estación** (estação): **Cocina** (cozinha), **Barra** (bar) ou **Mostrador / caja** (balcão / caixa).\n- **Sub-estación de barra (opcional)** (subestação do bar, opcional): só para o bar, se você tiver subestações. Em branco, recebe tudo do bar.\n- **Ancho del papel** (largura do papel): 80 mm (o normal) ou 58 mm (a bobina estreita).\n\nToque em **Imprimir prueba** (imprimir teste) em cada uma. Funciona sem internet e sem token, e confirma que o IP que você digitou é o da impressora na sua frente: se sair papel com o nome que você deu, está certo.\n\nAo terminar, toque em **Guardar configuración** (salvar configuração). Aplica na hora, sem reiniciar nada. Em alguns segundos o computador aparece como **Respondendo** em Impressoras de rede, com as impressoras dele.\n\n## Como descobrir o IP de uma impressora\n\nQuase todas imprimem sozinhas: desligue, segure o botão FEED e ligue sem soltar. Sai um cupom com a configuração de rede; o endereço está onde diz IP Address.\n\n> ⚠ Peça a quem cuida da sua rede para fixar o IP da impressora (uma reserva por MAC no roteador). Senão, no dia em que o roteador reiniciar, ela pode mudar de endereço e as comandas param de sair sem ninguém ter mexido em nada.\n\n## Desinstalar o programa\n\nNo Prompt de Comando, como administrador:\n\n```\ncd \"C:\\Program Files\\MESAPAY\"\nmesapay-print-agent.exe stop\nmesapay-print-agent.exe uninstall\n```\n\nA configuração é mantida: se você instalar de novo, não precisa colar o token outra vez.",
+      "links": [
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        },
+        {
+          "label": "Ir para Estações de preparo",
+          "href": "/operator/settings/estaciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "impresoras-de-red",
+      "title": "Confira suas impressoras pelo painel",
+      "summary": "Em Impressoras de rede você vê se cada computador do local responde, testa uma impressora à distância, reimprime o que não saiu e escolhe por onde sai a fatura do cliente.",
+      "keywords": [
+        "impressoras de rede",
+        "estado da impressora",
+        "respondendo",
+        "sem responder",
+        "nunca se conectou",
+        "revogar",
+        "excluir computador",
+        "imprimir teste",
+        "reimprimir",
+        "últimos trabalhos",
+        "falhou",
+        "impressora de faturas",
+        "fatura automática",
+        "código QR"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Impressoras de rede você vê, de qualquer lugar, os computadores do local que têm o programa de impressão e as impressoras que cada um informa. Daqui você testa uma impressora sem estar ao lado dela, reimprime algo que não saiu e escolhe por onde sai a fatura do cliente.\n\nEntre em [Configurações › Impressoras de rede](/operator/settings/impresoras). Se ainda não instalou o programa, siga [Instale o programa de impressão no computador](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n\n## Computadores que imprimem\n\nCada computador mostra o seu estado:\n\n- **Respondendo**: está conectado e recebendo trabalhos.\n- **Sem responder**: faz tempo que não se comunica. Confira se está ligado e com internet.\n- **Nunca se conectou**: você gerou o token, mas o programa ainda não o usa. Cole o token no programa e inicie o serviço.\n\nVocê também vê quando ele se comunicou pela última vez, a versão do programa e de qual endereço se conecta.\n\nPara deixar de usar um computador, toque em **Revogar** e confirme com **Sim, revogar**: ele para de imprimir e as impressoras dele ficam desligadas. Não dá para desfazer; para usá-lo de novo é preciso cadastrá-lo outra vez, com um token novo. Um computador revogado sai da lista com **Excluir computador**; o histórico de impressão é mantido.\n\n## Impressoras que ele informa\n\nO endereço, a porta, a estação e a largura de cada impressora são definidos no programa do computador, não aqui. Pelo painel você pode:\n\n- **Imprimir teste**: manda um cupom de teste. Se o computador estiver ligado, sai em alguns segundos.\n- **Desligar** ou **Ligar**: uma impressora desligada deixa de receber trabalhos, sem desinstalar nada.\n- **Imprime códigos QR**: ative só se essa impressora imprime bem o QR da fatura de teste.\n\n## Últimos trabalhos\n\nMostra o que foi mandado para imprimir por último e o que aconteceu com cada coisa: **Na fila**, **Entregue**, **Impresso** ou **Falhou**, com o número de tentativas. Toque em **Reimprimir** para mandar o mesmo documento de novo.\n\n## Faturas\n\nNa seção **Faturas** você escolhe por onde sai a fatura do cliente:\n\n1. Em **Impressora para faturas**, escolha a impressora; por exemplo, a do caixa. Se deixar **Todas as do tipo fatura (padrão)**, ela sai por todas as desse tipo.\n2. Ative **Imprimir a fatura automaticamente ao cobrar** se quiser que ela saia sozinha. Desligado, só sai quando alguém a reimprime a partir do pedido.\n3. Toque em **Imprimir fatura de teste** para ver o formato real.\n\nCom faturação eletrônica, a fatura é impressa quando a DIAN a aceita, alguns segundos depois da cobrança. Se a DIAN rejeitar ou deixar pendente, não sai papel.\n\n> Se a impressora imprime bem o QR da fatura de teste, marque **Imprime códigos QR** nessa impressora. Senão, a fatura eletrônica sai com o endereço de consulta da DIAN em texto.\n\n## Casos frequentes\n\n- **Aviso de que as faturas são impressas pelo navegador**: não há nenhuma impressora do programa escolhida para faturas, e o navegador pode cortá-las. Escolha uma impressora do programa em **Impressora para faturas**.\n- **A impressão da cozinha (ou do bar) está desligada em Estações**: essa impressora não vai receber comandas. Toque em **Ir para Estações** e ligue a impressão dessa estação.\n- **A impressora escolhida para faturas está desligada**: as faturas não saem até você ligá-la ou escolher outra.",
+      "links": [
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cuando-no-imprime",
+      "title": "O que fazer quando não sai uma comanda ou uma fatura",
+      "summary": "Descubra se o problema é a internet, o token do programa, a impressora ou a configuração das estações, e como resolver cada caso.",
+      "keywords": [
+        "não imprime",
+        "não sai a comanda",
+        "não sai a fatura",
+        "impressora não funciona",
+        "sem conexão com o MESAPAY",
+        "token rejeitado",
+        "sem papel",
+        "IP mudou",
+        "serviço parado",
+        "STOPPED",
+        "falhou",
+        "reimprimir",
+        "suporte",
+        "agent.log"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Quando uma comanda ou uma fatura não sai, quase sempre é uma destas quatro coisas: a internet do local, o token do programa, a impressora ou a configuração das estações. Este guia ajuda você a descobrir qual.\n\n## Primeiro, olhe o painel\n\n1. Entre em [Configurações › Impressoras de rede](/operator/settings/impresoras).\n2. Veja o estado do computador. Se disser **Sem responder**, o problema está nesse computador ou na internet dele: siga para a próxima seção.\n3. Veja **Últimos trabalhos**. Se o trabalho disser **Falhou**, o programa tentou e a impressora não respondeu. Toque em **Imprimir teste** nessa impressora para confirmar e, quando estiver resolvido, em **Reimprimir**.\n\n## No computador do local\n\nAbra `http://127.0.0.1:9110` nesse computador e veja o bloco **Estado**, no alto: ele diz se o problema é a internet, o token ou a impressora.\n\n- **Sin conexión con MESAPAY** (sem conexão com o MESAPAY): o computador não chega ao servidor. Tente abrir mesapay.co no navegador; se não abrir, é a internet do local. Se abrir mas o último erro disser que o token não é válido ou foi revogado, cadastre o computador de novo em Impressoras de rede e cole o token novo.\n- **Conectado, mas não sai papel**: confira se a impressora está ligada e com papel (sem papel ela aceita a conexão e não imprime nada), se está na mesma rede que o computador (o clássico: ficou no Wi-Fi de visitantes) e se o IP dela não mudou. **Imprimir prueba** (imprimir teste) nessa impressora confirma.\n- **Tudo em zero**: o MESAPAY não está gerando comandas para o local. O problema não está no computador: confira em [Estações de preparo](/operator/settings/estaciones) se a impressão está ligada e se as categorias têm estação atribuída.\n- **En cola en el servidor** (na fila do servidor) não para de crescer: há comandas esperando que não estão sendo entregues. Confira se o programa está vinculado e sem erros.\n\n## Se o IP da impressora mudou\n\nImprima a configuração de rede da impressora (desligue, segure FEED e ligue) e compare o endereço com o que está escrito na página do programa. Se mudou, corrija, toque em **Guardar configuración** (salvar configuração) e peça a quem cuida da sua rede para fixar o IP da impressora.\n\n## O serviço não inicia\n\nAbra o Prompt de Comando e digite:\n\n```\nsc.exe query MesapayPrintAgent\n```\n\nSe disser `STOPPED`, o mais comum é que alguém moveu ou renomeou o programa depois de instalá-lo. Desinstale e instale de novo a partir da pasta certa, como em [Instale o programa de impressão no computador](/operator/ayuda/impresion-y-equipos/instalar-el-agente-de-impresion).\n\n## A página do programa não abre\n\nSe `http://127.0.0.1:9110` não responde mas o serviço está rodando, outro programa do computador está usando esse endereço. O programa de impressão continua imprimindo normalmente. Escreva para o suporte se precisar entrar na configuração dele.\n\n## A fatura não sai\n\n- Com faturação eletrônica, a fatura é impressa quando a DIAN a aceita. Se ficou rejeitada ou pendente, não sai papel: confira em [Faturas](/operator/facturas).\n- Em [Impressoras de rede](/operator/settings/impresoras), seção **Faturas**, confira se a impressora escolhida está ligada e se **Imprimir a fatura automaticamente ao cobrar** está ativado.\n\n## Se você precisar pedir suporte\n\nMande para nós o arquivo de registro do programa. Ele fica nesta pasta, que é oculta: cole o caminho direto na barra do Explorador de Arquivos.\n\n```\nC:\\ProgramData\\MESAPAY\\agent\\logs\\agent.log\n```",
+      "links": [
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        },
+        {
+          "label": "Ir para Estações de preparo",
+          "href": "/operator/settings/estaciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "datafonos",
+      "title": "Configure as maquininhas e atribua aos garçons",
+      "summary": "Cadastre suas maquininhas Kushki, atribua cada uma ao garçom que a leva para a cobrança chegar direto nele e conheça a tela do usuário Maquininha.",
+      "keywords": [
+        "maquininha",
+        "datáfono",
+        "Kushki",
+        "Smart POS",
+        "terminal",
+        "código do comércio",
+        "serial",
+        "atribuir maquininha",
+        "garçom atribuído",
+        "mesas ao vivo",
+        "usuário maquininha",
+        "maquininha própria",
+        "cobrar no cartão"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Se o seu restaurante cobra com maquininhas Kushki, em Maquininhas você as cadastra e atribui cada uma ao garçom que a leva. Assim, quando esse garçom cobra na maquininha pelo app, o valor vai direto para o aparelho dele.\n\nO cartão **Maquininhas** aparece em Configurações só quando seu comércio tem ativa a cobrança com maquininha Kushki. Esse meio de pagamento é ativado pelo MESAPAY.\n\n## Configurar as maquininhas\n\n1. Entre em [Configurações › Maquininhas](/operator/settings/datafonos).\n2. Em **Código do comércio**, escreva o código que o fornecedor da maquininha entregou ao ativá-la e toque em **Salvar**.\n3. Em **Adicionar datáfono**, escreva um nome (por exemplo, «Caixa 1») e o serial do aparelho, e toque em **Adicionar**.\n4. Em cada maquininha, escolha o **Garçom atribuído**.\n\nO serial pode ser corrigido depois em **Serial do datáfono**; é salvo ao sair do campo.\n\n## Atribuída ou sem atribuição\n\n- **Com garçom atribuído**: quando esse garçom cobra na maquininha, o valor vai direto para o aparelho dele, sem passar pelo Salão.\n- **Sem atribuição (qualquer um pode usar)**: a cobrança fica no [Salão](/operator/serve), em **Pediu maquininha**. Quem leva a maquininha à mesa toca no botão **Cobrar** com o valor, e a cobrança vai para a primeira maquininha ativa da lista.\n\nToque em **Ativo** ou **Inativo** para tirar uma maquininha de uso sem apagá-la.\n\n## O usuário Maquininha\n\nSe uma pessoa cuida de cobrar na maquininha (no caixa, por exemplo), crie para ela um usuário com perfil **Maquininha** em [Usuários](/operator/settings/usuarios). Ao entrar, ela vê **Mesas ao vivo**: todas as mesas com o estado e as que pediram maquininha (**📱 Pediu maquininha**) ou dinheiro (**💵 Pediu dinheiro**). Dali ela cobra na maquininha ou confirma o dinheiro recebido.\n\n## Maquininha própria do estabelecimento\n\nSe você cobra com a maquininha de outro fornecedor, não há nada para configurar aqui: você passa o cartão na sua maquininha e depois marca o resultado, **Aprovado** ou **Recusado**, no Salão. Esse meio de pagamento também é ativado pelo MESAPAY.\n\n## Casos frequentes\n\n- **Não vejo o cartão Maquininhas**: seu comércio não tem ativa a cobrança com maquininha Kushki. Escreva para o suporte.\n- **\"Não há maquininha ativa registrada\"**: nenhuma maquininha está marcada como **Ativo**. Adicione uma ou ative.\n- **\"Ainda não há maquininhas vinculadas ao comércio\"**: adicione a primeira com **Adicionar datáfono**.",
+      "links": [
+        {
+          "label": "Ir para Maquininhas",
+          "href": "/operator/settings/datafonos"
+        },
+        {
+          "label": "Ir para Usuários",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Ir para Salão",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "tablet-de-cocina-y-bar",
+      "title": "Use um tablet como tela da cozinha ou do bar",
+      "summary": "Coloque um tablet na cozinha ou no bar para ver os pedidos na tela: crie o usuário dele, instale como app, use na horizontal e ative o som de pedidos novos.",
+      "keywords": [
+        "tablet",
+        "tela da cozinha",
+        "KDS",
+        "quiosque da cozinha",
+        "quadro da cozinha",
+        "bar",
+        "MP COCINA",
+        "MP BAR",
+        "instalar app",
+        "tela inicial",
+        "horizontal",
+        "som",
+        "bipe",
+        "pedidos novos",
+        "som silenciado"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "Você pode colocar um tablet na cozinha ou no bar para ver os pedidos na tela, no lugar das comandas impressas ou junto com elas. A cozinha entra com o próprio usuário e chega direto ao quadro dela.\n\n## Prepare o tablet\n\n1. Crie um usuário com perfil **Cozinha** (ou **Bar**) em [Configurações › Usuários](/operator/settings/usuarios). Veja [Crie os usuários da sua equipe](/operator/ayuda/primeros-pasos/usuarios-y-roles).\n2. No tablet, abra o MESAPAY no navegador e entre com esse e-mail e essa senha. Ele chega direto ao quadro da cozinha (ou do bar).\n3. Instale na tela inicial pelo menu do navegador, com a opção de adicionar à tela inicial ou instalar o app. Ele fica como **MP COCINA** (ou **MP BAR**) e abre sempre no quadro.\n\n## Use na horizontal\n\nO quadro foi pensado para o tablet deitado. No Android, o app instalado fica na horizontal sozinho. No iPad, gire-o na horizontal e ative o bloqueio de rotação.\n\n## Ative o som de pedidos novos\n\nO quadro dá um bipe quando chega um pedido. Os navegadores não deixam tocar nada até alguém tocar na tela: se aparecer **Toque na tela para ativar o som de pedidos novos**, toque uma vez. Com **Testar som** você confere o volume.\n\n- Na cozinha, o som vem ligado; no bar, desligado.\n- O botão **Som ativado** / **Som silenciado** liga ou desliga, e a escolha fica salva naquele tablet.\n- Se aparecer **Este navegador não consegue reproduzir o som de pedidos novos**, use outro navegador no tablet.\n\n## Para não desligar\n\nConfigure o tablet para a tela não bloquear durante o serviço e deixe-o ligado no carregador.\n\n## Para sair\n\nToque em **Salir** (sair), no canto superior direito do quadro.",
+      "links": [
+        {
+          "label": "Ir para Usuários",
+          "href": "/operator/settings/usuarios"
+        },
+        {
+          "label": "Ir para Cozinha",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "copias-de-seguridad",
+      "title": "Crie e restaure cópias de segurança",
+      "summary": "O MESAPAY guarda uma cópia diária dos dados do seu restaurante e deixa você criar as suas. Se algo der errado, você restaura os dados para a data de uma cópia.",
+      "keywords": [
+        "cópia de segurança",
+        "backup",
+        "restaurar",
+        "desfazer",
+        "recuperar dados",
+        "cópia automática",
+        "cópia manual",
+        "RESTAURAR",
+        "antes da restauração",
+        "apaguei por engano"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Uma cópia de segurança guarda todos os dados do seu restaurante num determinado momento, para você poder voltar atrás se algo der errado; por exemplo, depois de carregar o cardápio errado ou importar insumos errados.\n\n## O que ela guarda e o que não guarda\n\nGuarda mesas, cardápio, contas, cobranças, turnos, estoque, compras, contabilidade, folha de pagamento e faturas.\n\nNão guarda os arquivos enviados (logo, fotos e certificados) nem os usuários do painel e suas senhas.\n\n## Cópias automáticas e manuais\n\n- Todos os dias às 4h00 é feita uma cópia automática.\n- Você pode criar cópias manuais quando quiser, até 5 vigentes ao mesmo tempo.\n- Todas as cópias são mantidas por 7 dias.\n\n## Criar uma cópia\n\n1. Entre em [Configurações › Cópias de segurança](/operator/settings/backups).\n2. Se quiser, escreva uma **Observação**; por exemplo, «antes de carregar o cardápio novo».\n3. Toque em **Criar cópia agora**.\n\n> Vale a pena fazer uma antes de carregar um cardápio novo, importar insumos ou fechar um mês contábil.\n\n## Restaurar uma cópia\n\n1. Em **Cópias disponíveis**, encontre a cópia da data para a qual quer voltar e toque em **Restaurar**.\n2. Leia o aviso: TODOS os dados atuais são substituídos pelos daquela data, e o que aconteceu depois se perde.\n3. Digite `RESTAURAR` para confirmar e toque em **Restaurar esta cópia**.\n\n> Antes de restaurar, o MESAPAY guarda sozinho uma cópia do estado atual, marcada **Antes da restauração**, caso seja preciso voltar atrás.\n\n## Excluir uma cópia\n\nToque em **Excluir** e confirme com **Excluir a cópia**. Não será mais possível restaurar a partir dela.\n\n## Casos frequentes\n\n- **\"Já existem 5 cópias manuais vigentes\"**: exclua uma cópia manual para criar outra.\n- **\"Esta cópia não cobre todas as tabelas atuais do estabelecimento\"**: a cópia é anterior a uma mudança da plataforma e não pode ser restaurada pela metade. Crie uma cópia nova.\n- **\"Não é possível restaurar esta cópia porque o estabelecimento possui notas de crédito fiscais\"**: depois que você emitiu notas de crédito eletrônicas, é preciso manter o histórico e a numeração delas, então a restauração fica bloqueada.\n\n> ⚠ Estas cópias servem para desfazer um erro do comércio. Não substituem os backups do servidor que o MESAPAY faz.",
+      "links": [
+        {
+          "label": "Ir para Cópias de segurança",
+          "href": "/operator/settings/backups"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
+}

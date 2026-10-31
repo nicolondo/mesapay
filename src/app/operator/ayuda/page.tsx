@@ -1,279 +1,156 @@
-import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
+import {
+  buildHelpSearchIndex,
+  visibleHelpCategories,
+} from "@/lib/help/content";
+import {
+  OPERATOR_HELP_BASE,
+  PRINT_AGENT_ARTICLE,
+  SUPPORT_EMAIL,
+  supportMailto,
+} from "@/lib/help/constants";
+import { HelpSearch } from "@/components/help/HelpSearch";
+import { HelpIcon } from "@/components/help/HelpIcon";
+import { PrintAgentDownload } from "@/components/help/PrintAgentDownload";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Descarga del agente de impresión. El .exe NO vive en el repo: se publica
- * como adjunto de un GitHub Release (`print-agent-vX.Y.Z`, lo arma el
- * workflow print-agent-release.yml). `releases/latest` resuelve solo a la
- * release más nueva, así el botón no queda apuntando a una versión vieja
- * cuando salga la siguiente. El repo es público: la descarga es libre.
- */
-const PRINT_AGENT_DOWNLOAD_URL =
-  "https://github.com/nicolondo/mesapay/releases/latest/download/mesapay-print-agent.exe";
-const PRINT_AGENT_SHA256_URL = `${PRINT_AGENT_DOWNLOAD_URL}.sha256`;
-
-/** Un comando o ruta en línea, dentro de una frase. */
-const CODE =
-  "font-mono text-xs bg-op-bg border border-op-border px-1.5 py-0.5 rounded";
-/** Un bloque de comandos para escribir tal cual. */
-const PRE =
-  "font-mono text-xs bg-op-bg border border-op-border rounded-lg px-3 py-2 overflow-x-auto whitespace-pre";
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("help");
+  return { title: t("metaTitle") };
+}
 
 /**
- * Ayuda / soporte del operador: guías rápidas de cómo usar la plataforma +
- * contacto con soporte técnico + descarga e instalación del agente de
- * impresión. Página estática (sin datos del comercio) — el gate del layout
- * /operator ya exige sesión de operador.
+ * Centro de ayuda del operador: buscador arriba (con foco automático y atajo
+ * "/"), las categorías con contenido como tarjetas, y los accesos directos a
+ * soporte y a la instalación del agente de impresión.
+ *
+ * El índice del buscador se arma acá, en el servidor, sólo para el idioma
+ * activo, y es lo único del contenido que viaja al navegador.
  */
-export default async function AyudaPage() {
-  const t = await getTranslations("opErp");
+export default async function AyudaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const { q } = await searchParams;
+  const initialQuery = (Array.isArray(q) ? q[0] : q ?? "").slice(0, 200);
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations("help");
 
-  // Guías: cada una es un título + una descripción corta. El contenido vive
-  // en i18n (opErp.helpGuide*). Mantener conciso — es un mapa, no un manual.
-  const guides: Array<{ title: string; body: string }> = [
-    { title: t("helpGuideOrdersTitle"), body: t("helpGuideOrdersBody") },
-    { title: t("helpGuideChargeTitle"), body: t("helpGuideChargeBody") },
-    { title: t("helpGuideCloseTitle"), body: t("helpGuideCloseBody") },
-    { title: t("helpGuidePurchasesTitle"), body: t("helpGuidePurchasesBody") },
-    { title: t("helpGuideInventoryTitle"), body: t("helpGuideInventoryBody") },
-    { title: t("helpGuideAccountingTitle"), body: t("helpGuideAccountingBody") },
-  ];
-
-  const supportEmail = "soporte@mesapay.co";
-
-  // Instalación del agente de impresión, condensada de agent/README.md para
-  // alguien parado en una cocina. Los literales en <code>/<pre> son rutas y
-  // comandos de Windows: se escriben igual en cualquier idioma, por eso van
-  // como {"..."} y no por t() — el lint de i18n (jsx-text-only) sólo reclama
-  // texto suelto, no expresiones.
-  const printerSteps: Array<{ title: string; body: ReactNode }> = [
-    {
-      title: t("helpPrintersStep1Title"),
-      body: (
-        <>
-          <p>{t("helpPrintersStep1Body")}</p>
-          <pre className={PRE}>
-            {"C:\\Program Files\\MESAPAY\\mesapay-print-agent.exe"}
-          </pre>
-          <p>{t("helpPrintersStep1Warn")}</p>
-        </>
-      ),
-    },
-    {
-      title: t("helpPrintersStep2Title"),
-      body: (
-        <>
-          <p>{t("helpPrintersStep2Body")}</p>
-          <pre className={PRE}>
-            {'cd "C:\\Program Files\\MESAPAY"\n'}
-            {"mesapay-print-agent.exe install\n"}
-            {"mesapay-print-agent.exe start"}
-          </pre>
-          <p>{t("helpPrintersStep2Check")}</p>
-          <pre className={PRE}>{"sc.exe query MesapayPrintAgent"}</pre>
-          <p>
-            {t("helpPrintersStep2CheckPre")}{" "}
-            <code className={CODE}>{"STATE : 4 RUNNING"}</code>
-            {t("helpPrintersStep2CheckPost")}
-          </p>
-        </>
-      ),
-    },
-    {
-      title: t("helpPrintersStep3Title"),
-      body: (
-        <>
-          <p>
-            {t("helpPrintersStep3OpenPre")}{" "}
-            <code className={CODE}>{"http://127.0.0.1:9110"}</code>
-            {t("helpPrintersStep3OpenPost")}
-          </p>
-          <p>
-            {t("helpPrintersStep3TokenPre")}{" "}
-            <Link
-              href="/operator/settings/impresoras"
-              className="underline hover:text-ink"
-            >
-              {t("helpPrintersStep3TokenLink")}
-            </Link>
-            {t("helpPrintersStep3TokenMid")}{" "}
-            <code className={CODE}>{"mpa_"}</code>
-            {t("helpPrintersStep3TokenPost")}
-          </p>
-          <p>{t("helpPrintersStep3Paste")}</p>
-        </>
-      ),
-    },
-    {
-      title: t("helpPrintersStep4Title"),
-      body: (
-        <>
-          <p>{t("helpPrintersStep4Body")}</p>
-          <p>{t("helpPrintersStep4Test")}</p>
-        </>
-      ),
-    },
-    {
-      title: t("helpPrintersStep5Title"),
-      body: (
-        <>
-          <p>{t("helpPrintersStep5Body")}</p>
-          <p>{t("helpPrintersStep5Fixed")}</p>
-        </>
-      ),
-    },
-    {
-      title: t("helpPrintersStep6Title"),
-      body: (
-        <>
-          <p>
-            {t("helpPrintersStep6BodyPre")}{" "}
-            <code className={CODE}>{"http://127.0.0.1:9110"}</code>{" "}
-            {t("helpPrintersStep6BodyPost")}
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>{t("helpPrintersStep6NoNet")}</li>
-            <li>{t("helpPrintersStep6NoPaper")}</li>
-            <li>{t("helpPrintersStep6Zero")}</li>
-          </ul>
-          <p>
-            {t("helpPrintersStep6LogsPre")}{" "}
-            <code className={CODE}>
-              {"C:\\ProgramData\\MESAPAY\\agent\\logs\\agent.log"}
-            </code>
-            {t("helpPrintersStep6LogsPost")}
-          </p>
-        </>
-      ),
-    },
-  ];
+  const categories = visibleHelpCategories(locale);
+  const index = buildHelpSearchIndex(locale);
+  const suggestions = categories
+    .slice(0, 6)
+    .map((c) => ({ c: c.id, s: c.articles[0].slug, t: c.articles[0].title }));
+  const agentArticleVisible = categories.some(
+    (c) =>
+      c.id === PRINT_AGENT_ARTICLE.category &&
+      c.articles.some((a) => a.slug === PRINT_AGENT_ARTICLE.slug),
+  );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">{t("helpTitle")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("helpIntro")}</p>
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <header className="mb-6">
+        <p className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-op-muted">
+          {t("eyebrow")}
+        </p>
+        <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-op-text sm:text-4xl">
+          {t("title")}
+        </h1>
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-op-muted">{t("intro")}</p>
+      </header>
 
-      {/* Contacto con soporte */}
-      <div className="rounded-2xl border border-op-border bg-op-surface p-5 mb-6">
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          {t("helpSupportKicker")}
-        </div>
-        <h2 className="font-display text-lg mb-1">{t("helpSupportTitle")}</h2>
-        <p className="text-sm text-op-muted mb-3">{t("helpSupportBody")}</p>
-        <a
-          href={`mailto:${supportEmail}`}
-          className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
-        >
-          {t("helpSupportEmailCta")}
-        </a>
-        <p className="text-[11px] text-op-muted mt-2">{supportEmail}</p>
-      </div>
-
-      {/* Impresoras: descarga + instalación del agente */}
-      <section
-        id="impresoras"
-        className="rounded-2xl border border-op-border bg-op-surface p-5 mb-6 scroll-mt-6"
+      <HelpSearch
+        index={index}
+        categories={categories.map((c) => ({ id: c.id, title: c.title, icon: c.icon }))}
+        basePath={OPERATOR_HELP_BASE}
+        initialQuery={initialQuery}
+        suggestions={suggestions}
+        autoFocus
       >
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          {t("helpPrintersKicker")}
-        </div>
-        <h2 className="font-display text-lg mb-1">{t("helpPrintersTitle")}</h2>
-        <p className="text-sm text-op-muted mb-4">{t("helpPrintersBody")}</p>
-
-        <a
-          href={PRINT_AGENT_DOWNLOAD_URL}
-          download
-          rel="noopener"
-          className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
-        >
-          {t("helpPrintersDownloadCta")}
-        </a>
-        <p className="text-[11px] text-op-muted mt-2">
-          {t("helpPrintersDownloadMeta")}
-          {" · "}
-          <a
-            href={PRINT_AGENT_SHA256_URL}
-            download
-            rel="noopener"
-            className="underline hover:text-ink"
+        <section aria-labelledby="help-topics" className="mt-10">
+          <h2
+            id="help-topics"
+            className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-op-muted"
           >
-            {t("helpPrintersDownloadVerify")}
-          </a>
-        </p>
-
-        {/* SmartScreen: el binario no está firmado. Es un aviso esperado, no
-            un error — por eso va en tono neutro y no en ámbar/rojo. */}
-        <div className="mt-4 rounded-xl border border-op-border bg-op-bg p-4">
-          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-            {t("helpPrintersSmartScreenKicker")}
-          </div>
-          <p className="text-sm">{t("helpPrintersSmartScreenBody")}</p>
-        </div>
-
-        {/* Pasos plegables: la descarga y el aviso quedan siempre a la vista;
-            el detalle sólo si hace falta, para que la ayuda no sea un manual. */}
-        <div className="mt-5 font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-          {t("helpPrintersStepsKicker")}
-        </div>
-        <p className="text-[11px] text-op-muted mb-2">
-          {t("helpPrintersStepsIntro")}
-        </p>
-        <ol className="border-y border-op-border divide-y divide-op-border">
-          {printerSteps.map((s, i) => (
-            <li key={s.title}>
-              <details className="group">
-                <summary className="flex items-baseline gap-3 py-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                  <span className="font-mono text-[11px] text-op-muted w-5 shrink-0">
-                    {String(i + 1).padStart(2, "0")}
+            {t("categoriesTitle")}
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`${OPERATOR_HELP_BASE}/${c.id}`}
+                  className="flex h-full flex-col rounded-2xl border border-op-border bg-op-surface p-4 transition-colors hover:border-op-text"
+                >
+                  <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-op-bg text-op-text">
+                    <HelpIcon name={c.icon} />
                   </span>
-                  <span className="flex-1 text-sm font-medium">{s.title}</span>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    className="w-3.5 h-3.5 shrink-0 self-center text-op-muted transition-transform group-open:rotate-90"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M6 3l5 5-5 5" />
-                  </svg>
-                </summary>
-                <div className="pb-4 pl-8 text-sm text-op-muted space-y-2">
-                  {s.body}
-                </div>
-              </details>
-            </li>
-          ))}
-        </ol>
+                  <span className="font-semibold text-op-text">{c.title}</span>
+                  <span className="mt-1 flex-1 text-sm leading-relaxed text-op-muted">
+                    {c.description}
+                  </span>
+                  <span className="mt-3 text-xs font-medium text-op-muted">
+                    {t("categoryArticleCount", { count: c.articles.length })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </HelpSearch>
 
-        <Link
-          href="/operator/settings/impresoras"
-          className="inline-block mt-4 text-sm underline text-op-muted hover:text-ink"
+      <section aria-labelledby="help-shortcuts" className="mt-10">
+        <h2
+          id="help-shortcuts"
+          className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-op-muted"
         >
-          {t("helpPrintersSettingsLink")}
-        </Link>
-      </section>
-
-      {/* Guías rápidas */}
-      <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
-        {t("helpGuidesKicker")}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {guides.map((g) => (
-          <div
-            key={g.title}
-            className="rounded-2xl border border-op-border bg-op-surface p-4"
-          >
-            <h3 className="font-medium mb-1">{g.title}</h3>
-            <p className="text-sm text-op-muted">{g.body}</p>
+          {t("shortcutsTitle")}
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col rounded-2xl border border-op-border bg-op-surface p-5">
+            <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-op-bg text-op-text">
+              <HelpIcon name="mail" />
+            </span>
+            <h3 className="font-semibold text-op-text">{t("supportTitle")}</h3>
+            <p className="mt-1 flex-1 text-sm text-op-muted">{t("supportBody")}</p>
+            <div className="mt-4">
+              <a
+                href={supportMailto()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-ink px-5 text-sm font-medium text-bone hover:bg-ink/90"
+              >
+                {t("supportCta")}
+              </a>
+              <p className="mt-2 text-xs text-op-muted">{SUPPORT_EMAIL}</p>
+            </div>
           </div>
-        ))}
-      </div>
+
+          <div className="flex flex-col rounded-2xl border border-op-border bg-op-surface p-5">
+            <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-op-bg text-op-text">
+              <HelpIcon name="printer" />
+            </span>
+            <h3 className="font-semibold text-op-text">{t("agentTitle")}</h3>
+            <p className="mt-1 flex-1 text-sm text-op-muted">{t("agentBody")}</p>
+            <div className="mt-4">
+              <PrintAgentDownload />
+            </div>
+            {agentArticleVisible && (
+              <div className="mt-3">
+                <Link
+                  href={`${OPERATOR_HELP_BASE}/${PRINT_AGENT_ARTICLE.category}/${PRINT_AGENT_ARTICLE.slug}`}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border border-op-border px-5 text-sm font-medium text-op-text hover:border-op-text"
+                >
+                  {t("agentGuideCta")}
+                  <HelpIcon name="chevron" className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

@@ -2864,7 +2864,7 @@
     "f1007Name": "Receitas recebidas",
     "f1007Desc": "Receita bruta (sem imposto nem gorjeta) dos cupons do ano por adquirente, conceito 4001.",
     "f1008Name": "Saldos de contas a receber em 31 de dezembro",
-    "f1008Desc": "Fechamentos de vales a crédito abertos no encerramento, por cliente. Saldos abaixo de 12 UVT são agregados como quantias menores.",
+    "f1008Desc": "Por cliente: vendas a crédito a clientes de faturamento com saldo em 31 de dezembro (menos pagamentos e notas de crédito até essa data) e fechamentos de vales a crédito abertos no encerramento. Saldos abaixo de 12 UVT são agregados como quantias menores.",
     "f1009Name": "Saldos de contas a pagar em 31 de dezembro",
     "f1009Desc": "Compras recebidas e despesas com saldo no encerramento (total − pagamentos até 31/12), por fornecedor. Saldos abaixo de 12 UVT são agregados.",
     "f1010Name": "Informação de sócios, acionistas, comuneiros, cooperados e/ou associados",

@@ -2864,7 +2864,7 @@
     "f1007Name": "Income received",
     "f1007Desc": "Gross income (without tax or tip) of the year's receipts by buyer, concept 4001.",
     "f1008Name": "Accounts receivable balances at December 31",
-    "f1008Desc": "Credit voucher statements open at year end, by customer. Balances below 12 UVT are aggregated as minor amounts.",
+    "f1008Desc": "By customer: credit sales to billing customers with a balance at December 31 (minus payments and credit notes up to that date) and credit voucher statements open at year end. Balances below 12 UVT are aggregated as minor amounts.",
     "f1009Name": "Accounts payable balances at December 31",
     "f1009Desc": "Received purchases and expenses with an outstanding balance at year end (total − payments through 12/31), by supplier. Balances below 12 UVT are aggregated.",
     "f1010Name": "Information on partners, shareholders, co-owners, cooperative members and/or associates",

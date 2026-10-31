@@ -551,7 +551,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "informacion-exogena",
       title: "Prepara la información exógena para la DIAN",
       covers:
-        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
+        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura; 1008 con las ventas a crédito a clientes y los bonos), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
     },
     {
       slug: "libros-y-estados-financieros",

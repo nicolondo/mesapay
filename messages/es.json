@@ -2864,7 +2864,7 @@
     "f1007Name": "Ingresos recibidos",
     "f1007Desc": "Ingreso bruto (sin impuesto ni propina) de las tirillas del año por adquiriente, concepto 4001.",
     "f1008Name": "Saldos de cuentas por cobrar al 31 de diciembre",
-    "f1008Desc": "Cortes de bonos a crédito abiertos al cierre, por cliente. Saldos menores a 12 UVT se agregan como cuantías menores.",
+    "f1008Desc": "Por cliente: ventas a crédito a clientes de facturación con saldo al 31 de diciembre (menos abonos y notas crédito hasta esa fecha) y cortes de bonos a crédito abiertos al cierre. Saldos menores a 12 UVT se agregan como cuantías menores.",
     "f1009Name": "Saldos de cuentas por pagar al 31 de diciembre",
     "f1009Desc": "Compras recibidas y gastos con saldo al cierre (total − abonos hasta el 31/12), por proveedor. Saldos menores a 12 UVT se agregan.",
     "f1010Name": "Información de socios, accionistas, comuneros, cooperados y/o asociados",

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { extendOneMonth } from "@/lib/membership";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { fmtCOP } from "@/lib/format";
+import { MEMBERSHIP_MAX_CENTS } from "@/lib/billing/limits";
 import {
   resolveCommissionBps,
   commissionAmountCents,
@@ -15,7 +16,7 @@ import {
 const planSchema = z.object({
   action: z.literal("set_plan"),
   plan: z.enum(["trial", "basic", "pro"]),
-  monthlyPriceCents: z.number().int().min(0).max(100_000_000),
+  monthlyPriceCents: z.number().int().min(0).max(MEMBERSHIP_MAX_CENTS),
 });
 
 const suspendSchema = z.object({
@@ -25,7 +26,7 @@ const suspendSchema = z.object({
 
 const paymentSchema = z.object({
   action: z.literal("record_payment"),
-  amountCents: z.number().int().min(0).max(100_000_000),
+  amountCents: z.number().int().min(0).max(MEMBERSHIP_MAX_CENTS),
   method: z.enum(["manual_cash", "manual_transfer", "wompi"]),
   note: z.string().trim().max(240).optional(),
 });

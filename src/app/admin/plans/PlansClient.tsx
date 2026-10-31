@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import type { PlanCatalogEntry } from "@/lib/planCatalog";
+import { MEMBERSHIP_MAX_CENTS } from "@/lib/billing/limits";
 
 type Plan = "trial" | "basic" | "pro";
 
@@ -78,6 +79,10 @@ function PlanCard({
     const cents = Math.round(Number(priceCop) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
       setMsg({ kind: "error", text: t("priceInvalid") });
+      return;
+    }
+    if (cents > MEMBERSHIP_MAX_CENTS) {
+      setMsg({ kind: "error", text: t("priceTooHigh", { max: fmtCOP(MEMBERSHIP_MAX_CENTS) }) });
       return;
     }
     setBusy(true);

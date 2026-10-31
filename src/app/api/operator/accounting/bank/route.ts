@@ -5,21 +5,29 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { getAccountingConfig, isMonthClosed } from "@/lib/erp/cierre";
-import { loadAccountMap } from "@/lib/erp/ledger";
+import { loadAccountIndex, type AccountIndexEntry } from "@/lib/erp/ledger";
+import { resolvePostableCode } from "@/lib/erp/chart";
+import { dedupeBankLines, foldText, parseBankStatement } from "@/lib/erp/bankStatement";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/** Cuenta banco contra la que concilia todo (la del PUC sembrado). */
-const BANK_CODE = "111005";
+/** Cuenta base de bancos del PUC sembrado; con auxiliares, la imputable de abajo. */
+const BANK_BASE_CODE = "111005";
 
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+const fold = foldText;
+
+/** Cuenta del banco por defecto: la imputable de 111005 (o la auxiliar convencional). */
+function defaultBankCode(index: ReadonlyMap<string, AccountIndexEntry>): string | null {
+  return resolvePostableCode(index, BANK_BASE_CODE);
+}
+
+/** ¿Puede recibir el movimiento? Existe, es imputable y está activa. */
+function postableActive(index: ReadonlyMap<string, AccountIndexEntry>, code: string): boolean {
+  const a = index.get(code);
+  return a != null && a.postable && a.active;
 }
 
 /** Extracto pendiente + reglas (para el tab Bancos). */
@@ -28,7 +36,7 @@ async function GETHandler() {
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const [lines, rules] = await Promise.all([
+  const [lines, rules, index] = await Promise.all([
     db.bankStatementLine.findMany({
       where: { restaurantId: ctx.restaurantId, status: "pending" },
       orderBy: { date: "desc" },
@@ -38,85 +46,9 @@ async function GETHandler() {
       where: { restaurantId: ctx.restaurantId },
       orderBy: { createdAt: "asc" },
     }),
+    loadAccountIndex(ctx.restaurantId),
   ]);
-  return NextResponse.json({ lines, rules });
-}
-
-/**
- * Parser de extracto CSV, tolerante a los formatos de banca colombiana:
- * separador `;` o `,` o tab; fecha dd/mm/yyyy o yyyy-mm-dd; monto con coma
- * o punto decimal, paréntesis o signo para débitos; encabezado opcional.
- * Devuelve null para las filas que no parsean (se reportan como omitidas).
- */
-function parseCsvLine(
-  rawLine: string,
-): { date: Date; description: string; amountCents: number } | null {
-  const sep = rawLine.includes(";") ? ";" : rawLine.includes("\t") ? "\t" : ",";
-  const cells = rawLine.split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
-  if (cells.length < 2) return null;
-
-  // Fecha: primera celda que parsee como dd/mm/yyyy o yyyy-mm-dd.
-  let date: Date | null = null;
-  let dateIdx = -1;
-  for (let i = 0; i < cells.length && i < 3; i++) {
-    const c = cells[i]!;
-    let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(c);
-    if (m) {
-      date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-      dateIdx = i;
-      break;
-    }
-    m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(c);
-    if (m) {
-      date = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
-      dateIdx = i;
-      break;
-    }
-  }
-  if (!date || isNaN(date.getTime())) return null;
-
-  // Monto: última celda numérica. "1.234.567,89" / "1,234,567.89" / "(500)".
-  let amountCents: number | null = null;
-  let amountIdx = -1;
-  for (let i = cells.length - 1; i >= 0; i--) {
-    if (i === dateIdx) continue;
-    let c = cells[i]!;
-    if (c === "") continue;
-    let negative = false;
-    if (/^\(.*\)$/.test(c)) {
-      negative = true;
-      c = c.slice(1, -1);
-    }
-    if (c.startsWith("-")) {
-      negative = true;
-      c = c.slice(1);
-    }
-    if (!/^[\d.,$\s]+$/.test(c) || !/\d/.test(c)) continue;
-    c = c.replace(/[$\s]/g, "");
-    // Última puntuación = separador decimal si deja 1-2 dígitos.
-    const lastSep = Math.max(c.lastIndexOf(","), c.lastIndexOf("."));
-    let pesos: number;
-    if (lastSep > -1 && c.length - lastSep - 1 <= 2) {
-      const intPart = c.slice(0, lastSep).replace(/[.,]/g, "");
-      const decPart = c.slice(lastSep + 1);
-      pesos = Number(`${intPart}.${decPart}`);
-    } else {
-      pesos = Number(c.replace(/[.,]/g, ""));
-    }
-    if (!isFinite(pesos)) continue;
-    amountCents = Math.round(pesos * 100) * (negative ? -1 : 1);
-    amountIdx = i;
-    break;
-  }
-  if (amountCents == null || amountCents === 0) return null;
-
-  const description =
-    cells
-      .filter((_, i) => i !== dateIdx && i !== amountIdx)
-      .filter(Boolean)
-      .join(" · ")
-      .slice(0, 300) || "(sin descripción)";
-  return { date, description, amountCents };
+  return NextResponse.json({ lines, rules, defaultBankAccountCode: defaultBankCode(index) });
 }
 
 const importSchema = z.object({ csv: z.string().min(3).max(2_000_000) });
@@ -137,9 +69,12 @@ async function POSTHandler(req: Request) {
 
   const asRule = ruleSchema.safeParse(body);
   if (asRule.success) {
-    const map = await loadAccountMap(ctx.restaurantId);
-    if (!map.get(asRule.data.addRule.accountCode)) {
+    const index = await loadAccountIndex(ctx.restaurantId);
+    if (!index.get(asRule.data.addRule.accountCode)) {
       return NextResponse.json({ error: "account_not_found" }, { status: 400 });
+    }
+    if (!postableActive(index, asRule.data.addRule.accountCode)) {
+      return NextResponse.json({ error: "account_not_postable" }, { status: 400 });
     }
     await db.bankRecRule.create({
       data: { restaurantId: ctx.restaurantId, ...asRule.data.addRule },
@@ -155,34 +90,38 @@ async function POSTHandler(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const rows = parsed.data.csv.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const { lines: parsedLines, skipped, byHeader } = parseBankStatement(parsed.data.csv);
+  // Pegar el mismo extracto dos veces no duplica: se compara contra lo ya
+  // importado en esas fechas (cualquier estado: pendiente, contabilizado o
+  // ignorado).
+  let fresh = parsedLines;
+  let duplicates = 0;
+  if (parsedLines.length > 0) {
+    const times = parsedLines.map((l) => l.date.getTime());
+    const existing = await db.bankStatementLine.findMany({
+      where: {
+        restaurantId: ctx.restaurantId,
+        date: { gte: new Date(Math.min(...times)), lte: new Date(Math.max(...times)) },
+      },
+      select: { date: true, amountCents: true, description: true },
+    });
+    ({ fresh, duplicates } = dedupeBankLines(parsedLines, existing));
+  }
   const batch = randomBytes(6).toString("hex");
-  const data: Array<{
-    restaurantId: string;
-    date: Date;
-    description: string;
-    amountCents: number;
-    importBatch: string;
-  }> = [];
-  let skipped = 0;
-  for (const row of rows) {
-    const p = parseCsvLine(row);
-    if (!p) {
-      skipped++;
-      continue;
-    }
-    data.push({ restaurantId: ctx.restaurantId, importBatch: batch, ...p });
+  if (fresh.length > 0) {
+    await db.bankStatementLine.createMany({
+      data: fresh.map((l) => ({ restaurantId: ctx.restaurantId, importBatch: batch, ...l })),
+    });
   }
-  if (data.length > 0) {
-    await db.bankStatementLine.createMany({ data });
-  }
-  return NextResponse.json({ ok: true, imported: data.length, skipped });
+  return NextResponse.json({ ok: true, imported: fresh.length, skipped, duplicates, byHeader });
 }
 
 const patchSchema = z.object({
   lineId: z.string().optional(),
   action: z.enum(["ignore", "journalize", "applyRules", "deleteRule"]),
   accountCode: z.string().min(4).max(10).optional(),
+  /** Cuenta del banco (11xx imputable). Sin ella, la imputable de 111005. */
+  bankAccountCode: z.string().min(4).max(10).optional(),
   ruleId: z.string().optional(),
 });
 
@@ -211,29 +150,46 @@ async function PATCHHandler(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const cfg = await getAccountingConfig(restaurantId);
+  const [cfg, index] = await Promise.all([
+    getAccountingConfig(restaurantId),
+    loadAccountIndex(restaurantId),
+  ]);
+  // La cuenta del banco: la que eligió el operador (un auxiliar por banco) o
+  // la imputable de 111005. Antes siempre 111005, aunque tuviera auxiliares.
+  const bankCode = b.bankAccountCode ?? defaultBankCode(index);
+  if (
+    b.action !== "ignore" &&
+    (!bankCode || !bankCode.startsWith("11") || !postableActive(index, bankCode))
+  ) {
+    return NextResponse.json({ error: "bank_account_invalid" }, { status: 400 });
+  }
 
   async function journalizeLine(
     line: { id: string; date: Date; description: string; amountCents: number },
     accountCode: string,
-  ): Promise<"ok" | "month_closed" | "account_not_found"> {
+  ): Promise<"ok" | "month_closed" | "account_not_found" | "account_not_postable"> {
     const month = line.date.toISOString().slice(0, 7);
     if (isMonthClosed(cfg.closedThrough, month)) return "month_closed";
-    const map = await loadAccountMap(restaurantId);
-    const bankId = map.get(BANK_CODE);
-    const otherId = map.get(accountCode);
-    if (!bankId || !otherId) return "account_not_found";
+    const bankId = index.get(bankCode!)?.id;
+    const other = index.get(accountCode);
+    if (!bankId || !other) return "account_not_found";
+    // La contrapartida también tiene que poder recibir el movimiento: una
+    // agrupadora o una cuenta inactiva dejaría el asiento fuera de los
+    // reportes.
+    if (!postableActive(index, accountCode)) return "account_not_postable";
+    const otherId = other.id;
     const abs = Math.abs(line.amountCents);
+    const bank = bankCode!;
     // Abono (entra al banco): D banco · C cuenta. Cargo: D cuenta · C banco.
     const lines =
       line.amountCents > 0
         ? [
-            { accountId: bankId, accountCode: BANK_CODE, debitCents: abs, creditCents: 0 },
+            { accountId: bankId, accountCode: bank, debitCents: abs, creditCents: 0 },
             { accountId: otherId, accountCode, debitCents: 0, creditCents: abs },
           ]
         : [
             { accountId: otherId, accountCode, debitCents: abs, creditCents: 0 },
-            { accountId: bankId, accountCode: BANK_CODE, debitCents: 0, creditCents: abs },
+            { accountId: bankId, accountCode: bank, debitCents: 0, creditCents: abs },
           ];
     await db.$transaction(async (tx) => {
       const entry = await tx.journalEntry.create({
@@ -266,6 +222,7 @@ async function PATCHHandler(req: Request) {
     ]);
     let applied = 0;
     let skippedClosed = 0;
+    let skippedInvalid = 0;
     for (const line of pending) {
       const desc = fold(line.description);
       const rule = rules.find((r) => desc.includes(fold(r.pattern)));
@@ -273,8 +230,9 @@ async function PATCHHandler(req: Request) {
       const r = await journalizeLine(line, rule.accountCode);
       if (r === "ok") applied++;
       else if (r === "month_closed") skippedClosed++;
+      else skippedInvalid++;
     }
-    return NextResponse.json({ ok: true, applied, skippedClosed });
+    return NextResponse.json({ ok: true, applied, skippedClosed, skippedInvalid });
   }
 
   if (!b.lineId) return NextResponse.json({ error: "invalid" }, { status: 400 });

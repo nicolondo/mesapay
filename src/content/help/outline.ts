@@ -527,7 +527,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conciliacion-bancaria",
       title: "Concilia el extracto del banco",
       covers:
-        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo), \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
+        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo; con títulos se leen valor, débito/crédito y saldo; repegar no duplica), \"Cuenta del banco\", \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
     },
     {
       slug: "activos-fijos-y-diferidos",

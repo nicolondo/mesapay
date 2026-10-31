@@ -1,0 +1,34 @@
+[Unit]
+# Asientos contables automáticos: regenera los asientos-resumen de los meses
+# ABIERTOS (desde el primer mes con actividad hasta el mes en curso) de cada
+# comercio con el módulo de contabilidad, no suspendido. Antes sólo existían
+# si alguien tocaba «Generar / actualizar asientos» en Contabilidad → Diario;
+# el botón sigue para "actualizar ya". No toca meses cerrados ni comprobantes
+# manuales. Ver src/lib/erp/autoJournal.ts.
+#
+# Instalación (una vez, como root):
+#   cp docs/cron/mesapay-accounting-daily.service /etc/systemd/system/
+#   cp docs/cron/mesapay-accounting-daily.timer   /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now mesapay-accounting-daily.timer
+#
+# CRON_SECRET sale del mismo .env.production que usa la app (se lee con
+# EnvironmentFile; NUNCA se sourcea el archivo). La URL apunta a nginx,
+# que enruta al color activo (blue/green); no a un puerto fijo. El timeout
+# es largo a propósito: son N comercios en serie, cada uno con varios
+# meses. La app deja de empezar comercios nuevos a los 8 minutos (nginx
+# corta a los 600 s); los que no alcanzaron salen como "pending".
+Description=MESAPAY · asientos contables de los meses abiertos
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+EnvironmentFile=/opt/mesapay/shared/.env.production
+ExecStart=/usr/bin/curl -sS -m 900 -X POST \
+  -H "x-cron-secret: ${CRON_SECRET}" \
+  https://mesapay.co/api/cron/accounting-daily
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-accounting-daily

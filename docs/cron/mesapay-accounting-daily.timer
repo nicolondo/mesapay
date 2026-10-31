@@ -1,0 +1,17 @@
+[Unit]
+# Diario a las 05:30 hora de Colombia (la zona va en OnCalendar, así no
+# depende de la zona del servidor): media hora después del corte del día
+# operativo (05:00), con el día de ayer ya cerrado, y lejos del pg_dump
+# (03:30) y de las copias por comercio (04:00). La corrida es idempotente
+# (el motor borra y recrea por mes y fuente) y toma un lock por comercio,
+# así que si el timer se dispara dos veces no duplica ni se pisa.
+Description=MESAPAY · asientos contables de los meses abiertos (05:30 Colombia)
+
+[Timer]
+OnCalendar=*-*-* 05:30:00 America/Bogota
+# Si el servidor estuvo apagado a esa hora, corre apenas vuelva.
+Persistent=true
+Unit=mesapay-accounting-daily.service
+
+[Install]
+WantedBy=timers.target

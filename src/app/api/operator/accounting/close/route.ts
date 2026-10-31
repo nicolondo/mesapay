@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { closeMonth, getAccountingConfig, reopenLastMonth } from "@/lib/erp/cierre";
+import { MANUAL_LOCK_WAIT_MS, withJournalLock } from "@/lib/erp/autoJournal";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,19 @@ async function POSTHandler(req: Request) {
     if (!parsed.data.month) {
       return NextResponse.json({ error: "invalid" }, { status: 400 });
     }
-    const r = await closeMonth(ctx.restaurantId, parsed.data.month);
+    // Con el lock contable: si la corrida diaria (o el botón del Diario)
+    // está regenerando este mes, el cierre espera a que termine — si no,
+    // numeraría asientos que el motor está por borrar y recrear.
+    const month = parsed.data.month;
+    const locked = await withJournalLock(
+      ctx.restaurantId,
+      () => closeMonth(ctx.restaurantId, month),
+      { waitMs: MANUAL_LOCK_WAIT_MS, holdMs: 60_000 },
+    );
+    if (!locked.ok) {
+      return NextResponse.json({ error: "busy" }, { status: 409 });
+    }
+    const r = locked.value;
     if (!r.ok) {
       return NextResponse.json({ error: r.error }, { status: 409 });
     }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 
 type Line = {
@@ -24,7 +24,8 @@ type Entry = {
 
 /**
  * Libro Diario (Fase 2): asientos-resumen del mes generados por el motor.
- * "Generar/actualizar" recalcula a partir de la operación (idempotente).
+ * Los meses abiertos se regeneran solos cada día (cron accounting-daily);
+ * "Generar/actualizar" recalcula ya a partir de la operación (idempotente).
  */
 export function DiarioTab({
   month,
@@ -39,6 +40,10 @@ export function DiarioTab({
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  // La corrida diaria (o otra pestaña) está regenerando este comercio.
+  const [lockBusy, setLockBusy] = useState(false);
+  // Última corrida del motor en el mes (ISO) — botón o corrida diaria.
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null);
   // Cierre de período: mes con candado = comprobantes numerados en firme.
   const [monthClosed, setMonthClosed] = useState(false);
   const [closedThrough, setClosedThrough] = useState<string | null>(null);
@@ -53,6 +58,7 @@ export function DiarioTab({
       .then((j) => {
         if (!alive) return;
         setEntries(j.entries as Entry[]);
+        setLastGeneratedAt((j.lastGeneratedAt as string | null) ?? null);
         setMonthClosed(Boolean(j.monthClosed));
         setClosedThrough((j.closedThrough as string | null) ?? null);
       })
@@ -67,14 +73,24 @@ export function DiarioTab({
   async function generate() {
     setBusy(true);
     setErr(false);
+    setLockBusy(false);
     try {
       const r = await fetch(
         `/api/operator/accounting/journal?month=${month}`,
         { method: "POST" },
       );
+      if (r.status === 409) {
+        const j = (await r.json().catch(() => null)) as { error?: string } | null;
+        if (j?.error === "busy") {
+          setLockBusy(true);
+          setBusy(false);
+          return;
+        }
+      }
       if (!r.ok) throw new Error("gen");
       const j = await r.json();
       setEntries(j.entries as Entry[]);
+      setLastGeneratedAt((j.lastGeneratedAt as string | null) ?? null);
     } catch {
       setErr(true);
     }
@@ -118,7 +134,20 @@ export function DiarioTab({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs text-op-muted">{t("journalIntro")}</p>
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-xs text-op-muted">{t("journalIntro")}</p>
+          {/* Tras cargar (así un mes cerrado no parpadea con la nota). */}
+          {entries !== null && !monthClosed && (
+            <p className="text-xs text-op-muted">{t("journalAutoNote")}</p>
+          )}
+          {lastGeneratedAt && (
+            <p className="text-xs text-op-muted">
+              {t("journalLastUpdated", {
+                when: formatDate(lastGeneratedAt, { locale }),
+              })}
+            </p>
+          )}
+        </div>
         <span className="flex gap-3 shrink-0">
           {/* Cierre por mes con la vista del año entero (numeración, candado,
               cierre del ejercicio). Los controles de acá siguen funcionando. */}
@@ -170,6 +199,9 @@ export function DiarioTab({
             {closeBusy ? t("closeWorking") : t("closeMonth")}
           </button>
         </div>
+      )}
+      {lockBusy && (
+        <div className="text-sm text-op-muted">{t("journalBusy")}</div>
       )}
       {err ? (
         <div className="text-sm text-danger">{t("journalError")}</div>

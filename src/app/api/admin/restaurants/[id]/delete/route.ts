@@ -2,7 +2,6 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { IMPERSONATE_COOKIE } from "@/lib/activeRestaurant";
 import {
   deleteRestaurant,
@@ -10,6 +9,7 @@ import {
   isRestaurantDeletionError,
   type RestaurantDeletionErrorCode,
 } from "@/lib/restaurantDeletion";
+import { requirePlatformAdmin } from "./guard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,8 @@ export const dynamic = "force-dynamic";
  *   GET  → lo que se va a borrar (conteos), bloqueos y avisos, para el diálogo.
  *   POST { confirmSlug } → borra. Irreversible: el slug se vuelve a validar acá.
  *
- * Sólo platform_admin, verificado contra la sesión del servidor. El rol sale
- * del JWT revalidado contra la base (src/auth.ts) e impersonar NO lo cambia:
- * un group_admin u operador "dentro" de un comercio sigue sin poder borrarlo.
+ * Los bloqueos que se pueden resolver desde el diálogo van por ./resolve.
+ * Sólo platform_admin (./guard.ts).
  */
 const bodySchema = z.object({ confirmSlug: z.string().max(200) });
 
@@ -33,15 +32,6 @@ const STATUS: Record<RestaurantDeletionErrorCode, number> = {
   leftover_rows: 409,
   concurrent_activity: 409,
 };
-
-async function requirePlatformAdmin() {
-  const session = await auth();
-  if (!session?.user) return { denied: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  if (session.user.role !== "platform_admin") {
-    return { denied: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
-  }
-  return { session };
-}
 
 async function GETHandler(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { session, denied } = await requirePlatformAdmin();

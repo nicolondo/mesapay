@@ -24,6 +24,7 @@
 // usan la nueva base.
 import { db } from "@/lib/db";
 import { ENGINE } from "./engineCodes";
+import { centsToNumber } from "./ledgerCents";
 
 export const DEPRECIATION_SOURCE = "depreciation";
 
@@ -251,7 +252,14 @@ export async function depreciationPairsForMonth(
     select: DEPRECIABLE_SELECT,
     orderBy: { createdAt: "asc" },
   });
-  return depreciationPairsFor(assets, month);
+  return depreciationPairsFor(
+    assets.map((a) => ({
+      ...a,
+      purchaseCents: centsToNumber(a.purchaseCents),
+      salvageCents: centsToNumber(a.salvageCents),
+    })),
+    month,
+  );
 }
 
 /** Líneas del asiento `depreciation` del mes (vacío si nada deprecia). */

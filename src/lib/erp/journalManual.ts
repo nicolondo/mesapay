@@ -18,8 +18,10 @@
 // todo asiento sin número con fecha dentro del mes, sin mirar el origen, así
 // que los manuales del mes también reciben comprobante al cerrar.
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getAccountingConfig, isMonthClosed } from "./cierre";
+import { lineCentsToNumbers } from "./ledgerCents";
 
 export const MANUAL_SOURCE = "manual";
 
@@ -250,15 +252,21 @@ const ENTRY_INCLUDE = {
   lines: { orderBy: { accountCode: "asc" as const } },
 } as const;
 
-export type ManualEntryRecord = NonNullable<
-  Awaited<ReturnType<typeof loadEntry>>
->;
+type StoredEntryRecord = Prisma.JournalEntryGetPayload<{ include: typeof ENTRY_INCLUDE }>;
+
+/** Líneas BIGINT → number: el comprobante viaja como JSON a la UI. */
+function numericEntry(entry: StoredEntryRecord) {
+  return { ...entry, lines: entry.lines.map(lineCentsToNumbers) };
+}
+
+export type ManualEntryRecord = ReturnType<typeof numericEntry>;
 
 async function loadEntry(restaurantId: string, entryId: string) {
-  return db.journalEntry.findFirst({
+  const entry = await db.journalEntry.findFirst({
     where: { id: entryId, restaurantId },
     include: ENTRY_INCLUDE,
   });
+  return entry ? numericEntry(entry) : null;
 }
 
 export type MutationError =
@@ -303,7 +311,7 @@ export async function createManualEntry(args: {
       include: ENTRY_INCLUDE,
     }),
   );
-  return { ok: true, entry };
+  return { ok: true, entry: numericEntry(entry) };
 }
 
 /** ¿Se puede editar/borrar? Sólo manuales vigentes con el mes abierto. */
@@ -371,7 +379,7 @@ export async function updateManualEntry(args: {
       include: ENTRY_INCLUDE,
     });
   });
-  return { ok: true, entry };
+  return { ok: true, entry: numericEntry(entry) };
 }
 
 /**
@@ -482,5 +490,5 @@ export async function reverseEntry(args: {
     });
     return created;
   });
-  return { ok: true, entry };
+  return { ok: true, entry: numericEntry(entry) };
 }

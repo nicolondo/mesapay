@@ -8,6 +8,7 @@ import { getAccountingConfig, isMonthClosed } from "@/lib/erp/cierre";
 import { loadAccountIndex, type AccountIndexEntry } from "@/lib/erp/ledger";
 import { resolvePostableCode } from "@/lib/erp/chart";
 import { dedupeBankLines, foldText, parseBankStatement } from "@/lib/erp/bankStatement";
+import { centsToNumber, type StoredCents } from "@/lib/erp/ledgerCents";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,11 @@ async function GETHandler() {
     }),
     loadAccountIndex(ctx.restaurantId),
   ]);
-  return NextResponse.json({ lines, rules, defaultBankAccountCode: defaultBankCode(index) });
+  return NextResponse.json({
+    lines: lines.map((l) => ({ ...l, amountCents: centsToNumber(l.amountCents) })),
+    rules,
+    defaultBankAccountCode: defaultBankCode(index),
+  });
 }
 
 const importSchema = z.object({ csv: z.string().min(3).max(2_000_000) });
@@ -105,7 +110,10 @@ async function POSTHandler(req: Request) {
       },
       select: { date: true, amountCents: true, description: true },
     });
-    ({ fresh, duplicates } = dedupeBankLines(parsedLines, existing));
+    ({ fresh, duplicates } = dedupeBankLines(
+      parsedLines,
+      existing.map((e) => ({ ...e, amountCents: centsToNumber(e.amountCents) })),
+    ));
   }
   const batch = randomBytes(6).toString("hex");
   if (fresh.length > 0) {
@@ -165,7 +173,7 @@ async function PATCHHandler(req: Request) {
   }
 
   async function journalizeLine(
-    line: { id: string; date: Date; description: string; amountCents: number },
+    line: { id: string; date: Date; description: string; amountCents: StoredCents },
     accountCode: string,
   ): Promise<"ok" | "month_closed" | "account_not_found" | "account_not_postable"> {
     const month = line.date.toISOString().slice(0, 7);
@@ -178,11 +186,12 @@ async function PATCHHandler(req: Request) {
     // reportes.
     if (!postableActive(index, accountCode)) return "account_not_postable";
     const otherId = other.id;
-    const abs = Math.abs(line.amountCents);
+    const amountCents = centsToNumber(line.amountCents);
+    const abs = Math.abs(amountCents);
     const bank = bankCode!;
     // Abono (entra al banco): D banco · C cuenta. Cargo: D cuenta · C banco.
     const lines =
-      line.amountCents > 0
+      amountCents > 0
         ? [
             { accountId: bankId, accountCode: bank, debitCents: abs, creditCents: 0 },
             { accountId: otherId, accountCode, debitCents: 0, creditCents: abs },

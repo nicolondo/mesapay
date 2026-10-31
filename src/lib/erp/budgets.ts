@@ -24,6 +24,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { monthRange } from "./accounting";
 import { natureForType, typeForCode } from "./chart";
+import { centsToNumber, lineCentsToNumbers } from "./ledgerCents";
 
 export const BUDGET_YEAR_MIN = 2020;
 export const BUDGET_YEAR_MAX = 2100;
@@ -254,7 +255,7 @@ function toDto(b: BudgetRecord, nameByCode: ReadonlyMap<string, BudgetAccountInf
     accountName: nameByCode.get(b.accountCode)?.name ?? "—",
     costCenterId: b.costCenterId,
     costCenterName: b.costCenter?.name ?? null,
-    monthlyCents: b.monthlyCents,
+    monthlyCents: centsToNumber(b.monthlyCents),
   };
 }
 
@@ -321,7 +322,13 @@ export async function loadBudgetExecution(
   return {
     year,
     month,
-    rows: budgetVsActual({ budgets, lines, accounts, centers, month }),
+    rows: budgetVsActual({
+      budgets: budgets.map((b) => ({ ...b, monthlyCents: centsToNumber(b.monthlyCents) })),
+      lines: lines.map((l) => lineCentsToNumbers(l)),
+      accounts,
+      centers,
+      month,
+    }),
     budgets: budgets.map((b) => toDto(b, accounts)),
   };
 }

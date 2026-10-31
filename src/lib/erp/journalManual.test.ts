@@ -247,6 +247,8 @@ beforeEach(() => {
   m.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
     id: "e-1",
     ...data,
+    // Como Prisma con `include: lines`: las líneas vuelven como arreglo.
+    ...(data.lines ? { lines: (data.lines as { create: unknown[] }).create } : {}),
   }));
 });
 

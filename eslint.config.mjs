@@ -173,6 +173,10 @@ const MIGRATED = [
   "src/app/comercial/**/*.{ts,tsx}",
   "src/app/admin/comisiones/**/*.{ts,tsx}",
   "src/app/admin/restaurants/\\[id\\]/AdminSalesRep.tsx",
+  // Cambiar mi contraseña (admin) y "olvidé mi contraseña": nacieron trilingües.
+  "src/app/admin/cuenta/**/*.{ts,tsx}",
+  "src/components/account/**/*.{ts,tsx}",
+  "src/app/signin/olvide/**/*.{ts,tsx}",
 ];
 
 const eslintConfig = defineConfig([

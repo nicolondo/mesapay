@@ -47,6 +47,12 @@ export default async function RestablecerPage({
               {t("invalidTitle")}
             </h1>
             <p className="text-sm text-op-muted">{t("invalidBody")}</p>
+            <Link
+              href="/signin/olvide"
+              className="inline-block text-sm text-terracotta underline"
+            >
+              {t("requestNew")}
+            </Link>
             {(!record ||
               record.user.passwordHash === PENDING_PASSWORD_HASH) && (
               <WelcomeResend />

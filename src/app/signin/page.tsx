@@ -40,6 +40,8 @@ function SignIn() {
     !/[\\\r\n]/.test(requestedCallback)
       ? requestedCallback
       : "/";
+  // Aviso tras cambiar la contraseña cuando no se pudo conservar la sesión.
+  const passwordChanged = search.get("notice") === "password_changed";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -129,6 +131,14 @@ function SignIn() {
           <p className="text-sm text-muted leading-relaxed mb-8">
             {ux("signinDescription")}
           </p>
+          {passwordChanged && (
+            <div
+              role="status"
+              className="rounded-lg border border-hairline bg-ivory px-3 py-3 text-sm text-ink mb-6"
+            >
+              {t("passwordChangedNotice")}
+            </div>
+          )}
 
           <label
             htmlFor="email"
@@ -156,7 +166,7 @@ function SignIn() {
           >
             {t("fieldPassword")}
           </label>
-          <div className="relative mb-5">
+          <div className="relative mb-2">
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -180,6 +190,14 @@ function SignIn() {
             >
               {showPassword ? ux("hide") : ux("show")}
             </button>
+          </div>
+          <div className="mb-5 text-right">
+            <Link
+              href="/signin/olvide"
+              className="text-sm text-terracotta underline"
+            >
+              {t("forgotLink")}
+            </Link>
           </div>
           {err && (
             <div

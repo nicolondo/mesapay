@@ -806,6 +806,18 @@
     "expires": "Este link expira em 1 hora e só pode ser usado uma vez.",
     "ignore": "Se você não solicitou, ignore este e-mail."
   },
+  "emailPasswordChanged": {
+    "subject": "Sua senha do MESAPAY foi alterada",
+    "title": "Sua senha mudou",
+    "greeting": "Olá,",
+    "greetingNamed": "Olá {name},",
+    "intro": "A senha da sua conta MESAPAY ({email}) acabou de ser alterada.",
+    "sessions": "Por segurança, encerramos as sessões que você tinha abertas em outros dispositivos.",
+    "notYou": "Não foi você? Crie uma nova senha agora mesmo com “Esqueci minha senha” e avise o administrador do MESAPAY.",
+    "cta": "Redefinir minha senha",
+    "ctaText": "Redefina sua senha aqui: {url}",
+    "ignore": "Se foi você, não precisa fazer nada."
+  },
   "resetPwd": {
     "setupTitle": "Crie sua senha",
     "setupSuccessTitle": "Sua conta está pronta!",
@@ -821,7 +833,23 @@
     "successBody": "Você já pode entrar com sua nova senha.",
     "goLogin": "Entrar",
     "invalidTitle": "Link inválido ou expirado",
-    "invalidBody": "Peça um novo link de redefinição."
+    "invalidBody": "Peça um novo link de redefinição.",
+    "requestNew": "Pedir um novo link"
+  },
+  "forgotPwd": {
+    "title": "Esqueceu sua senha?",
+    "intro": "Digite o e-mail que você usa para entrar no MESAPAY e enviaremos um link para criar uma nova. O link expira em 1 hora.",
+    "fieldEmail": "E-mail",
+    "submit": "Enviar link",
+    "sending": "Enviando…",
+    "sentTitle": "Confira seu e-mail",
+    "sentBody": "Se o e-mail pertencer a uma conta da equipe do MESAPAY, enviamos um link para criar uma nova senha. Ele expira em 1 hora e só pode ser usado uma vez. Confira também a pasta de spam.",
+    "backToSignin": "Voltar para entrar",
+    "dinerQuestion": "Você é cliente?",
+    "dinerLink": "Entre com seu documento ou e-mail",
+    "errInvalidEmail": "Digite um e-mail válido.",
+    "errRateLimited": "Muitas solicitações. Aguarde um pouco e tente novamente.",
+    "errGeneric": "Não conseguimos processar a solicitação. Tente novamente em alguns minutos."
   },
   "emailMagicLink": {
     "subject": "Seu link de acesso ao MESAPAY",
@@ -896,7 +924,9 @@
     "customerQuestion": "Você é cliente?",
     "customerLink": "Entre com seu documento ou e-mail",
     "restaurantQuestion": "Você é um restaurante?",
-    "restaurantLink": "Cadastre seu restaurante"
+    "restaurantLink": "Cadastre seu restaurante",
+    "forgotLink": "Esqueceu sua senha?",
+    "passwordChangedNotice": "Sua senha foi alterada. Entre com a nova."
   },
   "me": {
     "eyebrow": "MESAPAY · Minha conta",
@@ -3909,6 +3939,11 @@
     "audit_user_create": "Criou usuário",
     "audit_user_update": "Editou usuário",
     "audit_user_delete": "Excluiu usuário",
+    "audit_user_password_set": "Definiu a senha de um usuário",
+    "audit_user_reset_email": "Enviou link de redefinição",
+    "audit_user_password_change": "Alterou a própria senha",
+    "audit_user_password_reset": "Redefiniu a senha com um link",
+    "audit_user_password_reset_request": "Pediu para redefinir a senha",
     "audit_order_cancel": "Cancelou pedido",
     "audit_order_item_cancel": "Cancelou item",
     "audit_order_item_comp": "Não cobrou item",
@@ -4188,7 +4223,31 @@
     "resetFail": "Não foi possível apagar os dados.",
     "resetBlocked": "Para apagar Menu ou Mesas você também deve incluir Pedidos (há pedidos que dependem deles).",
     "resetSlugMismatch": "O slug não coincide.",
-    "resetNothing": "Selecione ao menos uma opção."
+    "resetNothing": "Selecione ao menos uma opção.",
+    "navAccount": "Minha conta",
+    "navAccountTitle": "Minha conta: alterar minha senha"
+  },
+  "myAccount": {
+    "title": "Minha conta",
+    "intro": "Os dados que você usa para entrar no MESAPAY.",
+    "emailLabel": "E-mail de acesso",
+    "passwordSection": "Alterar minha senha",
+    "passwordIntro": "Pedimos sua senha atual para confirmar que é você. Ao alterá-la, suas sessões abertas em outros dispositivos são encerradas; esta continua ativa.",
+    "fieldCurrent": "Senha atual",
+    "fieldNew": "Nova senha",
+    "fieldConfirm": "Confirmar nova senha",
+    "hint": "Entre {min} e {max} caracteres, diferente da atual.",
+    "submit": "Alterar senha",
+    "saving": "Salvando…",
+    "success": "Pronto: sua senha foi alterada e encerramos suas outras sessões. Enviamos um aviso por e-mail.",
+    "errCurrentRequired": "Digite sua senha atual.",
+    "errWrongCurrent": "A senha atual está incorreta.",
+    "errTooShort": "Deve ter pelo menos {min} caracteres.",
+    "errTooLong": "Deve ter no máximo {max} caracteres.",
+    "errSame": "A nova senha deve ser diferente da atual.",
+    "errMismatch": "As senhas não coincidem.",
+    "errRateLimited": "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+    "errGeneric": "Não foi possível alterar a senha. Atualize a página e tente novamente."
   },
   "location": {
     "section": "Localização",

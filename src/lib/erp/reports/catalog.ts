@@ -70,6 +70,7 @@ export const REPORT_CATALOG: readonly ReportCatalogCategory[] = [
     ns: "opReportes",
     labelKey: "catComerciales",
     items: [
+      rep("/operator/reports/ventas", "rSalesAnalysis", "rSalesAnalysisDesc"),
       { href: "/operator/reportes/cartera", ns: "opCartera", nameKey: "hubName", descKey: "hubDesc" },
       {
         href: "/operator/reportes/comisiones",

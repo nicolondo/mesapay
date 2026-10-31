@@ -90,6 +90,8 @@ export function buildOperatorNav(input: OperatorNavInput): NavEntryDef[] {
   ];
   const businessGroup: NavLeafDef[] = [
     leaf("/operator/reports", "navClose"),
+    // Análisis de ventas: no depende de ningún módulo (todo comercio vende).
+    leaf("/operator/reports/ventas", "navSalesAnalysis"),
     leaf("/operator/reports/gastos-representacion", "navRepresentation"),
     leaf("/operator/reports/no-cobrados", "navUncollected"),
     leaf("/operator/wallet", "navWallet"),

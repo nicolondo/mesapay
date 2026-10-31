@@ -155,7 +155,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-una-cuenta",
       title: "Cobra una cuenta paso a paso",
       covers:
-        "\"Cobrar la cuenta\" desde la ficha o la orden, confirmar el pedido, la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), elegir el medio, la factura y la pantalla final; qué pasa con \"Sólo el administrador puede iniciar el cobro\" (\"Pedir la cuenta\" y el aviso a pantalla completa).",
+        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Sólo el administrador puede iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
       legacy:
         "Desde Salón o la app del mesero: efectivo, datáfono o cortesía (gastos de representación). Tras el pago se ofrece la factura al cliente.",
     },
@@ -163,61 +163,61 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-en-efectivo",
       title: "Cobra en efectivo y entrega la devuelta",
       covers:
-        "\"Recibir en efectivo\" y \"Registrar cobro\" en Salón: \"¿Con qué te pagó?\", \"Pagó exacto\", devuelta, \"Lo deja de propina\", y el aviso cuando el mesero no tiene turno abierto.",
+        "\"Recibir en efectivo\" en el cobro (\"¿Con qué te pagó?\", \"Cuenta exacta\", \"Devuelta dada\", \"Le devuelvo\" / \"Lo deja de propina\") y \"Registrar cobro\" en Salón para el efectivo que pidió el comensal (\"Pagó exacto\", \"Que se quede con el cambio\"); a qué caja entra según el tipo de turno y el aviso cuando el mesero no tiene turno abierto.",
     },
     {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono asignado o desde Salón) vs datáfono propio del comercio (\"Aprobado\" / \"Rechazado\"), errores de envío y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono asignado o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
     },
     {
       slug: "dividir-la-cuenta",
       title: "Divide la cuenta o combina medios de pago",
       covers:
-        "\"¿Cómo cobrar?\": \"Todo\", \"Partes iguales\" (2 a 20), \"Individual\" (por nombre en los platos) y \"Combinar medios\" (\"Importe de este pago\", \"Cobrar saldo restante\"); qué opciones hay en mostrador.",
+        "\"¿Cómo cobrar?\": \"Todo\", \"Partes iguales\" (2 a 20, sobre lo que falta), \"Individual\" (por nombre en los platos) y \"Combinar medios\" (efectivo + datáfono: \"Propina para toda la cuenta\", \"Importe de este pago\", \"Cobrar saldo restante\", \"No se recibió este pago\"); en mostrador solo \"Todo\" y \"Combinar medios\".",
     },
     {
       slug: "pagos-pendientes-del-comensal",
       title: "Confirma los pagos que pidió el comensal",
       covers:
-        "\"El comensal pidió pagar con…\" y \"Confirmar pago recibido\", \"Pago en línea en curso\", \"No se recibió este pago\" y que cobrar de otra forma reemplaza la solicitud.",
+        "\"El comensal pidió pagar con…\" en Salón, la ficha y el cobro; \"Confirmar pago recibido\"; que cobrar de otra forma reemplaza las solicitudes de efectivo y de datáfono del comercio; \"No se recibió este pago\" (en \"Combinar medios\") y \"Pago en línea en curso\", que no se reemplaza.",
     },
     {
       slug: "imprimir-la-precuenta",
       title: "Imprime la precuenta",
       covers:
-        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, propina sugerida, que no es factura ni numera nada, y la impresión por la impresora de facturas o por el navegador.",
+        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, la propina sugerida (siempre 10 %), que no es factura ni numera nada, y la impresión por la impresora de facturas del agente o por el navegador.",
     },
     {
       slug: "cobrar-a-credito",
       title: "Vende a crédito y registra abonos",
       covers:
-        "Cliente con \"Permitir pagar a crédito\", límite y plazo, \"Cobrar a crédito\" al cobrar, que no entra en caja, \"Abonar\" (cuenta donde entró la plata), \"Estado de cuenta\" y \"Reversar abono\".",
+        "Cliente con \"Permitir pagar a crédito\", límite (el único freno) y plazo (solo fecha de vencimiento), \"Cobrar a crédito\" al cobrar (todo lo pendiente; no está en \"Combinar medios\"), que no entra en caja, \"Abonar\" (\"Cuenta donde entró la plata\"), \"Estado de cuenta\" y \"Reversar abono\".",
     },
     {
       slug: "descuentos-para-clientes",
       title: "Da descuentos a tus clientes",
       covers:
-        "Descuento del comensal registrado (1 a 100 %, identificarlo en la mesa con \"Cédula o correo\", \"Quitar descuento\") vs descuento comercial del cliente de facturación (hasta 50 %), y el historial de la ficha del comensal.",
+        "Descuento del comensal registrado (1 a 100 %; se aplica al pedir con su cuenta, con \"Soy … · aplicar mi cuenta\" o con \"Identificar\" en la ficha de la mesa; \"Quitar descuento\"; solo antes de cualquier pago) vs descuento comercial del cliente de facturación (0,01 a 50 %), y el historial de la ficha del comensal.",
     },
     {
       slug: "cortesias-y-productos-no-cobrados",
       title: "Cortesías, gastos de representación y productos no cobrados",
       covers:
-        "Cerrar una cuenta como cortesía (\"¿A quién se le dio?\", solo sin pagos aprobados) y el informe de \"Gastos de representación\" / \"Productos no cobrados\": filtros, tipos, vistas y \"Descargar CSV\".",
+        "Quién puede no cobrar (roles marcados y la regla de preparación empezada), cerrar una cuenta como cortesía desde el cobro (\"¿A quién se le dio?\", solo sin pagos), \"No cobrar\" un plato entregado con su motivo, y los informes \"Gastos de representación\" / \"Productos no cobrados\": filtros, tipos, vistas y \"Descargar CSV\".",
     },
     {
       slug: "cobros-reembolsos-y-conciliacion",
       title: "Revisa cobros, devuelve un pago o concilia",
       covers:
-        "Lista de Cobros (búsqueda por código, estados, \"Requiere revisión\", \"Ver detalle\"), \"Devolver\" (solo tarjeta, Apple Pay o datáfono Kushki, solo administradores) y \"Conciliar pago\".",
+        "Lista de Cobros (búsqueda por código, estados, \"Requiere revisión\", detalle de la tarjeta) y, en el detalle de la orden, \"Devolver\" (solo tarjeta, Apple Pay o datáfono Kushki; parcial o total; solo administradores) y \"Conciliar pago\".",
     },
     {
       slug: "abrir-y-cerrar-el-turno",
       title: "Abre y cierra el turno del día",
       covers:
-        "Cierre del día: \"Abrir turno\" con efectivo inicial, cuentas abiertas que bloquean el cierre, \"Cerrar turno\" con conteo y diferencia, \"Cerrar también los turnos de meseros\", el día contable, \"Cierres recientes\" y el detalle imprimible de cada turno.",
+        "Cierre del día: \"Abrir turno\" con efectivo inicial, cuentas abiertas que bloquean el cierre, \"Cerrar turno\" con conteo y diferencia, \"Cerrar también los turnos de meseros\", el día contable (corte a las 5:00 por defecto) y la jornada de cada cierre, \"Cierres recientes\" y el detalle imprimible de cada turno con el impuesto al consumo (INC).",
       legacy:
         "En Cierre cuadrás la caja del turno: ventas por método de pago, propinas y diferencias del arqueo.",
     },
@@ -287,37 +287,37 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "el-qr-de-la-mesa",
       title: "Qué pasa cuando el comensal escanea el QR",
       covers:
-        "El QR abre la carta de esa mesa (permiso de 12 horas), \"Solo ver la carta\" sin mesa, la página de bienvenida del restaurante y por qué un link reenviado no deja pedir.",
+        "El QR abre la carta de esa mesa (permiso de 12 horas en ese celular), \"¿Cómo te llamamos?\", \"Solo ver la carta\", la página de bienvenida del restaurante, por qué el enlace de un pedido no abre en otro celular y cómo ayuda el equipo.",
     },
     {
       slug: "la-carta-del-comensal",
       title: "Cómo ve tu carta el comensal",
       covers:
-        "Pestañas de cartas, \"Categorías\", búsqueda en toda la carta, vistas \"Lista\" / \"Cuadrícula\" / \"Editorial\", etiquetas, estrellas, platos agotados e idioma con traducción automática.",
+        "Pestañas de cartas, \"Categorías\", búsqueda en toda la carta, vistas \"Lista\" / \"Cuadrícula\" / \"Editorial\", etiquetas, estrellas, platos agotados (no se muestran) e idioma con traducción automática.",
     },
     {
       slug: "como-pide-el-comensal",
       title: "Cómo pide el comensal y sigue su pedido",
       covers:
-        "\"¿Cómo te llamamos?\", carrito, rondas, \"¿Cómo quieres que salga?\", estado en vivo y tiempo estimado, cancelar un plato \"Por preparar\", \"Llamar al mesero\", \"Añadir más\"; en mostrador paga primero.",
+        "\"¿Cómo te llamamos?\", carrito y su aviso \"¡Agregado!\", \"Marchar orden\" / \"Marchar adición\", \"¿Cómo quieres que salga?\", estado en vivo y tiempo estimado, cancelar un plato \"Por preparar\", \"Llamar al mesero\", \"Añadir más\"; en mostrador paga primero.",
     },
     {
       slug: "como-paga-el-comensal",
       title: "Cómo paga el comensal",
       covers:
-        "\"¿Cómo quieres pagar?\" (\"Todo\", \"Partes iguales\", \"Lo mío\"), propina, bono, medios disponibles (Apple Pay, tarjeta, PSE, datáfono, efectivo), pantallas de espera, verificación del banco, pago rechazado y \"Pagar más\".",
+        "\"¿Cómo quieres pagar?\" (\"Todo\", \"Partes iguales\", \"Lo mío\"), propina, bono, medios disponibles (Apple Pay, tarjeta, PSE, datáfono, efectivo), pantallas de espera, verificación del banco, pago rechazado, \"Pagar más\" y qué ve el comensal cuando el equipo cobra de otra forma.",
     },
     {
       slug: "factura-del-comensal",
       title: "Factura genérica o personalizada para el comensal",
       covers:
-        "\"Factura electrónica genérica\" (correo opcional) y \"Factura electrónica personalizada\" (datos sin dígito de verificación), pedirla antes o después de pagar, datos guardados en el celular y \"Corregir datos\".",
+        "\"Factura electrónica genérica\" (correo opcional) y \"Factura electrónica personalizada\" (correo obligatorio, NIT sin dígito de verificación), pedirla antes o después de pagar, datos guardados en el celular, \"Corregir datos\" y qué cambia con la facturación electrónica activa.",
     },
     {
       slug: "cuenta-del-comensal",
       title: "La cuenta del comensal en tu restaurante",
       covers:
-        "\"Crea tu cuenta\", entrar con \"Cédula o correo\" o con enlace por correo (vence en 20 minutos), \"Mi cuenta\", sus órdenes, seguridad y cómo se aplica su descuento.",
+        "\"Crea tu cuenta\" (desde \"¿Tienes cuenta MESAPAY?…\" en la carta), entrar con \"Cédula o correo\" o con enlace por correo (vence en 20 minutos), \"Mi cuenta\" (órdenes, perfil, seguridad) y cómo se aplica su descuento.",
     },
     {
       slug: "resenas-de-platos",
@@ -329,13 +329,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "reservas-del-comensal",
       title: "Cómo reserva el comensal",
       covers:
-        "\"Reservá tu mesa\": fecha, personas, horario, mesa en el mapa, depósito (mesa apartada 15 minutos), código, \"Ver o cancelar mi reserva\" y \"Cancelar mi reserva\".",
+        "\"Reservá tu mesa\": fecha, personas (1 a 8), horario, mesa en el mapa, depósito (mesa apartada 15 minutos, sin devolución automática), código, \"Ver o cancelar mi reserva\" y \"Cancelar mi reserva\" (hasta la hora de la reserva).",
     },
     {
       slug: "pedidos-para-llevar",
       title: "Pedidos para recoger",
       covers:
-        "QR de recogida, horario, \"Tu nombre\" y \"Celular\", pago antes de cocina, seguimiento \"Pedido para recoger\" y \"Muestra el código al cajero\"; quién activa la función.",
+        "QR de recogida (lo activa MESAPAY), horario y espera máxima, \"Tu nombre\" y \"Celular\", pago con Apple Pay antes de cocina, seguimiento \"Pedido para recoger\" y \"Muestra el código al cajero\", y cómo lo atiende el equipo.",
     },
   ],
 

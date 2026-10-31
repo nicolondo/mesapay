@@ -1,5 +1,344 @@
 {
   "title": "Guest experience",
   "description": "What your guests see: table QR, menu, ordering, paying, invoices, accounts, reviews, reservations and pickup.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "el-qr-de-la-mesa",
+      "title": "What happens when a guest scans the QR code",
+      "summary": "Each table's QR code opens your menu ready to order at that table. Here's how the first scan works, the 12-hour access, the browse-only option and what to do if a link won't open.",
+      "keywords": [
+        "qr",
+        "qr code",
+        "scan",
+        "table",
+        "digital menu",
+        "link",
+        "won't open",
+        "just browse the menu",
+        "welcome page",
+        "camera",
+        "phone"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "Every table has its own QR code. When guests scan it with their phone's camera, they land on your menu already set to that table, without downloading anything or creating an account, and they can order and pay from there.\n\n## What the guest sees\n\n1. They scan the QR code with their phone's camera and open the link.\n2. The first time, MESAPAY lets that phone order at that table for 12 hours and takes them to the menu.\n3. The menu asks **What should we call you?**, so everyone knows what each person ordered. They type their name and tap **Save**, or tap **Just browse the menu**.\n4. From there they build their order. See [How guests order and follow their order](/operator/ayuda/experiencia-del-comensal/como-pide-el-comensal).\n\nSeveral people at the same table can scan the same QR code and order at once from their phones: everything goes on the same bill. At a counter, on the other hand, each scan starts a new order.\n\n## Just browse the menu\n\nIf the guest taps **Just browse the menu**, they see the whole menu but without a cart or buttons to add dishes. The top reads **Just browse the menu** and, below, **To order, scan the QR code at your table.** If they came from a table, they see the **Place an order** link to go back to ordering.\n\n## The welcome page\n\nYour restaurant's general address, without a table, shows **Welcome to** with your restaurant's name and the **Just browse the menu** button. If you work with tables, it reads **Scan the QR code at your table to begin.** If you work with a counter, it also shows **Place an order**.\n\n## Links that won't open on another phone\n\nThe access stays on the phone that scanned the QR code. If the guest forwards the link to their order or their payment to someone else, that person gets a \"not found\" page: they have to scan the table's QR code first.\n\nAfter 12 hours, the guest scans the QR code again. If they signed in to their account at the restaurant, they can still see their own orders.\n\n## How the team helps\n\n- **The QR code is damaged or lost**: reprint it from [Tables](/operator/tables), with **Print QR** on the table or **Print QRs** for all of them. See also [Getting started with MESAPAY](/operator/ayuda/primeros-pasos/por-donde-empezar).\n- **The guest has no phone or battery**: the waiter takes the order from their app or from the panel. The menu opens in **Server mode**, with **Taking order at** and the table.\n- **The guest wants to see their table's order on another phone**: have them scan the table's QR code with that phone.\n\n## Common cases\n\n- **The menu opens but won't let them order**: the guest went in with **Just browse the menu**. Have them tap **Place an order** or scan the QR code again.\n- **The QR code opens a different table**: each QR code belongs to one table. Check the printed number and reprint that table's code.\n- **The order link says it doesn't exist**: it was opened on another phone or more than 12 hours went by. Have them scan the table's QR code.\n",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-carta-del-comensal",
+      "title": "How guests see your menu",
+      "summary": "What guests see on the menu: tabs for each menu, categories, the search that covers the whole menu, the three views, tags, stars and the language with automatic translation.",
+      "keywords": [
+        "menu",
+        "digital menu",
+        "search dish",
+        "search",
+        "categories",
+        "view",
+        "grid",
+        "photos",
+        "tags",
+        "stars",
+        "sold out",
+        "language",
+        "english",
+        "portuguese",
+        "translation"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "The guest's menu builds itself from what you load in Menu: categories, dishes, photos, prices and options. This guide explains what guests see and what you control.\n\n## Menus and categories\n\n- If you have more than one menu (for example, lunch and bar), tabs appear at the top to switch between them. Menus are created in [Menus](/operator/menus).\n- Categories sit in a strip that scrolls sideways. The list button opens **Categories**, with subcategories under each one.\n- Dishes show in alphabetical order. To use your own order, in [Menu](/operator/menu) switch **Dish order** to manual.\n\n## Search\n\n- **Search the menu** searches the whole menu: every tab and category, no matter which one is open.\n- Every word typed has to match. Accents and common spelling mistakes don't matter, such as c, s or z, b or v, the letter h, or ll and y.\n- Dishes whose name matches come first. In descriptions only whole words count: \"agua\" doesn't find \"aguacate\".\n- Results are grouped by category, with the total across the whole menu. If there's nothing, the menu says **No results for** the search and **We searched the whole menu, across every category.** The guest goes back with **Clear search**.\n\n## The three views\n\nAt the top there are three icon buttons:\n\n- **List**: the default view, with name, description, price and tags.\n- **Grid**: two columns of photos. It only shows the **House special** tag.\n- **Editorial**: every third dish shows with a large photo.\n\nThe phone remembers the view the guest picked.\n\n## Tags, stars and sold-out dishes\n\n- **Tags**: labels such as House special, Favorite, Vegetarian, Spicy or New. You set them up in Settings › Dish tags. They show in List and Editorial.\n- **Stars**: the average and number of ratings for each dish. Comments aren't shown to guests. See [Reviews of your dishes](/operator/ayuda/experiencia-del-comensal/resenas-de-platos).\n- **Sold out**: a dish marked **Sold out** in Menu doesn't appear on the menu. It shows again when you turn it back on.\n\n## The dish\n\nWhen a guest taps a dish, they see the photo, the description and the options. Required groups say **Required** and **Choose an option**. They can write **Notes for the kitchen**, such as allergies or preferences, and add it with **Add** and the price. Swiping moves to the next dish.\n\n## Language\n\n- Guests choose between Spanish, English and Portuguese. The first time, the menu shows in their phone's language.\n- Dish names and descriptions, categories, menus and tags are translated automatically. You can fix any translation in Settings › [Menu translations](/operator/settings/traducciones).\n- Modifier options aren't translated: they show as you wrote them.\n\n## Common cases\n\n- **A dish doesn't appear on the menu**: it's marked as sold out in Menu.\n- **A translation came out wrong**: fix it in Menu translations.\n- **A guest can't find a dish by searching**: try a word from the name. Descriptions only match whole words.\n",
+      "links": [
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Go to Menus",
+          "href": "/operator/menus"
+        },
+        {
+          "label": "Go to Menu translations",
+          "href": "/operator/settings/traducciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "como-pide-el-comensal",
+      "title": "How guests order and follow their order",
+      "summary": "From the name to the cart and from Fire the order to the live status: how guests order from their phone, add rounds, cancel a dish that hasn't been started and call the waiter.",
+      "keywords": [
+        "order",
+        "ordering",
+        "cart",
+        "fire the order",
+        "send order",
+        "round",
+        "additions",
+        "name",
+        "order status",
+        "estimated time",
+        "cancel dish",
+        "call the server",
+        "bell",
+        "counter"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "From the menu, guests build their order, send it to the kitchen and follow its status live. Several people at the same table can order at once from their phones: it all goes on one bill.\n\n## The name\n\nWhen they come in, the menu shows **At this table** and **What should we call you?**, so everyone sees what they ordered. The guest types **Your name or nickname** and taps **Save**. Only their table sees the name, and no account is created. The top then shows **I'm** with their name; if they didn't give one, it says **Tell us your name**.\n\nThe name is used later to pay only for what's theirs. See [How guests pay](/operator/ayuda/experiencia-del-comensal/como-paga-el-comensal).\n\n## The cart\n\n1. The guest taps + on a dish, or opens it to choose options and taps **Add**.\n2. With the first dish, the notice **Added!** and **Tap below to review and send your order** appears, pointing at the cart button for 2 seconds.\n3. They tap **Review and send order** to open **Your order**. There they review the dishes, add a **+ Note for the kitchen** or tap **Remove**.\n\nThe cart stays saved on the phone for 6 hours.\n\n## Fire the order\n\n1. On the table's first order, the menu asks **How should it come out?**: **As it's ready** or **Mains together**.\n2. The guest taps **Fire the order** and the order reaches the kitchen.\n3. To order more during the meal, they go back to the menu, build another round and tap **Fire the additions**. The cart says **Will be added to order** with the code, and the total reads **This round**.\n\n## Follow the order\n\nAfter firing, the guest sees **Your order** with the bill code and its **Rounds**. Each dish shows its status: **To prepare**, **Preparing**, **Ready to serve** or **Served**, and who ordered it. If several people ordered at the table, they also see the total **Per person**.\n\nThe screen updates on its own and shows **Something's ready!** when a dish comes out. **Estimated time** tells them in how many minutes their order will come out, based on how busy the kitchen is.\n\n## Cancel a dish\n\nWhile a dish is **To prepare** and the kitchen hasn't taken it, the guest can tap **Cancel** and confirm with **Yes, cancel**. If the kitchen already took it, they'll see **The kitchen already took it. It can't be cancelled.** and will have to ask the waiter.\n\n## Call the waiter\n\nThe guest taps the bell at the top of the menu, or **Call the server** on their order. They see **Server on the way**. The table's waiters get a notification, and the call shows up in [Floor](/operator/serve).\n\n## Add more and pay\n\nOn their order, the guest sees the total with a suggested 10% tip, which they can change with **Adjust tip**. **Add more** takes them back to the menu and **Pay** opens checkout.\n\n## At a counter\n\nIf your restaurant works with a counter (food truck, takeout), the guest pays first: they tap **Review and pay** and then **Go to pay**. The order goes to the kitchen as soon as the payment is confirmed.\n\n## How the team helps\n\n- **The guest can't manage to order**: the waiter can take the order for them from their app or from the panel.\n- **The team cancelled a dish**: that dish disappears from the guest's list. Let them know at the table.\n- **No pudimos enviar el pedido. Intenta de nuevo.** (We couldn't send the order. Try again.): a dish in the cart may have sold out. Have them remove it from the cart and send again.\n",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Floor (waiter app)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "como-paga-el-comensal",
+      "title": "How guests pay",
+      "summary": "What guests see when they tap Pay: how they split the bill, the tip, the available payment methods, the waiting screens and what to do if the payment isn't approved.",
+      "keywords": [
+        "pay",
+        "online payment",
+        "pay from phone",
+        "apple pay",
+        "card",
+        "pse",
+        "bank transfer",
+        "cash",
+        "card reader",
+        "tip",
+        "split",
+        "just mine",
+        "declined",
+        "verification",
+        "3d secure",
+        "voucher"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "Guests can pay their bill from their phone without waiting for the waiter: they choose how much to pay, leave the tip and pick the payment method. If they'd rather pay in cash or by card reader, the app lets the team know.\n\n## How much they pay\n\n1. On their order, they tap **Pay**.\n2. Under **How would you like to pay?**, they choose **All**, **Split evenly** (divides between a number of people) or **Just mine** (only what they ordered, based on the names on the dishes). At a counter there are no options: they pay everything.\n3. Under **Tip on your share**, they choose **No tip**, 5%, 10%, 15% or 20%. 10% is selected by default. If they adjusted it earlier on their order with **Adjust tip** (up to 30%), that's kept.\n4. They check the **Total to pay**.\n\nIf your restaurant has corporate vouchers, they can also type their code under **Have a voucher?**, tap **Check** and then **Apply** the voucher's value. The voucher pays for the food, not the tip.\n\n## Payment methods\n\nThe ones MESAPAY enabled for your restaurant appear:\n\n- **Apple Pay**: only in Safari, on an iPhone, iPad or Mac with Apple Pay set up.\n- **Credit or debit card**: they enter the card details and an email for the receipt, and tap **Pay**.\n- **PSE (bank transfer)**: they choose their bank and ID document and tap **Go to the bank**.\n- **Card with card reader**: the waiter brings the Kushki card reader to the table.\n- **Card (merchant's card reader)**: the waiter brings your card reader.\n- **Cash (call the server)**: they answer **How much will you pay with?**: **Exact amount**, one of the suggested bills or **Other amount**. They can also tap **I'd rather tell the server →**.\n\nCard, PSE and Apple Pay confirm on their own. Cash and card reader reach the team as a request: see [Confirm the payments the guest requested](/operator/ayuda/cobro-y-caja/pagos-pendientes-del-comensal).\n\n## Waiting screens\n\n- **Cash**: **The server is coming to charge you**. When the team confirms, they see **Payment received!**.\n- **Card reader**: **The server is coming with the card reader**. If approved, they see **Payment approved!**.\n- **Bank verification**: with a card, the bank may ask for verification. The guest goes to their bank's page and comes back to **Verifying your payment…**.\n- **Unclear result**: if the payment hasn't been confirmed yet, they see **We are checking your payment**, with a note not to pay again, and **Back to the bill**.\n\n## If the payment isn't approved\n\n- With a card they see **The payment was declined. You can choose another method.**\n- Back on the bill they see **Your payment wasn't approved**, so they can try another method or ask the waiter to run the card again.\n- With PSE or card reader they see **Payment declined**. With PSE they can tap **Retry**.\n\n## When they pay only part\n\nAt the end, they see **Your share** and how much of the bill is paid, with **Settled** or **Remaining**. Someone else at the table can keep paying from their phone, or tap **Pay more**. When everything is paid, they see **Bill paid** and can request their invoice. See [Generic or personalized invoice for the guest](/operator/ayuda/experiencia-del-comensal/factura-del-comensal).\n\nAt a counter they see **Order paid** and **Your code**: **Show it to the cashier when they call you.**\n\n## How the team helps\n\n- **They don't see a payment method**: MESAPAY enables them. See [Card, PSE and Apple Pay for your customers](/operator/ayuda/pagos-en-linea/medios-de-pago-en-linea).\n- **They'd rather pay the waiter**: the team charges from **Charge the bill**. See [Charge a bill step by step](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n- **They chose cash and end up paying by card**: charge with the other method and the request is replaced automatically. Their cash waiting screen will show **Payment cancelled**, but the bill was paid.\n- **Their payment is being verified**: wait for the result; you can see it in [Payments](/operator/payments).\n",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Payments",
+          "href": "/operator/payments"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "factura-del-comensal",
+      "title": "Generic or personalized invoice for the guest",
+      "summary": "Guests request their generic electronic invoice, with or without an email, or one in their name, before or after paying, and can save their details on their phone. Here's how the team helps.",
+      "keywords": [
+        "invoice",
+        "electronic invoice",
+        "invoice in my name",
+        "nit",
+        "id number",
+        "company name",
+        "final consumer",
+        "generic invoice",
+        "email",
+        "check digit",
+        "edit details",
+        "request invoice",
+        "tax invoice"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "On the payment screen, guests request their electronic invoice without talking to anyone: generic, to receive it by email or print it, or personalized, in the name of a person or a company. The team can do the same from the checkout.\n\n## Before paying\n\nThe payment screen shows **Need an electronic invoice?** (in the team's checkout, **Does the customer need an electronic invoice?**), with two options:\n\n- **Generic electronic invoice**: the **Email (optional)** is for receiving it. They tap **Request invoice**. With an email they see **We'll send it once the payment clears**; without one, **We'll generate it once the payment clears**, to print it.\n- **Personalized electronic invoice**: they enter **Name or company**, the document **Type** (CC, CE, NIT or **Passport**), the **ID number** and the **Email**, which is required here. They tap **Request invoice**.\n\nThe details are saved and the invoice is generated once the payment is confirmed.\n\n## The NIT, without the check digit\n\nThe number goes in as **Number only, without the check digit.** If the guest types it with the digit and it's correct, MESAPAY removes it. If the digit doesn't match, they see **The check digit doesn't match that NIT. Enter the number only, without the check digit.**\n\n## After paying\n\nOnce the bill is fully paid, the final screen shows **Need an invoice? Request it here**. For the generic one the button is **Generate invoice**; for the personalized one, **Send to the restaurant**.\n\n## Details saved on the phone\n\nAfter requesting a personalized invoice, the details stay saved on that phone, up to 5 profiles. Next time, the guest sees **Details saved on this device** and can tap **Use saved details**, **Enter new ones →** or **Forget** to delete them. When the team fills in the invoice from the checkout, nothing is saved on the team's device.\n\n## Edit details\n\nWhile the personalized invoice hasn't been generated, the guest sees **Invoice request sent** and can tap **Edit details**. Each bill gets a single invoice: if they request it again, the new request replaces the previous one. If the invoice was already generated, they'll see **An invoice was already generated for this order. Contact the restaurant for corrections.**\n\n## With electronic invoicing turned on\n\nIf your restaurant has electronic invoicing turned on, every sale generates its invoice: in the guest's name if they asked for a personalized one, and to the final consumer otherwise. Without that module, the invoice is only generated when someone requests it.\n\n## How the team helps\n\n- In the checkout, **Find a registered customer** loads a billing customer's details. See [Give your customers discounts](/operator/ayuda/cobro-y-caja/descuentos-para-clientes).\n- The generic invoice without an email is for printing it and handing it over at the table. It prints on the invoice printer: see [Check your printers from the panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- **The guest got a detail wrong and the invoice was already generated**: check it in [Invoices](/operator/facturas). If it already went to the DIAN, it's corrected with a credit note.\n",
+      "links": [
+        {
+          "label": "Go to Invoices",
+          "href": "/operator/facturas"
+        },
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cuenta-del-comensal",
+      "title": "The guest's account at your restaurant",
+      "summary": "Your customers can create an account at your restaurant to use their discount and see their orders. Here's how they create it, how they sign in with a password or an email link and what's in My account.",
+      "keywords": [
+        "account",
+        "sign up",
+        "create account",
+        "sign in",
+        "log in",
+        "password",
+        "email link",
+        "my account",
+        "id number",
+        "discount",
+        "regular customer",
+        "loyalty",
+        "devices",
+        "sign out"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "The guest's account is their profile at your restaurant: with it, the team recognizes them, their discount is applied and they see their orders. It belongs to your restaurant only: if they eat at another MESAPAY restaurant, they create a separate one there.\n\n## Create the account\n\n1. On the menu, the guest opens their name and taps **Have a MESAPAY account? Sign in to use your discount**.\n2. On the sign-in screen, they tap **Don't have an account?** **Create one here**.\n3. In **Create your account**, they enter **Full name**, **ID number**, **Email**, a password of at least 8 characters and, if they want, **Mobile (optional)**.\n4. They tap **Create account**.\n\nThe account shows up in [Customers](/operator/clientes), under **Registered diners**.\n\n## Sign in\n\n- **With a password**: in **Sign in to your account**, they enter **ID number or email** and the **Password**, and tap **Sign in**. They won't be asked for the password again on that phone.\n- **With an email link**: they tap **Email me a link instead** and then **Send link**. The link expires in 20 minutes and works once; requesting another cancels the previous one. When they open it, they tap **Sign in to my account**.\n\nAfter signing in, the guest lands on My account. To keep ordering, they go back to the menu with the back button or by scanning the table's QR code again.\n\n## My account\n\nIn **My account at** your restaurant, the guest sees:\n\n- **Your orders**: their last 30 bills. The ones still open have **Open →**.\n- **Your profile**: name, mobile and ID number, with **Save**.\n- **Security and devices**: the phones and computers where they signed in, **Sign out of the other devices**, **Sign out everywhere** and **Change password**.\n- **Sign out**, to end the session on that phone.\n\n## Their discount\n\nIf you gave them a discount on their Customers profile, it's applied to the table's bill:\n\n- automatically, if they signed in and send the first order from the menu;\n- if there's already an order at the table, by opening their name on the menu and tapping **I'm … · use my account**;\n- or from the table sheet, when you or the waiter identify them with their ID number or email.\n\nThe discount is applied before any payment. See [Give your customers discounts](/operator/ayuda/cobro-y-caja/descuentos-para-clientes).\n\n## Common cases\n\n- **The link doesn't arrive**: have them check their spam folder and that the ID number or email belongs to their account at your restaurant. If 20 minutes have passed, have them request another.\n- **They forgot their password**: have them sign in with **Email me a link instead** and then change it under **Change password**.\n- **We couldn't find an account with those details at this restaurant.**: this shows when identifying them at the table if they don't have an account yet. Have them create it from the menu.\n- **They lost their phone**: have them sign in from another one and tap **Sign out of the other devices**.\n",
+      "links": [
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "resenas-de-platos",
+      "title": "Reviews of your dishes",
+      "summary": "Guests rate the dishes they were already served from 1 to 5 stars, with an optional comment. In Reviews you see the averages per dish and the recent comments.",
+      "keywords": [
+        "reviews",
+        "rating",
+        "stars",
+        "opinions",
+        "comments",
+        "score",
+        "feedback",
+        "how was it",
+        "average",
+        "satisfaction"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "Reviews tell you which dishes people like and which they don't, straight from the people who ate them. Guests rate from their order and you see everything on the Reviews screen.\n\n## How guests rate\n\n1. On their order page, when a dish is **Served**, **How was it?** appears with 1 to 5 stars.\n2. They tap the stars. If they want, they write a comment in **Tell us something (optional)**, up to 500 characters.\n3. They tap **Send** and see **Thanks for your rating!**.\n\n- Each dish on the order is rated once and the rating can't be changed.\n- Anyone at the table can rate any dish on the bill.\n- Only dishes the team marked as delivered in Floor can be rated.\n- Pickup orders don't have ratings.\n\n## What you see\n\nGo to [Reviews](/operator/ratings), in the **Orders** menu:\n\n- At the top: **Total reviews**, **Global average** and **Dishes with reviews**.\n- **By dish**: each dish with its average and number of reviews, most rated first.\n- **Recent comments**: the latest ratings, with or without a comment, with the name the guest left or **Anonymous**.\n\nThe screen uses the last 200 ratings. The stars on the menu use all of them.\n\nReviews can't be replied to, hidden or deleted.\n\n## On the menu\n\nEach dish shows its stars: the average and number of ratings. Comments aren't shown to guests. See [How guests see your menu](/operator/ayuda/experiencia-del-comensal/la-carta-del-comensal).\n\n## Common cases\n\n- **No reviews come in**: check that the team marks dishes as delivered in [Floor](/operator/serve). Without that, guests don't see **How was it?**.\n- **You don't have any reviews yet.**: nobody has rated yet.\n- **I want to delete an unfair review**: it's not possible. Use the comments to improve the dish.\n",
+      "links": [
+        {
+          "label": "Go to Reviews",
+          "href": "/operator/ratings"
+        },
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reservas-del-comensal",
+      "title": "How guests make a reservation",
+      "summary": "What guests go through when booking from your link: date, party size, time, table, the deposit if you ask for one, their code and how they view or cancel their reservation.",
+      "keywords": [
+        "reservations",
+        "book",
+        "online booking",
+        "reserve a table",
+        "deposit",
+        "prepayment",
+        "reservation code",
+        "cancel reservation",
+        "google maps",
+        "booking link",
+        "time slot",
+        "no show"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "With reservations on, your customers book a table from a link you share on WhatsApp, social media, your website or Google Maps. This guide shows what guests see; setup is done in Settings › Reservations.\n\n## The reservation link\n\nIn Settings › [Reservations](/operator/settings/reservas), with **Accept reservations** on, copy the **Reservation link** with **Copy**. For Google Maps there's the **Link for Google**.\n\n## The guest's steps\n\n1. They open the link and see **Reserve your table**.\n2. They choose the **Date**: from today up to the days you allowed in **How many days ahead**.\n3. Under **How many of you?**, they choose 1 to 8 people. The 8-or-more button books for 8: larger groups are best handled by phone.\n4. They pick a time under **Available times**.\n5. They pick the table: on the map (**Pick your table on the map**) if you drew it, or from a list (**Pick your table**). If only one table fits, it's picked automatically.\n6. Under **Your details**, they enter their name and email. Phone and notes are optional.\n7. They tap **Reserve**, with the date and time, or **Continue · deposit** if the table requires a deposit.\n8. They see **Reservation confirmed!**, their code (for example, MP-4K7Q2C) and **View or cancel my reservation →**.\n\n## The deposit\n\n- The deposit amount is set per table, in [Tables](/operator/tables). The methods to collect it (Card, PSE or Apple Pay) are chosen under **Deposit to reserve**.\n- While the guest pays, the table is held for 15 minutes. If they don't pay, it's released.\n- Once paid, the reservation is confirmed.\n- The screen warns them that if they don't show up, the deposit isn't refunded.\n- When they arrive, in [Reservations](/operator/reservas) you apply the deposit to their bill with **Apply … deposit to bill**.\n\nMESAPAY doesn't refund deposits on its own: if the guest cancels and you want to give the money back, do it directly with them.\n\n## View or cancel the reservation\n\nWith their code's link, the guest sees the status and details of their reservation and can tap **Cancel my reservation** up to the reservation time. After that, they see **For changes, contact the restaurant directly.** Reservations can't be changed online: for another date, they cancel and book again.\n\n## Common cases\n\n- **No times available for this date. Try another day.**: that day has no reservation shifts or every table is taken. Check **Shifts by day** in Settings › Reservations.\n- **Reservations arrive as pending**: you turned off **Auto-confirm**. Confirm them in time in Reservations so the guest isn't surprised.\n- **The guest lost their code**: it's in the email they got when booking.\n- **The deposit isn't charged**: check that a method is checked under **Deposit to reserve** and that your business has online payments turned on.\n",
+      "links": [
+        {
+          "label": "Go to Reservations",
+          "href": "/operator/reservas"
+        },
+        {
+          "label": "Go to reservation settings",
+          "href": "/operator/settings/reservas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pedidos-para-llevar",
+      "title": "Pickup orders",
+      "summary": "With advance orders, customers scan the pickup QR code, order and pay from their phone and pick up at the counter with their code. MESAPAY turns the feature on.",
+      "keywords": [
+        "takeout",
+        "pickup",
+        "pick up",
+        "advance order",
+        "take away",
+        "pickup qr",
+        "code",
+        "counter",
+        "order ahead",
+        "prepaid",
+        "hours",
+        "apple pay"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "Pickup ordering lets your customers order and pay from their phone before they arrive, and come to the counter only to collect. MESAPAY turns on the feature, its hours and the maximum wait time for your restaurant: contact support if you want it.\n\n## The pickup QR code\n\nWith the feature on, [Tables](/operator/tables) shows the **Pickup QR** card (**Advance order**), with **Print** and **QR link**. Print the QR code for the entrance or the window, or share the link. The card doesn't show for restaurants that work with a counter or in the waiter app.\n\n## What the customer goes through\n\n1. They scan the pickup QR code and see your menu.\n2. They build their order and tap **Review and pay**.\n3. Under **Pickup** they see the **Estimated wait time**, calculated from what's in the kitchen.\n4. They enter **Your name** and their **Mobile**.\n5. They pay. **Your order enters the kitchen only once payment is approved.**\n6. They see **Pickup order**, their code with their name and a countdown. The screen says **We'll let you know on this screen when it's ready.**\n7. When it's ready, they see **Your order is ready!**, **Come to the counter** and **Show the code to the cashier.**\n\nMESAPAY doesn't send messages to their phone: the notice shows on that screen, so they should keep it open.\n\n## How the team handles it\n\n- In [Kitchen](/operator/kitchen), the order shows marked **Pickup**, with the customer's name.\n- When it's ready, it shows in [Floor](/operator/serve) with the customer's name so you can hand it over. Check the code they show you and mark it as delivered; the customer will see **Delivered**.\n\n## Hours and wait time\n\n- Outside opening hours, the customer sees **We're closed right now** and when you reopen.\n- If the kitchen wait goes over the maximum, they see **Kitchen at capacity** with the estimated time and the cap, and can try again in a few minutes.\n- If the feature is off, they see **Pre-orders unavailable**.\n\nTo change the hours or the maximum wait time, contact support.\n\n## Payment\n\n> ⚠ Right now, pickup orders can only be paid with Apple Pay: the customer needs an iPhone or a device with Apple Pay, and MESAPAY has to have Apple Pay turned on for your restaurant. Otherwise the customer sees **This restaurant does not have pickup payments enabled yet. Order at the counter or come back later.** or **Apple Pay isn't enabled for this restaurant yet.**, and can't send the order. Contact support to look into it.\n\n## Common cases\n\n- **Pre-orders unavailable**: the feature isn't on. Contact support.\n- **I don't see the Pickup QR card in Tables**: the feature isn't on, or you're in the waiter app.\n- **The customer didn't get a text message**: that's expected; the ready notice shows on their order screen.\n",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        },
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

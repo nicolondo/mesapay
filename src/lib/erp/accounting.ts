@@ -421,15 +421,20 @@ export function centsToAmount(cents: number): number {
 export type RecurringTemplate = {
   id: string;
   recurringDay: number;
+  /** Cuándo se creó la plantilla: no se le cobra un mes que ya había pasado. */
+  createdAt?: Date;
 };
 
 /**
- * Qué plantillas tocan HOY y aún no tienen copia este mes. Pura: el cron
+ * Qué plantillas tocan este mes y aún no tienen copia. Pura: el cron
  * consulta plantillas + copias del mes y escribe las que salgan de acá.
  *
- * Regla del día: materializa cuando day-of-month (UTC) == recurringDay.
- * recurringDay se valida 1-28 en la API, así que todos los meses tienen
- * el día — sin casos de febrero.
+ * Regla del día: materializa cuando ya llegó su día del mes (UTC): el día
+ * exacto o, si el cron no corrió ese día, el primer día que corra después
+ * dentro del mismo mes (antes se perdía el gasto de ese mes). Una plantilla
+ * creada DESPUÉS de su día de este mes no genera copia este mes: arranca
+ * el siguiente. recurringDay se valida 1-28 en la API, así que todos los
+ * meses tienen el día — sin casos de febrero.
  */
 export function materializeRecurring(
   templates: RecurringTemplate[],
@@ -438,10 +443,22 @@ export function materializeRecurring(
 ): string[] {
   const day = today.getUTCDate();
   return templates
-    .filter(
-      (t) => t.recurringDay === day && !copiesThisMonthByTemplateId.has(t.id),
-    )
+    .filter((t) => {
+      if (t.recurringDay > day || copiesThisMonthByTemplateId.has(t.id)) return false;
+      if (!t.createdAt) return t.recurringDay === day;
+      const dueDayEnd = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), t.recurringDay + 1);
+      return t.createdAt.getTime() < dueDayEnd;
+    })
     .map((t) => t.id);
+}
+
+/**
+ * Fecha contable de la copia de una plantilla: su día del mes, a mediodía
+ * de Colombia (17:00 UTC, la misma convención de las fechas que elige el
+ * operador), también cuando el cron la crea días después.
+ */
+export function recurringCopyDate(today: Date, recurringDay: number): Date {
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), recurringDay, 17));
 }
 
 /** Split received purchases using the classification frozen at each reception.

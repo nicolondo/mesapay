@@ -1,5 +1,392 @@
 {
   "title": "Floor and orders",
   "description": "Tables, orders, kitchen, bar, Floor, prep stations, tags and reservations.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "tomar-un-pedido-desde-mesas",
+      "title": "Take and fire an order from Tables",
+      "summary": "When a diner doesn't order from their phone, you take the order from Tables using the menu in Server mode and fire it to the kitchen and the bar.",
+      "keywords": [
+        "take order",
+        "order",
+        "ticket",
+        "fire",
+        "fire the order",
+        "fire additions",
+        "send to kitchen",
+        "server mode",
+        "waiter mode",
+        "add dishes",
+        "note for the kitchen",
+        "mains together",
+        "counter",
+        "new order",
+        "round"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Diners can order on their own with the table's QR code, but when they'd rather tell someone, you or your team take the order from **Tables** with the same menu, in **Server mode**, and send it to be prepared.\n\n## Take the order for an available table\n\n1. Go to [Tables](/operator/tables). You can also get there from the top bar with **New order › Go to Tables**.\n2. Tap an available table (it says **available**). The menu opens in a new tab, with a black strip at the top that says **Server mode · Taking order at Table 5**.\n3. Find the dish with **Search the menu** or by category, and tap it.\n4. Choose its options. The ones marked **Required** must be filled in before you can add the dish.\n5. If needed, tap **+ Note for the kitchen** and write allergies or preferences.\n6. Tap **Add · $price**. Repeat for each dish.\n7. Tap **Review and send order** to check **Your order**: change quantities with **+** and **−**, or remove a line with **Remove**.\n8. On the table's first order, choose **How should it come out?**: **As it's ready** (each dish arrives as soon as it's ready) or **Mains together** (starters and drinks come out as they're ready; mains all come out together).\n9. Tap **Fire the order**.\n\nOnce it's sent, the screen switches to **Floor**, where ready dishes show up later for delivery.\n\n## Add dishes to a table that already ordered\n\n1. In **Tables**, tap the occupied table to open its card.\n2. Tap **+ Add dishes**. The menu opens and **Your order** says **Will be added to order** with the bill's code.\n3. Add the dishes and tap **Fire the additions**. Each send reaches the kitchen as a new round (R2, R3…) on the same bill.\n\nThe \"how should it come out\" question only appears on the first send: later rounds keep what was chosen at the start.\n\n## What happens in the kitchen and the bar\n\n- Each dish lands on its station's board (kitchen or bar) under **To prepare**, with the name of whoever placed it. See [Work with the Kitchen and Bar board](/operator/ayuda/salon-y-pedidos/tablero-de-cocina-y-bar).\n- If the station has **Fire automatically when the order arrives** turned on, the dish moves to preparation on its own and the ticket prints right away.\n- Anything routed to **Fridge / counter** (or to the bar when there's no bartender) isn't prepared: it comes in ready and shows up directly on **Floor** for someone to take it out.\n\n## If you work in counter mode\n\nIn counter mode the screen is called **Counter** and has a single card. You build the order the same way, but the last button is **Go to pay**: the order is saved and goes to the kitchen only once it's paid. To charge it, go back to **Counter**, tap the card and then **Charge the bill**.\n\n## Common cases\n\n- **I don't see Mains together when ordering**: it only appears on the table's first send. For the kitchen to hold the mains, their category must be marked as **Main course category** in the menu.\n- **A dish isn't on the menu**: it's sold out or archived. Check it in **Menu**.\n- **\"We couldn't send the order. Check your connection.\"**: the order didn't go out. Check the internet and tap **Fire the order** again; what you added is still in **Your order**.\n- **The menu opened as if I were a diner (it asks for my name)**: your session ended. Sign back in to the dashboard and open the table again from **Tables**.\n- **I need to fix something that was already fired**: do it from the table's card. See [Cancel, comp or move a dish](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-pantalla-mesas",
+      "title": "Read the Tables screen and each table's card",
+      "summary": "Tables shows at a glance which table is free, which is eating, which has dishes ready and which may leave without paying. Tap a table to see its full order.",
+      "keywords": [
+        "tables",
+        "table status",
+        "colors",
+        "red",
+        "risk",
+        "walkout",
+        "leave without paying",
+        "to collect",
+        "recently paid",
+        "available",
+        "table card",
+        "order status",
+        "rush",
+        "identify diner",
+        "discount",
+        "charge",
+        "service",
+        "bell"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "**Tables** is the floor board: each square is a table, and its color tells you what it needs. Tapping a table with an open bill opens its card, **Order status**, with everything it ordered and what you can do with it.\n\n## What each square shows\n\n- **T-5** is the table number; its name goes underneath, if it has one.\n- An available table says **available**. Tapping it starts a new order.\n- An occupied table shows what's left to collect and, below, how many items it has and, once it needs attention, how many minutes it has been waiting: **12m · 3i**.\n- The bell 🔔 means the table called a waiter and nobody has answered yet.\n- A recently paid table turns green, with ✓ and how long ago it paid. It stays that way for 15 minutes and is ready for a new group.\n\nOccupied tables come first, starting with the most urgent ones (red and terracotta); then the rest, by number. The screen updates on its own.\n\n## The colors\n\n- **White**: available.\n- **Green**: recently paid.\n- **Soft gray**: they're eating, everything delivered, nothing urgent.\n- **Light amber**: the kitchen is preparing.\n- **Strong amber**: there are dishes ready, waiting for someone to take them out.\n- **Amber with nothing in the kitchen**: they've finished eating and haven't paid for a while.\n- **Terracotta**: the table asked to pay (cash or card terminal) or called a waiter. If nobody answers, the dot in the corner starts blinking.\n- **Red with a blinking dot**: high risk that they'll leave without paying.\n\nRed depends on **High risk (red) after**, in [Operating policies](/operator/settings/staff-policies) (20 minutes by default). With that value, a table that has received everything and hasn't paid turns red after 20 minutes, and an unanswered payment request or call after 10. While there are dishes in the kitchen, the \"ate and didn't pay\" clock doesn't run.\n\n## The filters\n\nAt the top are **All**, **To collect** (tables with an open bill), **Recently paid** and **Available**, each with its count.\n\n## The table's card\n\nTap an occupied table. On the **Order status** card you'll see, from top to bottom:\n\n1. If the diner already asked to pay in cash or with a card terminal, the notice **The guest asked to pay with** and the **Confirm payment received** button.\n2. **Outstanding** (what's left) or **Total bill**, with the discount if there is one.\n3. **Diner**: type their **ID number or email** and tap **Identify** to link their account at the restaurant. If they have a discount, it's applied automatically; **Remove discount** takes it off this bill.\n4. The buttons: **+ Add dishes**, **Add charge or service**, **Charge the bill**, **Print pre-bill**, **Move to another table** and **Cancel the bill**. Each one only appears when it can be used.\n5. The rounds (**Round 1**, **Round 2**…) with **Placed by:** and the name and role of whoever sent it. If it's missing, the diner ordered from their phone.\n6. Each dish with its price and status: **To prepare**, **Preparing**, **Ready** or **Served**, and how long it has been (**8 min ago**, **ready 3 min ago**).\n\nThe card refreshes on its own every 15 seconds.\n\n## Rush a dish\n\nIf a dish is taking too long, tap **🔥 Rush** next to it. On the kitchen board the dish jumps to the top with the rush mark, and the card shows **🔥 Rushed**. Only dishes that aren't ready yet can be rushed.\n\n## Charge something that isn't on the menu\n\nTap **Add charge or service** to add, for example, catering or a room rental: enter the **Description**, the **Qty**, the **Unit price** and the **Tax**, and tap **Add to bill**. These charges don't go through the kitchen and appear on the card under **Charges and services**.\n\n## Common cases\n\n- **\"This bill is already being paid. Finish or cancel the payment before adding a charge.\"**: someone is charging the table. Wait for them to finish or void that payment.\n- **I see Ask for the bill instead of Charge the bill**: the restaurant has turned on \"only the administrator charges\". See [Set your team's permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos).\n- **\"We couldn't find an account with those details at this restaurant.\"**: the diner doesn't have an account at your restaurant. They can create one from the menu.\n- **I work in counter mode**: the screen is called **Counter** and shows a single card with the most recent order.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Operating policies",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "crear-mesas-e-imprimir-qr",
+      "title": "Create tables and print their QR codes",
+      "summary": "Add tables one by one or by range, change their number or name, and print the sheet with each table's QR code so diners can order from their phones.",
+      "keywords": [
+        "create tables",
+        "add table",
+        "add tables",
+        "several tables",
+        "range",
+        "edit tables",
+        "rename table",
+        "delete table",
+        "remove table",
+        "qr",
+        "qr code",
+        "print qr",
+        "links",
+        "table link",
+        "pickup qr"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Each table has its own QR code: the diner scans it and opens that table's menu to order and pay. Tables are created and edited from **Tables**, and the QR sheet is printed from there too.\n\n## Create a table\n\n1. Go to [Tables](/operator/tables) and tap **+ Add table**.\n2. Leave **One** selected.\n3. Check the **Number** (MESAPAY suggests the next one) and, if you like, type a **Label (optional)**, such as Patio or Window.\n4. Tap **Create**.\n\n## Create several at once\n\n1. Tap **+ Add table** and choose **Several**.\n2. Enter **From** and **To**, for example 1 to 20.\n3. Tap **Create tables**. Any that already existed are skipped, and at the end you'll see **Done: 18 created, 2 already existed.**\n\nYou can create up to 200 tables at a time, numbered 1 to 999.\n\n## Change the number or name, or delete a table\n\n1. In **Tables**, tap **Edit tables**. Each square says **Tap to edit**.\n2. Tap the table and change the **Table number** or the **Table name**. Tap **Save**.\n3. To remove it, tap **Delete** and confirm.\n4. When you're done, tap **Done**.\n\nChanging the number or the name doesn't change the QR code: the one already printed on the table keeps working.\n\n## Print the QR codes\n\n1. In **Tables**, tap **Print QRs**. **QRs to print** opens in a new tab.\n2. The cards are 30×30 mm on an A4 sheet: up to 45 fit per sheet, with shared borders so each line is a single cut.\n3. Tap **Print**.\n\nOn the same page, **Links to share** shows each table's link with a **Copy** button, in case you want to send it by chat. It's the same link the QR code carries.\n\n## The pickup QR\n\nIf your restaurant takes pickup orders, **Tables** shows the **Advance order · Pickup QR** card. Use **Print** to print that QR code, and **QR link** has its link.\n\n## In counter mode\n\nIn counter mode you don't create tables: there's a single QR code, the counter's. The button is called **Print QR**.\n\n## Common cases\n\n- **\"A table with that number already exists.\"**: choose another number, or first rename the table that has it.\n- **\"The number must be a positive integer.\"**: enter a whole number from 1 up.\n- **\"The range isn’t valid.\"** or **\"Up to 200 tables at a time.\"**: make sure **From** is less than or equal to **To** and that there are no more than 200.\n- **\"The table has an open order. Close it before deleting.\"**: charge or cancel the open bill and try again.\n- **\"The table has order history, so it can't be deleted\"**: a table that has already sold isn't deleted, so reports aren't lost. Change its name or number if you no longer use it the same way.\n- **I don't see + Add table or Edit tables**: only the owner or administrator manages tables; waiters can't.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to QRs to print",
+          "href": "/operator/tables/print"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "tablero-de-cocina-y-bar",
+      "title": "Work with the Kitchen and Bar board",
+      "summary": "The board shows every order under To prepare, In kitchen and Ready. With one tap you start a dish, mark it ready or serve it, and a sound tells you when new orders arrive.",
+      "keywords": [
+        "kitchen",
+        "bar",
+        "board",
+        "kds",
+        "kitchen screen",
+        "tickets",
+        "to prepare",
+        "in kitchen",
+        "ready",
+        "serve",
+        "start",
+        "rush",
+        "mains together",
+        "sub-station",
+        "countdown",
+        "sound",
+        "beep",
+        "serve all",
+        "cancel dish",
+        "not available"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "The board is the work screen for the kitchen and the bar: each order shows up as a card and moves across columns as it's prepared. You can use it from the dashboard (**Kitchen** and **Bar** in the menu) or on a tablet signed in with a kitchen or bar user.\n\n## The columns\n\n- In **Kitchen**: **To prepare**, **In kitchen** and **Ready**.\n- In **Bar**: **To prepare**, **Preparing** and **Ready**.\n\nEach card is one round of an order. At the top it shows the code, the table and the round (**4F2A9C · Table 5 · R2**), how long it has been waiting and, if they apply, the **Mains together** or **Pickup** marks. Underneath is **Placed by:** with whoever sent it.\n\nEach dish shows the quantity, the name, the chosen options, the diner's name and the note for the kitchen in quotes. If a round has dishes in several columns, the card says how many are shown there, for example **2 of 5**.\n\n## Prepare an order\n\n1. Tap **Start** on the dish you're going to make. It moves to **In kitchen** (or **Preparing**).\n2. When it's done, tap **Ready**. It moves to **Ready** and the waiter sees it on **Floor**.\n3. If you deliver it yourself, tap **Serve** in the **Ready** column. If you made a mistake, tap **Served** to undo it.\n\nWith several dishes on a card, use **Start 3**, **Mark 3 ready** or **Serve 3** to move them all. **Back to kitchen** sends what was ready back to preparation.\n\nThe card disappears when all its dishes are served.\n\n## Rushed dishes and mains together\n\n- When a waiter taps **🔥 Rush** at the table, the dish shows **🔥 Rush** and moves to the top of its column.\n- With **Mains together**, main courses can't be served until every main in that round is ready. Starters and drinks go out as soon as they're ready.\n\n## At the bar\n\n- When a drink is started, a countdown runs with the product's prep time (**Prep (min)** in the menu). When it reaches zero it moves to **Ready** on its own; if it's done sooner, tap **Ready**.\n- If you set up sub-stations (for example Cocktails and Coffee), tabs appear at the top: **Whole bar** and one for each, so each station sees only its own orders.\n\n## The new-order sound\n\nThe board beeps when an order comes in. **Sound on** / **Sound muted** turns it on or off, and **Test sound** checks the volume. If you see **Tap the screen to turn on the new-order sound**, tap the screen once: the browser doesn't allow any sound until someone touches it. In the kitchen it starts on; at the bar, off.\n\n## Serve all\n\nAt the end of service, the administrator sees **Serve all**, which marks everything pending on the board as served. Confirm with **Yes, serve all**. It only affects what's on screen at that moment; anything that comes in afterwards isn't touched.\n\n## Cancel a dish from the kitchen\n\n1. Tap **Cancel** under the dish.\n2. If you ran out of an ingredient, tap **Not available**: it cancels the dish and also removes it from the menu until you mark it available again in **Menu**.\n3. For any other reason, type it (at least 3 letters). You can tick **Also remove this dish from the menu until it's available again**. Tap **Confirm cancellation**.\n\nIf that leaves the whole round cancelled, the waiter gets the notice on **Floor** to go and tell the customer.\n\n## Common cases\n\n- **\"Preparation has started. Only an administrator can cancel this dish.\"**: once you've tapped **Start**, only the owner or administrator can cancel it.\n- **The printed ticket doesn't come out**: the ticket prints when you tap **Start** (or when it fires on its own). See [Choose how to print kitchen tickets](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n- **I don't see Bar in the menu**: turn on **Do you have a bartender?** in [Prep stations](/operator/settings/estaciones).\n- **I want the board on a tablet**: follow [Use a tablet as a kitchen or bar screen](/operator/ayuda/impresion-y-equipos/tablet-de-cocina-y-bar).",
+      "links": [
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        },
+        {
+          "label": "Go to Bar",
+          "href": "/operator/bar"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "estaciones-de-preparacion",
+      "title": "Decide which station each dish goes to",
+      "summary": "In Prep stations you choose whether each category goes to the kitchen, the bar or the fridge, whether you have a bartender and stations at the bar, and whether orders fire on their own.",
+      "keywords": [
+        "stations",
+        "prep station",
+        "kitchen",
+        "bar",
+        "barista",
+        "fridge",
+        "counter",
+        "cooler",
+        "bartender",
+        "sub-stations",
+        "categories",
+        "where the dish goes",
+        "fire automatically",
+        "ticket printing",
+        "tickets",
+        "drinks"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "When an order comes in, each dish goes to a station: the kitchen, the bar or the fridge. Here you decide where each category on your menu goes, so each team sees on its board only what it has to prepare.\n\nEverything is set up in [Settings › Prep stations](/operator/settings/estaciones) and saved as soon as you change it (you'll see **✓ Saved**).\n\n## Do you have a bartender?\n\nTurn on **Do you have a bartender?** if someone works the bar full time. That way the drinks that need making get their own board, **Bar**.\n\nIf you leave it off, everything routed to the bar is treated like the fridge: it comes in ready and the waiter picks it up.\n\n## Bar sub-stations\n\nIf the bar has several stations, type them in **Bar sub-stations** separated by commas (for example `Cocktails, Coffee, Beer`) and tap **Save**. Each one gets its own tab on the bar board and can have its own printer.\n\n## Where each category goes\n\n**By category** lists each category on your menu with its type (Starter, Main course, Drink…). Choose its station:\n\n- **Kitchen**: the kitchen prepares it.\n- **Bar / barista**: the bar prepares it. If you have sub-stations, also choose the station, or **— No sub-station —**.\n- **Fridge / counter**: it isn't prepared. It comes in ready and appears directly on **Floor**, labeled with where to grab it. Ideal for bottled water and beer.\n\nIf MESAPAY detects drink categories still going to the kitchen, it suggests moving them with a **Move 2 to the bar** button.\n\n## Move a whole menu at once\n\nIn **Move a whole menu to a station**, choose the menu (if you have several) and the station, and tap **Apply**. All its categories move to that station.\n\n## A dish that's different from the rest of its category\n\nIf a dish shouldn't go to its category's station (say, a fresh juice made in the kitchen), change it in the dish editor, in **Menu**: under **Station** pick another one, or **Use the category's** to go back to the usual one.\n\n## Fire automatically and print\n\n**Ticket printing** has one switch for **Kitchen** and another for **Bar**: they print the ticket when the dish moves to preparation. Under each one is **Fire automatically when the order arrives**: orders move to preparation on their own, without touching the board, and if printing is on the ticket comes out at that moment. You also choose the **Paper width** (80 mm or 58 mm).\n\nTo choose between printing from an open tab or with network printers, see [Choose how to print kitchen tickets](/operator/ayuda/impresion-y-equipos/como-imprimir-las-comandas).\n\n## Common cases\n\n- **I changed a category and an order still went to the other station**: the change applies to new orders; whatever was already on a board stays where it is. The bar's sub-station tabs, on the other hand, rearrange instantly.\n- **\"Auto-fire is on while kitchen printing is off\"**: orders move to preparation on their own, but no ticket comes out. Turn printing on or turn auto-fire off.\n- **\"Kitchen printing is on, but there is no active kitchen printer\"**: register or turn on a printer under **Network printers**. See [Check your printers from the panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- **\"No categories. Create them from the menu.\"**: build the menu in **Menu** first.",
+      "links": [
+        {
+          "label": "Go to Prep stations",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "salon-entregar-platos-y-llamadas",
+      "title": "Use Floor to deliver dishes and answer calls",
+      "summary": "Floor gathers what the floor team has to do right now: pass on cancellations, answer calls, handle payments the tables asked for, and deliver the dishes that are ready.",
+      "keywords": [
+        "floor",
+        "deliver dishes",
+        "dishes ready",
+        "deliver",
+        "calls",
+        "call waiter",
+        "on my way",
+        "cancellations",
+        "i told the customer",
+        "card terminal",
+        "cash",
+        "record charge",
+        "still being prepared",
+        "mains together",
+        "runner",
+        "expo"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "**Floor** is the floor team's screen: it shows, in order of urgency, everything that needs handling at the tables, from a cancellation to pass on to the dishes that just left the kitchen.\n\nAt the top you'll see a summary, for example **2 calls · 1 card terminal · 3 dishes ready · 2 tables**. When there's nothing left, it says **All delivered**.\n\n## Kitchen cancellations\n\nIf everything in a round gets cancelled, it shows up under **Kitchen cancellations · tell the customer**, with the **Reason:**.\n\n1. Go to the table and tell the customer.\n2. Tap **I told the customer**. The notice disappears.\n\n## Pending calls\n\nWhen a diner taps the button to call a waiter, the table shows up under **Pending calls** with **Requesting a waiter** and how long it has been.\n\n1. Tap **On my way**. The call leaves the list, and the table in **Tables** loses its bell.\n2. Go to the table.\n\n## Tables that asked to pay\n\n- **Requested card terminal**: the table wants to pay by card. With a MESAPAY card terminal, take the device to the table and tap the button with the amount, for example **Charge $45,000**. With the **Merchant's own card terminal**, swipe the card on your terminal and report the result with **Approved** or **Declined**.\n- **Cash charges**: the table is going to pay in cash. If the diner said what they're paying with, you'll see **Will pay with $50,000 · Bring $8,000 in change**. When you receive the money, tap **Record charge** and confirm what they paid.\n\nIf the restaurant has turned on \"only the administrator charges\", waiters see these notices with **Only the administrator can charge**, so they can stay with the table while the cash desk charges.\n\n## Deliver the dishes that are ready\n\nDishes the kitchen or the bar marked as ready are grouped by table (in counter mode, by order).\n\n1. Check the dishes on the card. They all come checked; uncheck any you won't take now. **Select all** / **Deselect all** changes them all at once.\n2. Tap **Deliver 3**. The card shows **Delivered to Table 5**.\n\nEach dish says where to grab it when it isn't from the kitchen: **Bar** or **Cooler**, plus the diner's name if they left one. If that order is still missing something, it says **Still being prepared (2)** underneath, so you don't treat the table as complete.\n\nWith **Mains together**, while a main is still missing you'll see **Waiting on kitchen · 1 main in progress**; the mains are delivered together once they're all ready.\n\nDishes on a bill that's already paid show up here too: they still have to be delivered.\n\n## Common cases\n\n- **A dish the kitchen already finished doesn't appear**: check that it's under **Ready** on the board. Waiters with a section only see their own tables.\n- **\"No active card terminal registered...\"**: there's no active MESAPAY card terminal. See [Set up card readers and assign them to waiters](/operator/ayuda/impresion-y-equipos/datafonos).\n- **A single dish in a round is cancelled and no notice appears**: the **Kitchen cancellations** notice appears when the whole round is cancelled. If one dish is cancelled and the round continues, it shows on the table's card in **Tables**.\n- **The phone vibrates**: with **Floor** open, phones that support it vibrate when there are dishes ready, calls, cancellations or payment requests.",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "corregir-un-pedido",
+      "title": "Cancel, comp or move a dish",
+      "summary": "From the table's card you cancel a dish that didn't go out, stop charging for one that was delivered, cancel the whole bill, or move a dish or the bill to another table.",
+      "keywords": [
+        "cancel dish",
+        "void dish",
+        "comp",
+        "complimentary",
+        "on the house",
+        "wrong dish",
+        "cancel the bill",
+        "void bill",
+        "move dish",
+        "move to another table",
+        "change table",
+        "transfer",
+        "reason",
+        "uncharged products",
+        "order mistake"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Sometimes a dish was ordered by mistake, the customer changed their mind, the food arrived cold or the table moved. All of that is fixed from the table's card in **Tables**, and each change is logged with who made it and why.\n\n## Cancel or comp: which to use\n\n- **Cancel**: for a dish the customer hasn't received yet. It leaves the order, the kitchen board and the bill.\n- **Comp**: for a dish that was already delivered (they didn't like it, it came out cold, it's on the house, they left without paying). It leaves the bill but stays recorded as delivered, and appears in the **Uncharged products** report with the reason.\n\nThe card shows the right button based on the dish's status.\n\n## Cancel a dish\n\n1. In [Tables](/operator/tables), tap the table and find the dish.\n2. Tap **Cancel**.\n3. Pick a reason (**Customer changed their mind**, **Excessive delay**, **Error taking the order**, **Missing ingredient**) or type another, at least 3 letters long.\n4. Tap **Cancel dish**. It can't be undone: if it was a mistake, it has to be ordered again.\n\n## Comp a delivered dish\n\n1. Tap **Comp** next to the served dish.\n2. Pick the reason (**Customer didn't like it**, **Dish cold / poorly prepared**, **Wrong dish**, **Courtesy**, **Customer left without paying**) or type another.\n3. Tap **Comp dish**.\n\n> ⚠ Once the kitchen starts preparing a dish, only an administrator can cancel or comp it, whatever the settings. A delivered dish has already been prepared, so **Comp** is always done by the administrator.\n\nOn top of that, **Comp** can only be used by the roles ticked under **Who can comp a bill or a dish?**, in [Operating policies](/operator/settings/staff-policies). By default, only the administrator. Anyone else sees the button greyed out with **Only these roles can:** and the roles.\n\n## Cancel the whole bill\n\nIf the table leaves before the kitchen starts, tap **Cancel the bill** and confirm. It only appears while no dish has started being prepared. If the kitchen already started something, cancel or comp dish by dish.\n\n## Move a dish to another table\n\nUseful when it was entered on the wrong table or the diner changed tables.\n\n1. Tap **Move** next to the dish.\n2. Choose the destination table. Occupied ones say **Occupied** and the rest, **Free**.\n3. If the table is occupied, the dish joins its bill; if it's free, a new bill is opened. A dish that's already prepared or delivered keeps its status and doesn't go back to the kitchen.\n\n## Move the whole bill\n\nTap **Move to another table** and choose the table. Only free tables appear: if the destination table has an open bill, close it first, or move the dishes one by one.\n\nYou decide who can move things under **Who can move dishes and orders between tables?**: **Administrators only** or **Administrators and waiters**.\n\n## Common cases\n\n- **\"Once preparation starts, only an administrator can cancel or waive the charge for a dish.\"**: ask the owner or administrator.\n- **\"Your role isn't allowed to waive the charge for a dish.\"**: your role isn't on the **Comp** list.\n- **\"This bill is already being paid...\"** or **\"That table is already paying its bill...\"**: finish or void the payment in progress before moving.\n- **\"That table isn't in your section.\"**: waiters can only move between the tables they serve.\n- **I can't cancel a fridge drink I haven't taken out yet**: anything routed to **Fridge / counter** comes in ready, so it counts as started and only the administrator can cancel it.\n- **\"Only an administrator can move dishes or orders between tables.\"**: the restaurant reserved moves for the administrator.\n- **\"The destination table already has an open bill...\"**: to move the whole bill, the destination table has to be free.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Operating policies",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "buscar-y-revisar-ordenes",
+      "title": "Find an order and review its details",
+      "summary": "In Orders you find any bill by its code, filter by status and period, and in its details you see the rounds, what each person ordered, the payments and the invoice.",
+      "keywords": [
+        "orders",
+        "search order",
+        "code",
+        "short code",
+        "history",
+        "today's orders",
+        "order detail",
+        "rounds",
+        "per guest",
+        "payments",
+        "invoice",
+        "reprint invoice",
+        "open",
+        "paid",
+        "cancelled",
+        "period"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Every bill has a 6-character code (for example **4F2A9C**) that appears on the table's card, on kitchen tickets and on receipts. With that code you'll find it in **Orders**, where you can also review the history for the day or any period.\n\n## Find an order by its code\n\n1. Type the code in **Search order**, in the dashboard's top bar, and press Enter. Part of the code is enough.\n2. **Orders** opens with the result.\n\nYou can also search from the [Orders](/operator/orders) page itself, in **Search by code**, and tap **Search**.\n\n> The search respects the selected period, which starts at **Today**. If the order is from another day, change **Period** to **7 days**, **30 days** or **All**.\n\n## Filter the list\n\n- **Status**: **All**, **Open**, **Paid** or **Cancelled**.\n- **Period**: **Today**, **7 days**, **30 days** or **All**.\n\nAt the top you see the total: how many orders, how many paid and what they add up to. The list shows the date, the code, the table (or channel), the status, the items, the subtotal, the amount paid and the invoice. It shows the 100 most recent for the filter.\n\n\"Today\" is the restaurant's business day: if in [Operating policies](/operator/settings/staff-policies) the business day starts at 5:00, a sale at 2 a.m. counts toward the previous night.\n\n## An order's details\n\nTap **View** on the order. At the top are the table, the date and the code, plus four figures: **Subtotal**, **Tip**, **Paid** and **Remaining**.\n\n- **Actions**: if the bill is still open, **Charge the bill** and, as long as the kitchen hasn't started anything, **Cancel**.\n- **Invoice**: if it was already invoiced, the number with **View invoice**, **Reprint invoice** and, with electronic invoicing, **Resend by email**.\n- **Rounds**: each send (**Round 1 · 8:15 PM**) with its status and its dishes, each with its status (**To prepare**, **Preparing**, **Ready to serve**, **Served**), the options, the notes and **from** whom.\n- **Per guest**: if several people at the table ordered under their names, what each one ordered and their total.\n- **Payments**: each payment with its method, its status (**Approved**, **Pending**, **Failed**, **Refunded**) and, if the bill was split, **1 of 3**.\n\nWho placed each round is shown on the table's card (in **Tables**) and on the kitchen board, with **Placed by:**.\n\n## Order statuses\n\n**Open**, **Placed** (sent to the kitchen), **In kitchen**, **Ready**, **Served**, **Paying**, **Paid** and **Cancelled**.\n\n## Common cases\n\n- **\"No orders match these filters.\"**: widen the **Period** or set **Status** to **All**.\n- **I have the long code from the invoice or an email**: it works too; the search finds the order with any part of the code.\n- **I want to fix an open order**: do it from its table. See [Cancel, comp or move a dish](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).",
+      "links": [
+        {
+          "label": "Go to Orders",
+          "href": "/operator/orders"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reservas",
+      "title": "Take and manage reservations",
+      "summary": "Turn on reservations with a link for your guests, set shifts, length and deposit, prepare your tables and floor plan, and handle each booking from the Reservations board.",
+      "keywords": [
+        "reservations",
+        "book a table",
+        "booking",
+        "reservation link",
+        "google maps",
+        "shifts",
+        "opening hours",
+        "length",
+        "deposit",
+        "no show",
+        "arrived",
+        "confirm reservation",
+        "floor plan",
+        "floor map",
+        "capacity",
+        "minimum spend",
+        "reservable"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With reservations, your guests book a table from a link: they pick the day, time, party size and table and, if you ask for it, pay a deposit. You see them come in on the **Reservations** board and handle them when the guests arrive.\n\n## 1. Turn reservations on\n\n1. Go to [Settings › Reservations](/operator/settings/reservas) and turn on **Accept reservations**.\n2. Under **Reservation link** tap **Copy** and share it on WhatsApp, social media or your website.\n3. To take reservations from Google Maps, copy the **Link for Google** and paste it into your Google Business Profile. Bookings that arrive that way are labeled **Google Maps**.\n\n## 2. Decide how they work\n\n- **Auto-confirm**: if you turn it off, each reservation arrives as **Pending** and you confirm it by hand.\n- **Length of each reservation**: from 1 to 3 hours.\n- **Minimum notice**: how many hours in advance people can book.\n- **How many days ahead**: the furthest out they can book.\n- **Note / policy (optional)**: for example, how late guests can arrive.\n- **Shifts by day**: for each day tap **+ Add shift** and set the start and end time. Each shift is split automatically into reservations of the chosen length. A day without shifts is **Closed**.\n\nTap **Save changes**.\n\n## 3. Prepare your tables\n\nWith reservations on, two more cards appear in **Settings**:\n\n- [Tables: capacity and minimum spend](/operator/settings/mesas): for each table, the **Capacity** (how many people fit), the **Min. spend** the guest sees, the **Deposit** charged when booking, and whether it's **Reservable**. Each value saves when you leave the field.\n- [Floor map](/operator/settings/salon): draw your dining room as it is. Drag the tables into place (or use **Auto-arrange tables**), add **🚪 + Entrance**, **+ Zone** (garden, patio…) and **+ Icon**, and tap **Save floor plan**. Guests see this map when choosing their table.\n\n## 4. The deposit\n\nUnder **Deposit to reserve** you choose which online methods it's charged with: **Card**, **PSE** or **Apple Pay** (you need online payments turned on). The amount is set per table. The deposit is credited to the bill when the guests arrive; if they don't show up, it isn't refunded.\n\n## 5. Handle reservations\n\nIn [Reservations](/operator/reservas) (in the menu) you see upcoming and today's bookings. Filter with **Active**, **Today** or **All**. At the top, **Last 30 days:** counts how many came in through each channel.\n\nEach reservation shows its status, party size, table and deposit. Depending on its status:\n\n1. **Confirm**, if it arrived as **Pending**.\n2. When they arrive, **Arrived**: it becomes **Seated**.\n3. If it has a paid deposit, once the table has orders tap **Apply $50,000 deposit to bill**: the deposit is taken off what's left to pay.\n4. When they leave, **Mark completed**.\n\nIf they don't come, tap **No-show**; if they cancel, **Cancel**. Either way, a paid deposit becomes **Deposit forfeited**.\n\n## Common cases\n\n- **I don't see Reservations in the menu**: turn on **Accept reservations** in the settings.\n- **\"We couldn't credit the deposit.\"**: the table doesn't have an open bill with orders yet. Take the order and tap **Apply … deposit to bill** again.\n- **\"To charge deposits you need an active online payment method\"**: turn on card, PSE or Apple Pay in **Payments**.\n- **A table doesn't appear for booking**: check that it's **Reservable** and that its **Capacity** fits the party.",
+      "links": [
+        {
+          "label": "Go to Reservations",
+          "href": "/operator/reservas"
+        },
+        {
+          "label": "Go to Reservations settings",
+          "href": "/operator/settings/reservas"
+        },
+        {
+          "label": "Go to Tables: capacity and minimum spend",
+          "href": "/operator/settings/mesas"
+        },
+        {
+          "label": "Go to Floor map",
+          "href": "/operator/settings/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "etiquetas-de-platos",
+      "title": "Create your dish tags",
+      "summary": "Tags are labels like House special, Vegetarian or Spicy that appear next to the dish name on the menu. Here you decide which ones exist, with their emoji and order.",
+      "keywords": [
+        "tags",
+        "labels",
+        "chips",
+        "house special",
+        "favorite",
+        "vegetarian",
+        "spicy",
+        "new",
+        "vegan",
+        "gluten free",
+        "emoji",
+        "mark dishes",
+        "highlight dishes"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Tags help diners choose: they show up as a small label next to the dish name on the menu, for example ⭐ House special or 🌱 Vegetarian. Here you define your restaurant's list of tags; then you give each dish the ones that apply.\n\n## The ones that come built in\n\nIf you've never edited them, your restaurant has five, created in Spanish: **De la casa** ⭐ (house special), **Favorito** 🔥 (favorite), **Vegetariano** 🌱 (vegetarian), **Picante** 🌶️ (spicy) and **Nuevo** ✨ (new). You can rename them, delete them or add others.\n\n## Create or edit tags\n\n1. Go to [Settings › Dish tags](/operator/settings/etiquetas).\n2. Tap **+ New tag**.\n3. Fill in the three columns:\n- **Emoji**: the icon that goes with the tag (optional).\n- **Display name**: what the diner reads, for example Gluten free.\n- **ID (slug)**: an internal identifier. It fills in from the name; it only accepts lowercase letters, numbers and hyphens.\n4. Use **Move up** and **Move down** to order them, and **Remove** to delete one.\n5. Tap **Save**. You'll see **Saved** with the time.\n\nYou can have up to 20 tags.\n\n## Tag a dish\n\nIn [Menu](/operator/menu), open the dish and, under **Tags**, tick the ones it has. From there, **Edit list →** brings you back to this screen.\n\n## Where they appear\n\nOn the menu the diner opens with the QR code, and on the same menu when your team takes an order in **Server mode**. They don't appear on the kitchen board or on kitchen tickets.\n\n## Careful when changing the ID\n\nYou can change the display name and the emoji whenever you like. The **ID (slug)** is what links the tag to the dishes: if you change it, dishes that had the tag stop showing it. In the dish editor it appears as **Tag no longer exists in your configuration**. If you put the old ID back, it reappears on those dishes.\n\nThe same happens if you delete a tag: the dishes don't lose anything, but the tag is no longer shown.\n\n## Common cases\n\n- **\"... is not a valid slug. Only lowercase letters, numbers, and hyphens.\"**: remove spaces, accents and capitals from the ID, for example `gluten-free`.\n- **\"The slug ... is duplicated.\"**: two tags have the same ID; change one.\n- **I can't add more**: you've reached the maximum of 20.\n- **I don't want any to show**: delete them all and tap **Save**.",
+      "links": [
+        {
+          "label": "Go to Dish tags",
+          "href": "/operator/settings/etiquetas"
+        },
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

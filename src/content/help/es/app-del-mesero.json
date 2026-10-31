@@ -1,5 +1,287 @@
 {
   "title": "App del mesero",
   "description": "Cómo trabaja el mesero desde su celular: mesas, pedidos, Salón, cobros y su turno.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "entrar-e-instalar-la-app",
+      "title": "Entra a la app del mesero e instálala en el celular",
+      "summary": "El mesero entra desde el navegador del celular con el correo y la contraseña que le da el dueño, la instala como app y activa los avisos de sus mesas.",
+      "keywords": [
+        "app del mesero",
+        "entrar",
+        "ingresar",
+        "iniciar sesion",
+        "contraseña",
+        "olvide mi contraseña",
+        "instalar",
+        "pantalla de inicio",
+        "mp mesero",
+        "notificaciones",
+        "avisos",
+        "activar avisos",
+        "celular",
+        "salir",
+        "cerrar sesion"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "La app del mesero funciona en el navegador del celular, sin descargar nada de una tienda de aplicaciones. Con ella el mesero ve sus mesas, toma pedidos, entrega platos y cobra, y recibe avisos cuando una mesa lo necesita.\n\n## Entrar por primera vez\n\n1. Pídele al dueño o administrador tu usuario: lo crea con el rol **Mesero** y te entrega tu correo y tu contraseña.\n2. En el celular, abre el navegador y entra a MESAPAY.\n3. Escribe tu **Correo** y tu **Contraseña** y toca **Ingresar**. Llegas directo a **Salón**.\n\nSi olvidaste la contraseña, toca **¿Olvidaste tu contraseña?** en la pantalla de ingreso y sigue el enlace que te llega al correo, o pídele al dueño que te ponga una nueva.\n\n## Instalarla en la pantalla de inicio\n\nAsí se abre como una app, a pantalla completa y siempre en **Salón**.\n\n- **iPhone**: abre MESAPAY en Safari, toca el botón de compartir y elige la opción para agregar a la pantalla de inicio.\n- **Android**: abre MESAPAY en Chrome, abre el menú del navegador y elige instalar la app o agregar a la pantalla de inicio.\n\nEl ícono queda con el nombre **MP MESERO**.\n\n## Activar los avisos\n\nApenas entras aparece **Recibe avisos cuando una mesa te llame o pida cobrar.** con el botón **Activar**. Tócalo y acepta el permiso del celular. Te llegan avisos cuando una de tus mesas:\n\n- llama al mesero;\n- pide la cuenta;\n- pide pagar en efectivo o con datáfono;\n- tiene platos listos para entregar.\n\nSi no tienes mesas asignadas, te llegan los avisos de todas. Al tocar un aviso se abre **Salón**.\n\n> En iPhone, el botón **Activar** solo aparece con la app ya instalada en la pantalla de inicio. Instálala primero y ábrela desde el ícono.\n\n## Cómo está organizada\n\n- Abajo hay tres pestañas: **Mesas**, **Salón** y **Yo**.\n- Arriba a la derecha están **Ayuda** (estos artículos) y **Salir**, para cerrar la sesión. En **Yo** también está **Cerrar sesión**.\n\n## Casos frecuentes\n\n- **\"Correo o contraseña incorrectos.\"**: revisa que el correo esté bien escrito, sin espacios. Si sigue fallando, pídele al dueño que te ponga una contraseña nueva.\n- **\"Las notificaciones están bloqueadas en este celular...\"**: rechazaste el permiso. Habilítalo en los ajustes del navegador o del celular y vuelve a abrir la app.\n- **No veo el botón Activar**: los avisos ya están activos, o el celular no los admite (en iPhone, instala la app primero).\n- **Entré y llegué a otra pantalla**: tu usuario no tiene el rol **Mesero**. Pídele al dueño que lo revise.",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir a Yo",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mis-mesas",
+      "title": "Toma y suelta tus mesas",
+      "summary": "En Yo, Mis mesas te deja elegir qué mesas atiendes: tocas una para tomarla o soltarla. Ves y recibes avisos solo de tus mesas; sin ninguna, ves todas.",
+      "keywords": [
+        "mis mesas",
+        "tomar mesa",
+        "soltar mesa",
+        "asignar mesas",
+        "seccion",
+        "zona",
+        "mesas del mesero",
+        "mesa de otro mesero",
+        "sin mesero asignado",
+        "atiendo todas"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "Cada mesero atiende su sección del salón. En **Mis mesas** eliges tú mismo qué mesas son tuyas, sin esperar a que el dueño te las asigne: así en **Mesas** y en **Salón** ves solo las tuyas, y solo te llegan sus avisos.\n\n## Tomar o soltar una mesa\n\n1. Abre la pestaña **Yo** y baja hasta **Mis mesas** (*Mis mesas*: my tables).\n2. Toca el número de la mesa:\n- Si no es tuya, la tomas. Queda oscura, con **Tuya** debajo.\n- Si ya es tuya, la sueltas.\n3. Arriba ves cuántas tienes, o **Ninguna asignada**.\n\nDebajo de cada número dice de quién es: **Tuya**, el nombre de otro mesero o **Sin mesero**.\n\n## Mesas sin mesero\n\nSi hay mesas que nadie atiende, arriba aparece un aviso, por ejemplo **2 mesas sin mesero asignado**, con sus números para tomarlas de un toque. Un punto junto al número indica que la mesa está ocupada.\n\n## Reglas\n\n- Una mesa es de un solo mesero a la vez.\n- Puedes tomar una mesa de otro mesero solo si está libre: se la quitas a él y pasa a ser tuya.\n- Una mesa ocupada que atiende otro mesero no se puede tomar. Verás, por ejemplo, **Mesa 4: la está atendiendo Ana (ocupada).**\n- Puedes soltar tus mesas cuando quieras.\n- El dueño también puede asignar las mesas de cada mesero desde el panel.\n\n## Qué cambia según tus mesas\n\n- **Con mesas tuyas**: en **Mesas** y **Salón** ves solo esas, y solo te llegan sus avisos.\n- **Sin ninguna**: ves todas las mesas del restaurante y te llegan los avisos de todas. Sirve para turnos sin división por zonas.\n\n## Casos frecuentes\n\n- **No veo una mesa en Mesas**: no es tuya. Tómala en **Mis mesas**, si está libre o sin mesero.\n- **\"No se pudo actualizar. Intenta de nuevo.\"**: revisa la conexión y toca la mesa otra vez.\n- **\"No hay mesas creadas todavía.\"**: el restaurante aún no tiene mesas; las crea el dueño.",
+      "links": [
+        {
+          "label": "Ir a Yo",
+          "href": "/mesero/yo"
+        },
+        {
+          "label": "Ir a Mesas",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mesas-y-ficha-en-la-app",
+      "title": "Usa Mesas y la ficha de la mesa en la app",
+      "summary": "La pestaña Mesas muestra tus mesas con colores según lo que necesitan. Al tocar una ocupada se abre su ficha: el pedido, el comensal y las acciones para atenderla.",
+      "keywords": [
+        "mesas",
+        "ficha de la mesa",
+        "estado del pedido",
+        "colores",
+        "rojo",
+        "campana",
+        "apurar",
+        "identificar comensal",
+        "descuento",
+        "precuenta",
+        "pedir la cuenta",
+        "cobrar la cuenta",
+        "agregar platos",
+        "cargo"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "La pestaña **Mesas** (*Mesas*: tables) es el mapa de tus mesas: cada cuadro te dice si la mesa está libre, comiendo, con platos listos o esperando que la cobres. Al tocar una ocupada ves todo su pedido y lo que puedes hacer.\n\n## Leer los cuadros\n\n- **M-5** es la mesa. Una libre dice **libre**; tócala para tomar el pedido. Ver [Toma un pedido desde la app](/mesero/ayuda/app-del-mesero/pedir-desde-la-app).\n- Una ocupada muestra lo que falta por cobrar, los ítems y, si ya hay que estar atento, los minutos de espera: **12m · 3i**.\n- 🔔 significa que la mesa llamó al mesero.\n- Verde con ✓: se acaba de pagar (queda así 15 minutos).\n\nLos colores:\n\n- **Ámbar claro**: la cocina está preparando.\n- **Ámbar fuerte**: hay platos listos para llevar.\n- **Terracota**: la mesa pidió pagar o llamó; si nadie atiende, el punto titila.\n- **Rojo con punto que titila**: llevan mucho rato sin pagar después de comer, o pidieron y nadie fue. Ve de inmediato.\n\nArriba filtras con **Todas**, **Por cobrar**, **Recién pagadas** y **Libres**. Las mesas más urgentes salen primero.\n\n## La ficha de la mesa\n\nToca una mesa ocupada. Se abre **Estado del pedido**, con:\n\n- El aviso **El comensal pidió pagar con** si la mesa ya pidió pagar en efectivo o con datáfono.\n- **Pendiente**: lo que falta por cobrar.\n- **Comensal**: escribe su **Cédula o correo** y toca **Identificar** para aplicar su cuenta del restaurante y su descuento, si tiene.\n- Las rondas y los platos, con su estado: **Por preparar**, **Preparando**, **Listo** o **Servido**, y **Montó:** con quién envió cada ronda.\n\nLa ficha se actualiza sola cada 15 segundos.\n\n## Lo que puedes hacer\n\n- **+ Agregar platos**: abre la carta para sumar una ronda.\n- **Agregar cargo o servicio**: cobra algo que no está en la carta.\n- **Cobrar la cuenta**: ver [Cobra una cuenta desde la app](/mesero/ayuda/app-del-mesero/cobrar-desde-la-app). Si en tu restaurante solo cobra el administrador, en su lugar ves **Pedir la cuenta**, que avisa a caja; al tocarlo cambia a **Caja avisada**.\n- **Imprimir precuenta**: la manda a la impresora de facturas del local. Si no hay, se imprime desde el celular. Con **Ver precuenta** la ves en pantalla.\n- **🔥 Apurar**: junto a un plato que se está demorando. En la cocina sube al principio con la marca de apurado.\n- **Mover**, **Mover a otra mesa**, **Cancelar**, **No cobrar** y **Cancelar la cuenta**: aparecen según los permisos de tu restaurante y el estado de cada plato.\n\n## Casos frecuentes\n\n- **El botón Cancelar o No cobrar está apagado**: el plato ya se empezó a preparar o tu rol no tiene permiso. Ver [Por qué no veo Cobrar, Mover o No cobrar](/mesero/ayuda/app-del-mesero/por-que-no-puedo-cobrar-o-mover).\n- **No veo una mesa**: no está entre las tuyas. Ver [Toma y suelta tus mesas](/mesero/ayuda/app-del-mesero/mis-mesas).\n- **\"No encontramos una cuenta con esos datos en este restaurante.\"**: el comensal no tiene cuenta en este restaurante; puede crearla desde la carta.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir a Salón",
+          "href": "/mesero/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pedir-desde-la-app",
+      "title": "Toma un pedido desde la app",
+      "summary": "Desde Mesas abres la carta de la mesa, eliges los platos con sus opciones y notas, y tocas Marchar orden o Marchar adición para mandarlos a la cocina y al bar.",
+      "keywords": [
+        "tomar pedido",
+        "pedido",
+        "comanda",
+        "marchar",
+        "marchar orden",
+        "marchar adicion",
+        "agregar platos",
+        "carta",
+        "modificadores",
+        "nota para la cocina",
+        "fuertes juntos",
+        "lo que vaya saliendo",
+        "enviar a cocina",
+        "ronda"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "Cuando la mesa te dicta el pedido, lo cargas tú en la misma carta que usan los comensales, pero en **Modo mesero**: sin pedir nombre y con el envío directo a la cocina y al bar.\n\n## Tomar el pedido\n\n1. En **Mesas**, toca una mesa libre. Si la mesa ya tiene cuenta, ábrela y toca **+ Agregar platos**.\n2. Se abre la carta con una franja negra arriba: **Modo mesero · Tomando pedido en Mesa 5**.\n3. Busca con **Buscar en el menú** o por categorías y toca el plato.\n4. Elige sus opciones. Las que dicen **Obligatorio** hay que llenarlas: si falta una, la carta te lleva a ella con **Elige una opción**.\n5. Si hace falta, toca **+ Nota para la cocina** y escribe alergias o preferencias.\n6. Ajusta la cantidad y toca **Añadir · $precio**.\n7. Repite con cada plato y toca **Ver y enviar pedido**.\n8. En **Tu pedido** revisa todo: cambia cantidades con **+** y **−** o quita una línea con **Eliminar**.\n9. Si es el primer pedido de la mesa, elige **¿Cómo quieres que salga?**:\n- **Lo que vaya saliendo**: cada plato llega apenas está listo.\n- **Fuertes juntos**: entradas y bebidas salen apenas estén listas; los fuertes salen todos juntos.\n10. Toca **Marchar orden**. Si la mesa ya tenía cuenta, el botón dice **Marchar adición** y **Tu pedido** muestra **Se añadirá al pedido** con el código de la cuenta.\n\nAl enviar, la app te lleva a **Salón**, donde después te aparecen los platos listos para entregar.\n\n## Qué pasa después\n\n- Cada plato llega al tablero de su estación (cocina o bar) en **Por preparar**, con tu nombre en **Montó:**.\n- Las bebidas de la refri (y las del bar si no hay bartender) entran ya listas: las ves enseguida en **Salón** para llevarlas.\n- Cada envío es una ronda nueva de la misma cuenta.\n\n## Casos frecuentes\n\n- **Me equivoqué antes de enviar**: corrige en **Tu pedido**. Para salir sin enviar, toca la pestaña **Mesas**: lo que agregaste queda guardado un rato para esa mesa en tu celular.\n- **Me equivoqué después de enviar**: abre la ficha de la mesa en **Mesas** y cancela o mueve el plato, si tu restaurante te lo permite.\n- **\"No pudimos enviar el pedido. Revisa tu conexión.\"**: el pedido no salió. Revisa el internet y toca otra vez **Marchar orden**.\n- **No aparece la pregunta de cómo quieres que salga**: solo sale en el primer envío de la mesa.\n- **Un plato no está en la carta**: está agotado o archivado; avísale al encargado.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "salon-en-la-app",
+      "title": "Atiende el Salón desde la app",
+      "summary": "Salón te muestra lo que tienes que hacer ya en tus mesas: avisar cancelaciones, atender llamadas, cobrar efectivo o datáfono y entregar los platos listos.",
+      "keywords": [
+        "salon",
+        "entregar platos",
+        "platos listos",
+        "llamadas",
+        "voy en camino",
+        "avise al cliente",
+        "cancelaciones",
+        "datafono",
+        "efectivo",
+        "registrar cobro",
+        "aprobado",
+        "rechazado",
+        "devuelta",
+        "vuelto",
+        "propina"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "**Salón** (*Salón*: floor) es tu lista de tareas del turno: todo lo que tus mesas necesitan ahora, en orden de urgencia. Es la pestaña con la que abre la app y a la que te llevan los avisos.\n\nArriba ves un resumen, por ejemplo **1 llamada · 1 cobro efectivo · 4 platos listos · 2 mesas**. Si no hay nada pendiente, dice **Todo entregado**.\n\n## Avisar una cancelación\n\nSi la cocina canceló todo lo de una ronda, aparece en **Cancelaciones de cocina · avisar al cliente**, con el **Motivo:**. Ve a la mesa, avísale al cliente y toca **Avisé al cliente**.\n\n## Atender una llamada\n\nEn **Llamadas pendientes** aparece la mesa con **Solicitan un mesero**. Toca **Voy en camino** y ve a la mesa.\n\n## Cobrar con datáfono\n\nEn **Pidió datáfono** aparecen las mesas que quieren pagar con tarjeta, con el monto y la propina incluida.\n\n- **Datáfono de MESAPAY**: lleva el datáfono a la mesa y toca el botón con el monto, por ejemplo **Cobrar $45.000**. El cobro llega al aparato.\n- **Datáfono propio del comercio**: pasa la tarjeta por tu datáfono y reporta el resultado con **Aprobado** o **Rechazado**. Si se aprueba, la app te ofrece la factura para el cliente.\n\n## Cobrar en efectivo\n\nEn **Cobros en efectivo** aparecen las mesas que van a pagar en efectivo. Si el comensal dijo con cuánto paga, ves por ejemplo **Pagará con $50.000 · Lleva $8.000 de devuelta**, para que llegues con el cambio listo.\n\n1. Recibe el dinero y toca **Registrar cobro**.\n2. En **Cobro en efectivo** toca **Pagó exacto** o el billete que te dieron, o escribe lo **Recibido (COP)** y la **Devuelta (COP)**.\n3. Si el cliente te deja el cambio, toca **Que se quede con el cambio · propina $2.000**: la devuelta queda en cero y la diferencia pasa a propina.\n4. Toca **Confirmar cobro**.\n\n## Entregar los platos listos\n\n1. Cada tarjeta es una mesa con sus platos listos, todos marcados. Desmarca los que no vas a llevar ahora, o usa **Marcar todo** / **Desmarcar todo**.\n2. Toca **Entregar 3**. La tarjeta muestra **Entregado a Mesa 5**.\n\nSi el plato no sale de la cocina, la tarjeta dice de dónde sacarlo: **Barra** o **Refri**. **Aún en preparación (2)** te avisa que a ese pedido le falta algo. Con **Fuertes juntos**, verás **Esperando cocina** hasta que estén todos los fuertes.\n\n## Casos frecuentes\n\n- **No tenés turno abierto** al registrar un efectivo: tu restaurante usa turno por mesero. Escribe tu **Base inicial (para vueltos)** y toca **Abrir turno y cobrar**. Ver [Abre y cierra tu turno de mesero](/mesero/ayuda/app-del-mesero/turno-del-mesero).\n- **\"Recibido insuficiente.\"**: lo que escribiste es menos que el total; revísalo.\n- **Sólo el administrador puede cobrar**: en tu restaurante cobra caja. Acompaña la mesa mientras el administrador cobra.\n- **No veo una mesa que me llamó**: no es de tus mesas. Revisa **Mis mesas** en **Yo**.",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/mesero/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-desde-la-app",
+      "title": "Cobra una cuenta desde la app",
+      "summary": "Desde la ficha de la mesa tocas Cobrar la cuenta, eliges cuánto cobrar y la propina, pides la factura si el cliente la quiere y cobras con datáfono, efectivo u otro medio.",
+      "keywords": [
+        "cobrar",
+        "cobrar la cuenta",
+        "pagar",
+        "propina",
+        "efectivo",
+        "vuelto",
+        "devuelta",
+        "datafono",
+        "tarjeta",
+        "dividir la cuenta",
+        "partes iguales",
+        "combinar medios",
+        "credito",
+        "gastos de representacion",
+        "cortesia",
+        "factura",
+        "cobro realizado"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "Cuando la mesa quiere pagar, cobras desde tu celular sin ir a la caja: eliges cuánto cobrar, la propina y el medio de pago, y al final queda el comprobante y, si la pidieron, la factura.\n\n## Cobrar\n\n1. En **Mesas**, toca la mesa y luego **Cobrar la cuenta**. Se abre **Cobrar**, con la franja **Modo mesero · Cobrando Mesa 5**.\n2. Revisa el resumen en **Confirma tu pedido** con el cliente.\n3. En **¿Cómo cobrar?** elige:\n- **Todo**: la cuenta completa.\n- **Partes iguales**: escribe entre cuántas personas se divide y cobras una parte.\n- **Individual**: solo lo de una persona (cuando los platos tienen nombre).\n- **Combinar medios**: parte en efectivo y parte con otro medio.\n4. Elige la **Propina**: **Sin propina**, 5 %, 10 %, 15 % o 20 %. Abajo ves **A cobrar ahora**.\n5. Si el cliente tiene cuenta como cliente del restaurante, búscalo en **Cliente** para aplicar su descuento o cobrarle a crédito.\n6. Si quiere factura, llénala en **¿El cliente necesita factura electrónica?**.\n7. Elige el medio de pago (abajo).\n\n## Los medios de pago\n\n- **Cobrar con datáfono**: si el administrador te asignó un datáfono, el cobro va directo a tu aparato; si no, queda en **Salón** para enviarlo a un datáfono.\n- **Cobrar con datáfono del comercio**: cobras con el datáfono propio del restaurante y después marcas el resultado en **Salón**.\n- **Recibir en efectivo**: en **¿Con qué te pagó?** toca **Cuenta exacta** o el billete, o escribe lo **Recibido del cliente**. Si hay vuelto, elige **Le devuelvo el vuelto** o **Lo deja de propina**. Toca **Confirmar cobro**.\n- **Cobrar a crédito**: si el cliente tiene crédito habilitado, la cuenta queda en sus cuentas por cobrar; no entra a caja.\n- **Gastos de representación** (o el nombre que le haya puesto tu restaurante): cierra la cuenta como cortesía, sin cobro; escribe a quién se le dio. Solo aparece si tu restaurante lo permite para tu rol.\n\nLos medios que ves dependen de lo que tu restaurante tenga activo.\n\n## Al terminar\n\nVes **Cobro realizado**, con el estado de la factura si se pidió. Si cobraste solo una parte, dice **Pago recibido** y cuánto **Falta**; con **Pagar más** cobras el resto. Toca **Volver a mesas** para seguir.\n\n## Casos frecuentes\n\n- **\"El cobro lo hace el administrador\"**: tu restaurante tiene activado que solo el administrador cobra. Vuelve a la mesa y toca **Pedir la cuenta**.\n- **No tenés turno abierto**: tu restaurante usa turno por mesero. Toca **Abrir turno**, escribe tu base y luego **Abrir turno y cobrar**.\n- **\"El cliente debe pasarte al menos...\"**: lo recibido es menos que el total; corrígelo.\n- **\"Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía.\"**: los gastos de representación de esa cuenta los cierra el administrador.\n- **\"Supera el límite de crédito del cliente...\"**: el cliente no tiene cupo para toda la cuenta; cobra con otro medio.\n- **Tu pago no fue aprobado**: el datáfono rechazó la tarjeta. Prueba otra tarjeta u otro medio.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "turno-del-mesero",
+      "title": "Abre y cierra tu turno de mesero",
+      "summary": "Si tu restaurante usa turno por mesero, en Yo abres tu turno con la base de efectivo y al final lo cierras contando la plata. También ves tus ventas, propinas y comisiones.",
+      "keywords": [
+        "turno",
+        "abrir turno",
+        "cerrar turno",
+        "base",
+        "base inicial",
+        "arqueo",
+        "cuadre de caja",
+        "descuadre",
+        "efectivo",
+        "propinas",
+        "ventas del dia",
+        "comisiones",
+        "mis comisiones",
+        "resumen del turno"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "El turno es tu caja personal: lo abres con el efectivo que tienes para dar vueltos y lo cierras contando lo que recogiste. Todo pasa en la pestaña **Yo** (*Yo*: me), que además te muestra cómo va tu día.\n\n## Cómo funciona en tu restaurante\n\nDepende de lo que eligió el dueño:\n\n- **Turno por mesero**: cada mesero abre y cierra el suyo. En **Yo** ves **Abrir turno** o **Cerrar turno**, y para cobrar necesitas el turno abierto.\n- **Turno único del local**: lo abre y lo cierra el administrador. En **Yo** ves **Resumen del día**, sin botones, con tus cifras desde el inicio de la jornada.\n\nSi en tu restaurante solo el administrador cobra, el turno siempre es único del local.\n\n## Abrir tu turno\n\n1. En **Yo**, toca **Abrir turno** (*Abrir turno*: open shift).\n2. En **¿Con cuánta base inicias?**, escribe el efectivo con el que arrancas para dar vueltos. Si no manejas base, déjalo en $0.\n3. Toca **Abrir turno**. La tarjeta pasa a **Tu turno · Abierto**.\n\nTambién puedes abrirlo justo al cobrar: si intentas cobrar sin turno, la app te lo pide.\n\n## Durante el turno\n\nLa tarjeta muestra **Ventas**, **Propinas**, **Mesas** y **Pagos** de lo que cobraste. Si las propinas son compartidas, en lugar del monto dice **Compartidas**: el local las reparte al cierre.\n\n## Cerrar tu turno\n\n1. Toca **Cerrar turno**.\n2. En **Arqueo de tu caja** ves la **Base inicial**, el **Efectivo cobrado** y el **Esperado en caja**.\n3. Cuenta el efectivo y escribe lo que contaste en **¿Cuánto contaste?**.\n4. Revisa la **Diferencia**: **Sin descuadre**, o cuánto sobra (+) o falta (−).\n5. Toca **Cerrar turno**.\n\nAl final ves el **Resumen del turno**: duración, mesas atendidas, pagos cobrados, ventas, propinas y el arqueo. Toca **Listo**.\n\n## Mis comisiones\n\nSi el dueño te puso un porcentaje de comisión, en **Yo** aparece **Mis comisiones**: lo **Cobrado**, tu **Comisión** y **Tu %** de **Este mes** o el **Mes anterior**, y tus **Últimas cuentas**. La comisión se calcula sobre lo cobrado de cada cuenta que atendiste, con el porcentaje que tenías al cobrarla.\n\n## Casos frecuentes\n\n- **El local todavía no abrió su turno, así que no podés abrir el tuyo**: pídele al encargado que abra el turno general del local y toca **Reintentar**.\n- **\"Tu base no puede superar la base del local...\"**: tu base no puede ser mayor que la del local. Escribe un monto menor.\n- **No veo Abrir turno**: tu restaurante usa turno único del local; lo maneja el administrador.\n- **Me sale una diferencia**: vuelve a contar antes de cerrar. Lo que declares queda registrado en el arqueo.",
+      "links": [
+        {
+          "label": "Ir a Yo",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "por-que-no-puedo-cobrar-o-mover",
+      "title": "Por qué no veo Cobrar, Mover o No cobrar",
+      "summary": "Algunos botones dependen de los permisos que eligió el dueño y del estado de cada plato. Aquí está por qué no aparecen o salen apagados, y qué hacer en cada caso.",
+      "keywords": [
+        "no puedo cobrar",
+        "no aparece cobrar",
+        "pedir la cuenta",
+        "solo el administrador",
+        "permisos",
+        "no puedo mover",
+        "mover plato",
+        "no cobrar apagado",
+        "cancelar apagado",
+        "preparacion empezo",
+        "sin turno",
+        "mesa no aparece",
+        "seccion",
+        "bloqueado"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "La app le muestra a cada mesero solo lo que puede hacer en su restaurante. Si un botón no aparece o sale apagado, casi siempre es por una regla del dueño o porque el plato ya se empezó a preparar. Estos son los casos.\n\n## No veo Cobrar la cuenta, sino Pedir la cuenta\n\nEl dueño activó que solo el administrador puede iniciar el cobro.\n\n1. Toca **Pedir la cuenta**. Cambia a **Caja avisada** y al administrador le aparece un aviso en pantalla completa.\n2. Acompaña la mesa mientras caja cobra.\n\nEn **Salón**, los pedidos de efectivo y datáfono te salen con **Sólo el administrador puede cobrar**. Si entras a cobrar por otro camino, ves **El cobro lo hace el administrador**.\n\n## Me pide abrir turno para cobrar\n\nSi ves **No tenés turno abierto**, tu restaurante usa turno por mesero y no puedes cobrar sin el tuyo. Toca **Abrir turno**, escribe tu base y toca **Abrir turno y cobrar**. Ver [Abre y cierra tu turno de mesero](/mesero/ayuda/app-del-mesero/turno-del-mesero).\n\n## No veo Mover ni Mover a otra mesa\n\n- Si la ficha dice **Solo el administrador puede mover platos o pedidos entre mesas.**, el dueño reservó los traslados al administrador. Pídeselo.\n- **Mover a otra mesa** (toda la cuenta) solo aparece si hay alguna mesa libre a donde llevarla.\n- Si al mover ves **Esa mesa no está en tu sección.**, solo puedes mover entre tus mesas.\n\n## Cancelar o No cobrar está apagado\n\n- **\"Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.\"**: la cocina ya empezó ese plato. Pídele al administrador que lo cancele.\n- Lo que va a la refri entra ya listo, así que cuenta como empezado: tampoco lo cancelas tú.\n- Un plato entregado ya pasó por preparación, así que **No cobrar** lo hace siempre el administrador.\n- Si debajo dice **Sólo puede hacerlo:** con unos roles, o **Ningún rol del equipo puede no cobrar en este comercio.**, tu rol no está entre los que pueden no cobrar.\n\n## No veo Cancelar la cuenta\n\nSolo aparece mientras ningún plato de la cuenta se haya empezado a preparar. Si la cocina ya empezó algo, el administrador cancela plato por plato.\n\n## No veo Gastos de representación al cobrar\n\nAparece solo si el dueño lo activó y tu rol puede no cobrar. Si algún plato ya se empezó a preparar, verás **Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía.**\n\n## No veo Cobrar a crédito\n\nAparece solo si el restaurante tiene algún cliente con crédito habilitado. Lo configura el dueño.\n\n## No veo una mesa\n\nNo es de tus mesas. Tómala en **Yo › Mis mesas**, si está libre o sin mesero. Ver [Toma y suelta tus mesas](/mesero/ayuda/app-del-mesero/mis-mesas).\n\n> Estas reglas las define el dueño en el panel, en **Configuración › Permisos, propinas y turnos**. Si crees que deberías poder hacer algo, habla con él.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir a Yo",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

@@ -1,5 +1,287 @@
 {
   "title": "Waiter app",
   "description": "How waiters work from their phone: tables, orders, Floor, payments and their shift.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "entrar-e-instalar-la-app",
+      "title": "Sign in to the waiter app and install it on your phone",
+      "summary": "Waiters sign in from their phone's browser with the email and password the owner gives them, install it as an app and turn on notifications for their tables.",
+      "keywords": [
+        "waiter app",
+        "sign in",
+        "log in",
+        "password",
+        "forgot password",
+        "install",
+        "home screen",
+        "mp mesero",
+        "notifications",
+        "alerts",
+        "turn on notifications",
+        "phone",
+        "sign out",
+        "log out"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "The waiter app runs in the phone's browser, with nothing to download from an app store. With it, waiters see their tables, take orders, deliver dishes and charge, and get notified when a table needs them.\n\n## Sign in for the first time\n\n1. Ask the owner or administrator for your user: they create it with the **Mesero** (waiter) role and give you your email and password.\n2. On your phone, open the browser and go to MESAPAY.\n3. Enter your **Email** and **Password** and tap **Sign in**. You land straight on **Salón** (Floor).\n\nIf you forgot your password, tap **Forgot your password?** on the sign-in screen and follow the link sent to your email, or ask the owner to set a new one.\n\n## Install it on your home screen\n\nThat way it opens like an app, full screen and always on **Salón**.\n\n- **iPhone**: open MESAPAY in Safari, tap the share button and choose the option to add it to the home screen.\n- **Android**: open MESAPAY in Chrome, open the browser menu and choose install app or add to home screen.\n\nThe icon is named **MP MESERO**.\n\n## Turn on notifications\n\nAs soon as you sign in you'll see **Recibe avisos cuando una mesa te llame o pida cobrar.** (get notified when a table calls you or asks to pay) with an **Activar** (turn on) button. Tap it and allow the phone's permission. You'll be notified when one of your tables:\n\n- calls a waiter;\n- asks for the bill;\n- asks to pay in cash or with a card terminal;\n- has dishes ready to deliver.\n\nIf you don't have any tables assigned, you get notifications for all of them. Tapping a notification opens **Salón**.\n\n> On iPhone, the **Activar** button only appears once the app is installed on the home screen. Install it first and open it from the icon.\n\n## How it's organized\n\n- At the bottom there are three tabs: **Mesas** (Tables), **Salón** (Floor) and **Yo** (Me).\n- At the top right are **Help** (these articles) and **Salir** (sign out). **Yo** also has **Cerrar sesión** (log out).\n\n## Common cases\n\n- **\"Wrong email or password.\"**: check that the email is typed correctly, with no spaces. If it keeps failing, ask the owner to set a new password.\n- **\"Las notificaciones están bloqueadas en este celular...\"** (notifications are blocked on this phone): you declined the permission. Allow it in your browser or phone settings and reopen the app.\n- **I don't see the Activar button**: notifications are already on, or the phone doesn't support them (on iPhone, install the app first).\n- **I signed in and landed on a different screen**: your user doesn't have the **Mesero** role. Ask the owner to check it.",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Go to Yo (me)",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mis-mesas",
+      "title": "Take and release your tables",
+      "summary": "In Yo, Mis mesas lets you choose which tables you serve: tap one to take it or release it. You see and get notified only about your tables; with none, you see them all.",
+      "keywords": [
+        "my tables",
+        "mis mesas",
+        "take table",
+        "release table",
+        "assign tables",
+        "section",
+        "zone",
+        "waiter tables",
+        "another waiter's table",
+        "unassigned tables",
+        "all tables"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "Each waiter serves a section of the dining room. In **Mis mesas** (my tables) you choose which tables are yours yourself, without waiting for the owner to assign them: that way **Mesas** and **Salón** show only yours, and you only get their notifications.\n\n## Take or release a table\n\n1. Open the **Yo** (me) tab and scroll down to **Mis mesas**.\n2. Tap the table number:\n- If it isn't yours, you take it. It turns dark, with **Tuya** (yours) underneath.\n- If it's already yours, you release it.\n3. At the top you see how many you have, or **Ninguna asignada** (none assigned).\n\nUnder each number it says whose it is: **Tuya**, another waiter's name, or **Sin mesero** (no waiter).\n\n## Tables without a waiter\n\nIf some tables have nobody serving them, a notice appears at the top, for example **2 mesas sin mesero asignado** (2 tables with no waiter assigned), with their numbers so you can take them with one tap. A dot next to the number means the table is occupied.\n\n## Rules\n\n- A table belongs to one waiter at a time.\n- You can take another waiter's table only if it's free: it's removed from them and becomes yours.\n- An occupied table served by another waiter can't be taken. You'll see, for example, **Mesa 4: la está atendiendo Ana (ocupada).** (Table 4: Ana is serving it, occupied).\n- You can release your tables whenever you want.\n- The owner can also assign each waiter's tables from the dashboard.\n\n## What changes depending on your tables\n\n- **With tables of your own**: **Mesas** and **Salón** show only those, and you only get their notifications.\n- **With none**: you see every table in the restaurant and get notifications for all of them. Handy for shifts with no zones.\n\n## Common cases\n\n- **I don't see a table in Mesas**: it isn't yours. Take it in **Mis mesas**, if it's free or has no waiter.\n- **\"No se pudo actualizar. Intenta de nuevo.\"** (couldn't update, try again): check your connection and tap the table again.\n- **\"No hay mesas creadas todavía.\"** (no tables created yet): the restaurant doesn't have tables yet; the owner creates them.",
+      "links": [
+        {
+          "label": "Go to Yo (me)",
+          "href": "/mesero/yo"
+        },
+        {
+          "label": "Go to Tables",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "mesas-y-ficha-en-la-app",
+      "title": "Use Tables and the table card in the app",
+      "summary": "The Tables tab shows your tables with colors based on what they need. Tap an occupied one to open its card: the order, the diner and the actions to serve it.",
+      "keywords": [
+        "tables",
+        "table card",
+        "order status",
+        "colors",
+        "red",
+        "bell",
+        "rush",
+        "identify diner",
+        "discount",
+        "pre-bill",
+        "ask for the bill",
+        "charge the bill",
+        "add dishes",
+        "charge"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "The **Mesas** (tables) tab is the map of your tables: each square tells you whether the table is free, eating, has dishes ready or is waiting to be charged. Tap an occupied one to see its whole order and what you can do.\n\n## Read the squares\n\n- **T-5** is the table. A free one says **available**; tap it to take the order. See [Take an order from the app](/mesero/ayuda/app-del-mesero/pedir-desde-la-app).\n- An occupied one shows what's left to collect, the items and, once it needs attention, the minutes waiting: **12m · 3i**.\n- 🔔 means the table called a waiter.\n- Green with ✓: it was just paid (it stays that way for 15 minutes).\n\nThe colors:\n\n- **Light amber**: the kitchen is preparing.\n- **Strong amber**: there are dishes ready to take out.\n- **Terracotta**: the table asked to pay or called; if nobody answers, the dot blinks.\n- **Red with a blinking dot**: they've gone a long time without paying after eating, or they asked and nobody went. Go right away.\n\nAt the top you filter with **All**, **To collect**, **Recently paid** and **Available**. The most urgent tables come first.\n\n## The table's card\n\nTap an occupied table. **Order status** opens, with:\n\n- The notice **The guest asked to pay with** if the table already asked to pay in cash or with a card terminal.\n- **Outstanding**: what's left to collect.\n- **Diner**: type their **ID number or email** and tap **Identify** to link their account at the restaurant and their discount, if they have one.\n- The rounds and the dishes, with their status: **To prepare**, **Preparing**, **Ready** or **Served**, and **Placed by:** with who sent each round.\n\nThe card refreshes on its own every 15 seconds.\n\n## What you can do\n\n- **+ Add dishes**: opens the menu to add a round.\n- **Add charge or service**: charge something that isn't on the menu.\n- **Charge the bill**: see [Charge a bill from the app](/mesero/ayuda/app-del-mesero/cobrar-desde-la-app). If only the administrator charges at your restaurant, you'll see **Ask for the bill** instead, which notifies the cash desk; once tapped it changes to **Cash desk notified**.\n- **Print pre-bill**: sends it to the venue's invoice printer. If there isn't one, it prints from the phone. **View pre-bill** shows it on screen.\n- **🔥 Rush**: next to a dish that's taking too long. In the kitchen it jumps to the top with the rush mark.\n- **Move**, **Move to another table**, **Cancel**, **Comp** and **Cancel the bill**: they appear depending on your restaurant's permissions and each dish's status.\n\n## Common cases\n\n- **The Cancel or Comp button is greyed out**: the dish has already started being prepared, or your role isn't allowed. See [Why I don't see Charge, Move or Comp](/mesero/ayuda/app-del-mesero/por-que-no-puedo-cobrar-o-mover).\n- **I don't see a table**: it isn't one of yours. See [Take and release your tables](/mesero/ayuda/app-del-mesero/mis-mesas).\n- **\"We couldn't find an account with those details at this restaurant.\"**: the diner doesn't have an account at this restaurant; they can create one from the menu.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Go to Floor",
+          "href": "/mesero/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pedir-desde-la-app",
+      "title": "Take an order from the app",
+      "summary": "From Tables you open the table's menu, pick the dishes with their options and notes, and tap Fire the order or Fire the additions to send them to the kitchen and the bar.",
+      "keywords": [
+        "take order",
+        "order",
+        "ticket",
+        "fire",
+        "fire the order",
+        "fire additions",
+        "add dishes",
+        "menu",
+        "modifiers",
+        "options",
+        "note for the kitchen",
+        "mains together",
+        "as it's ready",
+        "send to kitchen",
+        "round"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "When the table tells you what they want, you enter the order yourself on the same menu diners use, but in **Server mode**: no name prompt, and it goes straight to the kitchen and the bar.\n\n## Take the order\n\n1. In **Mesas**, tap a free table. If the table already has a bill, open it and tap **+ Add dishes**.\n2. The menu opens with a black strip at the top: **Server mode · Taking order at Table 5**.\n3. Search with **Search the menu** or by category and tap the dish.\n4. Choose its options. The ones marked **Required** must be filled in: if one is missing, the menu takes you to it with **Choose an option**.\n5. If needed, tap **+ Note for the kitchen** and write allergies or preferences.\n6. Adjust the quantity and tap **Add · $price**.\n7. Repeat for each dish and tap **Review and send order**.\n8. In **Your order** check everything: change quantities with **+** and **−** or remove a line with **Remove**.\n9. If it's the table's first order, choose **How should it come out?**:\n- **As it's ready**: each dish arrives as soon as it's ready.\n- **Mains together**: starters and drinks come out as they're ready; mains all come out together.\n10. Tap **Fire the order**. If the table already had a bill, the button says **Fire the additions** and **Your order** shows **Will be added to order** with the bill's code.\n\nOnce sent, the app takes you to **Salón**, where the dishes show up later when they're ready to deliver.\n\n## What happens next\n\n- Each dish lands on its station's board (kitchen or bar) under **To prepare**, with your name in **Placed by:**.\n- Fridge drinks (and bar drinks when there's no bartender) come in ready: you'll see them right away in **Salón** to take them out.\n- Each send is a new round on the same bill.\n\n## Common cases\n\n- **I made a mistake before sending**: fix it in **Your order**. To leave without sending, tap the **Mesas** tab: what you added stays saved for that table on your phone for a while.\n- **I made a mistake after sending**: open the table's card in **Mesas** and cancel or move the dish, if your restaurant allows it.\n- **\"We couldn't send the order. Check your connection.\"**: the order didn't go out. Check the internet and tap **Fire the order** again.\n- **The \"how should it come out\" question doesn't appear**: it only shows on the table's first send.\n- **A dish isn't on the menu**: it's sold out or archived; let the manager know.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "salon-en-la-app",
+      "title": "Work the Floor from the app",
+      "summary": "Salón shows what you have to do right now at your tables: pass on cancellations, answer calls, take cash or card terminal payments and deliver the dishes that are ready.",
+      "keywords": [
+        "floor",
+        "salon",
+        "deliver dishes",
+        "dishes ready",
+        "calls",
+        "on my way",
+        "i told the customer",
+        "cancellations",
+        "card terminal",
+        "cash",
+        "record charge",
+        "approved",
+        "declined",
+        "change",
+        "tip"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "**Salón** (Floor) is your to-do list for the shift: everything your tables need right now, in order of urgency. It's the tab the app opens on and where notifications take you.\n\nAt the top you'll see a summary, for example **1 call · 1 cash charge · 4 dishes ready · 2 tables**. When nothing is pending, it says **All delivered**.\n\n## Pass on a cancellation\n\nIf the kitchen cancelled everything in a round, it shows up under **Kitchen cancellations · tell the customer**, with the **Reason:**. Go to the table, tell the customer and tap **I told the customer**.\n\n## Answer a call\n\nUnder **Pending calls** the table appears with **Requesting a waiter**. Tap **On my way** and go to the table.\n\n## Charge with a card terminal\n\nUnder **Requested card terminal** are the tables that want to pay by card, with the amount and the tip included.\n\n- **MESAPAY card terminal**: take the terminal to the table and tap the button with the amount, for example **Charge $45,000**. The charge goes to the device.\n- **Merchant's own card terminal**: swipe the card on your terminal and report the result with **Approved** or **Declined**. If it's approved, the app offers you the invoice for the customer.\n\n## Charge in cash\n\nUnder **Cash charges** are the tables that are going to pay in cash. If the diner said what they're paying with, you'll see something like **Will pay with $50,000 · Bring $8,000 in change**, so you arrive with the change ready.\n\n1. Take the money and tap **Record charge**.\n2. In **Cash charge** tap **Paid exact** or the bill they handed you, or enter **Received (COP)** and **Change (COP)**.\n3. If the customer lets you keep the change, tap **Keep the change · tip $2,000**: the change goes to zero and the difference becomes a tip.\n4. Tap **Confirm charge**.\n\n## Deliver the dishes that are ready\n\n1. Each card is a table with its ready dishes, all checked. Uncheck any you won't take now, or use **Select all** / **Deselect all**.\n2. Tap **Deliver 3**. The card shows **Delivered to Table 5**.\n\nIf a dish doesn't come from the kitchen, the card says where to grab it: **Bar** or **Cooler**. **Still being prepared (2)** tells you that order is still missing something. With **Mains together**, you'll see **Waiting on kitchen** until all the mains are ready.\n\n## Common cases\n\n- **You have no open shift** when recording cash: your restaurant uses a shift per waiter. Enter your **Opening float (for change)** and tap **Open shift and charge**. See [Open and close your waiter shift](/mesero/ayuda/app-del-mesero/turno-del-mesero).\n- **\"Received amount is too low.\"**: what you entered is less than the total; check it.\n- **Only the administrator can charge**: at your restaurant the cash desk charges. Stay with the table while the administrator charges.\n- **I don't see a table that called me**: it isn't one of your tables. Check **Mis mesas** in **Yo**.",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/mesero/salon"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-desde-la-app",
+      "title": "Charge a bill from the app",
+      "summary": "From the table's card you tap Charge the bill, choose how much to charge and the tip, request the invoice if the customer wants one, and charge by card terminal, cash or another method.",
+      "keywords": [
+        "charge",
+        "charge the bill",
+        "pay",
+        "tip",
+        "cash",
+        "change",
+        "card terminal",
+        "card reader",
+        "split the bill",
+        "split evenly",
+        "combine methods",
+        "credit",
+        "complimentary",
+        "on the house",
+        "invoice",
+        "payment charged"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "When the table wants to pay, you charge from your phone without going to the cash desk: choose how much to charge, the tip and the payment method, and at the end you have the receipt and, if they asked for it, the invoice.\n\n## Charge\n\n1. In **Mesas**, tap the table and then **Charge the bill**. **Charge** opens, with the strip **Server mode · Charging Table 5**.\n2. Go over the summary in **Confirm your order** with the customer.\n3. Under **How to charge?** choose:\n- **All**: the whole bill.\n- **Split evenly**: enter how many people it's split between and charge one share.\n- **Individual**: just one person's items (when the dishes have names).\n- **Combine methods**: part in cash and part with another method.\n4. Choose the **Tip**: **No tip**, 5%, 10%, 15% or 20%. Below you'll see **To charge now**.\n5. If they're a registered customer of the restaurant, look them up under **Customer** to apply their discount or charge on credit.\n6. If they want an invoice, fill it in under **Does the customer need an electronic invoice?**.\n7. Choose the payment method (below).\n\n## Payment methods\n\n- **Charge by card reader**: if the administrator assigned you a card terminal, the charge goes straight to your device; if not, it waits in **Salón** to be sent to a terminal.\n- **Charge by merchant's card reader**: you charge with the restaurant's own terminal and then mark the result in **Salón**.\n- **Receive in cash**: under **What did they pay with?** tap **Exact amount** or the bill, or enter **Received from customer**. If there's change, choose **I return the change** or **They keep it as a tip**. Tap **Confirm charge**.\n- **Charge on credit**: if the customer has credit enabled, the bill goes to their accounts receivable; it doesn't go into the cash drawer.\n- **Complimentary (on the house)** (or whatever name your restaurant gave it): closes the bill as a courtesy, with no charge; write who it was given to. It only appears if your restaurant allows it for your role.\n\nThe methods you see depend on what your restaurant has turned on.\n\n## When you're done\n\nYou'll see **Payment charged**, with the invoice status if one was requested. If you charged only part, it says **Payment received** and how much is **Remaining**; **Pay more** charges the rest. Tap **Back to tables** to keep going.\n\n## Common cases\n\n- **\"The administrator handles charging\"**: your restaurant has turned on \"only the administrator charges\". Go back to the table and tap **Ask for the bill**.\n- **No tenés turno abierto** (you have no open shift): your restaurant uses a shift per waiter. Tap **Abrir turno** (open shift), enter your float and then **Abrir turno y cobrar** (open shift and charge).\n- **\"The customer must hand you at least...\"**: what you received is less than the total; correct it.\n- **\"This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary.\"**: the administrator closes that bill as complimentary.\n- **\"Exceeds the customer's credit limit...\"**: the customer doesn't have enough credit for the whole bill; charge with another method.\n- **Your payment wasn't approved**: the terminal declined the card. Try another card or another method.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "turno-del-mesero",
+      "title": "Open and close your waiter shift",
+      "summary": "If your restaurant uses a shift per waiter, in Yo you open your shift with your cash float and close it at the end by counting the money. You also see your sales, tips and commissions.",
+      "keywords": [
+        "shift",
+        "open shift",
+        "close shift",
+        "float",
+        "opening float",
+        "cash count",
+        "cash up",
+        "shortage",
+        "cash",
+        "tips",
+        "today's sales",
+        "commissions",
+        "my commissions",
+        "shift summary"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "The shift is your personal cash drawer: you open it with the cash you have for giving change and close it by counting what you collected. Everything happens in the **Yo** (me) tab, which also shows how your day is going.\n\n## How it works at your restaurant\n\nIt depends on what the owner chose:\n\n- **Shift per server**: each waiter opens and closes their own. In **Yo** you see **Abrir turno** (open shift) or **Cerrar turno** (close shift), and you need an open shift to charge.\n- **Single venue shift**: the administrator opens and closes it. In **Yo** you see **Resumen del día** (day summary), with no buttons, showing your figures since the start of the business day.\n\nIf only the administrator charges at your restaurant, the shift is always a single venue shift.\n\n## Open your shift\n\n1. In **Yo**, tap **Abrir turno**.\n2. Under **¿Con cuánta base inicias?** (how much float are you starting with?), enter the cash you start with for giving change. If you don't use a float, leave it at $0.\n3. Tap **Abrir turno**. The card changes to **Tu turno · Abierto** (your shift · open).\n\nYou can also open it right when charging: if you try to charge without a shift, the app asks you to.\n\n## During the shift\n\nThe card shows **Ventas** (sales), **Propinas** (tips), **Mesas** (tables) and **Pagos** (payments) for what you charged. If tips are shared, instead of the amount it says **Compartidas** (shared): the venue splits them at close-out.\n\n## Close your shift\n\n1. Tap **Cerrar turno**.\n2. In **Arqueo de tu caja** (your cash count) you see the **Base inicial** (opening float), the **Efectivo cobrado** (cash collected) and the **Esperado en caja** (expected in drawer).\n3. Count the cash and enter what you counted under **¿Cuánto contaste?** (how much did you count?).\n4. Check the **Diferencia** (difference): **Sin descuadre** (balanced), or how much is over (+) or short (−).\n5. Tap **Cerrar turno**.\n\nAt the end you'll see the **Resumen del turno** (shift summary): duration, tables served, payments collected, sales, tips and the cash count. Tap **Listo** (done).\n\n## My commissions\n\nIf the owner gave you a commission percentage, **My commissions** appears in **Yo**: what you **Collected**, your **Commission** and **Your %** for **This month** or **Last month**, and your **Latest bills**. The commission is calculated on what was collected on each bill you served, at the percentage you had when it was charged.\n\n## Common cases\n\n- **El local todavía no abrió su turno...** (the venue hasn't opened its shift yet): ask the manager to open the venue's main shift and tap **Reintentar** (retry).\n- **\"Tu base no puede superar la base del local...\"** (your float can't exceed the venue's): enter a smaller amount.\n- **I don't see Abrir turno**: your restaurant uses a single venue shift; the administrator handles it.\n- **I get a difference**: count again before closing. What you declare is recorded in the cash count.",
+      "links": [
+        {
+          "label": "Go to Yo (me)",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "por-que-no-puedo-cobrar-o-mover",
+      "title": "Why I don't see Charge, Move or Comp",
+      "summary": "Some buttons depend on the permissions the owner chose and on each dish's status. Here's why they don't appear or are greyed out, and what to do in each case.",
+      "keywords": [
+        "can't charge",
+        "charge missing",
+        "ask for the bill",
+        "only the administrator",
+        "permissions",
+        "can't move",
+        "move dish",
+        "comp greyed out",
+        "cancel greyed out",
+        "preparation started",
+        "no shift",
+        "table missing",
+        "section",
+        "blocked"
+      ],
+      "audience": [
+        "mesero",
+        "operator"
+      ],
+      "body": "The app shows each waiter only what they can do at their restaurant. If a button doesn't appear or is greyed out, it's almost always because of a rule the owner set or because the dish has already started being prepared. These are the cases.\n\n## I see Ask for the bill instead of Charge the bill\n\nThe owner turned on \"only the administrator can start a charge\".\n\n1. Tap **Ask for the bill**. It changes to **Cash desk notified** and a full-screen alert appears for the administrator.\n2. Stay with the table while the cash desk charges.\n\nIn **Salón**, cash and card terminal requests show up with **Only the administrator can charge**. If you try to charge another way, you'll see **The administrator handles charging**.\n\n## It asks me to open a shift to charge\n\nIf you see **No tenés turno abierto** (you have no open shift), your restaurant uses a shift per waiter and you can't charge without yours. Tap **Abrir turno** (open shift), enter your float and tap **Abrir turno y cobrar** (open shift and charge). See [Open and close your waiter shift](/mesero/ayuda/app-del-mesero/turno-del-mesero).\n\n## I don't see Move or Move to another table\n\n- If the card says **Only an administrator can move dishes or orders between tables.**, the owner reserved moves for the administrator. Ask them.\n- **Move to another table** (the whole bill) only appears if there's a free table to move it to.\n- If when moving you see **That table isn't in your section.**, you can only move between your own tables.\n\n## Cancel or Comp is greyed out\n\n- **\"Once preparation starts, only an administrator can cancel or waive the charge for a dish.\"**: the kitchen already started that dish. Ask the administrator to cancel it.\n- Fridge items come in ready, so they count as started: you can't cancel them either.\n- A delivered dish has already been prepared, so **Comp** is always done by the administrator.\n- If it says **Only these roles can:** with some roles, or **No team role can comp at this venue.**, your role isn't one of those allowed to comp.\n\n## I don't see Cancel the bill\n\nIt only appears while no dish on the bill has started being prepared. If the kitchen already started something, the administrator cancels dish by dish.\n\n## I don't see the complimentary option when charging\n\nIt only appears if the owner turned it on and your role is allowed to comp. If any dish has already started being prepared, you'll see **This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary.**\n\n## I don't see Charge on credit\n\nIt only appears if the restaurant has a customer with credit enabled. The owner sets that up.\n\n## I don't see a table\n\nIt isn't one of your tables. Take it in **Yo › Mis mesas**, if it's free or has no waiter. See [Take and release your tables](/mesero/ayuda/app-del-mesero/mis-mesas).\n\n> The owner sets these rules in the dashboard, under **Settings › Permissions, tips and shifts**. If you think you should be able to do something, talk to them.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Go to Yo (me)",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

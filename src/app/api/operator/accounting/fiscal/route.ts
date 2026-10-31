@@ -7,6 +7,7 @@ import {
   loadClosing,
   loadTaxDeclaration,
 } from "@/lib/erp/fiscal";
+import { MANUAL_LOCK_WAIT_MS, withJournalLock } from "@/lib/erp/autoJournal";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,15 @@ async function POSTHandler(req: Request) {
   if (!/^\d{4}$/.test(year)) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
-  const result = await generateYearClosing(ctx.restaurantId, year);
+  // Con el lock contable del comercio: el cierre lee los saldos del año y
+  // no puede cruzarse con la corrida diaria ni con un cierre de mes.
+  const locked = await withJournalLock(
+    ctx.restaurantId,
+    () => generateYearClosing(ctx.restaurantId, year),
+    { waitMs: MANUAL_LOCK_WAIT_MS, holdMs: 60_000 },
+  );
+  if (!locked.ok) return NextResponse.json({ error: "busy" }, { status: 409 });
+  const result = locked.value;
   if (!result.ok) {
     // El cierre ya es un comprobante numerado y diciembre está cerrado: no
     // se cambia ni se borra. La pantalla explica cómo corregirlo.

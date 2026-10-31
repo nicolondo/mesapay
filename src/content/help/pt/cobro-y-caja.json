@@ -1,5 +1,465 @@
 {
   "title": "Cobrança e caixa",
   "description": "Cobrar em dinheiro, na maquininha ou a prazo, gorjetas, pré-conta, conta dividida, turnos e caixa.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "cobrar-una-cuenta",
+      "title": "Cobre uma conta passo a passo",
+      "summary": "Abra a cobrança pela mesa ou pelo pedido, revise o consumo, escolha a gorjeta e o meio de pagamento, peça a nota e veja o que muda quando só o administrador pode cobrar.",
+      "keywords": [
+        "cobrar",
+        "cobrança",
+        "conta",
+        "fechar a conta",
+        "fechar mesa",
+        "pagar",
+        "gorjeta",
+        "meio de pagamento",
+        "nota fiscal",
+        "pedir a conta",
+        "caixa",
+        "checkout",
+        "controle de caixa"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "A tela de cobrança é onde você fecha a conta de uma mesa: revisa o que foi consumido, escolhe a gorjeta e registra como o cliente pagou. Ela é igual no painel e no app do garçom.\n\n## Abra a cobrança\n\n1. Em [Mesas](/operator/tables), toque na mesa para abrir a ficha, **Status do pedido**.\n2. Toque em **Cobrar a conta**. O botão aparece enquanto a conta tiver algo pendente.\n\nVocê também pode cobrar pelo detalhe de um pedido em [Pedidos](/operator/orders): em **Ações**, toque em **Cobrar a conta**.\n\n> No painel, a cobrança abre em uma nova aba do navegador. No app do garçom, abre dentro do app.\n\n## Passo a passo\n\n1. No alto aparecem **Modo garçom** e **Cobrando** com o nome da mesa. Para sair sem cobrar, toque em **Voltar às mesas**.\n2. Revise **Confirme seu pedido**: pratos, quantidades, preços e o **Subtotal**. Se a conta tiver desconto, aparece também o **Total com desconto**.\n3. Em **Como cobrar?**, deixe **Tudo** para cobrar a conta inteira. As outras opções servem para dividi-la: veja [Divida a conta ou combine meios de pagamento](/operator/ayuda/cobro-y-caja/dividir-la-cuenta).\n4. Escolha a **Gorjeta**: **Sem gorjeta**, 5%, 10%, 15% ou 20%. Os 10% vêm marcados. Abaixo aparece **A cobrar agora**, com o consumo mais a gorjeta.\n5. Se o cliente quiser nota, preencha em **O cliente precisa de nota fiscal eletrônica?** antes de cobrar. Veja [Nota fiscal genérica ou personalizada para o cliente](/operator/ayuda/experiencia-del-comensal/factura-del-comensal).\n6. Toque no botão do meio de pagamento. Cada um mostra o total que será cobrado.\n7. No fim aparecem **Cobrança realizada** e **Conta paga**. Dali você gera ou imprime a nota e volta com **Voltar às mesas**.\n\nSe o seu estabelecimento tem clientes para faturamento, aparece também o passo **Cliente**, e se tem vales empresariais, o passo **Vale empresarial**.\n\n## Os meios de pagamento\n\n- **Receber em dinheiro**: você registra o valor recebido e o troco. Veja [Cobre em dinheiro e dê o troco](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n- **Cobrar com maquininha** (maquininha Kushki) e **Cobrar com maquininha do comércio** (sua própria maquininha). Veja [Cobre na maquininha](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n- **Cobrar a crédito**: a conta vira dívida de um cliente. Aparece se pelo menos um cliente tiver crédito. Veja [Venda a crédito e registre pagamentos](/operator/ayuda/cobro-y-caja/cobrar-a-credito).\n- **Cortesia (por conta da casa)** (ou o nome que você deu): fecha a conta como cortesia. Veja [Cortesias, despesas de representação e produtos não cobrados](/operator/ayuda/cobro-y-caja/cortesias-y-productos-no-cobrados).\n\nOs botões dependem dos meios de pagamento que o MESAPAY ativou para o seu estabelecimento. Se faltar algum, fale com o suporte.\n\n## Quando só o administrador pode cobrar\n\nSe em [Permissões, gorjetas e turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos) você ativou **Apenas o administrador pode iniciar a cobrança**:\n\n- O garçom não vê **Cobrar a conta**. No lugar, vê **Pedir a conta**, que muda para **Avisando…** e depois para **Caixa avisado**.\n- No painel aparece um aviso em tela cheia, **O garçom está avisando**, com a mesa em letras grandes, **pede a conta** e como o cliente vai pagar.\n- O mesmo aviso aparece como **Pediram a conta** quando o cliente escolhe no celular pagar em dinheiro ou na maquininha (só em mesas, não no balcão). Ele diz **Vai pagar em dinheiro**, **Vai pagar com maquininha** ou **Vai pagar com a maquininha do estabelecimento**.\n- Toque em **Ir cobrar** para abrir a cobrança ou em **Fechar** para esconder o aviso. Se houver mais mesas esperando, toque em **+1 mesa esperando** (ou quantas forem) para ir ao Salão.\n- Se o garçom abrir a cobrança mesmo assim, vê **Quem cobra é o administrador**.\n\nEssa regra só trava o garçom: o usuário Datáfono (maquininha) continua cobrando, e o cliente pode pagar sozinho pelo celular.\n\n## Casos frequentes\n\n- **Não vejo Cobrar a conta**: a conta já está paga ou não tem nada pendente, ou a cobrança está reservada ao administrador (nesse caso aparece **Pedir a conta**).\n- **A tela diz Pago**: a conta já foi paga por inteiro. Toque em **Ver comprovante e fatura**.\n- **Aparece O cliente pediu para pagar com no alto**: o cliente já escolheu um meio no celular. Veja [Confirme os pagamentos que o cliente pediu](/operator/ayuda/cobro-y-caja/pagos-pendientes-del-comensal).\n- **O garçom vê No tenés turno abierto** (Você não tem turno aberto): seu local usa **Turno por garçom** e o garçom precisa do turno aberto para cobrar. Digite o fundo inicial dele e toque em **Abrir turno y cobrar** (Abrir turno e cobrar).\n- **Escolhi a gorjeta errada**: enquanto não confirmar o pagamento, troque o percentual. Depois de cobrar, o pagamento fica registrado com essa gorjeta.\n",
+      "links": [
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Mesas (app do garçom)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir para Permissões, gorjetas e turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-en-efectivo",
+      "title": "Cobre em dinheiro e dê o troco",
+      "summary": "Registre um pagamento em dinheiro pela cobrança ou pelo Salão, calcule o troco, deixe o troco como gorjeta se o cliente quiser e veja em que caixa o dinheiro entra.",
+      "keywords": [
+        "dinheiro",
+        "espécie",
+        "nota",
+        "troco",
+        "cobrar em dinheiro",
+        "registrar cobrança",
+        "pagou exato",
+        "gorjeta",
+        "fique com o troco",
+        "caixa",
+        "gaveta",
+        "cash"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Quando o cliente paga em dinheiro, o MESAPAY registra quanto você recebeu, quanto devolveu e se ele deixou o troco como gorjeta. Assim o dinheiro bate no fechamento do turno.\n\nHá dois caminhos: você cobra pela tela de cobrança, ou o cliente pediu no celular para pagar em dinheiro e você confirma que recebeu.\n\n## Quando você cobra\n\n1. Abra a conta com **Cobrar a conta** e escolha a gorjeta. Veja [Cobre uma conta passo a passo](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n2. Toque em **Receber em dinheiro**. Abre **Cobrar em dinheiro** com o total, arredondado para cima até o valor inteiro. Se o total tinha centavos, essa fração vira gorjeta.\n3. Em **Com o que ele pagou?**, toque em **Valor exato** ou na nota com que ele pagou. Você também pode digitar o valor em **Recebido do cliente**.\n4. Confira o **Troco dado**: é o dinheiro que você devolve ao cliente.\n5. Se houver troco, o MESAPAY pergunta **O que ele faz com os $… de troco?**. Toque em **Devolvo o troco** ou **Ele fica de gorjeta**. Se ele deixar só uma parte, digite em **Troco dado** o que você devolveu.\n6. Confira a linha **Gorjeta pelo troco** (ou **Sem gorjeta pelo troco.**) e toque em **Confirmar cobrança**.\n\n> ⚠ Se você digitar o valor recebido à mão, o **Troco dado** começa em $0, o que equivale a o cliente deixar todo o troco de gorjeta. Se for devolver, toque em **Devolvo o troco** antes de confirmar.\n\n## Quando o cliente pediu para pagar em dinheiro\n\nSe o cliente escolheu **Dinheiro (chamar o garçom)** no celular, o pedido aparece no [Salão](/operator/serve), em **Cobranças em dinheiro**, com a mesa e o valor. Se ele disse com que nota vai pagar, aparece **Vai pagar com $…** e quanto levar de troco. Aparece também na ficha da mesa e no alto da cobrança.\n\n1. Leve o troco à mesa e receba o pagamento.\n2. Toque em **Registrar cobrança** no Salão, ou em **Confirmar pagamento recebido** na ficha ou na cobrança.\n3. Em **Cobrança em dinheiro**, toque em **Pagou exato** ou na nota que ele anunciou, ou digite o **Recebido** e o **Troco**.\n4. Se o cliente deixar o troco, toque em **Fique com o troco · gorjeta $…**.\n5. Toque em **Confirmar cobrança**.\n\nO usuário Datáfono faz isso em **Mesas ao vivo**, com **Confirmar dinheiro recebido**.\n\n## Em que caixa o dinheiro entra\n\n- Com **Turno único do local** (o padrão), todo o dinheiro entra no caixa do local.\n- Com **Turno por garçom**, o dinheiro que um garçom cobra fica no caixa dele enquanto o turno está aberto, e passa ao caixa do local quando ele fecha. O que um administrador ou o usuário Datáfono cobra entra direto no caixa do local.\n- A gorjeta em dinheiro fica dentro do pagamento: faz parte do dinheiro esperado no fechamento.\n\nVeja [Cuide do caixa: fundo, entradas e retiradas](/operator/ayuda/cobro-y-caja/la-caja).\n\n> ⚠ Abra o turno do local antes da primeira cobrança: pagamentos registrados sem turno aberto não entram em nenhum fechamento.\n\n## Casos frequentes\n\n- **No tenés turno abierto** (Você não tem turno aberto): com **Turno por garçom**, o garçom precisa do turno para cobrar. Digite o **Fundo inicial (para troco)** e toque em **Abrir turno e cobrar**.\n- **O estabelecimento ainda não abriu o turno dele…**: o responsável abre o turno do local em [Fechamento](/operator/reports) e o garçom toca em **Tentar de novo**.\n- **Seu fundo não pode superar o fundo do estabelecimento**: diminua o fundo do garçom.\n- **O cliente deve te passar pelo menos $…**: o valor recebido não cobre o total.\n- **O troco não pode ser maior que o recebido.**: corrija o troco.\n- **O troco é $… maior do que deveria**: o cliente ficaria te devendo. Toque em **Corrigir para o troco exato**.\n- **Apenas o administrador pode cobrar**: a cobrança está reservada ao administrador em Permissões, gorjetas e turnos.\n- **O cliente pediu dinheiro, mas paga com cartão**: cobre pelo outro meio; o pedido de dinheiro é substituído automaticamente.\n",
+      "links": [
+        {
+          "label": "Ir para Salão",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir para Salão (app do garçom)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir para Fechamento",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-con-datafono",
+      "title": "Cobre na maquininha",
+      "summary": "Cobre com a maquininha Kushki, direto no aparelho atribuído ou pelo Salão, ou com a maquininha própria do estabelecimento, e o que fazer quando a cobrança não chega ou é recusada.",
+      "keywords": [
+        "maquininha",
+        "datáfono",
+        "cartão",
+        "pos",
+        "kushki",
+        "smart pos",
+        "passar cartão",
+        "débito",
+        "crédito",
+        "aprovado",
+        "recusado",
+        "terminal",
+        "cobrar no cartão",
+        "comprovante"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "O MESAPAY trabalha com dois tipos de maquininha: a maquininha Kushki, que recebe a cobrança direto do MESAPAY, e a maquininha própria do seu estabelecimento, de qualquer outro provedor, onde você marca o resultado. Os dois meios de pagamento são ativados pelo MESAPAY para o seu estabelecimento.\n\n## Com a maquininha Kushki\n\n1. Na cobrança, escolha a gorjeta e toque em **Cobrar com maquininha**.\n2. Se você tem uma maquininha atribuída (em Configurações › Maquininhas, **Garçom atribuído**), a cobrança vai direto para esse aparelho e a tela fica esperando o resultado. Passe o cartão do cliente.\n3. Se você não tem maquininha atribuída, a cobrança fica no [Salão](/operator/serve), em **Pediu maquininha**. Leve a maquininha à mesa e toque em **Cobrar $…**. Aparece **Enviando para a maquininha…** e a cobrança vai para a primeira maquininha ativa do estabelecimento.\n4. Quando a maquininha aprova, a conta fica paga e aparece a tela final.\n\nSe o cliente escolher **Cartão na maquininha** no celular, o pedido aparece no Salão, em **Pediu maquininha**, e é cobrado como no passo 3.\n\nPara cadastrar e atribuir as maquininhas, veja [Configure as maquininhas e atribua aos garçons](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## Com a maquininha própria do estabelecimento\n\n1. Na cobrança, toque em **Cobrar com maquininha do comércio**. O MESAPAY não envia nada para a sua maquininha: só anota que você vai cobrar por ela.\n2. Passe o cartão na sua maquininha.\n3. No [Salão](/operator/serve), no cartão da mesa (**Maquininha do próprio estabelecimento**), marque o resultado: **Aprovado** ou **Recusado**. Você também pode tocar em **Confirmar pagamento recebido** na ficha da mesa ou no alto da cobrança.\n4. Depois de **Aprovado**, o Salão pergunta **Nota para o cliente?**.\n\n> ⚠ **Aprovado** e **Confirmar pagamento recebido** registram o pagamento sem pedir confirmação. Toque neles só quando a sua maquininha já tiver aprovado a transação.\n\nSe o cliente escolher **Cartão (maquininha do comércio)** no celular, o pedido aparece no Salão e se resolve do mesmo jeito.\n\nOs pagamentos na maquininha não entram no caixa de dinheiro: no fechamento do turno aparecem na própria linha por meio de pagamento.\n\n## O usuário Datáfono e as Mesas ao vivo\n\nSe alguém da equipe se dedica a cobrar com a maquininha, crie para ele um usuário com o perfil Datáfono. Ao entrar, ele vê **Mesas ao vivo**: todas as mesas, primeiro as que pediram para pagar (**📱 Pediu maquininha** ou **💵 Pediu dinheiro**).\n\n1. Toque na mesa.\n2. Em **Pagamentos pendentes**, toque em **Cobrar $… na maquininha** ou **Confirmar dinheiro recebido**.\n\nEssa tela não inicia cobranças sozinha: se o cliente ainda não pediu para pagar, aparece um aviso de que o pedido vai aparecer ali quando ele pedir.\n\n## Casos frequentes\n\n- **Não vejo Cobrar com maquininha**: esse meio de pagamento não está ativo no seu estabelecimento. Fale com o suporte.\n- **Não há maquininha ativa registrada…**: nenhuma maquininha está marcada como ativa. Ative ou adicione uma em [Maquininhas](/operator/settings/datafonos).\n- **Não conseguimos enviar a cobrança à maquininha.** ou **Não foi possível enviar para a maquininha.**: confira se a maquininha está ligada e conectada e se o número de série está certo. Tente de novo pelo Salão.\n- **O cartão foi recusado**: aparece a mensagem do banco. Tente de novo ou cobre por outro meio. O cliente vê **Seu pagamento não foi aprovado**.\n- **Há um pagamento com … de … aguardando a confirmação do provedor**: já existe uma cobrança eletrônica em andamento para essa conta. Espere o resultado antes de cobrar de outra forma.\n- **A cobrança foi enviada, mas nunca veio resposta**: o pagamento fica pendente. Depois de 30 minutos, aparece em Cobranças como **Requer revisão** e um administrador resolve com **Conciliar pagamento**. Veja [Revise cobranças, devolva um pagamento ou concilie](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n",
+      "links": [
+        {
+          "label": "Ir para Salão",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir para Salão (app do garçom)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir para Maquininhas",
+          "href": "/operator/settings/datafonos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "dividir-la-cuenta",
+      "title": "Divida a conta ou combine meios de pagamento",
+      "summary": "Cobre a conta em partes iguais, por pessoa ou em vários pagamentos com meios diferentes, por exemplo uma parte em dinheiro e o resto na maquininha.",
+      "keywords": [
+        "dividir",
+        "dividir a conta",
+        "partes iguais",
+        "por pessoa",
+        "cada um paga o seu",
+        "pagamento misto",
+        "combinar meios",
+        "metade dinheiro",
+        "metade cartão",
+        "rachar a conta",
+        "pagamento parcial",
+        "saldo"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Quando uma mesa não paga tudo junto, a tela de cobrança permite dividir a conta ou cobrá-la em vários pagamentos. A conta fica aberta até que todo o consumo seja pago, e no fim é gerada uma única nota.\n\n## Escolha como cobrar\n\nNa cobrança, **Como cobrar?** tem quatro opções:\n\n- **Tudo**: a conta inteira.\n- **Partes iguais**: divide por um número de pessoas.\n- **Individual**: só o de uma pessoa.\n- **Combinar meios**: dinheiro e outros meios em vários pagamentos.\n\nNo balcão só existem **Tudo** e **Combinar meios**.\n\n## Partes iguais\n\n1. Toque em **Partes iguais**.\n2. Em **Dividir entre**, use os botões − e + para escolher quantas pessoas, de 2 a 20.\n3. Aparece **A cobrar (1 de N)** com a parte de uma pessoa. Escolha a gorjeta e cobre pelo meio que essa pessoa usar.\n4. Abra a cobrança de novo para a próxima pessoa.\n\n> ⚠ A divisão é feita sobre o que falta pagar e volta para 2 pessoas toda vez que você abre a cobrança. Se eram 4 e uma já pagou, na próxima cobrança divida por 3.\n\n## Individual\n\n1. Toque em **Individual**. Aparecem os nomes que os clientes deixaram ao pedir pelo cardápio, com o que cada um pediu.\n2. Escolha a pessoa. A parte dela é a soma dos seus pratos.\n3. Escolha a gorjeta e cobre.\n\nSe ninguém deixou o nome ao pedir, **Individual** aparece desativado: use **Partes iguais**.\n\n> ⚠ O valor de **Individual** não desconta o desconto da conta nem sabe se essa pessoa já pagou. Confira o valor antes de cobrar.\n\n## Combinar meios: dinheiro e maquininha\n\nServe quando uma pessoa paga uma parte em dinheiro e outra no cartão, ou quando cada um paga com um meio diferente.\n\n1. Toque em **Combinar meios**.\n2. Escolha a **Gorjeta para toda a conta**. Ela é escolhida uma vez só e dividida entre os pagamentos: não é somada inteira em cada um.\n3. Em **Valor deste pagamento**, digite quanto será pago pelo primeiro meio (inclui a gorjeta dessa parte), ou toque em **Cobrar saldo restante**. Abaixo aparece **Após este pagamento, restarão $….**\n4. Toque no meio: **Receber em dinheiro**, **Cobrar com maquininha** ou **Cobrar com maquininha do comércio**.\n5. Ao confirmar, aparece **Pagamento registrado. Você pode cobrar o saldo com outro meio.** Em **Pagamentos da conta** ficam os **Pagamentos recebidos** e o **Saldo restante com gorjeta**, e o valor se preenche com o que falta.\n6. Cobre o saldo pelo próximo meio. Quando a conta fica paga, aparece a tela final.\n\nDetalhes de cada meio:\n\n- **Maquininha do comércio**: o pagamento fica no alto como pendente. Toque em **Confirmar pagamento recebido** quando a sua maquininha aprovar, ou em **Este pagamento não foi recebido** se não passou. Enquanto estiver pendente, não dá para registrar outro pagamento.\n- **Maquininha Kushki atribuída**: a tela espera o resultado e volta ao saldo quando a maquininha aprova. Sem maquininha atribuída, a cobrança vai para o Salão e você sai de **Combinar meios**.\n- **Dinheiro**: funciona como sempre, com troco e troco como gorjeta. Veja [Cobre em dinheiro e dê o troco](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n\nEm **Combinar meios** não aparecem **Cobrar a crédito** nem a cortesia. Só o dinheiro entra no caixa; cada pagamento fica registrado separadamente. No balcão, o preparo começa quando a conta fica totalmente paga.\n\n## Mensagens frequentes\n\n- **O valor ultrapassa o saldo restante.**: diminua o valor ou toque em **Cobrar saldo restante**.\n- **O pagamento deve ser de pelo menos $1.**\n- **Inclua os centavos restantes neste pagamento ou escolha um valor menor.**: o saldo que sobraria seria pequeno demais para cobrar depois.\n- **Ajuste o valor para não deixar apenas gorjeta pendente.**\n- **Confirme ou descarte o pagamento pendente acima antes de registrar outro.**\n- **Há um pagamento eletrônico em andamento. Aguarde o resultado antes de cobrar outra parte.**\n- **Verificar o mesmo pagamento**: aparece se a resposta de uma cobrança em dinheiro se perdeu. Confere o mesmo pagamento sem duplicá-lo.\n\nO cliente também pode dividir pelo celular, com **Tudo**, **Partes iguais** ou **O meu**. Veja [Como o cliente paga](/operator/ayuda/experiencia-del-comensal/como-paga-el-comensal).\n",
+      "links": [
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Mesas (app do garçom)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pagos-pendientes-del-comensal",
+      "title": "Confirme os pagamentos que o cliente pediu",
+      "summary": "Quando o cliente escolhe no celular pagar em dinheiro ou na maquininha, o pedido chega ao Salão e à mesa. Veja como confirmá-lo, descartá-lo ou substituí-lo cobrando de outra forma.",
+      "keywords": [
+        "pagamento pendente",
+        "solicitação de pagamento",
+        "cliente pediu para pagar",
+        "confirmar pagamento",
+        "confirmar pagamento recebido",
+        "dinheiro pendente",
+        "maquininha pendente",
+        "pagamento online em andamento",
+        "substituir",
+        "descartar",
+        "não deixa cobrar",
+        "travado"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Quando um cliente escolhe no celular pagar em dinheiro ou na maquininha, o MESAPAY não dá a conta por paga: cria uma solicitação que alguém da equipe confirma ao receber o dinheiro. Os pagamentos online (cartão, PSE e Apple Pay) se confirmam sozinhos.\n\n## Onde aparecem\n\n- No [Salão](/operator/serve): **Cobranças em dinheiro** para o dinheiro e **Pediu maquininha** para a maquininha Kushki ou a do estabelecimento.\n- Na ficha da mesa e no alto da tela de cobrança: o aviso **O cliente pediu para pagar com** e o meio (**Dinheiro** ou **Maquininha do estabelecimento**), com o valor, **Inclui gorjeta de $…** e, em dinheiro, **Diz que vai pagar com $…**.\n- Em **Mesas ao vivo**, a tela do usuário Datáfono.\n- Se a cobrança estiver reservada ao administrador, aparece também o aviso em tela cheia **Pediram a conta**.\n\n## Confirme o pagamento\n\n1. Cobre o cliente: receba o dinheiro ou passe o cartão.\n2. Toque em **Confirmar pagamento recebido**, ou em **Registrar cobrança** no Salão.\n3. Em dinheiro abre **Cobrança em dinheiro** para anotar o recebido e o troco. Veja [Cobre em dinheiro e dê o troco](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n4. Com a maquininha do estabelecimento, o pagamento é aprovado na hora.\n\nSe o pedido for de maquininha Kushki, ele é cobrado pelo Salão com **Cobrar $…**. Veja [Cobre na maquininha](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n\n> ⚠ Com a maquininha do estabelecimento, **Confirmar pagamento recebido** aprova o pagamento sem perguntar. Toque só quando a sua maquininha já tiver aprovado a transação.\n\nQuando você confirma, o cliente vê **Pagamento recebido!** (dinheiro) ou **Pagamento aprovado!** (maquininha) na tela de espera.\n\n## Se você cobrar de outra forma\n\nSe o cliente mudar de ideia, por exemplo pediu dinheiro e no fim paga com cartão, cobre pelo outro meio. Como diz o aviso: **Se você cobrar de outra forma, esta solicitação é substituída automaticamente.** Isso vale para pedidos de dinheiro e de maquininha do estabelecimento, também quando você fecha a conta a crédito ou como cortesia.\n\nEm **Combinar meios**, um pedido de maquininha do estabelecimento pode ser descartado com **Este pagamento não foi recebido**. O MESAPAY pede confirmação: faça isso só se não recebeu o dinheiro.\n\n## Pagamento online em andamento\n\nSe o cliente estiver pagando com cartão, PSE, Apple Pay ou maquininha Kushki, aparece **Pagamento online em andamento**. Esse pagamento não é substituído: espere o provedor aprovar ou recusar e toque em **Atualizar saldo**. Se tentar cobrar de outra forma, aparece **Há um pagamento com … de … aguardando a confirmação do provedor**.\n\n- Se for um pedido de maquininha Kushki que ninguém enviou ainda ao aparelho, envie pelo Salão com **Cobrar $…**.\n- Se passarem mais de 30 minutos sem resposta, o pagamento aparece em Cobranças como **Requer revisão** e um administrador resolve com **Conciliar pagamento**. Veja [Revise cobranças, devolva um pagamento ou concilie](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n\n## Casos frequentes\n\n- **Somente o administrador pode confirmar este pagamento.**: a cobrança está reservada ao administrador. Avise-o para que confirme.\n- **Não foi possível confirmar o pagamento. Atualize e tente novamente.**: atualize a tela. Se o seu local usa **Turno por garçom**, confira se o garçom está com o turno aberto.\n- **A tela do cliente diz Pagamento cancelado**: acontece quando a equipe cobrou de outra forma e o pedido de dinheiro foi substituído. A conta foi paga: o cliente vê isso no pedido dele.\n",
+      "links": [
+        {
+          "label": "Ir para Salão",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir para Salão (app do garçom)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir para Cobranças",
+          "href": "/operator/payments"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-la-precuenta",
+      "title": "Imprima a pré-conta",
+      "summary": "Entregue ao cliente o detalhe do consumo antes de pagar, com a gorjeta sugerida. A pré-conta não é uma nota fiscal e não usa a numeração de faturamento.",
+      "keywords": [
+        "pré-conta",
+        "pre conta",
+        "prévia da conta",
+        "conferência da conta",
+        "imprimir a conta",
+        "cupom",
+        "ticket",
+        "gorjeta sugerida",
+        "extrato da mesa",
+        "imprimir"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "A pré-conta é o papel que você leva à mesa para o cliente conferir o consumo antes de pagar. Não é uma nota fiscal: não usa a numeração de faturamento nem fecha a conta, então você pode imprimi-la quantas vezes precisar.\n\n## Imprima\n\n1. Em [Mesas](/operator/tables), abra a ficha da mesa.\n2. Toque em **Imprimir pré-conta**. Aparece **Enviando pré-conta…** e depois **Pré-conta enviada para** com o nome da impressora.\n3. Para vê-la na tela, toque em **Ver pré-conta**. Dali você também pode tocar em **Imprimir** e voltar com **Voltar para Mesas**.\n\nOs botões aparecem enquanto a conta está aberta e tem consumo. Administradores e garçons podem usá-los, também quando a cobrança está reservada ao administrador.\n\n## Por onde sai\n\n- Pela impressora de faturas do agente de impressão: a que você escolheu em Configurações › Impressoras de rede, em **Impressora para faturas**, ou, se não escolheu nenhuma, as impressoras do tipo fatura ativas. Veja [Confira suas impressoras pelo painel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Se você não tem impressora de faturas, aparece **Sem impressora de recibos: imprime-se pelo navegador.**\n- Se o agente de impressão não responde, aparece **O agente de impressão não responde: imprime-se pelo navegador.**\n- Um administrador vê também o link **Escolher impressora do agente** para deixá-la configurada.\n\n## O que ela traz\n\n- O nome do estabelecimento, o documento fiscal, o endereço e o telefone.\n- **PRÉ-CONTA** e **Este documento não é uma fatura**.\n- A data, a mesa, o código da conta e o garçom.\n- Os pratos agrupados, o subtotal, o imposto incluído, o desconto e o total.\n- Se já houve pagamentos: **Pago** e **Saldo a pagar**.\n- **Gorjeta sugerida 10%** e **Total com gorjeta**, calculados sobre o pendente, com uma nota de que a gorjeta é voluntária.\n\nA gorjeta sugerida da pré-conta é sempre de 10%. Na cobrança, o cliente pode escolher outra.\n\nA pré-conta sai no idioma em que o pedido foi feito.\n\n## Casos frequentes\n\n- **Não vejo Imprimir pré-conta**: a conta já foi paga, foi cancelada ou não tem pratos.\n- **A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.**: acontece ao abrir **Ver pré-conta** de uma conta fechada ou vazia.\n- **Não foi possível imprimir a pré-conta.**: confira o agente de impressão. Veja [O que fazer quando não sai uma comanda ou uma fatura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **O navegador não deixou imprimir aqui nem abrir a aba.**: permita janelas pop-up do MESAPAY no navegador e tente de novo.\n- **O cliente quer a nota**: a nota é gerada ao cobrar. Veja [Cobre uma conta passo a passo](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n",
+      "links": [
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Mesas (app do garçom)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir para Impressoras de rede",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-a-credito",
+      "title": "Venda a crédito e registre pagamentos",
+      "summary": "Deixe a conta como dívida de um cliente de confiança, controle o limite dele e registre os pagamentos quando ele pagar. A venda a crédito não entra no caixa.",
+      "keywords": [
+        "crédito",
+        "a prazo",
+        "fiado",
+        "contas a receber",
+        "dívida",
+        "pagamento parcial",
+        "pagar depois",
+        "cliente frequente",
+        "empresa",
+        "limite de crédito",
+        "extrato",
+        "reverter pagamento",
+        "carteira"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "A venda a crédito serve para clientes que pagam depois, como uma empresa vizinha ou um cliente de confiança: a conta fecha como paga para a cozinha e para a nota, mas fica como dívida do cliente. Não entra no caixa: vai para as contas a receber dele.\n\n## Habilite o crédito do cliente\n\n1. Entre em [Clientes](/operator/clientes), em **Clientes para faturamento**.\n2. Toque em **Criar cliente**, ou em **Editar** em um que já existe.\n3. Em **Crédito**, marque **Permitir pagar a crédito**.\n4. Em **Limite de crédito**, digite o máximo que ele pode dever. Se deixar vazio, não tem limite.\n5. Em **Prazo (dias)**, digite os dias que ele tem para pagar (vêm 30).\n6. Toque em **Salvar cliente** ou **Salvar alterações**.\n\nNa lista, o cliente mostra **Crédito**, a **Dívida** (ou **Sem dívida**) e **Limite $… · Disponível $…**.\n\nO prazo aparece como data de vencimento na nota fiscal eletrônica e no relatório de contas a receber. O MESAPAY não bloqueia o cliente quando vence: a única trava é o limite.\n\n## Cobre a crédito\n\n1. Na cobrança, toque em **Cobrar a crédito**. Abaixo diz **Não entra no caixa: fica em contas a receber do cliente.**\n2. Se a conta já tem um cliente associado, aparecem o nome, **Deve hoje** e, se tiver limite, **Limite · Disponível**. Se não, busque-o em **Cliente com crédito**. Para escolher outro, toque em **Trocar**.\n3. Confira a linha **Lança-se todo o pendente**, com o consumo, a gorjeta e o total.\n4. Toque em **Confirmar $… a crédito**.\n\n- É lançado tudo o que falta pagar, mais a gorjeta: não existe crédito parcial.\n- Se o cliente tiver desconto comercial, ele é aplicado antes de lançar a conta.\n- **Cobrar a crédito** não aparece em **Combinar meios**.\n- O garçom também pode cobrar a crédito, a não ser que a cobrança esteja reservada ao administrador. Com **Turno por garçom**, ele precisa do turno aberto.\n\nNo detalhe do turno, a venda aparece como **Crédito a cliente**. Ela soma no que o turno cobrou, mas não no dinheiro esperado.\n\n## Registre um pagamento\n\n1. Em **Clientes para faturamento**, toque em **Registrar pagamento** ao lado do cliente. Só fica ativo se ele tiver dívida.\n2. Em **Pagamento de …**, confira o **Valor** (vem a dívida inteira e não pode ultrapassá-la) e a **Data**.\n3. Em **Conta onde o dinheiro entrou**, escolha onde você recebeu o dinheiro, por exemplo o caixa geral ou a sua conta bancária.\n4. Se quiser, escreva uma **Observação (opcional)** e toque em **Registrar pagamento**.\n5. Aparece **Pagamento registrado. Dívida atual: $…**.\n\nOs pagamentos são aplicados primeiro à conta mais antiga.\n\n> ⚠ Um pagamento em dinheiro não é somado sozinho ao caixa do turno. Se você o recebeu na gaveta, registre-o também como entrada no cartão Caixa para que a conferência bata. Veja [Cuide do caixa: fundo, entradas e retiradas](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Extrato\n\nToque em **Extrato** para ver a **Dívida atual** e os movimentos: **Data**, **Descrição**, **Débito**, **Pagamento** e **Saldo**. Cada débito mostra a conta, a mesa, se inclui gorjeta e se está **Pendente** ou **Quitado**.\n\nSe você registrou um pagamento por engano, toque em **Reverter pagamento** e confirme. O pagamento é apagado e a dívida volta a subir.\n\nCriar clientes, registrar pagamentos e revertê-los é tarefa dos administradores.\n\n## Casos frequentes\n\n- **Não vejo Cobrar a crédito**: nenhum cliente tem **Permitir pagar a crédito** marcado, ou você está em **Combinar meios**.\n- **Ultrapassa o limite de crédito do cliente. Disponível: $…**: a dívida mais esta conta passa do limite. Aumente o limite, registre um pagamento ou cobre de outra forma.\n- **… não tem crédito habilitado. Escolha outro cliente.**: edite o cliente e marque **Permitir pagar a crédito**.\n- **O pagamento não pode superar a dívida ($…).**: diminua o valor.\n- **Escolha uma conta de dinheiro válida.**: escolha uma conta da lista.\n",
+      "links": [
+        {
+          "label": "Ir para Clientes",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "descuentos-para-clientes",
+      "title": "Dê descontos aos seus clientes",
+      "summary": "Há dois descontos por cliente: o do cliente cadastrado, aplicado ao identificá-lo na mesa, e o desconto comercial de um cliente para faturamento. Veja como configurá-los e aplicá-los.",
+      "keywords": [
+        "desconto",
+        "percentual",
+        "cliente frequente",
+        "cliente vip",
+        "cliente cadastrado",
+        "identificar cliente",
+        "documento",
+        "desconto comercial",
+        "empresa",
+        "convênio",
+        "benefício",
+        "remover desconto",
+        "fidelização"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "O MESAPAY tem dois descontos por cliente. O do cliente cadastrado é para as pessoas que criaram conta no seu restaurante pelo cardápio. O desconto comercial é para os seus clientes para faturamento, como uma empresa com convênio. Eles não se somam.\n\n## Desconto do cliente cadastrado\n\nPara configurá-lo:\n\n1. Entre em [Clientes](/operator/clientes). Em **Clientes cadastrados**, busque a pessoa com **Documento ou e-mail exatos** ou escolha-a na lista.\n2. Abra a ficha. Em **Desconto do cliente**, digite o **Percentual**, um número inteiro de 1 a 100, e, se quiser, uma **Nota (opcional)**.\n3. Toque em **Ativar desconto**. Se ela já tinha um, toque em **Salvar alterações**. Para tirá-lo, toque em **Desativar**.\n\nEle é aplicado à conta da mesa de três formas:\n\n- Se o cliente entrou na conta dele e pede pelo cardápio, é aplicado sozinho ao enviar o primeiro pedido.\n- Se já existe um pedido na mesa, o cliente que entrou na conta abre o nome dele no cardápio e toca em **Sou … · usar minha conta**.\n- Você ou o garçom, pela ficha da mesa: em **Cliente**, digite o **Documento ou e-mail** e toque em **Identificar**.\n\nO desconto vale para toda a conta da mesa. Para tirá-lo de uma conta específica, toque em **Remover desconto**: o cliente continua identificado nessa conta.\n\n> ⚠ Identificar ou remover o desconto só é possível antes de qualquer pagamento: se a conta já tem um pagamento aprovado ou pendente, não dá. Além disso, identificar o cliente substitui o desconto que a conta já tinha pelo dele, mesmo que o anterior fosse maior.\n\n## Desconto comercial do cliente para faturamento\n\n1. Em [Clientes](/operator/clientes), em **Clientes para faturamento**, toque em **Criar cliente** ou **Editar**.\n2. Em **Desconto**, marque **Aplicar desconto comercial** e digite o **Percentual**, de 0,01 a 50.\n3. Toque em **Salvar cliente** ou **Salvar alterações**.\n\nEle é aplicado quando você associa a conta a esse cliente: no passo **Cliente** da cobrança, ao cobrar dele a crédito ou ao pedir a nota no nome dele. Aparece um destes avisos:\n\n- **Desconto do cliente X%: −$…. Novo total: $….**\n- **A conta já tinha um desconto maior (X%); ele é mantido.**\n- **O desconto do cliente não se aplica a esta conta (já tem cobranças).**\n\n## O histórico do cliente\n\nNa ficha do cliente cadastrado, **Faturas** mostra o que ele consumiu. Escolha o período com **De**, **Até** e **Aplicar**, ou toque em **Este mês**. No alto aparecem **Faturas**, **Total consumido** e **Economizado com o desconto**, e em cada fatura **Ver fatura →**.\n\n## Casos frequentes\n\n- **Não encontramos uma conta com esses dados neste restaurante. Ele pode criar uma pelo cardápio.**: a pessoa não tem conta no seu restaurante. Veja [A conta do cliente no seu restaurante](/operator/ayuda/experiencia-del-comensal/cuenta-del-comensal).\n- **Não conseguimos identificar o cliente.**: a conta já tem um pagamento ou está sendo cobrada.\n- **Identifiquei a pessoa errada**: toque em **Remover desconto** nessa conta. Por enquanto não existe botão para desvinculá-la.\n- **O percentual deve ser um inteiro entre 1 e 100.**: digite um número sem casas decimais.\n- **Digite um percentual entre 0,01 e 50.**: o desconto comercial não pode passar de 50%.\n",
+      "links": [
+        {
+          "label": "Ir para Clientes",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Mesas (app do garçom)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cortesias-y-productos-no-cobrados",
+      "title": "Cortesias, despesas de representação e produtos não cobrados",
+      "summary": "Feche uma conta como cortesia, deixe de cobrar um prato com o motivo e revise nos relatórios tudo o que não foi cobrado, com valor e responsável.",
+      "keywords": [
+        "cortesia",
+        "despesas de representação",
+        "não cobrar",
+        "por conta da casa",
+        "convite",
+        "prato grátis",
+        "anular prato",
+        "cancelado",
+        "relatório",
+        "produtos não cobrados",
+        "brinde",
+        "csv",
+        "desperdício"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Às vezes uma conta ou um prato não é cobrado: um convite da casa, um prato que saiu errado ou um cliente que foi embora sem pagar. O MESAPAY registra isso com o motivo e quem fez: os pratos consomem estoque, mas não contam como venda.\n\n## Quem pode fazer\n\nEm [Permissões, gorjetas e turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos):\n\n- **Permitir cortesias** habilita fechar contas como cortesia. Em **Nome que o garçom vê** você pode mudar o nome do botão.\n- **Quem pode deixar de cobrar uma conta ou um prato?**: marque **Administrador**, **Garçom** ou **Terminal (maquininha)**. Vem marcado só **Administrador**.\n\nHá também uma regra fixa: depois que a cozinha começa a preparar um prato, só um administrador pode cancelá-lo ou deixar de cobrá-lo. Um prato entregue sempre conta como iniciado. Por isso, na prática:\n\n- **Não cobrar** em um prato do cardápio fica só para administradores.\n- Um garçom, se o perfil dele estiver marcado, só pode fechar como cortesia uma conta cujos pratos ainda não começaram a ser preparados.\n- O usuário Datáfono não tem a ficha da mesa nem a cobrança, então marcar **Terminal (maquininha)** hoje não libera nada para ele.\n\n## Feche uma conta como cortesia\n\n1. Abra a cobrança com **Cobrar a conta**.\n2. Toque em **Cortesia (por conta da casa)** (ou no nome que você configurou).\n3. Em **Para quem foi dado?**, escreva para quem foi. É obrigatório.\n4. Toque em **Fechar como cortesia**. A conta fecha em $0 e você volta para Mesas.\n\n- Só é possível se a conta não tiver nenhum pagamento: se uma parte já foi paga, não dá para fechar como cortesia.\n- Não aparece em **Combinar meios**.\n- Se a conta tiver pratos em preparo e você não for administrador, aparece **Esta conta inclui pratos cujo preparo já começou. Somente o administrador pode encerrá-la como cortesia.**\n\n## Deixe de cobrar um prato\n\n1. Na ficha da mesa, em um prato já entregue, toque em **Não cobrar**. Em um prato que ainda não foi entregue, o botão é **Cancelar**.\n2. Em **Não cobrar prato**, escolha o **Motivo**: **Cliente não gostou**, **Prato frio / mal preparado**, **Prato errado**, **Cortesia** ou **Cliente saiu sem pagar**. Você também pode escrever outro motivo, de pelo menos 3 letras.\n3. Toque em **Não cobrar prato**. O prato sai da conta e fica no relatório.\n\nSe você não tiver permissão, aparece **Só pode fazer isso:** com os perfis permitidos, ou **Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato.**\n\n## Os relatórios\n\nFicam no menu **Negócio**, ou em [Fechamento](/operator/reports), em **Sub-relatórios**:\n\n- [Despesas de representação](/operator/reports/gastos-representacion): as contas fechadas como cortesia. Tem duas visualizações, **Contas e mesas** e **Produtos**, e em cada conta **Ver produtos desta conta**.\n- [Produtos não cobrados](/operator/reports/no-cobrados): tudo o que não foi cobrado, com o tipo: **Despesas de representação**, **Cortesia de produto**, **Produto cancelado** ou **Rodada cancelada**. O filtro **Tipo** mostra **Todos os tipos**, **Despesas de representação**, **Cortesia de produto** ou **Cancelamentos**.\n\nPara filtrar:\n\n1. Escolha o período: **Hoje**, **Últimos 7 dias** (vem marcado), **Últimos 30 dias**, **Este mês** ou **Todo o histórico**, ou preencha **De** e **Até**.\n2. Se quiser, escreva em **Buscar** (produto, motivo, mesa ou conta) ou em **E-mail do responsável**.\n3. Toque em **Aplicar filtros**. Para recomeçar, **Limpar filtros**.\n\nNo alto aparecem **Valor dos produtos**, **Contas incluídas**, **Unidades de produtos** e **Linhas de produtos**, de tudo o que foi filtrado. O valor é o preço do cardápio com os modificadores: não é o custo do estoque e não inclui a gorjeta. Os dias seguem o horário de corte do seu dia contábil.\n\nToque em **Baixar CSV** para levar todas as linhas do filtro para uma planilha.\n\n## Casos frequentes\n\n- **Não vejo o botão de cortesia na cobrança**: confira se **Permitir cortesias** está ativo e se o seu perfil está marcado. Ele também não aparece em **Combinar meios**.\n- **Não cobrar aparece desativado**: o prato já começou a ser preparado e você não é administrador, ou o seu perfil não está marcado.\n- **Nenhum registro para este filtro**: tente outras datas ou escolha **Todo o histórico**.\n",
+      "links": [
+        {
+          "label": "Ir para Despesas de representação",
+          "href": "/operator/reports/gastos-representacion"
+        },
+        {
+          "label": "Ir para Produtos não cobrados",
+          "href": "/operator/reports/no-cobrados"
+        },
+        {
+          "label": "Ir para Permissões, gorjetas e turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobros-reembolsos-y-conciliacion",
+      "title": "Revise cobranças, devolva um pagamento ou concilie",
+      "summary": "Encontre uma cobrança em Cobranças, entenda os status, devolva um pagamento com cartão, Apple Pay ou maquininha Kushki e resolva os que ficaram em Requer revisão.",
+      "keywords": [
+        "cobranças",
+        "pagamentos",
+        "reembolso",
+        "devolução",
+        "devolver dinheiro",
+        "estornar",
+        "cartão",
+        "kushki",
+        "conciliar",
+        "conciliação",
+        "requer revisão",
+        "pagamento pendente",
+        "pagamento recusado",
+        "buscar pagamento"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em Cobranças você vê todos os pagamentos do restaurante, com o meio e o status. Pelo detalhe do pedido, você pode devolver um pagamento com cartão ou resolver um que ficou em dúvida com o provedor.\n\n## Encontre uma cobrança\n\n1. Entre em [Cobranças](/operator/payments), no menu **Pedidos**.\n2. Em **Buscar por código do pedido**, digite o código da conta ou parte dele.\n3. Escolha um status: **Todos os status**, **Requer revisão**, **Pendente**, **Aprovado**, **Recusado** ou **Reembolsado**. Toque em **Filtrar**.\n4. Para voltar à lista completa, toque em **Limpar busca**.\n\nCada linha mostra a data, o pedido, a mesa, o método, o cartão, o status e o valor. Nos pagamentos com cartão, toque no cartão (por exemplo, Visa ···· 0063) para abrir **Detalhes do pagamento**: o valor cobrado, a gorjeta, o titular, o código de aprovação e a referência Kushki. Toque no pedido para abrir o detalhe.\n\n## Os status\n\n- **Pendente**: ainda não há resposta, por exemplo um pedido do cliente ou um pagamento online em andamento.\n- **Aprovado**: o pagamento entrou.\n- **Recusado**: o pagamento não passou e nada foi cobrado.\n- **Reembolsado**: foi devolvido por inteiro.\n- **Requer revisão**: o resultado ficou em dúvida. Acontece quando a resposta final de uma cobrança ou de uma devolução não chegou, ou quando um pagamento com Kushki ou PSE está pendente há mais de 30 minutos. O link vermelho abre o pedido.\n\n## Devolva um pagamento\n\nSó é possível devolver pagamentos com **Cartão**, **Apple Pay** ou maquininha Kushki que estejam **Aprovado** e fora de revisão. Quem faz são os administradores.\n\n1. Abra o pedido, por Cobranças ou por [Pedidos](/operator/orders).\n2. Em **Pagamentos**, toque em **Devolver** no pagamento.\n3. Em **Devolver pagamento**, confira o **Valor a devolver**. Vem o que falta devolver e não pode passar do **Máximo**. Você pode devolver uma parte. O valor inclui a gorjeta.\n4. Toque em **Devolver**. O dinheiro volta ao meio de pagamento do cliente pela Kushki, e não dá para desfazer.\n\n- Se você devolver uma parte, o pagamento continua **Aprovado** e mostra **Devolvido $…**. Se devolver tudo, passa a **Reembolsado**.\n- Dinheiro, maquininha própria, PSE, crédito e vales não são devolvidos pelo MESAPAY.\n- Devolver não anula a nota da conta.\n\n> ⚠ Se aparecer **A operação está aguardando confirmação. Não repita o pagamento ou o reembolso.**, não tente de novo: o pagamento fica em **Requer revisão** até você conciliar.\n\n## Concilie um pagamento em revisão\n\nQuando um pagamento fica em **Requer revisão**, um administrador vê **Conciliar pagamento** no detalhe do pedido.\n\n1. Primeiro consulte o resultado definitivo na Kushki.\n2. Em **Resultado confirmado**, escolha o que aconteceu: **Cobrança aprovada** ou **Cobrança recusada**, **Devolução realizada** ou **Devolução não realizada**, ou **Revisado com o provedor**, conforme o caso.\n3. Escreva a **Referência ou chamado de suporte** (de 3 a 200 caracteres) e a **Evidência da verificação** (de 15 a 1.000).\n4. Marque **Verifiquei o estado definitivo e o valor com o provedor.**\n5. Toque em **Salvar conciliação**. Aparece **Conciliação salva.**\n\nConciliar só atualiza o registro no MESAPAY: não faz uma cobrança nova nem uma devolução. Se você confirmar uma cobrança como aprovada, a conta a considera paga.\n\n## Casos frequentes\n\n- **Não vejo Devolver**: o pagamento não é com cartão, Apple Pay ou maquininha Kushki, não está aprovado, está em revisão ou você não é administrador.\n- **Não foi possível fazer a devolução.**: tente mais tarde ou confira o pagamento na Kushki.\n- **Não foi possível salvar. Confira o estado antes de tentar novamente.**: atualize a página; talvez outra pessoa já tenha conciliado.\n",
+      "links": [
+        {
+          "label": "Ir para Cobranças",
+          "href": "/operator/payments"
+        },
+        {
+          "label": "Ir para Pedidos",
+          "href": "/operator/orders"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "abrir-y-cerrar-el-turno",
+      "title": "Abra e feche o turno do dia",
+      "summary": "Abra o turno com o dinheiro para troco e feche contando o caixa. Cada fechamento mostra as vendas por meio de pagamento, as gorjetas, o imposto sobre consumo e a diferença da conferência.",
+      "keywords": [
+        "turno",
+        "fechamento",
+        "fechamento de caixa",
+        "conferência de caixa",
+        "abrir caixa",
+        "fechar caixa",
+        "fundo",
+        "troco inicial",
+        "dia contábil",
+        "jornada",
+        "imposto sobre consumo",
+        "inc",
+        "falta",
+        "sobra",
+        "fim do dia"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O turno marca o início e o fim do caixa do dia. Ao abri-lo, você declara com quanto dinheiro começa; ao fechá-lo, conta o dinheiro e o MESAPAY diz se bate, com o detalhe de tudo o que foi cobrado.\n\n## Abra o turno\n\n1. Entre em [Fechamento](/operator/reports), no menu **Negócio**, ou toque em **Fechamento de turno** no alto do painel.\n2. Se aparecer **Sem turno aberto**, toque em **Abrir turno**.\n3. Em **Dinheiro inicial no caixa**, digite o dinheiro com que você começa para dar troco. Pode ser $0.\n4. Toque em **Abrir turno**.\n\nSó pode haver um turno do local aberto por vez, e quem abre e fecha são os administradores.\n\n> ⚠ Abra o turno antes da primeira cobrança: pagamentos registrados sem turno aberto não entram em nenhum fechamento.\n\n## Enquanto o turno está aberto\n\nAparecem **Turno aberto**, há quanto tempo está aberto e o **Fundo inicial**, além de **Cobrado**, **Gorjetas**, **Dinheiro no caixa (esperado)** e **Contas fechadas**, o imposto sobre consumo e o que foi cobrado por cada meio de pagamento. O cartão Caixa mostra o dinheiro ao vivo. Veja [Cuide do caixa: fundo, entradas e retiradas](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Feche o turno\n\n1. Cobre ou cancele as contas abertas. Enquanto houver alguma, aparecem **N contas abertas**, **Feche ou cancele estas contas antes de fechar o turno.** e **Ir cobrar →**, e **Fechar turno** fica desativado.\n2. Toque em **Fechar turno**. Abre **Conferência de caixa** com **Fundo inicial**, **Dinheiro cobrado** e **Dinheiro esperado no caixa**.\n3. Se houver garçons com o turno aberto, deixe marcado **Fechar também os turnos dos garçons**. Aparece quanto cada um deve entregar; esse dinheiro passa para o caixa do local e entra no esperado.\n4. Conte o dinheiro e digite o total em **Dinheiro contado fisicamente**. Vem preenchido com o esperado.\n5. Veja a **Diferença**: **bate exato ✓**, **sobra $…** ou **falta $…**. Se houver diferença, explique o motivo em **Notas (opcional)**.\n6. Toque em **Confirmar fechamento**.\n\n- O dinheiro esperado já desconta as retiradas e soma as entradas registradas no Caixa. Por isso pode não ser igual a **Fundo inicial** mais **Dinheiro cobrado**.\n- Ao fechar os turnos dos garçons junto com o do local, qualquer falta de um garçom aparece na diferença geral.\n- Só bloqueiam o fechamento as contas abertas durante o turno.\n\n## O dia contábil\n\n- Por padrão, o dia vai das 5:00 às 5:00 do dia seguinte: uma cobrança às 2 da manhã conta para a noite anterior. Em Fechamento ele aparece como **Dia contábil: 5:00 às 5:00 do dia seguinte.**\n- Para mudar o horário, entre em [Permissões, gorjetas e turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos), em **O expediente começa às**.\n- Cada fechamento guarda a **Jornada** em que o turno foi aberto, mesmo que feche depois da meia-noite. Mudar o horário depois não move os fechamentos anteriores.\n- Para ver outro dia, use **Data** e **Ver**, as setas ou **Hoje**.\n\n## Fechamentos recentes e o detalhe de cada turno\n\n**Fechamentos recentes** lista os últimos 10 fechamentos com a **Jornada**, a duração, o INC (imposto sobre consumo), o fundo, o esperado, o contado e a diferença. Toque em **Abrir →** para ver o detalhe, ou em **Ver todos →** para ir a **Turnos fechados**.\n\nO detalhe, **Fechamento de turno**, é impresso com **Imprimir** e traz:\n\n- **Resumo**: **Vendas brutas**, **Comida (sem gorjeta)**, **Gorjetas** e **Pagamentos · pedidos**.\n- **Imposto sobre consumo (INC)**: o imposto sobre consumo incluído no que o turno cobrou.\n- **Por método de pagamento**: pagamentos, bruto, gorjeta e comida de cada meio.\n- **Por garçom**: quem cobrou, quantos pagamentos, o bruto, o dinheiro e a gorjeta.\n- **Dinheiro e conferência**: **Base inicial**, **Recebido em dinheiro**, **Troco entregue**, **Esperado no caixa**, **Declarado no fechamento**, **Diferença** e **Notas**.\n- A lista de todos os pagamentos do turno.\n\nO imposto sobre consumo é tirado das notas emitidas. Os pagamentos que ainda não têm nota aparecem como pagamentos sem discriminação fiscal e não impedem o fechamento. Se o seu restaurante cobra IVA em vez de imposto sobre consumo, esse cartão fica em $0.\n\n## Gorjetas\n\nAs gorjetas aparecem no total, por meio de pagamento e por garçom. O MESAPAY não as distribui: com **Compartilhadas**, você decide como dividir; com **Por garçom**, cada um vê as suas no app.\n\n## Casos frequentes\n\n- **Fechar turno está desativado**: há contas abertas. Cobre, cancele ou passe-as para outra mesa.\n- **As vendas de hoje do Resumo não batem com Cobrado**: as vendas do Resumo não incluem impostos nem gorjetas; **Cobrado** inclui tudo o que foi cobrado no turno, com impostos, gorjetas e todos os meios, inclusive o crédito.\n- **ya hay un turno abierto** (já há um turno aberto): outra pessoa o abriu. Atualize a página.\n- **El monto declarado está fuera de rango.** (o valor declarado está fora do intervalo): o máximo é $100.000.000.\n",
+      "links": [
+        {
+          "label": "Ir para Fechamento",
+          "href": "/operator/reports"
+        },
+        {
+          "label": "Ir para Turnos fechados",
+          "href": "/operator/shifts"
+        },
+        {
+          "label": "Ir para Permissões, gorjetas e turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-caja",
+      "title": "Cuide do caixa: fundo, entradas e retiradas",
+      "summary": "O cartão Caixa diz quanto dinheiro deveria haver na gaveta. Registre o que sai e entra fora das cobranças, corrija o fundo e revise os caixas dos garçons.",
+      "keywords": [
+        "caixa",
+        "gaveta",
+        "dinheiro",
+        "no caixa",
+        "fundo",
+        "troco inicial",
+        "retirada",
+        "entrada",
+        "sangria",
+        "suprimento",
+        "pagamento a fornecedor",
+        "caixas dos garçons",
+        "consolidado",
+        "conferência"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O cartão Caixa mostra, ao vivo, quanto dinheiro deveria haver na gaveta do turno. Use-o para anotar o dinheiro que sai ou entra fora das cobranças, assim a conferência do fechamento bate.\n\n## Onde fica\n\nNo [Resumo](/operator) e em [Fechamento](/operator/reports), quando você está vendo **Hoje**. Se não houver turno aberto, aparece **Não há turno aberto — o caixa abre ao iniciar o turno do local.** Abra o turno em Fechamento. Veja [Abra e feche o turno do dia](/operator/ayuda/cobro-y-caja/abrir-y-cerrar-el-turno).\n\n## Como se calcula No caixa\n\n**No caixa** é:\n\n- o **Fundo inicial**, o dinheiro com que você abriu,\n- mais o **Cobrado em dinheiro**,\n- mais as **Entradas**,\n- menos as **Retiradas**,\n- e, se o seu local usa **Turno por garçom**, menos os **Fundos entregues aos garçons** e mais o **Devolvido pelos garçons**.\n\nSó conta o dinheiro: maquininha, cartão, crédito e vales não são dinheiro da gaveta. A gorjeta em dinheiro fica dentro do pagamento, então está na gaveta.\n\nCom **Turno único do local**, conta todo o dinheiro, inclusive o que os garçons cobram. Com **Turno por garçom**, o dinheiro de cada garçom fica no caixa dele até ele fechar o turno.\n\n## Registre uma retirada ou uma entrada\n\n1. No cartão Caixa, toque em **Registrar retirada**. O botão aparece enquanto há um turno aberto.\n2. Escolha **Retirada (sai dinheiro)** ou **Entrada (entra dinheiro)**.\n3. Digite o **Valor** e o **Conceito**, por exemplo «pagamento fornecedor» ou «retirada».\n4. Toque em **Registrar**.\n\nO movimento fica em **Movimentos**, com o nome de quem registrou.\n\n- Não dá para editar nem apagar: se errou, registre o movimento contrário.\n- Esses movimentos só ajustam o dinheiro da gaveta. Se for uma despesa do negócio, registre-a também como despesa em Contabilidade, se você tiver esse módulo.\n\n## Corrija o fundo\n\nToque em **Editar** ao lado de **Fundo inicial** para abrir **Editar fundo do estabelecimento** e digite o valor certo. Cada mudança fica registrada.\n\nCom **Turno por garçom** você também pode corrigir o fundo de um garçom (**Editar fundo de …**). O fundo de um garçom nunca pode ser maior que o do local, e o do local não pode ficar abaixo do maior fundo de um garçom com turno aberto.\n\n## Caixas dos garçons\n\nCom **Turno por garçom** aparecem:\n\n- **Caixas dos garçons**: para cada garçom com turno aberto, o **Fundo**, o **Cobrado** e o que **Deve devolver**. Sem garçons em turno, aparece **Nenhum garçom com turno aberto.**\n- **Consolidado (local + garçons)**: todo o dinheiro do restaurante, inclusive o que está com os garçons.\n\nO caixa de um garçom fecha quando ele fecha o turno no app, ou quando você fecha o turno do local com **Fechar também os turnos dos garçons**.\n\n> ⚠ Se você fechar o turno do local sem fechar os dos garçons, os caixas deles deixam de aparecer neste cartão. Use **Fechar também os turnos dos garçons** ao fechar.\n\n## Casos frequentes\n\n- **Não vejo Registrar retirada**: não há turno aberto.\n- **Não foi possível registrar.**: confira o valor e o conceito e tente de novo.\n- **O fundo do estabelecimento não pode ser menor que o de …**: diminua primeiro o fundo desse garçom.\n- **A conferência deu sobra e recebi um pagamento de crédito em dinheiro**: os pagamentos de clientes não são somados sozinhos ao caixa. Registre-o como entrada.\n- **A conferência deu falta**: confira se saiu dinheiro da gaveta sem registrar como retirada.\n",
+      "links": [
+        {
+          "label": "Ir para o Resumo",
+          "href": "/operator"
+        },
+        {
+          "label": "Ir para Fechamento",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

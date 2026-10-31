@@ -1,5 +1,348 @@
 {
   "title": "Experiencia del comensal",
   "description": "Lo que ven tus clientes: QR de la mesa, carta, pedido, pago, factura, cuenta, reseñas, reservas y para llevar.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "el-qr-de-la-mesa",
+      "title": "Qué pasa cuando el comensal escanea el QR",
+      "summary": "El QR de cada mesa abre tu carta lista para pedir en esa mesa. Así funciona el primer escaneo, el permiso de 12 horas, la opción de solo ver la carta y qué hacer si un enlace no abre.",
+      "keywords": [
+        "qr",
+        "código qr",
+        "escanear",
+        "mesa",
+        "carta digital",
+        "menú digital",
+        "enlace",
+        "link",
+        "no abre",
+        "solo ver la carta",
+        "bienvenida",
+        "cámara",
+        "celular"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "Cada mesa tiene su propio código QR. Al escanearlo con la cámara del celular, el comensal entra a tu carta ya ubicado en esa mesa, sin descargar nada ni crear una cuenta, y puede pedir y pagar desde ahí.\n\n## Lo que ve el comensal\n\n1. Escanea el QR con la cámara del celular y abre el enlace.\n2. La primera vez, MESAPAY le da permiso a ese celular para pedir en esa mesa durante 12 horas y lo lleva a la carta.\n3. La carta le pregunta **¿Cómo te llamamos?**, para saber qué pidió cada uno. Escribe su nombre y toca **Guardar**, o toca **Solo ver la carta**.\n4. Desde ahí arma su pedido. Ver [Cómo pide el comensal y sigue su pedido](/operator/ayuda/experiencia-del-comensal/como-pide-el-comensal).\n\nVarias personas de la misma mesa pueden escanear el mismo QR y pedir a la vez desde sus celulares: todo queda en la misma cuenta. En mostrador, en cambio, cada escaneo empieza un pedido nuevo.\n\n## Solo ver la carta\n\nSi el comensal toca **Solo ver la carta**, ve la carta completa pero sin carrito ni botones para agregar platos. Arriba dice **Solo ver la carta** y, debajo, **Para pedir, escanea el QR de tu mesa.** Si había llegado desde una mesa, ve el enlace **Hacer un pedido** para volver a pedir.\n\n## La página de bienvenida\n\nLa dirección general del restaurante, sin mesa, muestra **Bienvenido a** con el nombre de tu restaurante y el botón **Solo ver la carta**. Si trabajas con mesas, dice **Escanea el QR de tu mesa para comenzar.** Si trabajas con mostrador, muestra además **Hacer un pedido**.\n\n## Enlaces que no abren en otro celular\n\nEl permiso queda en el celular que escaneó el QR. Si el comensal le reenvía a otra persona el enlace de su pedido o de su pago, quien lo recibe ve una página de «no encontrado»: tiene que escanear primero el QR de la mesa.\n\nPasadas 12 horas, el comensal vuelve a escanear el QR. Si entró a su cuenta del restaurante, sigue viendo sus propios pedidos.\n\n## Cómo ayuda el equipo\n\n- **El QR está dañado o se perdió**: reimprímelo desde [Mesas](/operator/tables), con **Imprimir QR** en la mesa o **Imprimir QRs** para todas. Ver también [Por dónde empezar con MESAPAY](/operator/ayuda/primeros-pasos/por-donde-empezar).\n- **El comensal no tiene celular o batería**: el mesero toma el pedido desde su app o desde el panel. La carta se abre en **Modo mesero**, con **Tomando pedido en** y la mesa.\n- **El comensal quiere ver el pedido de su mesa en otro celular**: que escanee el QR de la mesa con ese celular.\n\n## Casos frecuentes\n\n- **La carta abre pero no deja pedir**: el comensal entró con **Solo ver la carta**. Que toque **Hacer un pedido** o vuelva a escanear el QR.\n- **El QR abre otra mesa**: cada QR es de una mesa. Revisa el número impreso y reimprime el de esa mesa.\n- **El enlace del pedido dice que no existe**: se abrió en otro celular o pasaron más de 12 horas. Que escanee el QR de la mesa.\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-carta-del-comensal",
+      "title": "Cómo ve tu carta el comensal",
+      "summary": "Lo que ve el comensal en la carta: pestañas por carta, categorías, el buscador que recorre toda la carta, las tres vistas, etiquetas, estrellas y el idioma con traducción automática.",
+      "keywords": [
+        "carta",
+        "menú",
+        "menú digital",
+        "buscar plato",
+        "buscador",
+        "categorías",
+        "vista",
+        "cuadrícula",
+        "fotos",
+        "etiquetas",
+        "estrellas",
+        "agotado",
+        "idioma",
+        "inglés",
+        "portugués",
+        "traducción"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "La carta del comensal se arma sola con lo que cargas en Menú: categorías, platos, fotos, precios y opciones. Esta guía te cuenta qué ve el comensal y qué controlas tú.\n\n## Cartas y categorías\n\n- Si tienes más de una carta (por ejemplo, almuerzo y bar), arriba aparecen pestañas para cambiar entre ellas. Las cartas se crean en [Cartas](/operator/menus).\n- Las categorías van en una franja que se desliza. El botón de lista abre **Categorías**, con las subcategorías debajo de cada una.\n- Los platos salen en orden alfabético. Para ponerlos en tu propio orden, en [Menú](/operator/menu) cambia **Orden de los platos** a manual.\n\n## El buscador\n\n- **Buscar en el menú** busca en toda la carta: en todas las pestañas y categorías, sin importar cuál está abierta.\n- Tienen que coincidir todas las palabras escritas. No importan las tildes ni los errores comunes de ortografía, como c, s o z, b o v, la h o ll y y.\n- Primero salen los platos cuyo nombre coincide. En las descripciones solo cuentan las palabras completas: «agua» no encuentra «aguacate».\n- Los resultados salen agrupados por categoría, con el total en toda la carta. Si no hay nada, la carta dice **No encontramos nada para** lo buscado y **Buscamos en toda la carta, en todas las categorías.** El comensal vuelve con **Borrar búsqueda**.\n\n## Las tres vistas\n\nArriba hay tres botones con íconos:\n\n- **Lista**: la vista de entrada, con nombre, descripción, precio y etiquetas.\n- **Cuadrícula**: dos columnas de fotos. Solo muestra la etiqueta **De la casa**.\n- **Editorial**: cada tercer plato sale con una foto grande.\n\nEl celular recuerda la vista que eligió el comensal.\n\n## Etiquetas, estrellas y platos agotados\n\n- **Etiquetas**: marcas como De la casa, Favorito, Vegetariano, Picante o Nuevo. Las configuras en Configuración › Etiquetas de platos. Salen en Lista y en Editorial.\n- **Estrellas**: el promedio y la cantidad de calificaciones de cada plato. Los comentarios no se muestran al comensal. Ver [Reseñas de tus platos](/operator/ayuda/experiencia-del-comensal/resenas-de-platos).\n- **Agotados**: un plato marcado como **Agotado** en Menú no aparece en la carta. Vuelve a salir cuando lo reactivas.\n\n## El plato\n\nAl tocar un plato, el comensal ve la foto, la descripción y las opciones. Los grupos obligatorios dicen **Obligatorio** y **Elige una opción**. Puede escribir **Notas para la cocina**, como alergias o preferencias, y agregarlo con **Añadir** y el precio. Deslizando pasa al plato siguiente.\n\n## El idioma\n\n- El comensal elige entre español, inglés y portugués. La primera vez, la carta sale en el idioma de su celular.\n- Los nombres y descripciones de los platos, las categorías, las cartas y las etiquetas se traducen solos. Puedes corregir cualquier traducción en Configuración › [Traducciones de la carta](/operator/settings/traducciones).\n- Las opciones de los modificadores no se traducen: salen como las escribiste.\n\n## Casos frecuentes\n\n- **Un plato no aparece en la carta**: está marcado como agotado en Menú.\n- **Una traducción quedó mal**: corrígela en Traducciones de la carta.\n- **El comensal no encuentra un plato buscándolo**: prueba con una palabra del nombre. Las descripciones solo coinciden con palabras completas.\n",
+      "links": [
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Ir a Cartas",
+          "href": "/operator/menus"
+        },
+        {
+          "label": "Ir a Traducciones de la carta",
+          "href": "/operator/settings/traducciones"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "como-pide-el-comensal",
+      "title": "Cómo pide el comensal y sigue su pedido",
+      "summary": "Del nombre al carrito y de «Marchar orden» al estado en vivo: así pide el comensal desde su celular, agrega rondas, cancela un plato que no han empezado y llama al mesero.",
+      "keywords": [
+        "pedir",
+        "pedido",
+        "carrito",
+        "marchar orden",
+        "enviar pedido",
+        "ronda",
+        "adición",
+        "nombre",
+        "estado del pedido",
+        "tiempo estimado",
+        "cancelar plato",
+        "llamar al mesero",
+        "campana",
+        "mostrador"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "Desde la carta, el comensal arma su pedido, lo envía a la cocina y sigue su estado en vivo. En la misma mesa pueden pedir varias personas a la vez desde sus celulares: todo queda en una sola cuenta.\n\n## El nombre\n\nAl entrar, la carta muestra **En esta mesa** y **¿Cómo te llamamos?**, para que cada uno vea qué pidió. El comensal escribe **Tu nombre o apodo** y toca **Guardar**. El nombre solo lo ve su mesa y no crea ninguna cuenta. Arriba queda **Yo soy** con su nombre; si no lo dio, dice **Dinos tu nombre**.\n\nEl nombre sirve después para pagar solo lo suyo. Ver [Cómo paga el comensal](/operator/ayuda/experiencia-del-comensal/como-paga-el-comensal).\n\n## El carrito\n\n1. El comensal toca + en un plato, o lo abre para elegir opciones y toca **Añadir**.\n2. Con el primer plato aparece el aviso **¡Agregado!** y **Toca aquí abajo para ver y enviar tu pedido**, que señala el botón del carrito durante 2 segundos.\n3. Toca **Ver y enviar pedido** para abrir **Tu pedido**. Ahí revisa los platos, agrega **+ Nota para la cocina** o toca **Eliminar**.\n\nEl carrito queda guardado en el celular durante 6 horas.\n\n## Marchar orden\n\n1. En el primer pedido de la mesa, la carta pregunta **¿Cómo quieres que salga?**: **Lo que vaya saliendo** o **Fuertes juntos**.\n2. El comensal toca **Marchar orden** y el pedido llega a la cocina.\n3. Para pedir más durante la comida, vuelve a la carta, arma otra ronda y toca **Marchar adición**. El carrito avisa **Se añadirá al pedido** con el código, y el total dice **Esta ronda**.\n\n## Sigue el pedido\n\nDespués de marchar, el comensal ve **Tu pedido** con el código de la cuenta y sus **Rondas**. Cada plato muestra su estado: **Por preparar**, **Preparando**, **Listo para servir** o **Servido**, y quién lo pidió. Si en la mesa pidieron varias personas, ve también el total **Por persona**.\n\nLa pantalla se actualiza sola y avisa con **¡Algo está listo!** cuando sale un plato. **Tiempo estimado** le dice en cuántos minutos sale su pedido, según cómo está la cocina.\n\n## Cancelar un plato\n\nMientras un plato está **Por preparar** y la cocina no lo ha tomado, el comensal puede tocar **Cancelar** y confirmar con **Sí, cancelar**. Si la cocina ya lo tomó, verá **La cocina ya lo tomó. No se puede cancelar.** y tendrá que pedírselo al mesero.\n\n## Llamar al mesero\n\nEl comensal toca la campana de arriba en la carta, o **Llamar al mesero** en su pedido. Ve **Mesero en camino**. Los meseros de esa mesa reciben un aviso, y la llamada aparece en [Salón](/operator/serve).\n\n## Añadir más y pagar\n\nEn su pedido, el comensal ve el total con una propina sugerida del 10 %, que puede cambiar con **Ajustar propina**. **Añadir más** lo lleva de vuelta a la carta y **Pagar** abre el pago.\n\n## En mostrador\n\nSi tu restaurante trabaja con mostrador (food truck, para llevar), el comensal paga primero: toca **Ver y pagar pedido** y luego **Ir a pagar**. El pedido pasa a la cocina apenas se confirma el pago.\n\n## Cómo ayuda el equipo\n\n- **El comensal no logra pedir**: el mesero puede tomar el pedido por él desde su app o desde el panel.\n- **El equipo canceló un plato**: ese plato desaparece de la lista del comensal. Avísale en la mesa.\n- **No pudimos enviar el pedido. Intenta de nuevo.**: puede que un plato del carrito se haya agotado. Que lo quite del carrito y vuelva a enviar.\n",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Salón (app del mesero)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir a Cocina",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "como-paga-el-comensal",
+      "title": "Cómo paga el comensal",
+      "summary": "Lo que ve el comensal al tocar Pagar: cómo divide la cuenta, la propina, los medios de pago disponibles, las pantallas de espera y qué hacer si el pago no se aprueba.",
+      "keywords": [
+        "pagar",
+        "pago en línea",
+        "pagar desde el celular",
+        "apple pay",
+        "tarjeta",
+        "pse",
+        "transferencia",
+        "efectivo",
+        "datáfono",
+        "propina",
+        "dividir",
+        "lo mío",
+        "rechazado",
+        "verificación",
+        "3d secure",
+        "bono"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "El comensal puede pagar su cuenta desde el celular, sin esperar al mesero: elige cuánto paga, deja la propina y escoge el medio de pago. Si prefiere efectivo o datáfono, la app le avisa al equipo.\n\n## Cuánto paga\n\n1. En su pedido, toca **Pagar**.\n2. En **¿Cómo quieres pagar?**, elige **Todo**, **Partes iguales** (divide entre un número de personas) o **Lo mío** (solo lo que pidió, según los nombres de los platos). En mostrador no hay opciones: se paga todo.\n3. En **Propina sobre tu parte**, elige **Sin propina**, 5 %, 10 %, 15 % o 20 %. Viene marcado el 10 %. Si la ajustó antes en su pedido con **Ajustar propina** (hasta 30 %), se respeta.\n4. Revisa el **Total a pagar**.\n\nSi tu restaurante tiene bonos empresariales, también puede escribir su código en **¿Tenés un bono?**, tocar **Verificar** y luego **Aplicar** el valor del bono. El bono paga el consumo, no la propina.\n\n## Los medios de pago\n\nAparecen los que MESAPAY activó para tu restaurante:\n\n- **Apple Pay**: solo en Safari, en un iPhone, iPad o Mac con Apple Pay configurado.\n- **Tarjeta de crédito o débito**: escribe los datos de la tarjeta y un correo para el comprobante, y toca **Pagar**.\n- **PSE (transferencia bancaria)**: elige su banco y su documento y toca **Ir al banco**.\n- **Tarjeta con datáfono**: el mesero le lleva el datáfono Kushki a la mesa.\n- **Tarjeta (datáfono del comercio)**: el mesero le lleva tu datáfono.\n- **Efectivo (llamar al mesero)**: indica **¿Con cuánto vas a pagar?**: **Cuenta exacta**, uno de los billetes que le propone o **Otro monto**. También puede tocar **Prefiero decirle al mesero →**.\n\nTarjeta, PSE y Apple Pay se confirman solos. El efectivo y el datáfono le llegan al equipo como solicitud: ver [Confirma los pagos que pidió el comensal](/operator/ayuda/cobro-y-caja/pagos-pendientes-del-comensal).\n\n## Las pantallas de espera\n\n- **Efectivo**: **El mesero viene a cobrar**. Cuando el equipo confirma, ve **¡Pago recibido!**.\n- **Datáfono**: **El mesero viene con el datáfono**. Si aprueba, ve **¡Pago aprobado!**.\n- **Verificación del banco**: con tarjeta, el banco puede pedir una verificación. El comensal pasa a la página de su banco y vuelve a **Verificando tu pago…**.\n- **Resultado en duda**: si el pago no se confirmó todavía, ve **Estamos verificando tu pago**, con la indicación de no volver a pagar, y **Volver a la cuenta**.\n\n## Si el pago no se aprueba\n\n- Con tarjeta ve **El pago fue rechazado. Puedes elegir otro método.**\n- Al volver a la cuenta ve **Tu pago no fue aprobado**, para que pruebe otro medio o le pida al mesero pasar la tarjeta de nuevo.\n- Con PSE o datáfono ve **Pago rechazado**. En PSE puede tocar **Reintentar**.\n\n## Cuando paga solo una parte\n\nAl terminar, ve **Tu aporte** y cuánto de la cuenta va pagado, con **Saldado** o **Falta**. Otra persona de la mesa puede seguir pagando desde su celular o tocar **Pagar más**. Cuando se paga todo, ve **Cuenta pagada** y puede pedir su factura. Ver [Factura genérica o personalizada para el comensal](/operator/ayuda/experiencia-del-comensal/factura-del-comensal).\n\nEn mostrador ve **Pedido pagado** y **Tu código**: **Muéstralo al cajero cuando te avisen.**\n\n## Cómo ayuda el equipo\n\n- **No ve un medio de pago**: los activa MESAPAY. Ver [Tarjeta, PSE y Apple Pay para tus clientes](/operator/ayuda/pagos-en-linea/medios-de-pago-en-linea).\n- **Prefiere pagarle al mesero**: el equipo cobra desde **Cobrar la cuenta**. Ver [Cobra una cuenta paso a paso](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n- **Eligió efectivo y al final paga con tarjeta**: cobra con el otro medio y la solicitud se reemplaza sola. La pantalla de espera del efectivo le mostrará **Pago cancelado**, pero la cuenta sí quedó pagada.\n- **Su pago quedó en verificación**: espera el resultado; lo ves en [Cobros](/operator/payments).\n",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Cobros",
+          "href": "/operator/payments"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "factura-del-comensal",
+      "title": "Factura genérica o personalizada para el comensal",
+      "summary": "El comensal pide su factura electrónica genérica, con o sin correo, o a su nombre, antes o después de pagar, y puede guardar sus datos en el celular. Así lo ayuda el equipo.",
+      "keywords": [
+        "factura",
+        "factura electrónica",
+        "factura a nombre",
+        "nit",
+        "cédula",
+        "razón social",
+        "consumidor final",
+        "factura genérica",
+        "correo",
+        "dígito de verificación",
+        "dv",
+        "corregir datos",
+        "pedir factura"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "En la pantalla de pago, el comensal pide su factura electrónica sin hablar con nadie: genérica, para recibirla por correo o imprimirla, o personalizada, a nombre de una persona o una empresa. El equipo puede hacer lo mismo desde el cobro.\n\n## Antes de pagar\n\nEn el pago aparece **¿Necesitas factura electrónica?** (en el cobro del equipo, **¿El cliente necesita factura electrónica?**), con dos opciones:\n\n- **Factura electrónica genérica**: el **Correo (opcional)** sirve para recibirla. Toca **Pedir factura**. Con correo, ve **La enviamos al confirmar el pago**; sin correo, **La generamos al confirmar el pago**, para imprimirla.\n- **Factura electrónica personalizada**: escribe **Nombre o razón social**, el **Tipo** de documento (CC, CE, NIT o **Pasaporte**), el **Número de identificación** y el **Correo electrónico**, que aquí es obligatorio. Toca **Pedir factura**.\n\nLos datos quedan guardados y la factura se genera cuando se confirma el pago.\n\n## El NIT, sin dígito de verificación\n\nEl número se escribe **Solo el número, sin dígito de verificación.** Si el comensal lo escribe con el dígito y es correcto, MESAPAY lo quita solo. Si el dígito no corresponde, ve **El dígito de verificación no corresponde a ese NIT. Escribe solo el número, sin DV.**\n\n## Después de pagar\n\nCuando la cuenta queda pagada completa, la pantalla final muestra **¿Necesitas factura? Pídela aquí**. En la genérica, el botón es **Generar factura**; en la personalizada, **Enviar al restaurante**.\n\n## Datos guardados en el celular\n\nDespués de pedir una factura personalizada, los datos quedan guardados en ese celular, hasta 5 perfiles. La próxima vez, el comensal ve **Datos guardados en este dispositivo** y puede tocar **Usar datos guardados**, **Escribir nuevos →** u **Olvidar** para borrarlos. Cuando el equipo llena la factura desde el cobro, no se guarda nada en el equipo.\n\n## Corregir datos\n\nMientras la factura personalizada no se ha generado, el comensal ve **Solicitud de factura enviada** y puede tocar **Corregir datos**. Cada cuenta lleva una sola factura: si la pide de nuevo, la nueva solicitud reemplaza la anterior. Si la factura ya se generó, verá **Ya se generó una factura para este pedido. Contacta al restaurante para correcciones.**\n\n## Con facturación electrónica activa\n\nSi tu restaurante tiene activa la facturación electrónica, toda venta genera su factura: a nombre del comensal si la pidió personalizada, y a consumidor final si no. Sin ese módulo, la factura solo se genera cuando alguien la pide.\n\n## Cómo ayuda el equipo\n\n- En el cobro, **Buscar cliente registrado** carga los datos de un cliente para facturación. Ver [Da descuentos a tus clientes](/operator/ayuda/cobro-y-caja/descuentos-para-clientes).\n- La genérica sin correo sirve para imprimirla y entregarla en la mesa. La impresión sale por la impresora de facturas: ver [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- **El comensal escribió mal un dato y ya se generó la factura**: revísala en [Facturas](/operator/facturas). Si ya fue a la DIAN, se corrige con una nota crédito.\n",
+      "links": [
+        {
+          "label": "Ir a Facturas",
+          "href": "/operator/facturas"
+        },
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cuenta-del-comensal",
+      "title": "La cuenta del comensal en tu restaurante",
+      "summary": "Tus clientes pueden crear una cuenta en tu restaurante para usar su descuento y ver sus órdenes. Así se crea, cómo se entra con contraseña o con enlace por correo y qué hay en Mi cuenta.",
+      "keywords": [
+        "cuenta",
+        "registro",
+        "crear cuenta",
+        "iniciar sesión",
+        "entrar",
+        "contraseña",
+        "enlace por correo",
+        "mi cuenta",
+        "cédula",
+        "descuento",
+        "cliente frecuente",
+        "fidelización",
+        "dispositivos",
+        "cerrar sesión"
+      ],
+      "audience": [
+        "comensal",
+        "operator",
+        "mesero"
+      ],
+      "body": "La cuenta del comensal es su perfil en tu restaurante: con ella el equipo lo reconoce, se le aplica su descuento y él ve sus órdenes. Es solo de tu restaurante: si come en otro restaurante MESAPAY, allá crea otra.\n\n## Crear la cuenta\n\n1. En la carta, el comensal abre su nombre y toca **¿Tienes cuenta MESAPAY? Entra para usar tu descuento**.\n2. En la pantalla de entrada, toca **¿No tienes cuenta?** **Créala aquí**.\n3. En **Crea tu cuenta**, escribe **Nombre completo**, **Cédula**, **Correo electrónico**, una contraseña de al menos 8 caracteres y, si quiere, **Celular (opcional)**.\n4. Toca **Crear cuenta**.\n\nLa cuenta aparece en [Clientes](/operator/clientes), en **Comensales registrados**.\n\n## Entrar a la cuenta\n\n- **Con contraseña**: en **Entra a tu cuenta**, escribe **Cédula o correo** y la **Contraseña**, y toca **Entrar**. En ese celular no se le vuelve a pedir la contraseña.\n- **Con enlace por correo**: toca **Prefiero un enlace por correo** y luego **Enviar enlace**. El enlace vence en 20 minutos y sirve una sola vez; pedir otro anula el anterior. Al abrirlo, toca **Entrar a mi cuenta**.\n\nDespués de entrar, el comensal llega a Mi cuenta. Para seguir pidiendo, vuelve a la carta con el botón de atrás o escaneando de nuevo el QR de la mesa.\n\n## Mi cuenta\n\nEn **Mi cuenta en** tu restaurante, el comensal ve:\n\n- **Tus órdenes**: sus últimas 30 cuentas. Las que siguen abiertas tienen **Abrir →**.\n- **Tu perfil**: nombre, celular y cédula, con **Guardar**.\n- **Seguridad y dispositivos**: los celulares y computadores donde entró, **Cerrar sesión en los otros dispositivos**, **Cerrar sesión en todos** y **Cambiar contraseña**.\n- **Salir**, para cerrar la sesión en ese celular.\n\n## Su descuento\n\nSi le diste un descuento en su ficha de Clientes, se aplica a la cuenta de la mesa:\n\n- solo, si entró a su cuenta y envía el primer pedido desde la carta;\n- si ya hay un pedido en la mesa, abriendo su nombre en la carta y tocando **Soy … · aplicar mi cuenta**;\n- o desde la ficha de la mesa, cuando tú o el mesero lo identifican con su cédula o correo.\n\nEl descuento se aplica antes de cualquier pago. Ver [Da descuentos a tus clientes](/operator/ayuda/cobro-y-caja/descuentos-para-clientes).\n\n## Casos frecuentes\n\n- **No le llega el enlace**: que revise el correo no deseado y que la cédula o el correo sean los de su cuenta en tu restaurante. Si pasaron 20 minutos, que pida otro.\n- **Olvidó la contraseña**: que entre con **Prefiero un enlace por correo** y luego la cambie en **Cambiar contraseña**.\n- **No encontramos una cuenta con esos datos en este restaurante.**: aparece al identificarlo en la mesa si todavía no tiene cuenta. Que la cree desde la carta.\n- **Perdió el celular**: que entre desde otro y toque **Cerrar sesión en los otros dispositivos**.\n",
+      "links": [
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "resenas-de-platos",
+      "title": "Reseñas de tus platos",
+      "summary": "El comensal califica de 1 a 5 estrellas los platos que ya le sirvieron, con un comentario opcional. En Reseñas ves los promedios por plato y los comentarios recientes.",
+      "keywords": [
+        "reseñas",
+        "calificación",
+        "estrellas",
+        "opiniones",
+        "comentarios",
+        "rating",
+        "puntuación",
+        "feedback",
+        "qué te pareció",
+        "promedio",
+        "satisfacción"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "Las reseñas te dicen qué platos gustan y cuáles no, de boca de quien se los comió. El comensal califica desde su pedido y tú lo ves todo en la pantalla Reseñas.\n\n## Cómo califica el comensal\n\n1. En la página de su pedido, cuando un plato queda **Servido**, aparece **¿Qué te pareció?** con 1 a 5 estrellas.\n2. Toca las estrellas. Si quiere, escribe un comentario en **Cuéntanos algo (opcional)**, de hasta 500 caracteres.\n3. Toca **Enviar** y ve **¡Gracias por tu calificación!**.\n\n- Cada plato del pedido se califica una sola vez y la calificación no se puede cambiar.\n- Cualquier persona de la mesa puede calificar cualquier plato de la cuenta.\n- Solo se califican los platos que el equipo marcó como entregados en Salón.\n- Los pedidos para recoger no tienen calificación.\n\n## Lo que ves tú\n\nEntra a [Reseñas](/operator/ratings), en el menú **Pedidos**:\n\n- Arriba: **Total de reseñas**, **Promedio global** y **Platos con reseña**.\n- **Por plato**: cada plato con su promedio y su número de reseñas, primero los más calificados.\n- **Comentarios recientes**: las últimas calificaciones, con o sin comentario, con el nombre que dejó el comensal o **Anónimo**.\n\nLa pantalla toma las últimas 200 calificaciones. Las estrellas de la carta usan todas.\n\nNo se pueden responder, ocultar ni borrar reseñas.\n\n## En la carta\n\nCada plato muestra sus estrellas: el promedio y la cantidad de calificaciones. Los comentarios no se muestran a los comensales. Ver [Cómo ve tu carta el comensal](/operator/ayuda/experiencia-del-comensal/la-carta-del-comensal).\n\n## Casos frecuentes\n\n- **No llegan reseñas**: revisa que el equipo marque los platos como entregados en [Salón](/operator/serve). Sin eso, el comensal no ve **¿Qué te pareció?**.\n- **Aún no tienes reseñas.**: todavía nadie ha calificado.\n- **Quiero borrar una reseña injusta**: no es posible. Usa los comentarios para mejorar el plato.\n",
+      "links": [
+        {
+          "label": "Ir a Reseñas",
+          "href": "/operator/ratings"
+        },
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "reservas-del-comensal",
+      "title": "Cómo reserva el comensal",
+      "summary": "Lo que vive el comensal al reservar desde tu enlace: fecha, personas, horario, mesa, el depósito si lo pides, su código y cómo ve o cancela su reserva.",
+      "keywords": [
+        "reservas",
+        "reservar",
+        "reserva en línea",
+        "apartar mesa",
+        "depósito",
+        "anticipo",
+        "código de reserva",
+        "cancelar reserva",
+        "google maps",
+        "link de reservas",
+        "horario",
+        "no show"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "Con las reservas activas, tus clientes apartan mesa desde un enlace que compartes por WhatsApp, redes sociales, tu sitio web o Google Maps. Esta guía muestra qué ve el comensal; la configuración se hace en Configuración › Reservas.\n\n## El enlace de reservas\n\nEn Configuración › [Reservas](/operator/settings/reservas), con **Recibir reservas** activo, copia el **Link de reservas** con **Copiar**. Para Google Maps está el **Link para Google**.\n\n## Paso a paso del comensal\n\n1. Abre el enlace y ve **Reservá tu mesa**.\n2. Elige la **Fecha**: desde hoy hasta los días que permitiste en **Hasta cuántos días**.\n3. En **¿Cuántos son?**, elige de 1 a 8 personas. El botón de 8 o más reserva para 8: los grupos más grandes conviene recibirlos por teléfono.\n4. Elige un horario en **Horarios disponibles**.\n5. Elige la mesa: en el mapa (**Elegí tu mesa en el mapa**) si lo dibujaste, o en una lista (**Elegí tu mesa**). Si solo una mesa sirve, se elige sola.\n6. En **Tus datos**, escribe nombre y correo. El teléfono y las notas son opcionales.\n7. Toca **Reservar**, con la fecha y la hora, o **Continuar · depósito** si la mesa pide depósito.\n8. Ve **¡Reserva confirmada!**, su código (por ejemplo, MP-4K7Q2C) y **Ver o cancelar mi reserva →**.\n\n## El depósito\n\n- El valor del depósito se define por mesa, en [Mesas](/operator/tables). Los medios para cobrarlo (Tarjeta, PSE o Apple Pay) se eligen en **Depósito para reservar**.\n- Mientras el comensal paga, la mesa queda apartada 15 minutos. Si no paga, se libera.\n- Al pagar, la reserva queda confirmada.\n- La pantalla le avisa que, si no se presentan, el depósito no se devuelve.\n- Cuando llega, en [Reservas](/operator/reservas) aplicas el depósito a su cuenta con **Aplicar abono … a la cuenta**.\n\nMESAPAY no devuelve depósitos solo: si el comensal cancela y quieres devolverle la plata, hazlo directamente con él.\n\n## Ver o cancelar la reserva\n\nCon el enlace de su código, el comensal ve el estado y los datos de su reserva, y puede tocar **Cancelar mi reserva** hasta la hora de la reserva. Pasada la hora, ve **Para cambios, comunicate directamente con el restaurante.** La reserva no se puede cambiar en línea: para otra fecha, cancela y reserva de nuevo.\n\n## Casos frecuentes\n\n- **No hay horarios disponibles para esta fecha. Probá otro día.**: ese día no tiene turnos de reserva o todas las mesas están ocupadas. Revisa **Turnos por día** en Configuración › Reservas.\n- **Las reservas me llegan como pendientes**: apagaste **Confirmar solas**. Confírmalas a tiempo en Reservas para que el comensal no tenga sorpresas.\n- **El comensal perdió su código**: está en el correo que le llegó al reservar.\n- **No se cobra el depósito**: revisa que haya un medio marcado en **Depósito para reservar** y que tu comercio tenga activos los pagos en línea.\n",
+      "links": [
+        {
+          "label": "Ir a Reservas",
+          "href": "/operator/reservas"
+        },
+        {
+          "label": "Ir a Configuración de reservas",
+          "href": "/operator/settings/reservas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pedidos-para-llevar",
+      "title": "Pedidos para recoger",
+      "summary": "Con el pedido anticipado, el cliente escanea el QR de recogida, pide y paga desde su celular y recoge en el mostrador con su código. La función la activa MESAPAY.",
+      "keywords": [
+        "para llevar",
+        "recoger",
+        "pickup",
+        "pedido anticipado",
+        "take away",
+        "qr de recogida",
+        "código",
+        "mostrador",
+        "pedir antes",
+        "prepago",
+        "horario",
+        "apple pay"
+      ],
+      "audience": [
+        "comensal",
+        "operator"
+      ],
+      "body": "El pedido para recoger deja que tus clientes pidan y paguen desde el celular antes de llegar, y pasen por el mostrador solo a recoger. La función, su horario y el tiempo máximo de espera los activa MESAPAY para tu restaurante: escríbenos a soporte si la quieres.\n\n## El QR de recogida\n\nCon la función activa, en [Mesas](/operator/tables) aparece la tarjeta **QR de recogida** (**Pedido anticipado**), con **Imprimir** y **Enlace QR**. Imprime el QR para la entrada o la ventanilla, o comparte el enlace. La tarjeta no aparece en restaurantes que trabajan con mostrador ni en la app del mesero.\n\n## Lo que vive el comensal\n\n1. Escanea el QR de recogida y ve tu carta.\n2. Arma su pedido y toca **Ver y pagar pedido**.\n3. En **Recogida** ve el **Tiempo estimado de espera**, calculado con lo que hay en la cocina.\n4. Escribe **Tu nombre** y su **Celular**.\n5. Paga. **Tu orden entra a cocina solo cuando el pago aprueba.**\n6. Ve **Pedido para recoger**, su código con su nombre y una cuenta regresiva. La pantalla dice **Te avisamos en esta pantalla cuando esté listo.**\n7. Cuando está listo, ve **¡Tu pedido está listo!**, **Pasa por el mostrador** y **Muestra el código al cajero.**\n\nMESAPAY no le manda mensajes al celular: el aviso llega en esa pantalla, así que conviene que la deje abierta.\n\n## Cómo lo atiende el equipo\n\n- En [Cocina](/operator/kitchen), el pedido sale marcado **Recoger**, con el nombre del cliente.\n- Cuando está listo, aparece en [Salón](/operator/serve) con el nombre del cliente para entregarlo. Revisa el código que te muestra y márcalo como entregado; el cliente verá **Entregado**.\n\n## Horario y tiempo de espera\n\n- Fuera del horario, el cliente ve **Ahora estamos cerrados** y cuándo abren de nuevo.\n- Si la espera en cocina pasa del máximo, ve **Cocina saturada** con el tiempo estimado y el tope, y puede intentar en unos minutos.\n- Si la función está apagada, ve **Pedido anticipado no disponible**.\n\nPara cambiar el horario o el tiempo máximo, escríbenos a soporte.\n\n## El pago\n\n> ⚠ Hoy, los pedidos para recoger solo se pagan con Apple Pay: el cliente necesita un iPhone o un equipo con Apple Pay, y MESAPAY tiene que tener Apple Pay activo para tu restaurante. Si no, el cliente ve **Este restaurante todavía no tiene pagos activos para recogida. Pide en el mostrador o vuelve más tarde.** o **Apple Pay aún no está activado para este restaurante.**, y no puede enviar el pedido. Escríbenos a soporte para revisarlo.\n\n## Casos frecuentes\n\n- **Pedido anticipado no disponible**: la función no está activa. Escríbenos a soporte.\n- **No veo la tarjeta QR de recogida en Mesas**: la función no está activa, o estás en la app del mesero.\n- **El cliente no recibió un mensaje en el celular**: es normal; el aviso de listo sale en la pantalla de su pedido.\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Cocina",
+          "href": "/operator/kitchen"
+        },
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

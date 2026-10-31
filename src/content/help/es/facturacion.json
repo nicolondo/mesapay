@@ -1,5 +1,296 @@
 {
   "title": "Facturación",
   "description": "Impuestos, resolución, facturación electrónica DIAN, factura manual, impresión, correo y notas crédito.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "impuesto-de-ventas",
+      "title": "Configura el impuesto de ventas",
+      "summary": "Elige si tu comercio factura con impuesto al consumo (INC), IVA o ninguno, y con qué tarifa. Va incluido en el precio de la carta y aplica a lo que se facture desde que guardas; lo ya emitido a la DIAN no cambia.",
+      "keywords": [
+        "impuesto",
+        "impoconsumo",
+        "inc",
+        "iva",
+        "tarifa",
+        "8%",
+        "19%",
+        "impuesto al consumo",
+        "base gravable",
+        "no responsable",
+        "impuesto en cero",
+        "precio con impuesto incluido"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El impuesto de ventas es el que va dentro de cada cuenta y de cada factura. Aquí eliges cuál le corresponde a tu comercio y con qué tarifa, para que cada factura parta bien el precio entre base e impuesto.\n\n## Cómo funciona\n\nEl impuesto ya viene incluido en el precio de la carta. Una hamburguesa de $30.000 sigue costando $30.000: lo que cambia es que la factura la parte en base más impuesto. No sube los precios ni cambia lo que paga el cliente.\n\nHay tres opciones:\n\n- **Impuesto al consumo (INC)**: lo típico de un restaurante en Colombia. Tarifa general: 8 %.\n- **IVA**: franquicias y comercios responsables de IVA. Tarifa general: 19 %.\n- **Ninguno**: comercios no responsables. La factura sale sin impuesto discriminado.\n\n> Cuál te corresponde y con qué tarifa lo confirma tu contador. MESAPAY solo lo registra.\n\n## Configurarlo\n\n1. Entra a [Configuración › Impuestos](/operator/settings/impuestos).\n2. En **Impuesto de ventas**, elige **Impuesto al consumo (INC)**, **IVA** o **Ninguno**. Si la tarifa está vacía, se llena sola con 8 para el INC y con 19 para el IVA.\n3. Revisa la **Tarifa (%)**. Es un número entero, sin decimales.\n4. Toca **Guardar**. Verás el mensaje \"Guardado. Aplica a lo que se facture de ahora en adelante.\"\n\nUn comercio nuevo en Colombia arranca con impuesto al consumo del 8 %. Revísalo antes de empezar a facturar.\n\n## Desde cuándo aplica un cambio\n\n- Aplica a todo lo que se facture o se envíe a la DIAN desde el momento en que guardas, **incluidas las cuentas que ya están abiertas**. Una cuenta abierta ayer y cobrada hoy se factura con el impuesto de hoy.\n- También cambia cómo los reportes calculan el impuesto de las ventas de ahí en adelante.\n- Lo que ya salió a la DIAN no cambia: cada factura guarda el impuesto con el que se emitió.\n\n> ⚠ Si vas a cambiar el impuesto, hazlo con las cuentas cerradas, por ejemplo antes de abrir el turno. Así ninguna cuenta del día queda con dos tarifas distintas.\n\n## Los cargos que no salen de la carta\n\nCuando agregas a una cuenta un cargo o servicio que no está en la carta (con **Agregar cargo o servicio**), eliges su propio **Impuesto** y su **Tarifa**. Ese impuesto se suma al precio que escribas, salvo que elijas **Incluido en el precio**, como en un plato de la carta. Lo explicamos en [Crea una factura manual sin mesa](/operator/ayuda/facturacion/factura-manual).\n\n## Dónde se ve\n\n- En la tarjeta **Impuestos** de Configuración: por ejemplo, **INC 8%**, o **Sin impuesto**.\n- En [Configuración › Facturación electrónica DIAN](/operator/settings/facturacion-dian), en los datos del **Emisor**, con el enlace **Cambiar en Configuración → Impuestos**.\n\n## Casos frecuentes\n\n- **\"Este comercio está emitiendo facturas SIN impuesto de ventas\"**: aparece en Facturación electrónica DIAN cuando el impuesto está en **Ninguno**. Si tu comercio es responsable de impoconsumo o de IVA, configúralo aquí antes de seguir facturando. Si no es responsable, así está bien.\n- **Una factura ya emitida salió con el impuesto equivocado**: cambiar la configuración no la corrige. Revísalo con tu contador y, si hace falta, ajústala con una [nota crédito](/operator/ayuda/facturacion/notas-credito).\n- **\"No se pudo guardar. Intenta de nuevo.\"**: revisa tu conexión y vuelve a tocar **Guardar**. Solo el rol Operador puede cambiar este dato.",
+      "links": [
+        {
+          "label": "Ir a Impuestos",
+          "href": "/operator/settings/impuestos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "resolucion-de-facturacion",
+      "title": "Carga tu resolución de numeración",
+      "summary": "Copia los datos de la resolución de la DIAN (número, prefijo, rango, vigencia y próximo consecutivo) y qué hacer cuando se acaban los números. Se necesita con o sin facturación electrónica.",
+      "keywords": [
+        "resolución",
+        "resolucion dian",
+        "numeración",
+        "consecutivo",
+        "prefijo",
+        "rango",
+        "vigencia",
+        "se agotó la resolución",
+        "quedan números",
+        "resolución nueva",
+        "habilitación de numeración",
+        "número de factura"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "La resolución de numeración es la autorización de la DIAN para numerar tus facturas: el prefijo y el rango de números que puedes usar. MESAPAY la necesita para numerar cada factura, tengas o no facturación electrónica.\n\n## Dónde se carga\n\nEn [Configuración › Facturación electrónica DIAN](/operator/settings/facturacion-dian). Si tu comercio no tiene facturación electrónica, la tarjeta se llama **Resolución de facturación** y la pantalla muestra solo esta parte.\n\n## Pasos\n\n1. Ten a mano la resolución que te expidió la DIAN.\n2. Entra a la pantalla y busca la sección **Resolución de numeración**.\n3. Copia los datos tal como figuran en la resolución. La DIAN los contrasta uno por uno: si alguno no coincide, rechaza la factura completa.\n4. Toca **Guardar**. Verás \"Resolución guardada.\"\n\n## Qué va en cada campo\n\n- **Número de resolución**: solo el número, sin la palabra \"Resolución\" ni la fecha. Por ejemplo, 18760000001.\n- **Prefijo**: el mismo autorizado en la resolución, por ejemplo FE.\n- **Correo para recepción de documentos electrónicos**: el mismo que tienes registrado en el RUT y en el portal de la DIAN para recibir documentos electrónicos. Si no coincide, la DIAN rechaza la factura.\n- **Desde el número** y **Hasta el número**: el rango autorizado.\n- **Vigencia desde** y **Vigencia hasta**: las fechas de la resolución.\n- **Fecha de la resolución**: la fecha del acto administrativo. Sale impresa en la factura.\n- **Próximo consecutivo a emitir**: el número que llevará la siguiente factura. Si ya venías facturando en otro programa con esta misma resolución, escribe el siguiente número libre. Si arrancas de cero, toca **Arrancar desde…** para usar el inicio de tu resolución.\n\n> ⚠ No bajes el **Próximo consecutivo** a un número que ya usaste, aquí o en otro programa: la DIAN rechaza una factura con un número repetido.\n\n## Cuando se acaban los números\n\nCon facturación electrónica, MESAPAY te avisa antes de que el rango se agote:\n\n- Cuando quedan menos de 500 números, la pantalla **Facturas** muestra el aviso **\"Quedan … números en la resolución de facturación\"** y la tarjeta de Configuración, **Quedan … números**. Es el momento de pedir la resolución nueva.\n- Si se agota, el aviso cambia a **\"Se agotó el rango de la resolución de facturación: las ventas nuevas quedan sin facturar hasta que cargues la resolución nueva.\"** Las cuentas se siguen cobrando con normalidad; solo sus facturas quedan esperando.\n\nPara salir de ahí:\n\n1. Pide a la DIAN una resolución nueva.\n2. Cárgala en esta pantalla: número, prefijo, rango, vigencia, fecha y **Próximo consecutivo a emitir**.\n3. Si tienes facturación electrónica, actualiza también la **Clave técnica** en **Credenciales DIAN**: cada resolución trae la suya. Ver [Activa la facturación electrónica con la DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n4. Toca **Guardar**. Las ventas que quedaron esperando se facturan solas en unos minutos, con la numeración nueva.\n\n> Sin facturación electrónica, MESAPAY no avisa cuando se acerca el final del rango. Revisa de vez en cuando el **Próximo consecutivo** contra el **Hasta el número**.\n\n## Si tu restaurante es parte de un grupo\n\nSi en Identidad del comercio elegiste una razón social compartida, la resolución es la de esa razón social y los locales que la comparten usan la misma numeración. Ver [Completa la identidad del comercio](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n\n## Casos frecuentes\n\n- **\"Faltan datos de la resolución: …\"**: completa los campos que nombra el aviso. Sin ellos la DIAN rechaza todos los documentos.\n- **\"El número final del rango no puede ser menor que el inicial.\"**: revisa **Desde el número** y **Hasta el número**.\n- **\"La fecha final de vigencia no puede ser anterior a la inicial.\"**: revisa las fechas de vigencia.\n- **Aparece \"Ojo: el dato viejo de Identidad dice … y a la DIAN se le manda …\"**: quedó un número de resolución anterior guardado. Compáralo con tu resolución y toca **Usar … como número de resolución** si el viejo es el correcto, o **Descartar el dato viejo** si no.\n- **\"Falta la ubicación del establecimiento\"**: elige el municipio en [Configuración › Identidad del comercio](/operator/settings/identidad).",
+      "links": [
+        {
+          "label": "Ir a Facturación electrónica DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "activar-la-facturacion-electronica",
+      "title": "Activa la facturación electrónica con la DIAN",
+      "summary": "Deja lista la facturación electrónica directa con la DIAN: datos del emisor, certificado digital, credenciales del portal, set de pruebas de habilitación y el paso a producción.",
+      "keywords": [
+        "facturación electrónica",
+        "factura electronica",
+        "dian",
+        "habilitación",
+        "set de pruebas",
+        "certificado digital",
+        "firma",
+        "p12",
+        "software id",
+        "pin",
+        "clave técnica",
+        "test set id",
+        "producción"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con la facturación electrónica, MESAPAY emite tus facturas directamente a la DIAN, sin otro programa de por medio. Esta guía explica cómo dejarla lista: datos del emisor, certificado digital, credenciales y set de pruebas.\n\n> El módulo de facturación electrónica lo activa MESAPAY para cada comercio. Si en Configuración la tarjeta se llama **Resolución de facturación** y no **Facturación electrónica DIAN**, tu comercio no lo tiene activo: escríbenos a soporte.\n\n## Antes de empezar\n\nNecesitas:\n\n- El RUT al día y la habilitación como facturador electrónico en el portal de la DIAN, con MESAPAY registrado allí como software propio. Tu contador te ayuda con ese trámite.\n- El **certificado digital** de firma (archivo .p12 o .pfx) y su contraseña, emitido por una entidad certificadora autorizada, como Certicámara, GSE o Andes SCD.\n- Del portal de la DIAN: el **Software ID**, el **Software PIN**, la **Clave técnica** de tu resolución y el **Test Set ID** del set de pruebas.\n- Tu resolución de numeración.\n\n## Datos del emisor y resolución\n\n1. En [Configuración › Identidad del comercio](/operator/settings/identidad), completa la **Razón social**, el **NIT** con dígito de verificación, la **Dirección** y la **Ciudad** (el municipio). Ver [Completa la identidad del comercio](/operator/ayuda/primeros-pasos/identidad-del-comercio).\n2. En [Configuración › Facturación electrónica DIAN](/operator/settings/facturacion-dian), revisa la sección **Emisor**. Si falta algo, sale el aviso **\"Faltan datos del emisor para poder facturar: …\"**.\n3. Carga la **Resolución de numeración** y el **Correo para recepción de documentos electrónicos**, como se explica en [Carga tu resolución de numeración](/operator/ayuda/facturacion/resolucion-de-facturacion).\n4. Revisa el **Impuesto de ventas** que muestra el Emisor. Se cambia en [Configura el impuesto de ventas](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Certificado digital\n\n1. En **Paso 1 · Certificado digital**, toca **Subir certificado**.\n2. Elige el **Archivo del certificado** (.p12 o .pfx, máximo 512 KB) y escribe la **Contraseña del certificado**.\n3. Toca **Guardar**. Al quedar cargado verás **Registrado**, su fecha de vencimiento y el titular. Con **Ver todos los datos del certificado** revisas que sea el de tu empresa.\n\nCuando se acerque el vencimiento aparece **Vence pronto**. Renueva el certificado con tu entidad y súbelo con **Reemplazar certificado**.\n\n## Credenciales DIAN\n\n1. En **Paso 2 · Credenciales DIAN**, escribe el **Software ID**, el **Software PIN**, la **Clave técnica** y el **Test Set ID**.\n2. En **Ambiente**, deja **Habilitación** mientras haces las pruebas.\n3. Toca **Guardar**. Verás \"Credenciales guardadas.\"\n\nLos datos secretos guardados no se vuelven a mostrar. Para no cambiarlos, deja el campo vacío.\n\n## Set de pruebas\n\n1. En **Paso 3 · Habilitación**, toca **Correr set de pruebas**. El estado pasa a **En pruebas**.\n2. La DIAN valida los documentos unos segundos después. Toca **Consultar estado** para ver el resultado: **Documento aceptado.**, **Documento en proceso.** o **Documento rechazado.** Si la DIAN devuelve reglas, salen en **Reglas devueltas por la DIAN**, con lo que hay que corregir.\n3. Cuando la DIAN acepta un documento, el estado pasa a **Habilitado**.\n\nTermina el proceso de habilitación en el portal de la DIAN. Cuando te habilite, vuelve a **Credenciales DIAN**, cambia el **Ambiente** a **Producción** y toca **Guardar**. Desde ahí, cada cuenta cobrada se factura sola: lo explicamos en [Cómo se emiten tus facturas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n\n> Los documentos del ambiente de Habilitación son pruebas: no tienen validez fiscal.\n\n## Casos frecuentes\n\n- **\"Contraseña incorrecta.\"**: es la contraseña del certificado, no la del portal de la DIAN. Pídesela a quien lo compró.\n- **\"El archivo excede el tamaño permitido (512 KB) o está vacío.\"** o **\"El archivo no contiene un certificado válido.\"**: sube el archivo .p12 o .pfx original que te entregó la entidad certificadora.\n- **\"Completa el certificado, las credenciales y el Test Set ID en ambiente de Habilitación para correr el set de pruebas.\"**: falta el certificado, alguna credencial o el **Test Set ID**, o el **Ambiente** está en **Producción**.\n- **\"Completa la resolución de numeración antes de correr el set de pruebas\"**, o el aviso de que falta el municipio o el correo de recepción: completa los datos del emisor y la resolución.\n- **\"La habilitación ya está superada. El comercio emite en producción.\"**: no hace falta correr más pruebas.\n- **\"El servidor aún no está listo para guardar credenciales de forma segura.\"**: es un problema de nuestro lado. Escríbenos a soporte.",
+      "links": [
+        {
+          "label": "Ir a Facturación electrónica DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        },
+        {
+          "label": "Ir a Identidad del comercio",
+          "href": "/operator/settings/identidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "emision-automatica-de-facturas",
+      "title": "Cómo se emiten tus facturas y qué hacer si se frenan",
+      "summary": "Con facturación electrónica, cada cuenta cobrada se factura sola, a nombre del cliente o a consumidor final. Qué significa cada estado DIAN, los avisos de facturas frenadas y cómo reintentar una emisión.",
+      "keywords": [
+        "emisión automática",
+        "factura no sale",
+        "rechazada",
+        "en proceso",
+        "sin emitir",
+        "error de envío",
+        "reintentar",
+        "consumidor final",
+        "factura a nombre",
+        "cufe",
+        "cola de emisión",
+        "dian caída"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con facturación electrónica, cada cuenta que se cobra en MESAPAY se factura sola y se envía a la DIAN en segundos, sin que nadie toque nada. Aquí ves cómo funciona, qué significa cada estado y qué hacer cuando una factura no sale.\n\n## Qué se factura y a nombre de quién\n\n- Toda venta cobrada se factura al quedar pagada, sea en efectivo, con datáfono o con pago en línea.\n- Si durante el cobro alguien pidió **Factura electrónica personalizada** (el comensal desde su celular o tu equipo al cobrar), sale a nombre de ese cliente y se le envía a su correo.\n- Si no, sale a **Consumidor final**. Si dejaron un correo con **Factura electrónica genérica**, se envía a ese correo; si no, se genera igual, para imprimirla.\n- Las cortesías y las cuentas en $0 no se facturan ni van a la DIAN.\n- La fecha y la hora de la factura van en hora de Colombia, también de noche.\n- El impuesto sale de lo que tengas en [Configura el impuesto de ventas](/operator/ayuda/facturacion/impuesto-de-ventas) al emitir, y queda guardado en la factura.\n\n## Qué pasa después del cobro\n\n1. MESAPAY numera la factura con tu resolución y la envía a la DIAN.\n2. Cuando la DIAN la acepta, la factura se envía por correo al cliente (si hay correo) y se imprime sola en la impresora de facturas. Lo explicamos en [Imprime, reimprime y envía facturas por correo](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n3. Si la DIAN no responde, MESAPAY reintenta solo, con esperas cada vez más largas, durante unas ocho horas.\n\n## Los estados\n\nEn [Pedidos › Facturas](/operator/facturas), la columna **Estado DIAN** dice:\n\n- **Aceptada**: la factura es válida ante la DIAN.\n- **En proceso**: ya se envió y la DIAN la está validando.\n- **Sin emitir**: está en la cola y sale sola. Si algo la frena, debajo dice **\"No sale todavía: …\"** con el motivo.\n- **Error de envío**: falló la comunicación con la DIAN y se reintenta sola. Si dice **\"Se agotaron los reintentos automáticos: reintentala a mano.\"**, hay que reintentarla con el botón.\n- **Rechazada**: la DIAN la rechazó; debajo sale el motivo y, si hay varios, **Ver detalle del rechazo**. Una rechazada no se reintenta sola.\n\n## Los avisos de arriba\n\n- **\"… facturas esperando emisión: …\"**: algo de la configuración frena **todas** las facturas del comercio. Toca **Ir a Facturación DIAN**, completa lo que dice el aviso y las facturas salen solas en unos minutos. En Configuración, la tarjeta de Facturación electrónica DIAN también lo muestra: **… facturas sin emitir**.\n- **\"… facturas en cola de emisión; se reintentan solas.\"**: no hay que hacer nada.\n- **\"… facturas rechazadas en los últimos 30 días.\"**: toca **Ver las rechazadas** para revisarlas.\n- Los avisos de que quedan pocos números o de que se agotó el rango: ver [Carga tu resolución de numeración](/operator/ayuda/facturacion/resolucion-de-facturacion).\n\nLos motivos que frenan todo son: falta la configuración DIAN, el certificado digital o las credenciales; falta la resolución de numeración, el municipio del establecimiento o el correo para recepción de documentos electrónicos; o se agotó el rango de la resolución. Todos se corrigen en [Activa la facturación electrónica con la DIAN](/operator/ayuda/facturacion/activar-la-facturacion-electronica).\n\n## Reintentar una factura a mano\n\n1. En la fila de la factura, toca **Reintentar emisión**. Aparece en las rechazadas, en las de error de envío y en las frenadas por configuración.\n2. Lee la advertencia y acepta.\n3. Verás el resultado: **\"Aceptada por la DIAN ✓\"**, **\"Enviada: la DIAN la está procesando.\"**, **\"La DIAN la volvió a rechazar.\"** o **\"No salió: …\"** con el motivo.\n\n> ⚠ Una factura rechazada no se arregla reintentando: la DIAN vuelve a rechazar el mismo documento. Primero corrige lo que dice el motivo (casi siempre un dato de la resolución, del emisor o del cliente) y después reintenta.\n\n## Sin facturación electrónica\n\nSi tu comercio no tiene el módulo, a la DIAN no va nada: solo se genera la factura que alguien pidió, para imprimirla o enviarla por correo, y las facturas a nombre de un cliente quedan como solicitudes para que las emitas en tu programa de facturación. Ver [Revisa tus facturas y las solicitudes de factura](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Casos frecuentes\n\n- **\"… factura en cola de emisión\" que no baja**: si pasan horas, revisa si alguna quedó en **Error de envío** con los reintentos agotados y reintenta. Si la DIAN está caída, espera a que vuelva.\n- **\"el número de la factura está fuera del rango de la resolución\"**: revisa el **Próximo consecutivo a emitir** y el rango en [Configuración › Facturación electrónica DIAN](/operator/settings/facturacion-dian).\n- **El cliente pidió la factura a su nombre después de que salió a consumidor final**: ya no se puede volver a facturar esa cuenta. Ver el aviso de solicitudes tardías en [Revisa tus facturas y las solicitudes de factura](/operator/ayuda/facturacion/solicitudes-de-factura).",
+      "links": [
+        {
+          "label": "Ir a Facturas",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "solicitudes-de-factura",
+      "title": "Revisa tus facturas y las solicitudes de factura",
+      "summary": "La pantalla Facturas: con facturación electrónica, la lista de facturas con su estado DIAN, filtros, avisos y acciones; sin ella, las solicitudes de factura de tus clientes para emitirlas en tu programa.",
+      "keywords": [
+        "facturas",
+        "lista de facturas",
+        "buscar factura",
+        "solicitud de factura",
+        "pedir factura",
+        "marcar como generada",
+        "copiar datos",
+        "siigo",
+        "alegra",
+        "estado dian",
+        "factura tardía",
+        "imprimir en datáfono"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En **Pedidos › Facturas** revisas las facturas de tu comercio. Lo que ves depende de si tienes facturación electrónica: con ella, la lista de facturas emitidas a la DIAN y su estado; sin ella, las solicitudes de factura que dejan tus clientes para que las emitas en tu programa de facturación.\n\n## Con facturación electrónica: la lista de facturas\n\nLa pantalla se llama **Facturas electrónicas**. Muestra todas las facturas emitidas, de la más nueva a la más vieja, de a 50 por página. Arriba aparece solo lo que necesita que alguien haga algo.\n\nCada fila tiene:\n\n- **Número**, **Fecha** y el código del pedido.\n- **Cliente**: el nombre y el documento, o **Consumidor final**.\n- **Total**.\n- **Estado DIAN**: **Aceptada**, **En proceso**, **Sin emitir**, **Error de envío** o **Rechazada**. Qué significa cada uno, en [Cómo se emiten tus facturas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Correo**: si se envió y a quién, o por qué no salió. Por ejemplo, **\"No enviada: nadie dejó correo.\"**\n- **Nota crédito**: el número y el estado de la nota que la ajusta, si la hay.\n\n### Buscar una factura\n\n1. En **Estado DIAN**, elige **Todas**, **Rechazadas**, **En proceso** o **Aceptadas**.\n2. Si quieres, pon un rango en **Desde** y **Hasta**. Son días operativos: si tu jornada empieza de madrugada, cada día arranca a esa hora.\n3. En **Buscar**, escribe el número de la factura, el código del pedido, el NIT, el nombre o el correo del cliente.\n4. Toca **Filtrar**. Para volver a la lista completa, toca **Quitar filtros**.\n\n### Qué puedes hacer con cada factura\n\n- **Ver factura**: la abre en otra pestaña.\n- **Reimprimir factura** y **Reenviar por correo**: ver [Imprime, reimprime y envía facturas por correo](/operator/ayuda/facturacion/imprimir-y-enviar-facturas).\n- **Anular con nota crédito**: en las aceptadas. Te lleva a Notas crédito con la factura ya elegida. Ver [Emite una nota crédito electrónica](/operator/ayuda/facturacion/notas-credito).\n- **Reintentar emisión**: en las rechazadas, con error o frenadas.\n\nEl botón **Notas crédito electrónicas**, arriba, abre la pantalla de notas crédito.\n\n### Clientes que pidieron factura tarde\n\nSi un cliente deja sus datos para la factura cuando la cuenta ya se facturó a consumidor final, aparece el aviso **\"… cliente pidió factura con sus datos después de que se emitió a consumidor final\"**. Esa factura ya salió aceptada y no se puede volver a facturar. En cada caso ves cuándo la pidió y qué factura salió, y puedes:\n\n1. Tocar **Anular y emitir nota crédito**, si el cliente necesita la factura a su nombre y tu contador lo aprueba.\n2. Tocar **Marcar como resuelta** cuando lo hayas atendido. Deja de salir en el aviso; la factura sigue a consumidor final.\n\nLas demás solicitudes se cierran solas: cuando la DIAN acepta una factura, la solicitud con la que se emitió queda como atendida.\n\n## Sin facturación electrónica: las solicitudes\n\nCuando un cliente pide **Factura electrónica personalizada** al pagar, sus datos llegan aquí para que emitas la factura en tu programa (Siigo, Alegra u otro).\n\n1. Entra a [Pedidos › Facturas](/operator/facturas), pestaña **Pendientes**.\n2. Toca **Copiar datos** y pégalos en tu programa de facturación: nombre, documento, correo, dirección, ciudad y el pedido con su total.\n3. Emite la factura allá y envíasela al cliente.\n4. Vuelve y toca **✓ Marcar como generada**. Pasa a **Ya generadas**, con quién la marcó y cuándo.\n\nOtras acciones:\n\n- **Rechazar**: si no corresponde emitirla. El cliente no recibe factura.\n- **Marcar como pendiente de nuevo**: en **Ya generadas**, si la marcaste por error.\n- **Imprimir en datáfono**: imprime el comprobante en un datáfono con serial configurado. Ver [Configura los datáfonos y asígnalos a tus meseros](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## Casos frecuentes\n\n- **\"No hay facturas con estos filtros.\"**: toca **Quitar filtros** o amplía las fechas.\n- **\"No hay datáfonos con serial configurado.\"**: carga el serial del datáfono en [Configuración › Datáfonos](/operator/settings/datafonos).\n- **Una solicitud rechazada por error**: la confirmación dice que se puede revertir, pero hoy la pantalla no muestra las rechazadas para recuperarlas. Toma los datos del cliente de otra fuente y emítele la factura en tu programa.\n- **No veo la pestaña Pendientes**: con facturación electrónica ya no hace falta, porque las facturas salen solas a nombre del cliente que las pidió.",
+      "links": [
+        {
+          "label": "Ir a Facturas",
+          "href": "/operator/facturas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "factura-manual",
+      "title": "Crea una factura manual sin mesa",
+      "summary": "Abre una cuenta que no está en ninguna mesa para cobrar y facturar desde la caja platos, cargos o servicios, como un catering o el alquiler del salón, a nombre de un cliente o a consumidor final.",
+      "keywords": [
+        "factura manual",
+        "factura sin mesa",
+        "nueva orden",
+        "cargo",
+        "servicio",
+        "catering",
+        "alquiler del salon",
+        "cobrar desde caja",
+        "linea libre",
+        "nit",
+        "cedula",
+        "consumidor final",
+        "factura a nombre",
+        "descartar factura"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Una factura manual es una cuenta que no vive en ninguna mesa. Sirve para cobrar y facturar desde la caja platos, cargos o servicios que no salieron de un pedido del salón, como un catering o el alquiler del salón.\n\n## Abre una factura manual\n\nHay dos caminos:\n\n- En la barra de arriba del panel, toca **Nueva orden** y elige **Factura manual**.\n- O entra a **Mesas** (**Mostrador**, si trabajas en modo mostrador) y toca **+ Factura manual**, junto a los filtros.\n\nLa factura se crea vacía y se abre su ficha. Mientras siga abierta, aparece en **Mesas**, en la sección **Facturación manual**, con su código, lo que falta por cobrar y el cliente. Puedes tener varias abiertas a la vez; en **Pedidos › Órdenes** salen como **Factura manual**.\n\n## Agrega platos, cargos o servicios\n\n- **Agregar platos**: abre la carta en otra pestaña para elegir platos, igual que en una mesa. Al enviarlos vuelves a **Mesas** con la factura abierta. Estos platos no pasan por cocina: es un documento, no un pedido para preparar.\n- **Agregar cargo o servicio**: para algo que no está en la carta. Escribe el **Concepto**, la **Cant.** y el **Precio unitario**, revisa el **Impuesto** y toca **Agregar a la cuenta**.\n\nPara quitar un plato o un cargo, toca **Cancelar** en su línea.\n\n### El impuesto de un cargo\n\nEn una factura manual, el **Impuesto** de un cargo nace en **Incluido en el precio**, con el impuesto de tu carta (por ejemplo, Impoconsumo 8%): el valor que escribes ya trae el impuesto adentro, como un plato de la carta. Si eliges **Impoconsumo** o **IVA** con una **Tarifa**, el impuesto se suma encima del precio; con **Ninguno**, el cargo va sin impuesto. Antes de agregarlo, la ficha muestra la **Base**, el impuesto y el **Total de la línea**.\n\nSi tu comercio no tiene impuesto de ventas configurado, la opción **Incluido en el precio** no aparece. Configúralo como se explica en [Configura el impuesto de ventas](/operator/ayuda/facturacion/impuesto-de-ventas).\n\n## Identifica al cliente\n\nEl recuadro **Cliente de la factura** dice a nombre de quién va a salir. Sin cliente, la factura sale a consumidor final.\n\n1. Toca **Identificar cliente**.\n2. Si el cliente ya está guardado, búscalo en **Buscar cliente registrado** por nombre, documento o correo, y tócalo para cargar sus datos. Si no, escríbelos.\n3. Revisa **Nombre o razón social**, **Tipo** (CC, CE, NIT o Pasaporte), **Número de identificación** y **Correo electrónico**. El número va solo, sin dígito de verificación: MESAPAY lo calcula.\n4. Toca **Pedir factura**.\n\nEl recuadro muestra el nombre, el documento y el correo; para corregirlos, toca **Cambiar**. Si eliges un cliente guardado que tiene descuento comercial, el descuento se aplica a la cuenta. Para guardar clientes, mira [Crea clientes para facturar](/operator/ayuda/facturacion/clientes-de-facturacion).\n\n## Cobra la factura\n\n1. Toca **Cobrar la cuenta**. Se abre la pantalla de cobro en otra pestaña, con el cliente ya cargado.\n2. Cobra con el medio de pago que corresponda.\n\nAl quedar pagada, la factura sigue el mismo camino que la de una mesa:\n\n- **Con facturación electrónica**, se emite a la DIAN a nombre del cliente identificado, o a consumidor final. Mira [Cómo se emiten tus facturas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Sin facturación electrónica**, los datos del cliente quedan como solicitud en **Facturas**, para que la emitas en tu programa de facturación. Mira [Revisa tus facturas y las solicitudes de factura](/operator/ayuda/facturacion/solicitudes-de-factura).\n\n## Descarta una factura manual\n\nMientras no esté pagada ni en cobro, toca **Descartar factura manual** y confirma. Se pierden los platos y cargos que tenga.\n\n## Casos frecuentes\n\n- **No veo el botón Factura manual**: las facturas manuales se abren desde el panel con un usuario Operador; el mesero no las ve en su app.\n- **\"El dígito de verificación no corresponde a ese NIT. Escribe solo el número, sin DV.\"**: borra el dígito que va después del guion y deja solo el número.\n- **\"Revisa el número de identificación: no tiene la forma de un documento válido.\"**: el número no tiene la forma del tipo de documento elegido (por ejemplo, letras en una cédula). Corrige el número o el **Tipo**.\n- **\"La cuenta ya está en cobro. Termina o cancela el cobro antes de agregar un cargo.\"**: hay un cobro abierto en la otra pestaña. Termínalo o cancélalo y vuelve a agregar el cargo.\n- **El cargo salió sin impuesto**: se agregó con **Ninguno**. Cancélalo y vuelve a agregarlo con **Incluido en el precio**.",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-y-enviar-facturas",
+      "title": "Imprime, reimprime y envía facturas por correo",
+      "summary": "Cuándo sale sola la factura por la impresora de la caja, cómo verla y reimprimirla desde Órdenes, y cómo reenviar por correo una factura electrónica que la DIAN ya aceptó.",
+      "keywords": [
+        "imprimir factura",
+        "reimprimir",
+        "copia de la factura",
+        "reenviar factura",
+        "correo",
+        "email",
+        "tirilla",
+        "comprobante",
+        "factura generica",
+        "factura personalizada",
+        "consumidor final",
+        "impresora de facturas",
+        "no llego la factura",
+        "cufe"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "MESAPAY imprime sola la factura del cliente por la impresora de la caja y se la envía por correo si dejó uno. Desde **Pedidos › Órdenes** puedes verla, reimprimirla y, con facturación electrónica, reenviarla por correo.\n\n## Cuándo sale sola la factura\n\n- **Con facturación electrónica**: toda venta genera su factura. Se imprime en el momento en que la DIAN la acepta, unos segundos después del cobro, con el rótulo **Factura electrónica de venta**, el CUFE y el código QR (o la dirección de consulta de la DIAN, si la impresora no imprime QR). Si la DIAN la rechaza o la deja pendiente, no sale papel: revísala como se explica en [Cómo se emiten tus facturas](/operator/ayuda/facturacion/emision-automatica-de-facturas).\n- **Sin facturación electrónica**: sale al cobrar, pero solo si alguien pidió factura en el cobro. El papel lleva el rótulo **Comprobante**.\n\nLas cortesías y las cuentas en $0 no se facturan.\n\n### Factura genérica o personalizada\n\nEn la pantalla de cobro, el recuadro **¿El cliente necesita factura electrónica?** ofrece dos opciones:\n\n- **Factura electrónica genérica**: a consumidor final. El correo es opcional: si dejas el del cliente, se la enviamos; sin correo, igual se genera para imprimirla.\n- **Factura electrónica personalizada**: a nombre del cliente, con **Nombre o razón social**, tipo y **Número de identificación** (sin dígito de verificación) y **Correo electrónico**, que aquí es obligatorio. No pide dirección, ciudad ni departamento.\n\nDespués queda el aviso **Factura solicitada**; para cambiar algo, toca **Corregir datos**.\n\n### Por cuál impresora sale\n\nEn [Configuración › Impresoras de red](/operator/settings/impresoras), sección **Facturas**:\n\n- **Impresora para facturas**: la que imprime las facturas. Si no eliges una, salen por **Todas las de tipo factura (por defecto)**.\n- **Imprimir la factura automáticamente al cobrar**: viene activado. Apagado, la factura solo sale cuando alguien la reimprime desde Pedidos.\n\nEl detalle está en [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n\n## Ver o reimprimir una factura\n\n1. Entra a **Pedidos › Órdenes** y busca la cuenta. Con facturación electrónica también puedes buscarla por número de factura en [Pedidos › Facturas](/operator/facturas): cada fila tiene los mismos botones.\n2. En la columna **Factura**, toca **Ver factura** para abrirla en otra pestaña, o **Reimprimir factura** para mandarla otra vez a la impresora. Lo mismo está en el detalle de la cuenta, en la sección **Factura**.\n\nAl reimprimir, un aviso dice qué salió y por dónde:\n\n- **\"Factura electrónica enviada a Caja ✓\"**: salió la factura electrónica aceptada.\n- **\"Salió el comprobante por Caja: la DIAN todavía no aceptó la factura electrónica de esta cuenta.\"**: salió el comprobante, porque la factura electrónica aún no está aceptada. Cuando la DIAN la acepte, reimprímela.\n- **\"No hay impresora de facturas en el agente: se imprime desde el navegador.\"** o **\"El agente de impresión no responde: se imprime desde el navegador.\"**: se abre el cuadro de impresión del navegador en la misma pantalla. Para que salga como las comandas, elige una impresora del programa de impresión en la sección **Facturas**.\n\nReimprimir funciona aunque la impresión automática esté apagada.\n\n## Reenviar una factura por correo\n\nCon facturación electrónica, la factura aceptada se envía sola al correo que dejó el cliente. Si no le llegó o la borró:\n\n1. En **Pedidos › Órdenes** (o en el detalle de la cuenta), toca **Reenviar por correo**. También está en [Facturas](/operator/facturas).\n2. Espera el aviso **\"Enviada a correo@cliente.com ✓\"**.\n\nEl botón aparece solo en facturas que la DIAN ya aceptó, y el correo sale a la dirección que se dejó al pedir la factura. Sin facturación electrónica, el comprobante se envía al cobrar si se dejó un correo, y no hay botón para reenviarlo.\n\n## Casos frecuentes\n\n- **\"Nadie pidió factura en esta cuenta: no hay correo al cual enviarla.\"**: la factura salió a consumidor final sin correo. Imprímela con **Reimprimir factura**, o ábrela con **Ver factura** y envíale al cliente el enlace de esa página.\n- **\"Enviada a …, pero sin el archivo XML adjunto.\"**: el correo salió, pero sin el archivo XML de la factura. Vuelve a intentarlo más tarde; si el cliente necesita el XML y sigue igual, escríbenos a soporte.\n- **En la columna Factura sale \"—\"**: esa cuenta no tiene factura. Sin facturación electrónica, nadie la pidió al cobrar.\n- **\"La impresora elegida está apagada: las facturas no van a salir hasta que la enciendas o elijas otra.\"**: enciéndela o elige otra en la sección **Facturas**.\n- **La factura no sale**: sigue los pasos de [Qué hacer cuando no sale una comanda o una factura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).",
+      "links": [
+        {
+          "label": "Ir a Órdenes",
+          "href": "/operator/orders"
+        },
+        {
+          "label": "Ir a Impresoras de red",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "notas-credito",
+      "title": "Emite una nota crédito electrónica",
+      "summary": "Anula o ajusta, en total o en parte, una factura aceptada por la DIAN. Configura la numeración de notas, sigue su estado y descarta o vuelve a emitir las rechazadas o no recibidas.",
+      "keywords": [
+        "nota crédito",
+        "nota credito",
+        "anular factura",
+        "devolución",
+        "descuento",
+        "ajuste",
+        "cude",
+        "motivo dian",
+        "numeración de notas",
+        "nc",
+        "conflicto de numeración",
+        "descartar",
+        "reemitir"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "La nota crédito electrónica ajusta o anula una factura que la DIAN ya aceptó: por una devolución, un descuento, un error de precio o porque la factura no debía salir así. Se emite desde MESAPAY y se envía a la DIAN, igual que la factura.\n\n> Solo aparece con facturación electrónica activa y la manejan los usuarios con rol Operador.\n\n## Antes de la primera nota: la numeración\n\nLas notas crédito tienen su propia numeración, aparte de la de las facturas. MESAPAY trae el prefijo NC.\n\n1. Entra a [Pedidos › Facturas](/operator/facturas) y toca **Notas crédito electrónicas**.\n2. En **Numeración de notas crédito**, toca **Configurar**.\n3. Revisa el **Prefijo** (de 1 a 10 letras o números, distinto del de tus facturas) y el **Próximo consecutivo**.\n4. Toca **Guardar numeración**.\n\n> ⚠ Si con este mismo NIT ya emitiste notas crédito en otro programa, no repitas su prefijo y su numeración: la DIAN rechaza un número ya usado. El consecutivo no se puede bajar una vez usado.\n\n## Emitir una nota crédito\n\n1. En **Crear nota crédito**, escribe el número completo de la factura (por ejemplo, FE123) o el código del pedido y toca **Buscar facturas**. Solo salen facturas aceptadas, incluidas las de consumidor final. Desde la lista de Facturas, **Anular con nota crédito** te trae con la factura ya elegida.\n2. Toca **Seleccionar** en la factura. Verás el **Saldo disponible para ajustar**.\n3. En **Tipo de ajuste**, elige **Todo el saldo disponible** o **Importe parcial por producto**. En el parcial escribes, en cada línea, el importe con impuestos que quieres ajustar. No cambia cantidades ni inventario.\n4. Elige el **Motivo DIAN**. **2 · Anulación de factura electrónica** solo se puede con el ajuste total y sin otras notas activas sobre esa factura.\n5. Escribe la **Explicación del ajuste (obligatoria)**.\n6. Toca **Revisar nota crédito**, revisa la base, los impuestos y el **Total de la nota crédito**, y toca **Confirmar y enviar a DIAN**.\n\nLa nota ajusta la factura, pero no devuelve el dinero: la devolución al cliente se hace por separado.\n\n## Después de enviarla\n\nEn **Notas crédito del comercio** ves cada nota con su estado: **Por enviar**, **Enviada a DIAN**, **Validación pendiente**, **Aceptada**, **Rechazada**, **Error de envío** o **No recibida por la DIAN**. Toca **Actualizar** para refrescar la lista y **Ver detalle** para abrir una nota.\n\n- Si la DIAN la acepta, la nota se envía al correo de la factura original. En el detalle están el **CUDE**, el código QR, **Verificar documento en la DIAN**, **Descargar PDF**, **Descargar XML**, **Imprimir copia** y **Reenviar por correo**.\n- Si quedó en proceso o con error, toca **Consultar estado DIAN** o **Enviar / reintentar**. Las notas pendientes también se reintentan solas.\n- El detalle dice si la nota ya se contabilizó. Una nota aceptada resta de las ventas, los impuestos y la cartera del mes en que se emitió; entra a la contabilidad al generar los asientos de ese mes. Ver [Entiende cómo funciona la contabilidad en MESAPAY](/operator/ayuda/contabilidad-y-reportes/como-funciona-la-contabilidad).\n\n## Notas rechazadas o no recibidas\n\nUna nota rechazada de forma definitiva o que la DIAN no recibió se puede sacar de en medio:\n\n- **Descartar**: la nota sale de la lista y la factura queda libre para otra nota. El número no se reutiliza y el registro se conserva.\n- **Descartar y emitir de nuevo**: descarta la nota y crea otra igual (misma factura, motivo, explicación e importes), que se envía a la DIAN con un número nuevo.\n\nLas descartadas no salen en la lista. Para verlas, toca **Ver descartadas (…)**.\n\n### El conflicto de numeración\n\nSi el número de la nota ya lo usó tu NIT en otro sistema, la DIAN la rechaza y la serie queda en conflicto. Por ejemplo, si tus notas viejas en otro programa también eran NC, las nuevas notas NC de MESAPAY chocan con ellas. Entonces:\n\n- Si ya tienes otra serie sin conflicto y con notas aceptadas (por ejemplo, NCM), las notas nuevas salen solas en esa serie. Arriba lo dice: **\"La serie NC tiene un conflicto de numeración con la DIAN: las notas nuevas se emiten en la serie NCM.\"**\n- Si no, configura en **Numeración de notas crédito** un prefijo que nunca hayas usado con ese NIT.\n\nDespués, en la nota rechazada, toca **Descartar y emitir de nuevo**.\n\n## Casos frecuentes\n\n- **\"No encontramos facturas aceptadas con esa búsqueda.\"**: escribe el número completo, con prefijo, o el código del pedido. Una factura rechazada o sin emitir no se puede ajustar.\n- **\"Esta factura no tiene saldo disponible para una nueva nota crédito.\"**: otras notas ya ajustaron todo su valor.\n- **\"La anulación exige ajustar la factura completa, sin otras notas activas.\"**: usa **Todo el saldo disponible** u otro motivo.\n- **\"El estado actual de esta nota no permite descartarla.\"**: la DIAN todavía puede tenerla como válida. Toca **Consultar estado DIAN** antes.\n- **\"No hay una serie de notas sin conflicto.\"**: configura un prefijo nuevo y vuelve a intentar.",
+      "links": [
+        {
+          "label": "Ir a Notas crédito",
+          "href": "/operator/facturas/notas-credito"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "clientes-de-facturacion",
+      "title": "Crea clientes para facturar",
+      "summary": "Guarda los datos de personas y empresas en Clientes para facturación y cárgalos con un toque al facturar. Ahí mismo les habilitas el crédito, con límite y plazo, y un descuento comercial.",
+      "keywords": [
+        "clientes",
+        "cliente frecuente",
+        "empresa",
+        "nit",
+        "cedula",
+        "razon social",
+        "datos de facturacion",
+        "credito",
+        "fiado",
+        "cuenta por cobrar",
+        "abono",
+        "estado de cuenta",
+        "descuento",
+        "comensales registrados"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En **Clientes para facturación** guardas el nombre, el documento y el correo de las personas y empresas a las que les facturas seguido, para no escribirlos en cada cobro. Ahí mismo habilitas que un cliente pague a crédito y le das un descuento comercial fijo.\n\nEntra a **Pedidos › Clientes**. La sección la ven los usuarios Operador.\n\n## Crea un cliente\n\n1. Toca **Crear cliente**.\n2. Escribe el **Nombre o razón social**.\n3. Elige el **Tipo de documento**: **Cédula de ciudadanía (CC)**, **NIT**, **Cédula de extranjería** o **Pasaporte**.\n4. Escribe el **Número de documento**. Para un NIT, solo el número, sin dígito de verificación: MESAPAY lo calcula y lo manda a la DIAN.\n5. Escribe el **Correo electrónico**, que es donde le llegan las facturas, y si quieres el **Teléfono**.\n6. Si aplica, configura **Crédito** y **Descuento** (ver abajo).\n7. Toca **Guardar cliente**.\n\nNo se piden dirección ni ciudad: la factura a nombre del cliente sale sin esos datos.\n\n## Busca y edita\n\n- En **Buscar clientes para facturación**, escribe nombre, documento o correo. La lista muestra hasta 50 clientes; para los demás, usa la búsqueda.\n- Cada cliente muestra su documento, correo y teléfono, y las marcas **Crédito** o **Descuento** con su porcentaje.\n- Para cambiar datos, toca **Editar** y luego **Guardar cambios**. Un cliente no se puede eliminar: si ya no le facturas, simplemente no lo uses.\n\n## Crédito\n\nEn **Crédito**, marca **Permitir pagar a crédito**. Al cobrar, la cuenta queda como deuda del cliente: no entra en caja, va a cuentas por cobrar.\n\n- **Límite de crédito**: vacío es sin límite. Se compara contra lo que debe hoy más la cuenta que se está cobrando.\n- **Plazo (días)**: los días que tiene para pagar. Viene en 30. Con facturación electrónica, la factura de una venta a crédito sale con forma de pago a crédito y vence según este plazo.\n\nCon el crédito activo, la fila del cliente muestra la **Deuda** (o **Sin deuda**), el límite y lo **Disponible**, y dos botones:\n\n- **Abonar**: registra un pago a su deuda. Escribe el **Monto**, la **Fecha**, la **Cuenta donde entró la plata** y, si quieres, una **Nota (opcional)**, y toca **Registrar abono**. El abono se aplica primero a las cuentas más antiguas.\n- **Estado de cuenta**: las cuentas cobradas a crédito y los abonos, con el saldo. Un abono mal registrado se deshace con **Reversar abono**; la deuda vuelve a subir.\n\nLa cuenta se cobra a crédito desde la pantalla de cobro, con **Cobrar a crédito**. Si tienes el módulo de contabilidad, las deudas también salen en [Cartera](/operator/ayuda/contabilidad-y-reportes/cartera).\n\n## Descuento\n\nEn **Descuento**, marca **Aplicar descuento comercial** y escribe el **Porcentaje**, hasta 50 %. Se aplica a la cuenta cuando se asocia a este cliente: al cobrar o al pedir la factura a su nombre.\n\n## Usa el cliente al facturar\n\n- Al pedir la **Factura electrónica personalizada**, en el cobro o en una [factura manual](/operator/ayuda/facturacion/factura-manual), busca en **Buscar cliente registrado** y toca el cliente: sus datos se cargan en el formulario.\n- En la pantalla de cobro, el recuadro **Cliente** asocia la cuenta a un cliente para aplicar su descuento o cobrar a crédito.\n\n## Clientes para facturación y comensales registrados\n\nMás abajo, en la misma pantalla, está **Comensales registrados**: las personas que crearon su propia cuenta desde la carta, con el QR de la mesa. Se buscan por **Cédula o correo exactos**, muestran lo que han consumido y su ficha tiene un **Descuento del cliente** aparte, que se aplica al identificarlos en la mesa.\n\nUn cliente para facturación, en cambio, es un contacto que tú creas para facturarle: no entra a la carta ni tiene contraseña.\n\n## Casos frecuentes\n\n- **\"Ya existe un cliente con este tipo y número de documento en el comercio. Búscalo para editarlo.\"**: ese cliente ya está guardado. Búscalo y toca **Editar**.\n- **\"El dígito de verificación no corresponde a ese NIT. Escribe solo el número.\"**: borra el dígito después del guion.\n- **\"Escribe un porcentaje entre 0,01 y 50.\"**: el descuento comercial llega hasta 50 %.\n- **\"El abono no puede superar la deuda (…).\"**: el abono es mayor que lo que debe. Revisa el **Monto**.\n- **\"Tu usuario no tiene permiso para guardar clientes.\"** o no ves la sección: solo los usuarios Operador crean y editan clientes.",
+      "links": [
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

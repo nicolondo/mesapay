@@ -155,7 +155,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-una-cuenta",
       title: "Cobra una cuenta paso a paso",
       covers:
-        "\"Cobrar la cuenta\" desde la ficha o la orden, confirmar el pedido, la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), elegir el medio, la factura y la pantalla final; qué pasa con \"Sólo el administrador puede iniciar el cobro\" (\"Pedir la cuenta\" y el aviso a pantalla completa).",
+        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Sólo el administrador puede iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
       legacy:
         "Desde Salón o la app del mesero: efectivo, datáfono o cortesía (gastos de representación). Tras el pago se ofrece la factura al cliente.",
     },
@@ -163,61 +163,61 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-en-efectivo",
       title: "Cobra en efectivo y entrega la devuelta",
       covers:
-        "\"Recibir en efectivo\" y \"Registrar cobro\" en Salón: \"¿Con qué te pagó?\", \"Pagó exacto\", devuelta, \"Lo deja de propina\", y el aviso cuando el mesero no tiene turno abierto.",
+        "\"Recibir en efectivo\" en el cobro (\"¿Con qué te pagó?\", \"Cuenta exacta\", \"Devuelta dada\", \"Le devuelvo\" / \"Lo deja de propina\") y \"Registrar cobro\" en Salón para el efectivo que pidió el comensal (\"Pagó exacto\", \"Que se quede con el cambio\"); a qué caja entra según el tipo de turno y el aviso cuando el mesero no tiene turno abierto.",
     },
     {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono asignado o desde Salón) vs datáfono propio del comercio (\"Aprobado\" / \"Rechazado\"), errores de envío y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono asignado o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
     },
     {
       slug: "dividir-la-cuenta",
       title: "Divide la cuenta o combina medios de pago",
       covers:
-        "\"¿Cómo cobrar?\": \"Todo\", \"Partes iguales\" (2 a 20), \"Individual\" (por nombre en los platos) y \"Combinar medios\" (\"Importe de este pago\", \"Cobrar saldo restante\"); qué opciones hay en mostrador.",
+        "\"¿Cómo cobrar?\": \"Todo\", \"Partes iguales\" (2 a 20, sobre lo que falta), \"Individual\" (por nombre en los platos) y \"Combinar medios\" (efectivo + datáfono: \"Propina para toda la cuenta\", \"Importe de este pago\", \"Cobrar saldo restante\", \"No se recibió este pago\"); en mostrador solo \"Todo\" y \"Combinar medios\".",
     },
     {
       slug: "pagos-pendientes-del-comensal",
       title: "Confirma los pagos que pidió el comensal",
       covers:
-        "\"El comensal pidió pagar con…\" y \"Confirmar pago recibido\", \"Pago en línea en curso\", \"No se recibió este pago\" y que cobrar de otra forma reemplaza la solicitud.",
+        "\"El comensal pidió pagar con…\" en Salón, la ficha y el cobro; \"Confirmar pago recibido\"; que cobrar de otra forma reemplaza las solicitudes de efectivo y de datáfono del comercio; \"No se recibió este pago\" (en \"Combinar medios\") y \"Pago en línea en curso\", que no se reemplaza.",
     },
     {
       slug: "imprimir-la-precuenta",
       title: "Imprime la precuenta",
       covers:
-        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, propina sugerida, que no es factura ni numera nada, y la impresión por la impresora de facturas o por el navegador.",
+        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, la propina sugerida (siempre 10 %), que no es factura ni numera nada, y la impresión por la impresora de facturas del agente o por el navegador.",
     },
     {
       slug: "cobrar-a-credito",
       title: "Vende a crédito y registra abonos",
       covers:
-        "Cliente con \"Permitir pagar a crédito\", límite y plazo, \"Cobrar a crédito\" al cobrar, que no entra en caja, \"Abonar\" (cuenta donde entró la plata), \"Estado de cuenta\" y \"Reversar abono\".",
+        "Cliente con \"Permitir pagar a crédito\", límite (el único freno) y plazo (solo fecha de vencimiento), \"Cobrar a crédito\" al cobrar (todo lo pendiente; no está en \"Combinar medios\"), que no entra en caja, \"Abonar\" (\"Cuenta donde entró la plata\"), \"Estado de cuenta\" y \"Reversar abono\".",
     },
     {
       slug: "descuentos-para-clientes",
       title: "Da descuentos a tus clientes",
       covers:
-        "Descuento del comensal registrado (1 a 100 %, identificarlo en la mesa con \"Cédula o correo\", \"Quitar descuento\") vs descuento comercial del cliente de facturación (hasta 50 %), y el historial de la ficha del comensal.",
+        "Descuento del comensal registrado (1 a 100 %; se aplica al pedir con su cuenta, con \"Soy … · aplicar mi cuenta\" o con \"Identificar\" en la ficha de la mesa; \"Quitar descuento\"; solo antes de cualquier pago) vs descuento comercial del cliente de facturación (0,01 a 50 %), y el historial de la ficha del comensal.",
     },
     {
       slug: "cortesias-y-productos-no-cobrados",
       title: "Cortesías, gastos de representación y productos no cobrados",
       covers:
-        "Cerrar una cuenta como cortesía (\"¿A quién se le dio?\", solo sin pagos aprobados) y el informe de \"Gastos de representación\" / \"Productos no cobrados\": filtros, tipos, vistas y \"Descargar CSV\".",
+        "Quién puede no cobrar (roles marcados y la regla de preparación empezada), cerrar una cuenta como cortesía desde el cobro (\"¿A quién se le dio?\", solo sin pagos), \"No cobrar\" un plato entregado con su motivo, y los informes \"Gastos de representación\" / \"Productos no cobrados\": filtros, tipos, vistas y \"Descargar CSV\".",
     },
     {
       slug: "cobros-reembolsos-y-conciliacion",
       title: "Revisa cobros, devuelve un pago o concilia",
       covers:
-        "Lista de Cobros (búsqueda por código, estados, \"Requiere revisión\", \"Ver detalle\"), \"Devolver\" (solo tarjeta, Apple Pay o datáfono Kushki, solo administradores) y \"Conciliar pago\".",
+        "Lista de Cobros (búsqueda por código, estados, \"Requiere revisión\", detalle de la tarjeta) y, en el detalle de la orden, \"Devolver\" (solo tarjeta, Apple Pay o datáfono Kushki; parcial o total; solo administradores) y \"Conciliar pago\".",
     },
     {
       slug: "abrir-y-cerrar-el-turno",
       title: "Abre y cierra el turno del día",
       covers:
-        "Cierre del día: \"Abrir turno\" con efectivo inicial, cuentas abiertas que bloquean el cierre, \"Cerrar turno\" con conteo y diferencia, \"Cerrar también los turnos de meseros\", el día contable, \"Cierres recientes\" y el detalle imprimible de cada turno.",
+        "Cierre del día: \"Abrir turno\" con efectivo inicial, cuentas abiertas que bloquean el cierre, \"Cerrar turno\" con conteo y diferencia, \"Cerrar también los turnos de meseros\", el día contable (corte a las 5:00 por defecto) y la jornada de cada cierre, \"Cierres recientes\" y el detalle imprimible de cada turno con el impuesto al consumo (INC).",
       legacy:
         "En Cierre cuadrás la caja del turno: ventas por método de pago, propinas y diferencias del arqueo.",
     },
@@ -287,37 +287,37 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "el-qr-de-la-mesa",
       title: "Qué pasa cuando el comensal escanea el QR",
       covers:
-        "El QR abre la carta de esa mesa (permiso de 12 horas), \"Solo ver la carta\" sin mesa, la página de bienvenida del restaurante y por qué un link reenviado no deja pedir.",
+        "El QR abre la carta de esa mesa (permiso de 12 horas en ese celular), \"¿Cómo te llamamos?\", \"Solo ver la carta\", la página de bienvenida del restaurante, por qué el enlace de un pedido no abre en otro celular y cómo ayuda el equipo.",
     },
     {
       slug: "la-carta-del-comensal",
       title: "Cómo ve tu carta el comensal",
       covers:
-        "Pestañas de cartas, \"Categorías\", búsqueda en toda la carta, vistas \"Lista\" / \"Cuadrícula\" / \"Editorial\", etiquetas, estrellas, platos agotados e idioma con traducción automática.",
+        "Pestañas de cartas, \"Categorías\", búsqueda en toda la carta, vistas \"Lista\" / \"Cuadrícula\" / \"Editorial\", etiquetas, estrellas, platos agotados (no se muestran) e idioma con traducción automática.",
     },
     {
       slug: "como-pide-el-comensal",
       title: "Cómo pide el comensal y sigue su pedido",
       covers:
-        "\"¿Cómo te llamamos?\", carrito, rondas, \"¿Cómo quieres que salga?\", estado en vivo y tiempo estimado, cancelar un plato \"Por preparar\", \"Llamar al mesero\", \"Añadir más\"; en mostrador paga primero.",
+        "\"¿Cómo te llamamos?\", carrito y su aviso \"¡Agregado!\", \"Marchar orden\" / \"Marchar adición\", \"¿Cómo quieres que salga?\", estado en vivo y tiempo estimado, cancelar un plato \"Por preparar\", \"Llamar al mesero\", \"Añadir más\"; en mostrador paga primero.",
     },
     {
       slug: "como-paga-el-comensal",
       title: "Cómo paga el comensal",
       covers:
-        "\"¿Cómo quieres pagar?\" (\"Todo\", \"Partes iguales\", \"Lo mío\"), propina, bono, medios disponibles (Apple Pay, tarjeta, PSE, datáfono, efectivo), pantallas de espera, verificación del banco, pago rechazado y \"Pagar más\".",
+        "\"¿Cómo quieres pagar?\" (\"Todo\", \"Partes iguales\", \"Lo mío\"), propina, bono, medios disponibles (Apple Pay, tarjeta, PSE, datáfono, efectivo), pantallas de espera, verificación del banco, pago rechazado, \"Pagar más\" y qué ve el comensal cuando el equipo cobra de otra forma.",
     },
     {
       slug: "factura-del-comensal",
       title: "Factura genérica o personalizada para el comensal",
       covers:
-        "\"Factura electrónica genérica\" (correo opcional) y \"Factura electrónica personalizada\" (datos sin dígito de verificación), pedirla antes o después de pagar, datos guardados en el celular y \"Corregir datos\".",
+        "\"Factura electrónica genérica\" (correo opcional) y \"Factura electrónica personalizada\" (correo obligatorio, NIT sin dígito de verificación), pedirla antes o después de pagar, datos guardados en el celular, \"Corregir datos\" y qué cambia con la facturación electrónica activa.",
     },
     {
       slug: "cuenta-del-comensal",
       title: "La cuenta del comensal en tu restaurante",
       covers:
-        "\"Crea tu cuenta\", entrar con \"Cédula o correo\" o con enlace por correo (vence en 20 minutos), \"Mi cuenta\", sus órdenes, seguridad y cómo se aplica su descuento.",
+        "\"Crea tu cuenta\" (desde \"¿Tienes cuenta MESAPAY?…\" en la carta), entrar con \"Cédula o correo\" o con enlace por correo (vence en 20 minutos), \"Mi cuenta\" (órdenes, perfil, seguridad) y cómo se aplica su descuento.",
     },
     {
       slug: "resenas-de-platos",
@@ -329,13 +329,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "reservas-del-comensal",
       title: "Cómo reserva el comensal",
       covers:
-        "\"Reservá tu mesa\": fecha, personas, horario, mesa en el mapa, depósito (mesa apartada 15 minutos), código, \"Ver o cancelar mi reserva\" y \"Cancelar mi reserva\".",
+        "\"Reservá tu mesa\": fecha, personas (1 a 8), horario, mesa en el mapa, depósito (mesa apartada 15 minutos, sin devolución automática), código, \"Ver o cancelar mi reserva\" y \"Cancelar mi reserva\" (hasta la hora de la reserva).",
     },
     {
       slug: "pedidos-para-llevar",
       title: "Pedidos para recoger",
       covers:
-        "QR de recogida, horario, \"Tu nombre\" y \"Celular\", pago antes de cocina, seguimiento \"Pedido para recoger\" y \"Muestra el código al cajero\"; quién activa la función.",
+        "QR de recogida (lo activa MESAPAY), horario y espera máxima, \"Tu nombre\" y \"Celular\", pago con Apple Pay antes de cocina, seguimiento \"Pedido para recoger\" y \"Muestra el código al cajero\", y cómo lo atiende el equipo.",
     },
   ],
 
@@ -431,55 +431,55 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuesto-de-ventas",
       title: "Configura el impuesto de ventas",
       covers:
-        "\"Ninguno\", \"Impuesto al consumo (INC)\" o \"IVA\" y la tarifa, que va incluido en el precio, desde cuándo aplica un cambio y que lo emitido a la DIAN no cambia.",
+        "\"Ninguno\", \"Impuesto al consumo (INC)\" o \"IVA\" y la \"Tarifa (%)\", que va incluido en el precio; aplica a lo que se facture desde que se guarda (también a las cuentas abiertas), lo emitido a la DIAN no cambia, y el impuesto propio de los cargos que no salen de la carta.",
     },
     {
       slug: "resolucion-de-facturacion",
       title: "Carga tu resolución de numeración",
       covers:
-        "Campos de la resolución (número, prefijo, rango, vigencia, fecha, próximo consecutivo, correo de recepción), aviso de números por agotarse y que existe con o sin facturación electrónica.",
+        "Campos de la resolución (número, prefijo, correo de recepción, rango, vigencia, fecha, \"Próximo consecutivo a emitir\"), el aviso del dato viejo de Identidad, los avisos de \"Quedan … números\" y rango agotado (las ventas quedan esperando y salen solas al cargar la resolución nueva, con su clave técnica) y que existe con o sin facturación electrónica.",
     },
     {
       slug: "activar-la-facturacion-electronica",
       title: "Activa la facturación electrónica con la DIAN",
       covers:
-        "Requisitos de Identidad (NIT, municipio, contacto), \"Certificado digital\", \"Credenciales DIAN\", \"Correr set de pruebas\", \"Consultar estado\" y el paso a Producción.",
+        "Requisitos (módulo, habilitación en el portal DIAN, certificado, credenciales), datos del Emisor de Identidad, \"Certificado digital\", \"Credenciales DIAN\" y \"Ambiente\", \"Correr set de pruebas\", \"Consultar estado\", estados \"Pendiente\" / \"En pruebas\" / \"Habilitado\" y el paso a \"Producción\".",
     },
     {
       slug: "emision-automatica-de-facturas",
       title: "Cómo se emiten tus facturas y qué hacer si se frenan",
       covers:
-        "Emisión al cobrar (consumidor final o nominativa), estados DIAN, reintentos automáticos, banners de bloqueo con su motivo, \"Emitir a la DIAN\" y \"Reintentar emisión\".",
+        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, y \"Reintentar emisión\".",
     },
     {
       slug: "solicitudes-de-factura",
-      title: "Gestiona las solicitudes de factura",
+      title: "Revisa tus facturas y las solicitudes de factura",
       covers:
-        "\"Facturas electrónicas\": \"Pendientes\" / \"Ya generadas\", \"✓ Marcar como generada\", \"Copiar datos\", \"Rechazar\", \"Imprimir en datáfono\" y \"Copiar CUFE\".",
+        "La pantalla Facturas. Con facturación electrónica: lista \"Facturas electrónicas\" (columnas, filtros \"Estado DIAN\" / \"Desde\" / \"Hasta\" / \"Buscar\", acciones por fila, aviso de rechazadas y de clientes que pidieron factura después de emitida a consumidor final). Sin ella: solicitudes \"Pendientes\" / \"Ya generadas\", \"Copiar datos\", \"✓ Marcar como generada\", \"Rechazar\" e \"Imprimir en datáfono\".",
     },
     {
       slug: "factura-manual",
       title: "Crea una factura manual sin mesa",
       covers:
-        "\"Nueva orden\" → \"Factura manual\" o el botón en Mesas, agregar platos o cargos, \"Identificar cliente\" (o consumidor final), cobrar y \"Descartar factura manual\".",
+        "\"Nueva orden\" → \"Factura manual\" o el botón en Mesas, \"Agregar platos\" y \"Agregar cargo o servicio\" con su impuesto, \"Identificar cliente\" (identificación sin dígito de verificación) o consumidor final, \"Cobrar la cuenta\" y \"Descartar factura manual\".",
     },
     {
       slug: "imprimir-y-enviar-facturas",
       title: "Imprime, reimprime y envía facturas por correo",
       covers:
-        "Impresión automática al cobrar, \"Ver factura\", \"Reimprimir factura\", \"Reenviar por correo\" (con facturación electrónica, solo aceptadas) y el error cuando nadie pidió factura.",
+        "Impresión automática por el agente al aceptarla la DIAN (o del comprobante sin facturación electrónica), factura genérica sin correo y personalizada, impresora de facturas, \"Ver factura\" / \"Reimprimir factura\" en Órdenes y en Facturas, \"Reenviar por correo\" (solo aceptadas) y el error cuando nadie pidió factura.",
     },
     {
       slug: "notas-credito",
       title: "Emite una nota crédito electrónica",
       covers:
-        "\"Numeración de notas crédito\", buscar la factura, ajuste total o parcial, \"Motivo DIAN\", \"Confirmar y enviar a DIAN\", estados, PDF / XML, y descartar o \"Descartar y emitir de nuevo\" una nota rechazada o no recibida por la DIAN.",
+        "\"Numeración de notas crédito\" (prefijo NC, consecutivo), buscar la factura o llegar desde \"Anular con nota crédito\", ajuste total o parcial, \"Motivo DIAN\", \"Confirmar y enviar a DIAN\", estados, PDF / XML, contabilización, \"Descartar\" y \"Descartar y emitir de nuevo\" para rechazadas o no recibidas, \"Ver descartadas\" y el conflicto de numeración con otra serie (NC / NCM).",
     },
     {
       slug: "clientes-de-facturacion",
       title: "Crea clientes para facturar",
       covers:
-        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, editar y buscar; diferencia con los comensales registrados.",
+        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\"), \"Descuento\" comercial, editar y buscar; diferencia con los comensales registrados.",
     },
   ],
 
@@ -487,9 +487,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
   "contabilidad-y-reportes": [
     {
       slug: "como-funciona-la-contabilidad",
-      title: "Cómo funciona la contabilidad en MESAPAY",
+      title: "Entiende cómo funciona la contabilidad en MESAPAY",
       covers:
-        "El módulo, los menús Contabilidad y Reportes, las pestañas de \"Contabilidad\", el selector de mes, \"Todos los reportes\" y la regla clave: los asientos del mes se crean con \"Generar / actualizar asientos\".",
+        "El módulo y quién lo ve, los menús Contabilidad y Reportes, \"Todos los reportes\", las pestañas de \"Contabilidad\" con el selector de mes, el asiento resumen mensual por origen y la regla clave: los asientos del mes se crean con \"Generar / actualizar asientos\".",
       legacy:
         "El P&L mensual muestra ventas, CMV, gastos, impuestos y utilidad. Podés descargar el Excel para el contador.",
     },
@@ -497,73 +497,73 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "registrar-gastos",
       title: "Registra gastos y gastos recurrentes",
       covers:
-        "\"Nuevo gasto\": categoría, cuenta, proveedor, centro de costos, \"Ya está pagado\" o vencimiento, \"Gasto recurrente\" (día 1 a 28) y la lista de recurrentes.",
+        "\"Nuevo gasto\": categoría, cuenta automática o elegida, proveedor, centro de costos, \"Ya está pagado\" o vencimiento, \"Gasto recurrente\" (día 1 a 28), la lista de recurrentes y cómo entran a los asientos del mes.",
     },
     {
       slug: "pyg-y-libros-del-mes",
       title: "Lee el PYG del mes y exporta los libros",
       covers:
-        "PYG (ventas, CMV real, mermas, gastos, costo laboral, prime cost, ventas por categoría) y Libros de ventas y compras con \"Exportar CSV\" y \"Descargar Excel para el contador\".",
+        "PYG en vivo (ventas, CMV real, mermas, gastos, costo laboral, prime cost, ventas por categoría, impuestos) y Libros de ventas (con notas crédito del mes) y compras, con \"Exportar CSV\", \"Exportar gastos (CSV)\" y \"Descargar Excel para el contador\"; diferencia con el estado de resultado.",
     },
     {
       slug: "plan-de-cuentas",
       title: "Ajusta el plan de cuentas",
       covers:
-        "PUC, \"Nueva cuenta\" con \"Sugerir con IA\", \"Agregar auxiliar\", \"Importar el plan de cuentas de mi contador\", exportar y desactivar.",
+        "PUC NIIF Grupo 2, \"Nueva cuenta\" con \"Sugerir con IA\", \"Agregar auxiliar\" y el traslado de movimientos, \"Importar el plan de cuentas de mi contador\", \"Exportar CSV\" y desactivar.",
     },
     {
       slug: "cerrar-el-mes-contable",
       title: "Genera los asientos y cierra el mes",
       covers:
-        "\"Generar / actualizar asientos\", estados del mes (\"Cuadra\"), \"Cierre de período\": \"Cerrar mes\", numeración, \"Reabrir último mes\" y el cierre del ejercicio.",
+        "\"Generar / actualizar asientos\", el \"Cuadra\" de la pestaña Estados, \"Cierre de período\": \"Cerrar mes\" en orden, numeración de comprobantes, candado, \"Reabrir último mes\" y el asiento de \"Cierre del ejercicio\".",
     },
     {
       slug: "comprobantes-contables",
-      title: "Crea, edita o reversa comprobantes",
+      title: "Crea, edita o reversa comprobantes contables",
       covers:
-        "\"Nuevo comprobante\" de partida doble, tercero, \"Cuadrado ✓\", cuándo se puede editar, eliminar o \"Reversar\", y los errores frecuentes.",
+        "Lista y filtros, \"Nuevo comprobante\" de partida doble con tercero y centro, \"Cuadrado ✓\", numeración al cerrar el mes, cuándo se puede editar, eliminar o \"Reversar\", \"Exportar CSV\" y los errores frecuentes.",
     },
     {
       slug: "conciliacion-bancaria",
       title: "Concilia el extracto del banco",
       covers:
-        "\"Importar extracto\", reglas \"Si la descripción contiene…\", \"Aplicar reglas\", \"Contabilizar\" o \"Ignorar\" y meses cerrados.",
+        "Pestaña Bancos: pegar el extracto en \"Importar extracto\" (texto, no archivo), \"Contabilizar\" o \"Ignorar\" contra cuentas de ingreso, gasto o costo, reglas \"Si la descripción contiene…\" con \"Aplicar reglas\", meses cerrados y qué ignorar para no duplicar.",
     },
     {
       slug: "activos-fijos-y-diferidos",
-      title: "Activos fijos, depreciación y diferidos",
+      title: "Deprecia activos fijos y amortiza diferidos",
       covers:
-        "\"Nuevo activo\" (vida útil, salvamento, cuentas), depreciación en línea recta, \"Dar de baja\"; \"Nuevo diferido\" (gasto o ingreso por anticipado), proyección y baja.",
+        "\"Nuevo activo\" (vida útil, salvamento, cuentas), depreciación en línea recta desde el mes siguiente, proyección, \"Dar de baja\" y \"Reactivar\" (la compra y el retiro van por comprobante manual); \"Nuevo diferido\" (gasto o ingreso por anticipado), asiento inicial, amortización mensual, proyección y baja.",
     },
     {
       slug: "presupuestos-y-centros-de-costos",
-      title: "Presupuestos y centros de costos",
+      title: "Arma presupuestos y usa centros de costos",
       covers:
-        "\"Agregar presupuesto\" por cuenta o prefijo, general o por centro, \"Aplicar a todos los meses del año\", ejecución del mes y crear o desactivar centros de costos.",
+        "\"Agregar presupuesto\" por cuenta o prefijo, general o por centro, \"Aplicar a todos los meses del año\", ejecución del mes con semáforo, borrar (el de todo el año se borra en todos los meses) y crear o desactivar centros de costos.",
     },
     {
       slug: "impuestos-y-retenciones",
-      title: "IVA, INC, retenciones y pago de impuestos",
+      title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" e \"Impuestos detallados\"; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes sin restar notas crédito, conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (bruto, devoluciones, notas crédito y neto, cruce con el libro) e \"Impuestos detallados\"; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",
-      title: "Prepara la información exógena",
+      title: "Prepara la información exógena para la DIAN",
       covers:
-        "\"Información exógena\": año gravable, formatos, \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
+        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
     },
     {
       slug: "libros-y-estados-financieros",
-      title: "Libros oficiales y estados financieros",
+      title: "Consulta los libros oficiales y los estados financieros",
       covers:
-        "\"Libro diario\" (detallado o resumido), \"Libro mayor\", \"Balance de prueba\" (niveles PUC), \"Estado de resultado\" y \"Estado de situación financiera\": filtros, CSV, impresión y verificación de cuadre.",
+        "\"Libro diario\" (detallado o resumido), \"Libro mayor\", \"Balance de prueba\" (niveles PUC), \"Estado de resultado\" y \"Estado de situación financiera\": filtros, CSV, impresión, verificación de cuadre, de una cifra a su detalle, y la pestaña Estados de Contabilidad.",
     },
     {
       slug: "cartera",
-      title: "Cartera: cuentas por cobrar y por pagar",
+      title: "Revisa tus cuentas por cobrar y por pagar",
       covers:
-        "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero y dónde se registran los abonos.",
+        "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero, de dónde salen los saldos (ventas a crédito, bonos, compras, gastos, notas crédito) y dónde se registran los abonos.",
     },
     {
       slug: "analizar-las-ventas",
@@ -573,15 +573,15 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "reporte-de-comisiones",
-      title: "Reporte de comisiones de ventas",
+      title: "Liquida las comisiones de ventas de tus meseros",
       covers:
-        "\"Comisiones de ventas\": resumen por persona, detalle cuenta a cuenta, CSV, cómo se calcula la base y que las devoluciones no se descuentan solas.",
+        "\"Comisiones de ventas\": resumen por persona, detalle cuenta a cuenta, CSV, cómo se calcula la base (sellada al cobrar), a quién se asigna, que las devoluciones no se descuentan solas y \"Mis comisiones\" en la app del mesero.",
     },
     {
       slug: "pulso",
       title: "Pregúntale a Pulso sobre tu negocio",
       covers:
-        "El asistente \"Pulso\": preguntas sugeridas, en qué planes está, límite diario de preguntas y qué datos usa.",
+        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está y el límite diario de preguntas.",
     },
   ],
 

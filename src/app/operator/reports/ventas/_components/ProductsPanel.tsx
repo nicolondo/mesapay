@@ -96,7 +96,7 @@ export function ProductsPanel({
   });
 
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-products-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-products-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-products-title">{t("products.title")}</h2>

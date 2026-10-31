@@ -28,7 +28,7 @@ export function OrdersPanel({
 }) {
   const money = (v: number | null) => (v === null ? t("notApplicable") : formatMoney(v, { currency, locale }));
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-orders-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-orders-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-orders-title">{t("orders.title")}</h2>

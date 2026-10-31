@@ -6329,6 +6329,7 @@
     "expenseOwedHint": "Left owed. You register the payment later, with the account it comes out of.",
     "noCostCenter": "No center",
     "jSource_taxpay": "Tax payment",
+    "jSource_manual": "Manual voucher",
     "filingsTitle": "Tax filings & payments",
     "filingsIntro": "Record each period's tax payment: it books the entry (tax account against bank) and stays in the history.",
     "filingForm": "Tax",

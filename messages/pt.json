@@ -6329,6 +6329,7 @@
     "expenseOwedHint": "Fica devendo. Depois você registra o pagamento, com a conta de onde sair.",
     "noCostCenter": "Sem centro",
     "jSource_taxpay": "Pagamento de impostos",
+    "jSource_manual": "Comprovante manual",
     "filingsTitle": "Declarações e pagamentos",
     "filingsIntro": "Registre o pagamento de cada imposto do período: gera o lançamento (conta do imposto contra banco) e fica no histórico.",
     "filingForm": "Imposto",

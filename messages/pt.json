@@ -1205,7 +1205,8 @@
     "loggedInAs": "Sessão iniciada como",
     "navCustomers": "Clientes",
     "navRepresentation": "Despesas de representação",
-    "navUncollected": "Produtos não cobrados"
+    "navUncollected": "Produtos não cobrados",
+    "navSalesAnalysis": "Análise de vendas"
   },
   "kitchen": {
     "noRestaurant": "Sem restaurante.",
@@ -2115,7 +2116,9 @@
     "isColTax": "Imposto",
     "isColResult": "Resultado",
     "isColOri": "ORA",
-    "isPartialTag": "parcial"
+    "isPartialTag": "parcial",
+    "rSalesAnalysis": "Análise de vendas",
+    "rSalesAnalysisDesc": "Vendas líquidas com comparação, dia e hora, produtos, equipe, pagamentos e canais, a um clique do detalhe."
   },
   "opSettings": {
     "tip_shared": "Compartilhadas",
@@ -3447,7 +3450,8 @@
     "noTable": "Sem mesa",
     "pillUncollected": "não cobrado",
     "pillCancelled": "cancelado",
-    "subreportsRepresentation": "Despesas de representação"
+    "subreportsRepresentation": "Despesas de representação",
+    "analyzeDay": "Analisar este dia"
   },
   "opShifts": {
     "noRestaurant": "Sem restaurante.",
@@ -3567,7 +3571,8 @@
     "statusPaying": "Cobrando",
     "ageNow": "agora",
     "ageMinutes": "{mins}m",
-    "ageHours": "{hours}h"
+    "ageHours": "{hours}h",
+    "viewSalesAnalysis": "Ver análise"
   },
   "opRatings": {
     "noRestaurant": "Sem restaurante.",
@@ -8059,5 +8064,351 @@
     "meseroIntro": "Guias curtos para usar o app do garçom.",
     "meseroEmpty": "Ainda não há guias para o app do garçom. Se tiver uma dúvida, pergunte ao responsável do local.",
     "meseroAskManager": "Se tiver uma dúvida, pergunte ao responsável do local."
+  },
+  "salesAnalysis": {
+    "title": "Análise de vendas",
+    "description": "Como o período vendeu: compare, veja quando e o que vende e entre no detalhe com um clique.",
+    "noAccess": "Esta tela é só para a administração do estabelecimento.",
+    "exportLabel": "Exportar a visão atual",
+    "exportExcel": "Exportar para Excel",
+    "exportCsv": "Exportar CSV",
+    "breadcrumbs": "Caminho da análise",
+    "filtersLabel": "Filtros da análise",
+    "periodLabel": "Período",
+    "compareLabel": "Comparar com",
+    "granularityLabel": "Agrupar por",
+    "from": "De",
+    "to": "Até",
+    "apply": "Aplicar",
+    "all": "Todos",
+    "moreFilters": "Mais filtros",
+    "moreFiltersCount": "Mais filtros ({count})",
+    "activeFilters": "Filtros aplicados",
+    "removeFilter": "Remover o filtro {filter}: {value}",
+    "clearFilters": "Remover todos os filtros",
+    "noWaiter": "Sem garçom atribuído",
+    "disabledWaiter": "{name} (inativo)",
+    "unknownValue": "(não existe mais)",
+    "freeLines": "Linhas livres (fora do cardápio)",
+    "tableNumber": "Mesa {number}",
+    "comparedWith": "comparado com {period}",
+    "businessDayHint": "Dias operacionais: cada dia vai das {hour}:00 às {hour}:00 do dia seguinte, pela hora do pagamento.",
+    "itemFilterNotice": "Filtro por produto ou categoria: os valores em dinheiro são só dessas linhas (com sua parte do desconto e do imposto). As contas e os clientes são os das contas que as incluem; gorjetas, comissões, notas de crédito e reembolsos não se aplicam porque são da conta inteira.",
+    "deltaNote": "As setas comparam com {period}. Verde = melhor, vermelho = pior (em descontos e devoluções, subir é pior).",
+    "vsCompare": "em relação a {period}",
+    "notApplicable": "Não se aplica",
+    "emptyDash": "—",
+    "emptyPeriod": "Não há vendas com estes filtros no período.",
+    "tableView": "Ver como tabela",
+    "variation": "Variação",
+    "total": "Total",
+    "units": "Unidades",
+    "unitsCount": "{count, plural, one {# unidade} other {# unidades}}",
+    "shareOfTotal": "do total",
+    "clickToFilter": "Clique para filtrar toda a análise",
+    "showAll": "Ver todos ({count})",
+    "showLess": "Ver menos",
+    "andMore": "e mais {count}",
+    "weekOf": "Semana de {date}",
+    "unitHours": "h",
+    "unitMinutes": "min",
+    "period": {
+      "hoy": "Hoje",
+      "ayer": "Ontem",
+      "semana": "Esta semana",
+      "semana-pasada": "Semana passada",
+      "mes": "Este mês",
+      "mes-pasado": "Mês passado",
+      "7d": "Últimos 7 dias",
+      "30d": "Últimos 30 dias",
+      "90d": "Últimos 90 dias",
+      "anio": "Este ano",
+      "rango": "Intervalo personalizado…"
+    },
+    "compare": {
+      "anterior": "Período anterior",
+      "anio": "Mesmo período do ano anterior",
+      "no": "Sem comparação"
+    },
+    "granularity": {
+      "hora": "Hora",
+      "dia": "Dia",
+      "semana": "Semana",
+      "mes": "Mês"
+    },
+    "channel": {
+      "salon": "Salão",
+      "counter": "Balcão",
+      "llevar": "Para viagem",
+      "manual": "Fatura manual"
+    },
+    "dim": {
+      "canal": "Canal",
+      "mesero": "Garçom",
+      "categoria": "Categoria",
+      "producto": "Produto",
+      "pago": "Forma de pagamento",
+      "mesa": "Mesa",
+      "dia": "Dia",
+      "hora": "Hora"
+    },
+    "method": {
+      "cash": "Dinheiro",
+      "demo_card": "Cartão (demo)",
+      "wompi_card": "Cartão (Wompi)",
+      "wompi_pse": "PSE (Wompi)",
+      "wompi_nequi": "Nequi",
+      "kushki_apple_pay": "Apple Pay",
+      "kushki_google_pay": "Google Pay",
+      "kushki_card_terminal": "Maquininha MESAPAY",
+      "external_terminal": "Maquininha própria",
+      "kushki_pse": "PSE",
+      "kushki_card": "Cartão online",
+      "reservation_deposit": "Sinal de reserva",
+      "voucher": "Voucher corporativo",
+      "customer_credit": "Crédito a cliente"
+    },
+    "kpi": {
+      "salesGroup": "Vendas",
+      "accountsGroup": "Contas e clientes",
+      "net": "Venda líquida",
+      "netHint": "Sem impostos nem gorjetas, com descontos aplicados",
+      "gross": "Venda bruta",
+      "grossHint": "A preço de cardápio, com impostos",
+      "tax": "Impostos",
+      "taxHint": "Incluído no cardápio + o somado às linhas livres",
+      "tips": "Gorjetas",
+      "tipsHint": "Não são venda do estabelecimento",
+      "itemFilterNa": "Não se aplica com filtro de produto ou categoria",
+      "discountsComps": "Descontos e cortesias",
+      "discountsCompsHint": "Descontos {discounts} · Cortesias {comps}",
+      "returns": "Notas de crédito e reembolsos",
+      "returnsHint": "{notes, plural, one {# nota} other {# notas}} · {refunds, plural, one {# reembolso} other {# reembolsos}} · Líquida depois: {net}",
+      "orders": "Contas",
+      "ordersHint": "Pagas (sem cortesias completas)",
+      "diners": "Clientes",
+      "dinersHint": "Os registrados em cada conta",
+      "avgTicket": "Tíquete médio",
+      "avgPerOrderItem": "Contribuição por conta",
+      "avgTicketHint": "Venda líquida ÷ contas",
+      "avgPerDiner": "Tíquete por cliente",
+      "avgPerDinerHint": "Venda líquida ÷ clientes",
+      "unitsPerOrder": "Produtos por conta",
+      "unitsPerOrderHint": "Unidades do cardápio ÷ contas",
+      "tableTime": "Tempo de mesa",
+      "tableTimeHint": "Mediana da primeira rodada ao pagamento (salão)",
+      "tableTimeNoData": "Dados de salão insuficientes"
+    },
+    "trend": {
+      "title": "Tendência",
+      "subtitle": "Evolução do período com a comparação sobreposta.",
+      "best": "Melhor: {label} com {amount}",
+      "metricLabel": "O que medir",
+      "metric": {
+        "net": "Venda líquida",
+        "orders": "Contas",
+        "ticket": "Tíquete"
+      },
+      "current": "Período atual",
+      "compare": "Comparação",
+      "compareNet": "Venda líquida da comparação",
+      "ordersRow": "contas",
+      "netRow": "venda líquida",
+      "clickDay": "Clique para ver esse dia e suas contas",
+      "clickRange": "Clique para entrar nesse trecho",
+      "clickHour": "Clique para filtrar essa hora",
+      "aria": "Tendência de {metric} do período; setas para percorrer, Enter para entrar",
+      "inProgress": "{label} (em andamento)"
+    },
+    "heat": {
+      "title": "Dia e hora",
+      "subtitle": "Onde a venda líquida se concentra na semana.",
+      "summary": "O dia mais forte é {day}; a hora mais forte, {hour}.",
+      "aria": "Mapa de calor da venda líquida por dia da semana e hora",
+      "cellAria": "{slot}: {amount}, {orders, plural, one {# conta} other {# contas}}",
+      "clickHint": "Clique para filtrar esse dia e essa hora",
+      "low": "Menos",
+      "high": "Mais",
+      "none": "Sem vendas"
+    },
+    "mix": {
+      "title": "Pagamentos e canais",
+      "subtitle": "Como pagam (o cobrado, com gorjeta) e por onde se vende.",
+      "itemFilterNote": "Pagamentos das contas que incluem o produto ou a categoria filtrada.",
+      "methods": "Formas de pagamento",
+      "channels": "Canais",
+      "tables": "Mesas que mais vendem",
+      "collected": "Cobrado",
+      "methodSub": "{share} · {payments, plural, one {# pagamento} other {# pagamentos}}",
+      "channelSub": "{share} · {orders, plural, one {# conta} other {# contas}}",
+      "tableSub": "{orders, plural, one {# conta} other {# contas}} · {diners, plural, one {# cliente} other {# clientes}}"
+    },
+    "products": {
+      "title": "Produtos e categorias",
+      "subtitle": "{count, plural, one {# produto vendido} other {# produtos vendidos}}. Venda líquida repartida por linha: soma exatamente a venda líquida do período.",
+      "sortLabel": "Ordenar produtos",
+      "sort": {
+        "topNet": "Mais venda",
+        "topUnits": "Mais unidades",
+        "bottomNet": "Menos venda",
+        "bottomUnits": "Menos unidades"
+      },
+      "product": "Produto",
+      "share": "Participação",
+      "avgPrice": "Preço líquido médio",
+      "unitMargin": "Margem unitária",
+      "new": "Novo",
+      "categories": "Categorias",
+      "categorySub": "{share} · {units, plural, one {# unidade} other {# unidades}}",
+      "modifiers": "Modificadores mais pedidos",
+      "noModifiers": "Nenhum modificador escolhido no período.",
+      "modifierNoGroup": "Grupo que não está mais no cardápio",
+      "unsold": "{count, plural, one {# produto disponível sem vendas} other {# produtos disponíveis sem vendas}} no período"
+    },
+    "eng": {
+      "title": "Engenharia de cardápio",
+      "subtitle": "Cada prato por popularidade (unidades) e margem (preço líquido real menos o custo da receita).",
+      "coverage": "{pct} da venda com custo confiável",
+      "notEnoughTitle": "Ainda não há custo confiável suficiente",
+      "notEnoughBody": "São necessários pelo menos 3 pratos vendidos com receita e custo completo; hoje há {count}.",
+      "reason": {
+        "no_recipe": "{count, plural, one {# prato vendido sem receita} other {# pratos vendidos sem receita}}",
+        "incomplete_cost": "{count, plural, one {# receita com insumos sem custo} other {# receitas com insumos sem custo}}",
+        "zero_cost": "{count, plural, one {# receita com custo zero} other {# receitas com custo zero}}"
+      },
+      "goRecipes": "Completar receitas e custos",
+      "lowCoverage": "Atenção: só {pct} da venda tem custo confiável; a matriz deixa o resto de fora.",
+      "aria": "Matriz de engenharia de cardápio: popularidade contra margem unitária",
+      "pointAria": "{name}: {quadrant}, {units} unidades, margem {margin}",
+      "quadrant": "Quadrante",
+      "unitCost": "Custo da receita",
+      "xLabel": "Unidades vendidas (popularidade)",
+      "yLabel": "Margem unitária",
+      "q": {
+        "star": {
+          "name": "Estrela",
+          "meaning": "Vende muito e deixa boa margem.",
+          "action": "Cuide dele: mantenha qualidade e preço, e deixe-o visível no cardápio."
+        },
+        "plowhorse": {
+          "name": "Burro de carga",
+          "meaning": "Vende muito, mas deixa pouca margem.",
+          "action": "Revise o custo da receita ou aumente um pouco o preço."
+        },
+        "puzzle": {
+          "name": "Quebra-cabeça",
+          "meaning": "Deixa boa margem, mas vende pouco.",
+          "action": "Dê visibilidade: recomende, mude a posição ou o nome no cardápio."
+        },
+        "dog": {
+          "name": "Cão",
+          "meaning": "Vende pouco e deixa pouca margem.",
+          "action": "Considere tirar, redesenhar ou substituir."
+        }
+      },
+      "caveat": "O custo é o ATUAL de cada receita (não o do dia de cada venda) e não inclui os insumos que os modificadores somam. Popular = pelo menos 70% da média de unidades por prato; margem alta = pelo menos a margem média. Mesmos critérios de Receitas › Engenharia."
+    },
+    "team": {
+      "title": "Equipe",
+      "subtitle": "Venda por garçom. Clique em um nome para ver toda a análise dessa pessoa.",
+      "waiter": "Garçom",
+      "commission": "Comissão",
+      "note": "Garçom da conta: o da comissão selada ao cobrar; sem comissão, o garçom que lançou a maior parte da conta. A comissão é a selada (não é recalculada)."
+    },
+    "orders": {
+      "title": "Contas do dia",
+      "subtitle": "{count, plural, one {# conta} other {# contas}}, da mais recente para a mais antiga. Abra qualquer uma para ver o detalhe.",
+      "itemFilterNote": "Contas que incluem o produto ou a categoria filtrada; a venda líquida é só dessas linhas.",
+      "paidAt": "Pagamento",
+      "account": "Conta",
+      "where": "Mesa ou canal",
+      "collected": "Total cobrado",
+      "truncated": "Mostrando as primeiras {count} contas; exporte para ver todas."
+    },
+    "export": {
+      "summary": "Resumo",
+      "indicator": "Indicador",
+      "current": "Período",
+      "comparison": "Comparação",
+      "restaurant": "Estabelecimento",
+      "businessDay": "Dia operacional",
+      "discounts": "Descontos",
+      "comps": "Cortesias",
+      "netAfterReturns": "Venda líquida após devoluções",
+      "tableMinutes": "Tempo de mesa (minutos, mediana)",
+      "listValue": "Valor de cardápio",
+      "marginPct": "Margem %",
+      "modifierGroup": "Grupo",
+      "modifierOption": "Opção",
+      "productsCount": "Produtos",
+      "payments": "Pagamentos"
+    },
+    "def": {
+      "title": "Como cada valor é calculado?",
+      "sale": {
+        "term": "Venda",
+        "body": "Uma conta paga, contada no dia operacional do pagamento. Uma cortesia de conta inteira fecha em $0: não é venda, vai para cortesias."
+      },
+      "net": {
+        "term": "Venda líquida",
+        "body": "O cobrado menos a gorjeta e os impostos. Já tem os descontos descontados e não inclui cortesias. É o mesmo valor do Resumo."
+      },
+      "gross": {
+        "term": "Venda bruta",
+        "body": "As linhas vendidas a preço de cardápio (com o imposto que trazem incluído) mais o imposto somado às linhas livres. Antes dos descontos."
+      },
+      "tax": {
+        "term": "Impostos",
+        "body": "O imposto que cada fatura congelou ao ser emitida; se a conta não tem fatura, o da alíquota atual do estabelecimento linha a linha. Mais o imposto somado às linhas livres."
+      },
+      "discounts": {
+        "term": "Descontos",
+        "body": "O desconto do cliente identificado na conta."
+      },
+      "comps": {
+        "term": "Cortesias",
+        "body": "O que foi dado, a preço de cardápio: pratos não cobrados e contas fechadas como cortesia. Não entra na venda."
+      },
+      "returns": {
+        "term": "Notas de crédito e reembolsos",
+        "body": "Notas de crédito aceitas pela DIAN emitidas no período (sem imposto) e estornos no cartão não cobertos por uma nota (sem o imposto estimado). Não mudam a venda da conta: aparecem à parte, com a venda líquida depois delas."
+      },
+      "tips": {
+        "term": "Gorjetas",
+        "body": "As gorjetas das contas. São da equipe, não venda do estabelecimento."
+      },
+      "orders": {
+        "term": "Contas e clientes",
+        "body": "Contas pagas do período (sem as cortesias completas) e a soma dos clientes registrados em cada uma."
+      },
+      "ticket": {
+        "term": "Tíquete médio",
+        "body": "Venda líquida dividida pelas contas; o tíquete por cliente, dividida pelos clientes."
+      },
+      "units": {
+        "term": "Produtos por conta",
+        "body": "Unidades do cardápio (sem linhas livres) divididas pelas contas."
+      },
+      "tableTime": {
+        "term": "Tempo de mesa",
+        "body": "Mediana do tempo entre a primeira rodada e o pagamento nas contas de salão. Descartam-se as de menos de um minuto e mais de 12 horas, e só aparece se pelo menos 60% das contas puderem ser medidas."
+      },
+      "waiter": {
+        "term": "Garçom da conta",
+        "body": "O da comissão selada ao cobrar; sem comissão, o garçom que lançou a maior parte da conta. Se ninguém da equipe a lançou, fica sem garçom."
+      },
+      "products": {
+        "term": "Venda por produto",
+        "body": "A venda líquida de cada conta é repartida entre suas linhas pelo valor de cardápio, descontando sua parte do desconto e seu imposto; assim a soma dos produtos dá exatamente a venda líquida."
+      },
+      "methods": {
+        "term": "Formas de pagamento",
+        "body": "O cobrado por forma, com gorjeta, incluindo pagamentos depois estornados (as devoluções aparecem à parte). Dinheiro agrupa o atual e o histórico."
+      },
+      "businessDay": {
+        "term": "Dia operacional",
+        "body": "Cada dia vai das {hour}:00 às {hour}:00 do dia seguinte (hora da Colômbia), pela hora do pagamento: o cobrado de madrugada conta para a noite anterior."
+      }
+    }
   }
 }

@@ -322,8 +322,9 @@ export default async function ReportsPage({
         />
       </div>
 
-      <div className="grid gap-3 mb-4 md:grid-cols-2">
+      <div className="grid gap-3 mb-4 md:grid-cols-3">
         {([
+          [`ventas?periodo=rango&desde=${dateIso}&hasta=${dateIso}`, "analyzeDay"],
           ["gastos-representacion", "subreportsRepresentation"],
           ["no-cobrados", "subreportsUncollected"],
         ] as const).map(([path, label]) => <div key={path} className="rounded-2xl border border-op-border bg-op-surface p-4 flex items-center justify-between gap-3 flex-wrap">

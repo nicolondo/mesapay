@@ -566,6 +566,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero y dónde se registran los abonos.",
     },
     {
+      slug: "analizar-las-ventas",
+      title: "Analiza tus ventas",
+      covers:
+        "\"Análisis de ventas\" (Negocio, Reportes › Comerciales, \"Ver análisis\" del Resumen y \"Analizar este día\" del cierre): períodos en días operativos y \"Comparar con\"; filtros de canal, mesero, categoría, producto, método de pago, mesa, día y hora; qué es venta neta, bruta, impuestos, descuentos y cortesías, notas crédito y reembolsos, ticket y duración de la mesa; tendencia, \"Día y hora\", productos y categorías, modificadores, ingeniería de menú (cuándo el costo es confiable), equipo, pagos y canales; clic para filtrar, migas, \"Cuentas del día\" y \"Exportar a Excel\" / \"Exportar CSV\".",
+    },
+    {
       slug: "reporte-de-comisiones",
       title: "Reporte de comisiones de ventas",
       covers:

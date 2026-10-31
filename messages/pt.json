@@ -1181,6 +1181,8 @@
     "impBackToGroup": "Voltar ao grupo",
     "impStop": "Parar de personificar",
     "membershipOverdue": "<b>Mensalidade vencida.</b> Regularize o pagamento para evitar a suspensão do acesso.",
+    "membershipPayNow": "Pagar agora",
+    "membershipViewPlan": "Ver minha assinatura",
     "membershipDueSoon": "Sua mensalidade vence em breve.",
     "membershipDueSoonDate": "Sua mensalidade vence em breve ({date}).",
     "switchTo": "Mudar para:",

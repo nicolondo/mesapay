@@ -1267,7 +1267,21 @@
     "soundTest": "Probar sonido",
     "soundUnlock": "Tocá la pantalla para activar el sonido de pedidos nuevos",
     "soundUnsupported": "Este navegador no puede reproducir el sonido de pedidos nuevos",
-    "preparedCancellationAdminOnly": "La preparación ya empezó. Solo el administrador puede cancelar este plato."
+    "preparedCancellationAdminOnly": "La preparación ya empezó. Solo el administrador puede cancelar este plato.",
+    "serveAll": "Servir todo",
+    "serveAllTitle": "¿Servir todo lo pendiente?",
+    "serveAllItemsKitchen": "{count, plural, one {# plato} other {# platos}}",
+    "serveAllItemsBar": "{count, plural, one {# producto} other {# productos}}",
+    "serveAllConfirmTables": "Vas a marcar como servido todo lo pendiente: {items} de {tables, plural, one {# mesa} other {# mesas}}.",
+    "serveAllConfirmOrders": "Vas a marcar como servido todo lo pendiente: {items} de {orders, plural, one {# pedido} other {# pedidos}}.",
+    "serveAllHint": "Solo lo que ves ahora en este tablero. Lo que entre después no se toca.",
+    "serveAllHintSub": "Solo lo de {sub} que ves ahora. Lo que entre después no se toca.",
+    "serveAllConfirm": "Sí, servir todo",
+    "serveAllWorking": "Sirviendo…",
+    "serveAllDone": "Marcado como servido: {items}.",
+    "serveAllNothing": "No quedaba nada pendiente por servir.",
+    "serveAllError": "No pudimos servir todo. Intentá de nuevo.",
+    "serveAllForbidden": "Solo el administrador puede servir todo."
   },
   "serve": {
     "noRestaurant": "Sin restaurante.",

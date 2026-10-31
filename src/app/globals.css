@@ -243,6 +243,49 @@ body {
 }
 .bill-alert-pop { animation: billAlertPop 0.22s cubic-bezier(.2,.8,.2,1) both; }
 
+/* Aviso «¡Agregado!» del carrito del comensal (menu/CartAddedHint.tsx).
+   La burbuja entra con un pop corto y da dos empujoncitos hacia abajo — hacia
+   el botón del carrito —; el botón late con un anillo terracota mientras dura.
+   La salida es un fundido corto (CART_HINT_FADE_MS en menu/cartHint.ts).
+   Con reduced-motion: sin pop, sin empujones ni latido; la burbuja sólo
+   aparece y se desvanece, y el anillo queda quieto. */
+@keyframes cartHintIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cartHintNudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+@keyframes cartHintFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cartHintOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes cartHintRing {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--terracotta) 55%, transparent); }
+  100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--terracotta) 0%, transparent); }
+}
+.cart-hint-in {
+  animation:
+    cartHintIn 0.26s cubic-bezier(.2,.8,.2,1) both,
+    cartHintNudge 0.55s ease-in-out 0.35s 2;
+}
+.cart-hint-ring {
+  animation:
+    cartHintFadeIn 0.2s ease-out both,
+    cartHintRing 1s ease-out 0.1s infinite;
+}
+.cart-hint-out,
+.cart-hint-ring.cart-hint-out { animation: cartHintOut 0.25s ease-in both; }
+@media (prefers-reduced-motion: reduce) {
+  .cart-hint-in,
+  .cart-hint-ring { animation: cartHintFadeIn 0.2s ease-out both; }
+}
+
 .grain {
   background-image:
     radial-gradient(1200px 600px at 10% -10%, rgba(201,83,46,0.08), transparent 60%),

@@ -107,7 +107,8 @@ beforeAll(async () => {
       responseXml: "<ApplicationResponse/>", issuedAt: new Date(),
     },
   });
-  const series = await db.creditNoteSeries.create({ data: { issuerNit: `9${Date.now()}`.slice(0, 10), environment: "habilitacion", prefix: fixture.slice(-6).toUpperCase(), nextNumber: 2 } });
+  // environment "2" = habilitación (CHECK de la serie); el prefijo, [A-Z0-9].
+  const series = await db.creditNoteSeries.create({ data: { issuerNit: `9${Date.now()}`.slice(0, 10), environment: "2", prefix: fixture.slice(-6).toUpperCase(), nextNumber: 2 } });
   ids.creditNoteSeries = series.id;
   const note = await db.creditNote.create({
     data: {

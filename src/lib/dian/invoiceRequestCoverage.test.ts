@@ -184,7 +184,7 @@ describe("limpieza histórica (migración): condición exacta", () => {
     const sql = readFileSync(
       path.resolve(
         __dirname,
-        "../../../prisma/migrations/20261031130000_invoice_requests_covered_by_einvoice/migration.sql",
+        "../../../prisma/migrations/20261031160000_invoice_requests_covered_by_einvoice/migration.sql",
       ),
       "utf8",
     );

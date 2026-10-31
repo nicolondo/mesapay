@@ -10,7 +10,7 @@
 //     volver a facturar (`SimpleInvoice.orderId @unique`); se anula con nota
 //     crédito. Quedan pendientes y la pantalla de Facturas las muestra.
 //   · La condición de la limpieza histórica (migración
-//     20261031130000_invoice_requests_covered_by_einvoice), en TS, para
+//     20261031160000_invoice_requests_covered_by_einvoice), en TS, para
 //     probarla igual que el SQL que la aplica una sola vez.
 //
 // El instante que separa "antes" de "después" es el de la EMISIÓN —cuando

@@ -1,5 +1,470 @@
 {
   "title": "Cobro y caja",
   "description": "Cobrar en efectivo, con datáfono o a crédito, propinas, precuenta, cuenta dividida, turnos y caja.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "cobrar-una-cuenta",
+      "title": "Cobra una cuenta paso a paso",
+      "summary": "Abre el cobro desde la mesa o la orden, revisa el pedido, elige la propina y el medio de pago, pide la factura y entiende qué cambia cuando solo el administrador puede cobrar.",
+      "keywords": [
+        "cobrar",
+        "cobro",
+        "cuenta",
+        "cerrar la cuenta",
+        "cerrar mesa",
+        "pagar",
+        "propina",
+        "medio de pago",
+        "factura",
+        "pedir la cuenta",
+        "caja",
+        "checkout",
+        "control de caja"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "La pantalla de cobro es donde cierras la cuenta de una mesa: revisas lo que se consumió, eliges la propina y registras cómo pagó el cliente. Es la misma en el panel y en la app del mesero.\n\n## Abre el cobro\n\n1. En [Mesas](/operator/tables), toca la mesa para abrir su ficha, **Estado del pedido**.\n2. Toca **Cobrar la cuenta**. El botón aparece mientras la cuenta tenga algo pendiente por pagar.\n\nTambién puedes cobrar desde el detalle de una orden en [Órdenes](/operator/orders): en **Acciones**, toca **Cobrar la cuenta**.\n\n> En el panel, el cobro se abre en una pestaña nueva del navegador. En la app del mesero se abre dentro de la app.\n\n## Paso a paso\n\n1. Arriba ves **Modo mesero** y **Cobrando** con el nombre de la mesa. Para salir sin cobrar, toca **Volver a mesas**.\n2. Revisa **Confirma tu pedido**: platos, cantidades, precios y el **Subtotal**. Si la cuenta tiene descuento, verás también el **Total con descuento**.\n3. En **¿Cómo cobrar?** deja **Todo** para cobrar la cuenta completa. Las demás opciones sirven para dividirla: ver [Divide la cuenta o combina medios de pago](/operator/ayuda/cobro-y-caja/dividir-la-cuenta).\n4. Elige la **Propina**: **Sin propina**, 5 %, 10 %, 15 % o 20 %. Viene marcado el 10 %. Debajo ves **A cobrar ahora**, con el consumo más la propina.\n5. Si el cliente quiere factura, complétala en **¿El cliente necesita factura electrónica?** antes de cobrar. Ver [Factura genérica o personalizada para el comensal](/operator/ayuda/experiencia-del-comensal/factura-del-comensal).\n6. Toca el botón del medio de pago. Cada uno muestra el total que se va a cobrar.\n7. Al terminar ves **Cobro realizado** y **Cuenta pagada**. Desde ahí generas o imprimes la factura y vuelves con **Volver a mesas**.\n\nSi tu comercio tiene clientes para facturación, verás además el paso **Cliente**, y si tiene bonos empresariales, el paso **Bono empresarial**.\n\n## Los medios de pago\n\n- **Recibir en efectivo**: anotas lo recibido y la devuelta. Ver [Cobra en efectivo y entrega la devuelta](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n- **Cobrar con datáfono** (datáfono Kushki) y **Cobrar con datáfono del comercio** (tu propio datáfono). Ver [Cobra con datáfono](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n- **Cobrar a crédito**: la cuenta queda como deuda de un cliente. Aparece si al menos un cliente tiene crédito. Ver [Vende a crédito y registra abonos](/operator/ayuda/cobro-y-caja/cobrar-a-credito).\n- **Gastos de representación** (o el nombre que le diste): cierra la cuenta como cortesía. Ver [Cortesías, gastos de representación y productos no cobrados](/operator/ayuda/cobro-y-caja/cortesias-y-productos-no-cobrados).\n\nLos botones dependen de los medios de pago que MESAPAY activó para tu comercio. Si falta uno que necesitas, escríbenos a soporte.\n\n## Si solo el administrador puede cobrar\n\nSi en [Permisos, propinas y turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos) activaste **Sólo el administrador puede iniciar el cobro**:\n\n- El mesero no ve **Cobrar la cuenta**. En su lugar ve **Pedir la cuenta**, que cambia a **Avisando…** y luego a **Caja avisada**.\n- En el panel aparece un aviso a pantalla completa, **El mesero avisa**, con la mesa en grande, **pide la cuenta** y cómo va a pagar.\n- El mismo aviso sale como **Pidieron la cuenta** cuando el comensal elige desde su celular pagar en efectivo o con datáfono (solo en mesas, no en mostrador). Dice **Va a pagar en efectivo**, **Va a pagar con datáfono** o **Va a pagar con datáfono del comercio**.\n- Toca **Ir a cobrar** para abrir el cobro o **Cerrar** para ocultar el aviso. Si hay más mesas esperando, toca **+1 mesa más esperando** (o las que sean) para ir a Salón.\n- Si el mesero abre el cobro de todas formas, ve **El cobro lo hace el administrador**.\n\nEsta regla solo frena al mesero: el usuario Datáfono sigue cobrando, y el comensal puede pagar solo desde su celular.\n\n## Casos frecuentes\n\n- **No veo Cobrar la cuenta**: la cuenta ya está pagada o no tiene nada pendiente, o el cobro está reservado al administrador (en ese caso ves **Pedir la cuenta**).\n- **La pantalla dice Pagado**: la cuenta ya se pagó completa. Toca **Ver comprobante y factura**.\n- **Arriba aparece El comensal pidió pagar con**: el comensal ya eligió un medio desde su celular. Ver [Confirma los pagos que pidió el comensal](/operator/ayuda/cobro-y-caja/pagos-pendientes-del-comensal).\n- **El mesero ve No tenés turno abierto**: tu local usa **Turno por mesero** y el mesero necesita su turno abierto para cobrar. Escribe su base inicial y toca **Abrir turno y cobrar**.\n- **Me equivoqué de propina**: mientras no confirmes el pago, cambia el porcentaje. Si ya cobraste, el pago queda registrado con esa propina.\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir a Permisos, propinas y turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-en-efectivo",
+      "title": "Cobra en efectivo y entrega la devuelta",
+      "summary": "Registra un pago en efectivo desde el cobro o desde Salón, calcula la devuelta, deja el vuelto como propina si el cliente quiere y entiende a qué caja entra la plata.",
+      "keywords": [
+        "efectivo",
+        "plata",
+        "billete",
+        "devuelta",
+        "vuelto",
+        "cambio",
+        "cobrar en efectivo",
+        "registrar cobro",
+        "pagó exacto",
+        "propina",
+        "caja",
+        "cash",
+        "sencillo"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Cuando el cliente paga con billetes, MESAPAY registra cuánto recibiste, cuánto devolviste y si dejó el vuelto de propina. Así el efectivo cuadra en el cierre del turno.\n\nHay dos caminos: cobras tú desde la pantalla de cobro, o el comensal pidió desde su celular pagar en efectivo y tú confirmas que recibiste la plata.\n\n## Cuando cobras tú\n\n1. Abre la cuenta con **Cobrar la cuenta** y elige la propina. Ver [Cobra una cuenta paso a paso](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n2. Toca **Recibir en efectivo**. Se abre **Cobrar en efectivo** con el total, redondeado hacia arriba al peso entero. Si el total tenía centavos, esa fracción queda como propina.\n3. En **¿Con qué te pagó?**, toca **Cuenta exacta** o el billete con que te pagó. También puedes escribir el valor en **Recibido del cliente**.\n4. Revisa **Devuelta dada**: es la plata que le entregas al cliente.\n5. Si hay vuelto, MESAPAY pregunta **¿Qué hace con los $… de vuelto?**. Toca **Le devuelvo el vuelto** o **Lo deja de propina**. Si deja solo una parte, escribe en **Devuelta dada** lo que le devolviste.\n6. Revisa la línea **Propina por vuelto** (o **Sin propina por vuelto.**) y toca **Confirmar cobro**.\n\n> ⚠ Si escribes a mano lo recibido, **Devuelta dada** arranca en $0, que equivale a que el cliente deja todo el vuelto de propina. Si le vas a devolver, toca **Le devuelvo el vuelto** antes de confirmar.\n\n## Cuando el comensal pidió pagar en efectivo\n\nSi el comensal eligió **Efectivo (llamar al mesero)** desde su celular, la solicitud aparece en [Salón](/operator/serve), en **Cobros en efectivo**, con la mesa y el monto. Si dijo con qué billete paga, verás **Pagará con $…** y cuánto llevar de devuelta. También aparece en la ficha de la mesa y arriba del cobro.\n\n1. Lleva la devuelta a la mesa y recibe el pago.\n2. Toca **Registrar cobro** en Salón, o **Confirmar pago recibido** en la ficha o en el cobro.\n3. En **Cobro en efectivo**, toca **Pagó exacto** o el billete que anunció, o escribe lo **Recibido** y la **Devuelta**.\n4. Si el cliente deja el cambio, toca **Que se quede con el cambio · propina $…**.\n5. Toca **Confirmar cobro**.\n\nEl usuario Datáfono lo hace desde **Mesas en vivo**, con **Confirmar efectivo recibido**.\n\n## A qué caja entra el efectivo\n\n- Con **Turno único del local** (la opción por defecto), todo el efectivo entra a la caja del local.\n- Con **Turno por mesero**, el efectivo que cobra un mesero queda en su caja mientras su turno está abierto, y pasa a la caja del local cuando lo cierra. Lo que cobra un administrador o el usuario Datáfono entra directo a la caja del local.\n- La propina en efectivo queda dentro del pago: es parte del efectivo que se espera en el cierre.\n\nVer [Lleva la caja: base, ingresos y egresos](/operator/ayuda/cobro-y-caja/la-caja).\n\n> ⚠ Abre el turno del local antes del primer cobro: los pagos registrados sin un turno abierto no entran en ningún cierre.\n\n## Casos frecuentes\n\n- **No tenés turno abierto**: con **Turno por mesero**, el mesero necesita su turno para cobrar. Escribe la **Base inicial (para vueltos)** y toca **Abrir turno y cobrar**.\n- **El local todavía no abrió su turno…**: el encargado abre el turno del local en [Cierre](/operator/reports) y el mesero toca **Reintentar**.\n- **Tu base no puede superar la base del local**: baja la base del mesero.\n- **El cliente debe pasarte al menos $…**: lo recibido no alcanza para el total.\n- **La devuelta no puede ser mayor a lo recibido.**: corrige la devuelta.\n- **La devuelta es $… mayor de lo que corresponde**: el cliente te quedaría debiendo. Toca **Corregir al vuelto exacto**.\n- **Sólo el administrador puede cobrar**: el cobro está reservado al administrador en Permisos, propinas y turnos.\n- **El cliente pidió efectivo pero paga con tarjeta**: cobra con el otro medio; la solicitud de efectivo se reemplaza sola.\n",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Salón (app del mesero)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir a Cierre",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-con-datafono",
+      "title": "Cobra con datáfono",
+      "summary": "Cobra con el datáfono Kushki, directo al aparato asignado o desde Salón, o con el datáfono propio del comercio, y qué hacer cuando el cobro no llega o sale rechazado.",
+      "keywords": [
+        "datáfono",
+        "datafono",
+        "tarjeta",
+        "pos",
+        "kushki",
+        "smart pos",
+        "pasar tarjeta",
+        "débito",
+        "crédito",
+        "aprobado",
+        "rechazado",
+        "voucher",
+        "terminal",
+        "cobrar con tarjeta"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "MESAPAY trabaja con dos tipos de datáfono: el datáfono Kushki, que recibe el cobro directo desde MESAPAY, y el datáfono propio de tu comercio, de cualquier otro proveedor, donde tú marcas el resultado. Los dos medios de pago los activa MESAPAY para tu comercio.\n\n## Con el datáfono Kushki\n\n1. En el cobro, elige la propina y toca **Cobrar con datáfono**.\n2. Si tienes un datáfono asignado (en Configuración › Datáfonos, **Mesero asignado**), el cobro llega directo a ese aparato y la pantalla queda esperando el resultado. Pasa la tarjeta del cliente.\n3. Si no tienes datáfono asignado, el cobro queda en [Salón](/operator/serve), en **Pidió datáfono**. Lleva el datáfono a la mesa y toca **Cobrar $…**. Verás **Enviando al datáfono…** y el cobro llega al primer datáfono activo del comercio.\n4. Cuando el datáfono aprueba, la cuenta queda pagada y ves la pantalla final.\n\nSi el comensal elige **Tarjeta con datáfono** desde su celular, la solicitud aparece en Salón, en **Pidió datáfono**, y se cobra igual que en el paso 3.\n\nPara registrar y asignar los datáfonos, ver [Configura los datáfonos y asígnalos a tus meseros](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## Con el datáfono propio del comercio\n\n1. En el cobro, toca **Cobrar con datáfono del comercio**. MESAPAY no le envía nada a tu datáfono: solo anota que vas a cobrar por ahí.\n2. Pasa la tarjeta en tu datáfono.\n3. En [Salón](/operator/serve), en la tarjeta de la mesa (**Datáfono propio del comercio**), marca el resultado: **Aprobado** o **Rechazado**. También puedes tocar **Confirmar pago recibido** en la ficha de la mesa o arriba del cobro.\n4. Después de **Aprobado**, Salón pregunta **¿Factura para el cliente?**.\n\n> ⚠ **Aprobado** y **Confirmar pago recibido** registran el pago sin pedir confirmación. Tócalos solo cuando tu datáfono ya aprobó la transacción.\n\nSi el comensal elige **Tarjeta (datáfono del comercio)** desde su celular, la solicitud aparece en Salón y se resuelve igual.\n\nLos pagos con datáfono no entran a la caja de efectivo: en el cierre del turno aparecen en su propio renglón por método de pago.\n\n## El usuario Datáfono y Mesas en vivo\n\nSi una persona se dedica a cobrar con el datáfono, créale un usuario con rol Datáfono. Al entrar ve **Mesas en vivo**: todas las mesas, primero las que pidieron pagar (**📱 Pidió datáfono** o **💵 Pidió efectivo**).\n\n1. Toca la mesa.\n2. En **Pagos pendientes**, toca **Cobrar $… con datáfono** o **Confirmar efectivo recibido**.\n\nEsta pantalla no inicia cobros por su cuenta: si el cliente todavía no pidió pagar, verás un aviso de que aparecerá ahí cuando lo haga.\n\n## Casos frecuentes\n\n- **No veo Cobrar con datáfono**: tu comercio no tiene activo ese medio de pago. Escríbenos a soporte.\n- **No hay un datáfono activo registrado…**: no hay ningún datáfono marcado como activo. Actívalo o agrégalo en [Datáfonos](/operator/settings/datafonos).\n- **No pudimos enviar el cobro al datáfono.** o **No pudimos enviar al datáfono.**: revisa que el datáfono esté prendido y conectado y que su serial esté bien registrado. Vuelve a intentarlo desde Salón.\n- **La tarjeta salió rechazada**: verás el mensaje del banco. Vuelve a intentar o cobra con otro medio. El comensal ve **Tu pago no fue aprobado**.\n- **Hay un pago con … esperando la confirmación del proveedor**: ya hay un cobro electrónico en curso para esa cuenta. Espera el resultado antes de cobrar de otra forma.\n- **El cobro se envió pero nunca llegó respuesta**: el pago queda pendiente. Si pasan más de 30 minutos, en Cobros aparece como **Requiere revisión** y un administrador lo resuelve con **Conciliar pago**. Ver [Revisa cobros, devuelve un pago o concilia](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Salón (app del mesero)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir a Datáfonos",
+          "href": "/operator/settings/datafonos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "dividir-la-cuenta",
+      "title": "Divide la cuenta o combina medios de pago",
+      "summary": "Cobra la cuenta en partes iguales, por persona o en varios pagos con distintos medios, por ejemplo una parte en efectivo y el resto con datáfono.",
+      "keywords": [
+        "dividir",
+        "dividir la cuenta",
+        "partes iguales",
+        "por persona",
+        "cada uno paga lo suyo",
+        "pago mixto",
+        "combinar medios",
+        "mitad efectivo",
+        "mitad tarjeta",
+        "split",
+        "separar cuenta",
+        "pago parcial",
+        "saldo"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Cuando una mesa no paga todo junto, la pantalla de cobro te deja dividir la cuenta o cobrarla en varios pagos. La cuenta queda abierta hasta que se pague todo el consumo, y al final se genera una sola factura.\n\n## Elige cómo cobrar\n\nEn el cobro, **¿Cómo cobrar?** tiene cuatro opciones:\n\n- **Todo**: la cuenta completa.\n- **Partes iguales**: divide por un número de personas.\n- **Individual**: solo lo de una persona.\n- **Combinar medios**: efectivo y otros medios en varios pagos.\n\nEn mostrador solo están **Todo** y **Combinar medios**.\n\n## Partes iguales\n\n1. Toca **Partes iguales**.\n2. En **Dividir entre**, usa los botones − y + para elegir cuántas personas, de 2 a 20.\n3. Verás **A cobrar (1 de N)** con la parte de una persona. Elige la propina y cobra con el medio que use esa persona.\n4. Vuelve a abrir el cobro para la siguiente persona.\n\n> ⚠ La división se hace sobre lo que falta por pagar y vuelve a 2 personas cada vez que abres el cobro. Si eran 4 y ya pagó una, en el siguiente cobro divide entre 3.\n\n## Individual\n\n1. Toca **Individual**. Aparecen los nombres que los comensales dejaron al pedir desde la carta, con lo que pidió cada uno.\n2. Elige a la persona. Su parte es la suma de sus platos.\n3. Elige la propina y cobra.\n\nSi nadie dejó su nombre al pedir, **Individual** aparece desactivado: usa **Partes iguales**.\n\n> ⚠ El monto de **Individual** no resta el descuento de la cuenta ni sabe si esa persona ya pagó. Revisa el valor antes de cobrar.\n\n## Combinar medios: efectivo y datáfono\n\nSirve cuando una persona paga una parte en efectivo y otra con tarjeta, o cuando cada uno paga con un medio distinto.\n\n1. Toca **Combinar medios**.\n2. Elige la **Propina para toda la cuenta**. Se elige una sola vez y se reparte entre los pagos: no se suma completa en cada uno.\n3. En **Importe de este pago**, escribe cuánto se paga con el primer medio (incluye la propina de esa parte), o toca **Cobrar saldo restante**. Debajo ves **Después de este pago quedarán $…**.\n4. Toca el medio: **Recibir en efectivo**, **Cobrar con datáfono** o **Cobrar con datáfono del comercio**.\n5. Al confirmar verás **Pago registrado. Puedes cobrar el saldo con otro medio.** En **Pagos de la cuenta** quedan los **Pagos recibidos** y el **Saldo pendiente con propina**, y el importe se llena con lo que falta.\n6. Cobra el saldo con el siguiente medio. Cuando la cuenta queda pagada, ves la pantalla final.\n\nDetalles de cada medio:\n\n- **Datáfono del comercio**: el pago queda arriba como pendiente. Toca **Confirmar pago recibido** cuando tu datáfono lo apruebe, o **No se recibió este pago** si no pasó. Mientras esté pendiente no puedes registrar otro pago.\n- **Datáfono Kushki asignado**: la pantalla espera el resultado y vuelve al saldo cuando el datáfono aprueba. Sin datáfono asignado, el cobro se va a Salón y sales de **Combinar medios**.\n- **Efectivo**: funciona igual que siempre, con devuelta y vuelto de propina. Ver [Cobra en efectivo y entrega la devuelta](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n\nEn **Combinar medios** no están **Cobrar a crédito** ni la cortesía. Solo el efectivo entra a la caja; cada pago queda registrado por separado. En mostrador, la preparación empieza cuando la cuenta queda pagada completa.\n\n## Mensajes frecuentes\n\n- **El importe supera el saldo pendiente.**: baja el importe o toca **Cobrar saldo restante**.\n- **El pago debe ser de al menos $1.**\n- **Incluye el saldo de centavos en este pago o escoge un importe menor.**: el saldo que quedaría es demasiado pequeño para cobrarlo después.\n- **Ajusta el importe para no dejar solamente propina pendiente.**\n- **Confirma o descarta el pago pendiente de arriba antes de registrar otro.**\n- **Hay un pago electrónico en proceso. Espera su resultado antes de cobrar otra parte.**\n- **Verificar el mismo pago**: aparece si se perdió la respuesta de un cobro en efectivo. Revisa el mismo pago sin duplicarlo.\n\nEl comensal también puede dividir desde su celular, con **Todo**, **Partes iguales** o **Lo mío**. Ver [Cómo paga el comensal](/operator/ayuda/experiencia-del-comensal/como-paga-el-comensal).\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pagos-pendientes-del-comensal",
+      "title": "Confirma los pagos que pidió el comensal",
+      "summary": "Cuando el comensal elige pagar en efectivo o con datáfono desde su celular, la solicitud llega a Salón y a la mesa. Así la confirmas, la descartas o la reemplazas cobrando de otra forma.",
+      "keywords": [
+        "pago pendiente",
+        "solicitud de pago",
+        "comensal pidió pagar",
+        "confirmar pago",
+        "confirmar pago recibido",
+        "efectivo pendiente",
+        "datáfono pendiente",
+        "pago en línea en curso",
+        "reemplazar",
+        "descartar",
+        "no deja cobrar",
+        "bloqueado"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Cuando un comensal elige desde su celular pagar en efectivo o con datáfono, MESAPAY no da la cuenta por pagada: crea una solicitud que alguien del equipo confirma al recibir la plata. Los pagos en línea (tarjeta, PSE y Apple Pay) se confirman solos.\n\n## Dónde aparecen\n\n- En [Salón](/operator/serve): **Cobros en efectivo** para el efectivo y **Pidió datáfono** para el datáfono Kushki o el del comercio.\n- En la ficha de la mesa y arriba de la pantalla de cobro: el aviso **El comensal pidió pagar con** y el medio (**Efectivo** o **Datáfono del comercio**), con el monto, **Incluye propina de $…** y, en efectivo, **Dice que paga con $…**.\n- En **Mesas en vivo**, la pantalla del usuario Datáfono.\n- Si el cobro está reservado al administrador, también sale el aviso a pantalla completa **Pidieron la cuenta**.\n\n## Confirma el pago\n\n1. Cobra al cliente: recibe el efectivo o pasa la tarjeta.\n2. Toca **Confirmar pago recibido**, o **Registrar cobro** en Salón.\n3. En efectivo se abre **Cobro en efectivo** para anotar lo recibido y la devuelta. Ver [Cobra en efectivo y entrega la devuelta](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n4. Con el datáfono del comercio, el pago queda aprobado al instante.\n\nSi la solicitud es de datáfono Kushki, se cobra desde Salón con **Cobrar $…**. Ver [Cobra con datáfono](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n\n> ⚠ Con el datáfono del comercio, **Confirmar pago recibido** aprueba el pago sin preguntar. Tócalo solo cuando tu datáfono ya aprobó la transacción.\n\nCuando confirmas, el comensal ve **¡Pago recibido!** (efectivo) o **¡Pago aprobado!** (datáfono) en su pantalla de espera.\n\n## Si cobras de otra forma\n\nSi el cliente cambia de idea, por ejemplo pidió efectivo y al final paga con tarjeta, cobra con el otro medio. Como dice el aviso: **Si cobras de otra forma, esta solicitud se reemplaza sola.** Esto vale para las solicitudes de efectivo y de datáfono del comercio, también si cierras la cuenta a crédito o como cortesía.\n\nEn **Combinar medios**, una solicitud de datáfono del comercio se puede descartar con **No se recibió este pago**. MESAPAY pide confirmarlo: hazlo solo si no recibiste el dinero.\n\n## Pago en línea en curso\n\nSi el comensal está pagando con tarjeta, PSE, Apple Pay o datáfono Kushki, verás **Pago en línea en curso**. Ese pago no se reemplaza: espera a que el proveedor lo apruebe o lo rechace y toca **Actualizar saldo**. Si intentas cobrar de otra forma, verás **Hay un pago con … esperando la confirmación del proveedor**.\n\n- Si es una solicitud de datáfono Kushki que nadie envió todavía al aparato, envíala desde Salón con **Cobrar $…**.\n- Si pasan más de 30 minutos sin respuesta, el pago aparece en Cobros como **Requiere revisión** y un administrador lo resuelve con **Conciliar pago**. Ver [Revisa cobros, devuelve un pago o concilia](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n\n## Casos frecuentes\n\n- **Solo el administrador puede confirmar este pago.**: el cobro está reservado al administrador. Avísale para que lo confirme.\n- **No se pudo confirmar el pago. Actualiza e intenta de nuevo.**: actualiza la pantalla. Si tu local usa **Turno por mesero**, revisa que el mesero tenga su turno abierto.\n- **La pantalla del comensal dice Pago cancelado**: pasa cuando el equipo cobró de otra forma y la solicitud de efectivo se reemplazó. La cuenta sí quedó pagada: el comensal lo ve en su pedido.\n",
+      "links": [
+        {
+          "label": "Ir a Salón",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Ir a Salón (app del mesero)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Ir a Cobros",
+          "href": "/operator/payments"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-la-precuenta",
+      "title": "Imprime la precuenta",
+      "summary": "Entrega al cliente el detalle de lo consumido antes de pagar, con la propina sugerida. La precuenta no es una factura ni usa la numeración de facturación.",
+      "keywords": [
+        "precuenta",
+        "pre cuenta",
+        "prefactura",
+        "cuenta previa",
+        "imprimir la cuenta",
+        "tirilla",
+        "ticket",
+        "propina sugerida",
+        "detalle de consumo",
+        "imprimir"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "La precuenta es el papel que llevas a la mesa para que el cliente revise lo que consumió antes de pagar. No es una factura: no usa la numeración de facturación ni cierra la cuenta, así que puedes imprimirla las veces que haga falta.\n\n## Imprímela\n\n1. En [Mesas](/operator/tables), abre la ficha de la mesa.\n2. Toca **Imprimir precuenta**. Verás **Enviando precuenta…** y después **Precuenta enviada a** con el nombre de la impresora.\n3. Para verla en pantalla, toca **Ver precuenta**. Desde ahí también puedes tocar **Imprimir**, y volver con **Volver a Mesas**.\n\nLos botones aparecen mientras la cuenta está abierta y tiene consumo. Los pueden usar los administradores y los meseros, también cuando el cobro está reservado al administrador.\n\n## Por dónde sale\n\n- Por la impresora de facturas del programa de impresión: la que elegiste en Configuración › Impresoras de red, en **Impresora para facturas**, o, si no elegiste ninguna, las impresoras de tipo factura activas. Ver [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Si no tienes impresora de facturas, verás **Sin impresora de facturas: se imprime desde el navegador.**\n- Si el programa de impresión no responde, verás **El agente de impresión no responde: se imprime desde el navegador.**\n- Un administrador ve además el enlace **Elegir impresora del agente** para dejarla configurada.\n\n## Qué trae\n\n- El nombre del comercio, el NIT, la dirección y el teléfono.\n- **PRECUENTA** y **Este documento no es una factura**.\n- La fecha, la mesa, el código de la cuenta y el mesero.\n- Los platos agrupados, el subtotal, el impuesto incluido, el descuento y el total.\n- Si ya hubo pagos: **Pagado** y **Pendiente por pagar**.\n- **Propina sugerida 10%** y **Total con propina**, calculados sobre lo pendiente, con una nota de que la propina es voluntaria.\n\nLa propina sugerida de la precuenta siempre es del 10 %. Al cobrar, el cliente puede elegir otra.\n\nLa precuenta sale en el idioma en que se hizo el pedido.\n\n## Casos frecuentes\n\n- **No veo Imprimir precuenta**: la cuenta ya se pagó, se canceló o no tiene platos.\n- **La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.**: pasa al abrir **Ver precuenta** de una cuenta cerrada o vacía.\n- **No se pudo imprimir la precuenta.**: revisa el programa de impresión. Ver [Qué hacer cuando no sale una comanda o una factura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **El navegador no dejó imprimir acá ni abrir la pestaña.**: permite las ventanas emergentes para MESAPAY en tu navegador y vuelve a intentar.\n- **El cliente quiere la factura**: la factura se genera al cobrar. Ver [Cobra una cuenta paso a paso](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir a Impresoras de red",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-a-credito",
+      "title": "Vende a crédito y registra abonos",
+      "summary": "Deja la cuenta como deuda de un cliente de confianza, controla su límite y registra los abonos cuando te paga. La venta a crédito no entra en la caja.",
+      "keywords": [
+        "crédito",
+        "fiado",
+        "cuentas por cobrar",
+        "cartera",
+        "deuda",
+        "abono",
+        "abonar",
+        "pagar después",
+        "cliente frecuente",
+        "empresa",
+        "límite de crédito",
+        "estado de cuenta",
+        "reversar abono",
+        "cxc"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "La venta a crédito sirve para clientes que pagan después, como una empresa vecina o un cliente de confianza: la cuenta se cierra como pagada para la cocina y la factura, pero queda como deuda del cliente. No entra en la caja: va a sus cuentas por cobrar.\n\n## Habilita el crédito del cliente\n\n1. Entra a [Clientes](/operator/clientes), en **Clientes para facturación**.\n2. Toca **Crear cliente**, o **Editar** en uno que ya existe.\n3. En **Crédito**, marca **Permitir pagar a crédito**.\n4. En **Límite de crédito**, escribe el máximo que puede deber. Si lo dejas vacío, no tiene límite.\n5. En **Plazo (días)**, escribe los días que tiene para pagar (vienen 30).\n6. Toca **Guardar cliente** o **Guardar cambios**.\n\nEn la lista, el cliente muestra **Crédito**, su **Deuda** (o **Sin deuda**) y **Límite $… · Disponible $…**.\n\nEl plazo sale como fecha de vencimiento en la factura electrónica y en el informe de cartera. MESAPAY no bloquea al cliente cuando se vence: el único freno es el límite.\n\n## Cobra a crédito\n\n1. En el cobro, toca **Cobrar a crédito**. Debajo dice **No entra en caja: queda en cuentas por cobrar del cliente.**\n2. Si la cuenta ya tiene un cliente asociado, verás su nombre, **Debe hoy** y, si tiene límite, **Límite · Disponible**. Si no, búscalo en **Cliente con crédito**. Para elegir otro, toca **Cambiar**.\n3. Revisa la línea **Se carga todo lo pendiente**, con el consumo, la propina y el total.\n4. Toca **Confirmar $… a crédito**.\n\n- Se carga todo lo que falta por pagar, más la propina: no hay crédito parcial.\n- Si el cliente tiene descuento comercial, se aplica antes de cargar la cuenta.\n- **Cobrar a crédito** no está en **Combinar medios**.\n- El mesero también puede cobrar a crédito, salvo que el cobro esté reservado al administrador. Con **Turno por mesero** necesita su turno abierto.\n\nEn el detalle del turno, la venta aparece como **Crédito a cliente**. Suma en lo cobrado del turno, pero no en el efectivo esperado.\n\n## Registra un abono\n\n1. En **Clientes para facturación**, toca **Abonar** junto al cliente. Solo se activa si tiene deuda.\n2. En **Abono de …**, revisa el **Monto** (viene la deuda completa y no puede superarla) y la **Fecha**.\n3. En **Cuenta donde entró la plata**, elige dónde recibiste el dinero, por ejemplo la caja general o tu cuenta de banco.\n4. Si quieres, escribe una **Nota (opcional)** y toca **Registrar abono**.\n5. Verás **Abono registrado. Deuda actual: $…**.\n\nLos abonos se aplican primero a la cuenta más antigua.\n\n> ⚠ Un abono en efectivo no se suma solo a la caja del turno. Si lo recibiste en el cajón, regístralo también como ingreso en la tarjeta Caja para que el arqueo cuadre. Ver [Lleva la caja: base, ingresos y egresos](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Estado de cuenta\n\nToca **Estado de cuenta** para ver la **Deuda actual** y los movimientos: **Fecha**, **Concepto**, **Cargo**, **Abono** y **Saldo**. Cada cargo muestra la cuenta, la mesa, si incluye propina y si está **Pendiente** o **Saldado**.\n\nSi registraste un abono por error, toca **Reversar abono** y confirma. El abono se borra y la deuda vuelve a subir.\n\nCrear clientes, registrar abonos y reversarlos lo hacen los administradores.\n\n## Casos frecuentes\n\n- **No veo Cobrar a crédito**: ningún cliente tiene marcado **Permitir pagar a crédito**, o estás en **Combinar medios**.\n- **Supera el límite de crédito del cliente. Disponible: $…**: la deuda más esta cuenta pasa el límite. Sube el límite, registra un abono o cobra de otra forma.\n- **… no tiene crédito habilitado. Elige otro cliente.**: edita el cliente y marca **Permitir pagar a crédito**.\n- **El abono no puede superar la deuda ($…).**: baja el monto.\n- **Elige una cuenta de dinero válida.**: elige una cuenta de la lista.\n",
+      "links": [
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "descuentos-para-clientes",
+      "title": "Da descuentos a tus clientes",
+      "summary": "Hay dos descuentos por cliente: el del comensal registrado, que se aplica al identificarlo en la mesa, y el descuento comercial de un cliente de facturación. Así se configuran y se aplican.",
+      "keywords": [
+        "descuento",
+        "porcentaje",
+        "cliente frecuente",
+        "cliente vip",
+        "comensal registrado",
+        "identificar cliente",
+        "cédula",
+        "descuento comercial",
+        "empresa",
+        "convenio",
+        "beneficio",
+        "quitar descuento",
+        "fidelización"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "MESAPAY maneja dos descuentos por cliente. El del comensal registrado es para las personas que crearon su cuenta en tu restaurante desde la carta. El descuento comercial es para tus clientes de facturación, como una empresa con convenio. No se suman entre sí.\n\n## Descuento del comensal registrado\n\nPara configurarlo:\n\n1. Entra a [Clientes](/operator/clientes). En **Comensales registrados**, busca a la persona con **Cédula o correo exactos** o elígela de la lista.\n2. Abre su ficha. En **Descuento del cliente**, escribe el **Porcentaje**, un número entero de 1 a 100, y si quieres una **Nota (opcional)**.\n3. Toca **Activar descuento**. Si ya tenía uno, toca **Guardar cambios**. Para quitarlo, toca **Desactivar**.\n\nSe aplica a la cuenta de la mesa de tres formas:\n\n- Si el comensal entró a su cuenta y pide desde la carta, se aplica solo al enviar el primer pedido.\n- Si ya hay un pedido en la mesa, el comensal que ya entró a su cuenta abre su nombre en la carta y toca **Soy … · aplicar mi cuenta**.\n- Tú o el mesero, desde la ficha de la mesa: en **Comensal**, escribe la **Cédula o correo** y toca **Identificar**.\n\nEl descuento es sobre toda la cuenta de la mesa. Para quitarlo de una cuenta puntual, toca **Quitar descuento**: el comensal sigue identificado en esa cuenta.\n\n> ⚠ Identificar o quitar el descuento solo se puede antes de cualquier pago: si la cuenta ya tiene un pago aprobado o pendiente, no se puede. Además, identificar al comensal reemplaza el descuento que ya tuviera la cuenta por el suyo, aunque el anterior fuera mayor.\n\n## Descuento comercial del cliente de facturación\n\n1. En [Clientes](/operator/clientes), en **Clientes para facturación**, toca **Crear cliente** o **Editar**.\n2. En **Descuento**, marca **Aplicar descuento comercial** y escribe el **Porcentaje**, de 0,01 a 50.\n3. Toca **Guardar cliente** o **Guardar cambios**.\n\nSe aplica cuando asocias la cuenta a ese cliente: en el paso **Cliente** del cobro, al cobrarle a crédito o al pedir la factura a su nombre. Verás uno de estos avisos:\n\n- **Descuento cliente X %: −$…. Nuevo total: $….**\n- **La cuenta ya tenía un descuento mayor (X %); se conserva.**\n- **El descuento del cliente no aplica a esta cuenta (ya tiene cobros).**\n\n## El historial del comensal\n\nEn la ficha del comensal registrado, **Facturas** muestra lo que consumió. Elige el rango con **Desde**, **Hasta** y **Aplicar**, o toca **Este mes**. Arriba ves **Facturas**, **Total consumido** y **Ahorrado con descuento**, y en cada factura **Ver factura →**.\n\n## Casos frecuentes\n\n- **No encontramos una cuenta con esos datos en este restaurante. Puede crearla desde la carta.**: la persona no tiene cuenta en tu restaurante. Ver [La cuenta del comensal en tu restaurante](/operator/ayuda/experiencia-del-comensal/cuenta-del-comensal).\n- **No pudimos identificar al comensal.**: la cuenta ya tiene un pago o se está cobrando.\n- **Identifiqué a la persona equivocada**: toca **Quitar descuento** en esa cuenta. Por ahora no hay un botón para desvincularla.\n- **El porcentaje debe ser un entero entre 1 y 100.**: escribe un número sin decimales.\n- **Escribe un porcentaje entre 0,01 y 50.**: el descuento comercial no puede pasar del 50 %.\n",
+      "links": [
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cortesias-y-productos-no-cobrados",
+      "title": "Cortesías, gastos de representación y productos no cobrados",
+      "summary": "Cierra una cuenta como cortesía, deja de cobrar un plato con su motivo y revisa en los informes todo lo que no se cobró, con su valor y responsable.",
+      "keywords": [
+        "cortesía",
+        "gastos de representación",
+        "no cobrar",
+        "por cuenta de la casa",
+        "invitación",
+        "plato gratis",
+        "anular plato",
+        "cancelado",
+        "informe",
+        "reporte",
+        "regalo",
+        "comp",
+        "productos no cobrados",
+        "csv"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A veces una cuenta o un plato no se cobra: una invitación de la casa, un plato que salió mal o un cliente que se fue sin pagar. MESAPAY lo registra con su motivo y quién lo hizo: los platos descuentan inventario, pero no cuentan como venta.\n\n## Quién puede hacerlo\n\nEn [Permisos, propinas y turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos):\n\n- **Permitir gastos de representación** habilita cerrar cuentas como cortesía. En **Nombre que ve el mesero** puedes cambiar cómo se llama el botón.\n- **¿Quién puede no cobrar una cuenta o un plato?**: marca **Administrador**, **Mesero** o **Terminal (datáfono)**. Viene marcado solo **Administrador**.\n\nAdemás hay una regla fija: una vez que la cocina empezó a preparar un plato, solo un administrador puede cancelarlo o dejar de cobrarlo. Un plato entregado siempre cuenta como empezado. Por eso, en la práctica:\n\n- **No cobrar** en un plato de la carta queda solo para administradores.\n- Un mesero, si su rol está marcado, solo puede cerrar como cortesía una cuenta cuyos platos no han empezado a prepararse.\n- El usuario Datáfono no tiene la ficha de la mesa ni el cobro, así que marcar **Terminal (datáfono)** hoy no le habilita nada.\n\n## Cierra una cuenta como cortesía\n\n1. Abre el cobro con **Cobrar la cuenta**.\n2. Toca **Gastos de representación** (o el nombre que configuraste).\n3. En **¿A quién se le dio?**, escribe a quién se le dio. Es obligatorio.\n4. Toca **Cerrar como cortesía**. La cuenta se cierra en $0 y vuelves a Mesas.\n\n- Solo se puede si la cuenta no tiene ningún pago: si ya se pagó una parte, no se puede cerrar como cortesía.\n- No está en **Combinar medios**.\n- Si la cuenta tiene platos en preparación y no eres administrador, verás **Esta cuenta contiene platos cuya preparación ya empezó. Solo el administrador puede cerrarla como cortesía.**\n\n## Deja de cobrar un plato\n\n1. En la ficha de la mesa, en un plato ya entregado, toca **No cobrar**. En un plato que no se ha entregado, el botón es **Cancelar**.\n2. En **No cobrar plato**, elige el **Motivo**: **No le gustó al cliente**, **Plato frío / mal preparado**, **Plato equivocado**, **Cortesía** o **Cliente se fue sin pagar**. También puedes escribir otro motivo, de al menos 3 letras.\n3. Toca **No cobrar plato**. El plato sale de la cuenta y queda en el informe.\n\nSi no tienes permiso, verás **Sólo puede hacerlo:** con los roles permitidos, o **Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.**\n\n## Los informes\n\nEstán en el menú **Negocio**, o en [Cierre](/operator/reports), en **Sub-reportes**:\n\n- [Gastos de representación](/operator/reports/gastos-representacion): las cuentas cerradas como cortesía. Tiene dos vistas, **Cuentas y mesas** y **Productos**, y en cada cuenta **Ver productos de esta cuenta**.\n- [Productos no cobrados](/operator/reports/no-cobrados): todo lo que no se cobró, con su tipo: **Gastos de representación**, **Cortesía de producto**, **Producto cancelado** o **Ronda cancelada**. El filtro **Tipo** deja ver **Todos los tipos**, **Gastos de representación**, **Cortesía de producto** o **Cancelaciones**.\n\nPara filtrar:\n\n1. Elige el rango: **Hoy**, **Últimos 7 días** (viene marcado), **Últimos 30 días**, **Este mes** o **Todo el historial**, o escribe **Desde** y **Hasta**.\n2. Si quieres, escribe en **Buscar** (producto, motivo, mesa o cuenta) o en **Correo del responsable**.\n3. Toca **Aplicar filtros**. Para volver a empezar, **Limpiar filtros**.\n\nArriba ves **Valor de los productos**, **Cuentas incluidas**, **Unidades de productos** y **Líneas de productos**, de todo lo filtrado. El valor es el precio de la carta con sus modificadores: no es el costo del inventario y no incluye la propina. Los días siguen la hora de corte de tu día contable.\n\nToca **Descargar CSV** para llevarte todas las filas del filtro a una hoja de cálculo.\n\n## Casos frecuentes\n\n- **No veo el botón de cortesía en el cobro**: revisa que **Permitir gastos de representación** esté activo y que tu rol esté marcado. Tampoco aparece en **Combinar medios**.\n- **No cobrar aparece desactivado**: el plato ya empezó a prepararse y no eres administrador, o tu rol no está marcado.\n- **Sin registros para este filtro**: prueba otras fechas o elige **Todo el historial**.\n",
+      "links": [
+        {
+          "label": "Ir a Gastos de representación",
+          "href": "/operator/reports/gastos-representacion"
+        },
+        {
+          "label": "Ir a Productos no cobrados",
+          "href": "/operator/reports/no-cobrados"
+        },
+        {
+          "label": "Ir a Permisos, propinas y turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobros-reembolsos-y-conciliacion",
+      "title": "Revisa cobros, devuelve un pago o concilia",
+      "summary": "Busca un cobro en Cobros, entiende sus estados, devuelve un pago con tarjeta, Apple Pay o datáfono Kushki y resuelve los que quedaron en Requiere revisión.",
+      "keywords": [
+        "cobros",
+        "pagos",
+        "reembolso",
+        "devolución",
+        "devolver plata",
+        "reversar pago",
+        "tarjeta",
+        "kushki",
+        "conciliar",
+        "conciliación",
+        "requiere revisión",
+        "pago pendiente",
+        "pago rechazado",
+        "buscar pago"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Cobros ves todos los pagos del restaurante, con su medio y su estado. Desde el detalle de la orden puedes devolver un pago con tarjeta o resolver uno que quedó en duda con el proveedor.\n\n## Busca un cobro\n\n1. Entra a [Cobros](/operator/payments), en el menú **Pedidos**.\n2. En **Buscar por código de pedido**, escribe el código de la cuenta o una parte.\n3. Elige un estado: **Todos los estados**, **Requiere revisión**, **Pendiente**, **Aprobado**, **Rechazado** o **Reembolsado**. Toca **Filtrar**.\n4. Para volver a la lista completa, toca **Limpiar búsqueda**.\n\nCada fila muestra la fecha, la orden, la mesa, el método, la tarjeta, el estado y el monto. En los pagos con tarjeta, toca la tarjeta (por ejemplo, Visa ···· 0063) para abrir **Detalle del cobro**: lo cobrado, la propina, el titular, el código de aprobación y la referencia de Kushki. Toca la orden para abrir su detalle.\n\n## Los estados\n\n- **Pendiente**: todavía no hay respuesta, por ejemplo una solicitud del comensal o un pago en línea en curso.\n- **Aprobado**: el pago entró.\n- **Rechazado**: el pago no pasó y no se cobró nada.\n- **Reembolsado**: se devolvió completo.\n- **Requiere revisión**: el resultado quedó en duda. Pasa cuando no llegó la respuesta final de un cobro o de una devolución, o cuando un pago con Kushki o PSE lleva más de 30 minutos pendiente. El enlace rojo abre la orden.\n\n## Devuelve un pago\n\nSolo se pueden devolver los pagos con **Tarjeta**, **Apple Pay** o datáfono Kushki, que estén **Aprobado** y no estén en revisión. Lo hacen los administradores.\n\n1. Abre la orden, desde Cobros o desde [Órdenes](/operator/orders).\n2. En **Pagos**, toca **Devolver** en el pago.\n3. En **Devolver pago**, revisa el **Monto a devolver**. Viene lo que queda por devolver y no puede pasar del **Máximo**. Puedes devolver una parte. El monto incluye la propina.\n4. Toca **Devolver**. La plata vuelve al medio de pago del cliente a través de Kushki, y no se puede deshacer.\n\n- Si devuelves una parte, el pago sigue **Aprobado** y muestra **Devuelto $…**. Si devuelves todo, pasa a **Reembolsado**.\n- El efectivo, el datáfono propio, PSE, el crédito y los bonos no se devuelven desde MESAPAY.\n- Devolver no anula la factura de la cuenta.\n\n> ⚠ Si ves **La operación está pendiente de confirmación. No repitas el pago o la devolución.**, no vuelvas a intentarlo: el pago queda en **Requiere revisión** hasta que lo concilies.\n\n## Concilia un pago en revisión\n\nCuando un pago queda en **Requiere revisión**, un administrador ve **Conciliar pago** en el detalle de la orden.\n\n1. Primero consulta el resultado definitivo en Kushki.\n2. En **Resultado confirmado**, elige lo que pasó: **Cobro aprobado** o **Cobro rechazado**, **Devolución realizada** o **Devolución no realizada**, o **Revisado con el proveedor**, según el caso.\n3. Escribe la **Referencia o caso de soporte** (de 3 a 200 caracteres) y la **Evidencia de la verificación** (de 15 a 1.000).\n4. Marca **Verifiqué el estado definitivo y el importe con el proveedor.**\n5. Toca **Guardar conciliación**. Verás **Conciliación guardada.**\n\nConciliar solo actualiza el registro en MESAPAY: no hace un cobro nuevo ni una devolución. Si confirmas un cobro como aprobado, la cuenta lo toma como pagado.\n\n## Casos frecuentes\n\n- **No veo Devolver**: el pago no es con tarjeta, Apple Pay o datáfono Kushki, no está aprobado, está en revisión o no eres administrador.\n- **No se pudo hacer la devolución.**: vuelve a intentar más tarde o revisa el pago en Kushki.\n- **No se pudo guardar. Comprueba el estado antes de intentar de nuevo.**: actualiza la página; puede que otra persona ya lo haya conciliado.\n",
+      "links": [
+        {
+          "label": "Ir a Cobros",
+          "href": "/operator/payments"
+        },
+        {
+          "label": "Ir a Órdenes",
+          "href": "/operator/orders"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "abrir-y-cerrar-el-turno",
+      "title": "Abre y cierra el turno del día",
+      "summary": "Abre el turno con el efectivo para vueltos y ciérralo contando la caja. Cada cierre muestra las ventas por medio de pago, las propinas, el impuesto al consumo y la diferencia del arqueo.",
+      "keywords": [
+        "turno",
+        "cierre",
+        "cierre de caja",
+        "cuadre de caja",
+        "arqueo",
+        "abrir caja",
+        "cerrar caja",
+        "fondo",
+        "base",
+        "día contable",
+        "jornada",
+        "impoconsumo",
+        "inc",
+        "faltante",
+        "sobrante",
+        "corte"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El turno marca el inicio y el fin de la caja del día. Al abrirlo declaras con cuánto efectivo arrancas; al cerrarlo cuentas la plata y MESAPAY te dice si cuadra, con el detalle de todo lo que se cobró.\n\n## Abre el turno\n\n1. Entra a [Cierre](/operator/reports), en el menú **Negocio**, o toca **Cierre de turno** arriba en el panel.\n2. Si ves **Sin turno abierto**, toca **Abrir turno**.\n3. En **Efectivo inicial en caja**, escribe la plata con la que arrancas para dar vueltas. Puede ser $0.\n4. Toca **Abrir turno**.\n\nSolo hay un turno del local abierto a la vez, y lo abren y cierran los administradores.\n\n> ⚠ Abre el turno antes del primer cobro: los pagos registrados sin un turno abierto no entran en ningún cierre.\n\n## Mientras el turno está abierto\n\nVerás **Turno abierto**, cuánto tiempo lleva y el **Fondo inicial**, más **Cobrado**, **Propinas**, **Efectivo en caja (esperado)** y **Cuentas cerradas**, el impuesto al consumo y lo cobrado por cada medio de pago. La tarjeta Caja muestra el efectivo en vivo. Ver [Lleva la caja: base, ingresos y egresos](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Cierra el turno\n\n1. Cobra o cancela las cuentas abiertas. Mientras haya alguna, verás **N cuentas abiertas**, **Cierra o anula estas cuentas antes de cerrar el turno.** y **Ir a cobrar →**, y **Cerrar turno** queda desactivado.\n2. Toca **Cerrar turno**. Se abre **Arqueo de caja** con **Fondo inicial**, **Efectivo cobrado** y **Efectivo esperado en caja**.\n3. Si hay meseros con su turno abierto, deja marcado **Cerrar también los turnos de meseros**. Verás cuánto debe entregar cada uno; ese efectivo pasa a la caja del local y entra en el esperado.\n4. Cuenta la plata y escribe el total en **Efectivo contado físicamente**. Viene lleno con el esperado.\n5. Mira la **Diferencia**: **cuadra exacto ✓**, **sobrante $…** o **faltante $…**. Si hay diferencia, explica por qué en **Notas (opcional)**.\n6. Toca **Confirmar cierre**.\n\n- El efectivo esperado ya resta los egresos y suma los ingresos que registraste en la Caja. Por eso puede no ser igual a **Fondo inicial** más **Efectivo cobrado**.\n- Al cerrar los turnos de los meseros junto con el del local, cualquier faltante de un mesero aparece en la diferencia general.\n- Solo bloquean el cierre las cuentas que se abrieron durante el turno.\n\n## El día contable\n\n- Por defecto, el día va de 5:00 a 5:00 del día siguiente: un cobro a las 2 a. m. cuenta para la noche anterior. En Cierre lo ves como **Día contable: 5:00 a 5:00 del día siguiente.**\n- Para cambiar la hora, entra a [Permisos, propinas y turnos](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos), en **La jornada empieza a las**.\n- Cada cierre guarda la **Jornada** en que se abrió el turno, aunque cierre después de medianoche. Cambiar la hora después no mueve los cierres anteriores.\n- Para ver otro día, usa **Fecha** y **Ver**, las flechas o **Hoy**.\n\n## Cierres recientes y el detalle de cada turno\n\n**Cierres recientes** lista los últimos 10 cierres con su **Jornada**, la duración, el INC, el fondo, lo esperado, lo contado y la diferencia. Toca **Abrir →** para ver el detalle, o **Ver todos →** para ir a **Turnos cerrados**.\n\nEl detalle, **Cierre de turno**, se imprime con **Imprimir** y trae:\n\n- **Resumen**: **Ventas brutas**, **Comida (sin propina)**, **Propinas** y **Pagos · órdenes**.\n- **Impuesto al consumo (INC)**: el impoconsumo incluido en lo cobrado del turno.\n- **Por método de pago**: pagos, bruto, propina y comida de cada medio.\n- **Por mesero**: quién cobró, cuántos pagos, el bruto, el efectivo y la propina.\n- **Efectivo y arqueo**: **Base inicial**, **Recibido en efectivo**, **Vuelto entregado**, **Esperado en caja**, **Declarado al cierre**, **Diferencia** y **Notas**.\n- La lista de todos los pagos del turno.\n\nEl impuesto al consumo se toma de las facturas emitidas. Los pagos que todavía no tienen factura aparecen como cobros sin desglose fiscal y no impiden cerrar. Si tu restaurante cobra IVA en vez de impuesto al consumo, esa tarjeta queda en $0.\n\n## Propinas\n\nLas propinas aparecen en el total, por medio de pago y por mesero. MESAPAY no las reparte: con **Compartidas**, tú decides cómo distribuirlas; con **Por mesero**, cada uno ve las suyas en su app.\n\n## Casos frecuentes\n\n- **Cerrar turno está desactivado**: hay cuentas abiertas. Cóbralas, cancélalas o pásalas a otra mesa.\n- **Ventas hoy del Resumen no coincide con Cobrado**: **Ventas hoy** no incluye impuestos ni propinas; **Cobrado** incluye todo lo cobrado en el turno, con impuestos, propinas y todos los medios, también el crédito.\n- **ya hay un turno abierto**: otra persona lo abrió. Actualiza la página.\n- **El monto declarado está fuera de rango.**: el valor máximo es $100.000.000.\n",
+      "links": [
+        {
+          "label": "Ir a Cierre",
+          "href": "/operator/reports"
+        },
+        {
+          "label": "Ir a Turnos cerrados",
+          "href": "/operator/shifts"
+        },
+        {
+          "label": "Ir a Permisos, propinas y turnos",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-caja",
+      "title": "Lleva la caja: base, ingresos y egresos",
+      "summary": "La tarjeta Caja te dice cuánto efectivo debería haber en el cajón. Registra lo que sale y entra fuera de los cobros, corrige la base y revisa las cajas de los meseros.",
+      "keywords": [
+        "caja",
+        "cajón",
+        "efectivo",
+        "en caja",
+        "base",
+        "fondo",
+        "egreso",
+        "ingreso",
+        "retiro",
+        "caja menor",
+        "pago a proveedor",
+        "cajas de meseros",
+        "consolidado",
+        "arqueo"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "La tarjeta Caja muestra, en vivo, cuánto efectivo debería haber en el cajón del turno. Úsala para anotar la plata que sale o entra fuera de los cobros, así el arqueo del cierre cuadra.\n\n## Dónde está\n\nEn el [Resumen](/operator) y en [Cierre](/operator/reports), cuando estás viendo **Hoy**. Si no hay turno abierto, dice **No hay turno abierto — la caja se abre al iniciar el turno del local.** Abre el turno en Cierre. Ver [Abre y cierra el turno del día](/operator/ayuda/cobro-y-caja/abrir-y-cerrar-el-turno).\n\n## Cómo se calcula En caja\n\n**En caja** es:\n\n- la **Base inicial**, el efectivo con que abriste,\n- más lo **Cobrado en efectivo**,\n- más los **Ingresos**,\n- menos los **Egresos**,\n- y, si tu local usa **Turno por mesero**, menos las **Bases entregadas a meseros** y más lo **Devuelto por meseros**.\n\nSolo cuenta el efectivo: el datáfono, la tarjeta, el crédito y los bonos no son plata del cajón. La propina en efectivo queda dentro del pago, así que sí está en el cajón.\n\nCon **Turno único del local**, cuenta todo el efectivo, también el que cobran los meseros. Con **Turno por mesero**, el efectivo de cada mesero está en su caja hasta que cierra su turno.\n\n## Registra un egreso o un ingreso\n\n1. En la tarjeta Caja, toca **Registrar egreso**. El botón aparece mientras hay un turno abierto.\n2. Elige **Egreso (sale plata)** o **Ingreso (entra plata)**.\n3. Escribe el **Monto** y el **Concepto**, por ejemplo «pago proveedor» o «retiro».\n4. Toca **Registrar**.\n\nEl movimiento queda en **Movimientos**, con el nombre de quien lo registró.\n\n- No se puede editar ni borrar: si te equivocaste, registra el movimiento contrario.\n- Estos movimientos solo ajustan el efectivo del cajón. Si es un gasto del negocio, regístralo también como gasto en Contabilidad, si tienes ese módulo.\n\n## Corrige la base\n\nToca **Editar** junto a **Base inicial** para abrir **Editar base del local** y escribe el valor correcto. Cada cambio queda registrado.\n\nCon **Turno por mesero** también puedes corregir la base de un mesero (**Editar base de …**). La base de un mesero nunca puede ser mayor que la del local, y la del local no puede quedar por debajo de la base más alta de un mesero con turno abierto.\n\n## Cajas de meseros\n\nCon **Turno por mesero** aparecen:\n\n- **Cajas de meseros**: por cada mesero con turno abierto, su **Base**, lo **Cobrado** y lo que **Debe devolver**. Sin meseros con turno, verás **Ningún mesero con turno abierto.**\n- **Consolidado (local + meseros)**: todo el efectivo del restaurante, también el que tienen los meseros.\n\nLa caja de un mesero se cierra cuando él cierra su turno en su app, o cuando cierras el turno del local con **Cerrar también los turnos de meseros**.\n\n> ⚠ Si cierras el turno del local sin cerrar los de los meseros, sus cajas dejan de verse en esta tarjeta. Usa **Cerrar también los turnos de meseros** al cerrar.\n\n## Casos frecuentes\n\n- **No veo Registrar egreso**: no hay turno abierto.\n- **No se pudo registrar.**: revisa el monto y el concepto y vuelve a intentar.\n- **La base del local no puede ser menor que la de …**: baja primero la base de ese mesero.\n- **El arqueo da sobrante y recibí un abono de crédito en efectivo**: los abonos no se suman solos a la caja. Regístralo como ingreso.\n- **El arqueo da faltante**: revisa si salió plata del cajón sin registrarla como egreso.\n",
+      "links": [
+        {
+          "label": "Ir al Resumen",
+          "href": "/operator"
+        },
+        {
+          "label": "Ir a Cierre",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

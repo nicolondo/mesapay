@@ -1,6 +1,12 @@
 import type { DianLine } from "../ubl";
 import type { CreditNoteAccountingStatus } from "@/lib/erp/creditNoteLedger";
 export type CreditReason = "1" | "2" | "3" | "4" | "5" | "6";
+/**
+ * Nota firmada sin salida: `numbering_conflict` (regla 90, el número ya lo
+ * usó este NIT en otro sistema), `dian_rejected` (IsValid=false + 99) o
+ * `not_received` (la DIAN respondió «no existe» de forma consistente).
+ */
+export type CreditNoteFailure = "numbering_conflict" | "dian_rejected" | "not_received";
 export type OriginalCreditLine = DianLine & {
     lineId: string;
     grossCents: number;
@@ -55,6 +61,14 @@ export type CreditNoteDto = {
     publicToken: string;
     canAbandon: boolean;
     canRetry: boolean;
+    /** Ver CreditNoteFailure. null = la nota todavía puede cambiar de estado sola. */
+    failure: CreditNoteFailure | null;
+    /**
+     * Sólo en el detalle de una nota descartable: dónde saldría la nota de
+     * reemplazo («Descartar y emitir de nuevo»). null = no hay serie sin
+     * conflicto; hay que configurar un prefijo nuevo.
+     */
+    reissue?: { prefix: string; nextNumber: number } | null;
     originalInvoiceId: string;
     documentNumber: string;
     number: number;
@@ -87,6 +101,8 @@ export type CreditNoteSource = {
     sourceVersion: string;
     prefix: string;
     nextNumber: number;
+    /** Serie configurada que quedó en conflicto de numeración (null = ninguna). */
+    conflictPrefix: string | null;
     notes: CreditNoteDto[];
 };
 export type CreditNoteInvoiceChoice = {

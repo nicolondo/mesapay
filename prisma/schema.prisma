@@ -2710,6 +2710,12 @@ model DianDocument {
   trackId     String?
   errors      Json?
   attempts    Int     @default(0)
+  /// Notas crédito: respuestas «no encontrado» (66/90) SEGUIDAS de la
+  /// consulta de estado DIAN. Cualquier otra respuesta de la DIAN la vuelve a
+  /// 0; un fallo de canal no la cambia. Con el umbral de
+  /// `creditNoteDeliveryState` (≥3 y ≥24 h desde `issuedAt`) la nota pasa a
+  /// «No recibida por la DIAN» y el barrido deja de consultarla.
+  statusNotFoundCount Int @default(0)
   /// Barrido: antes de este instante no se reintenta (backoff exponencial
   /// tras un error de canal; espera fija tras un bloqueo de configuración).
   /// null ⇒ se puede intentar ya.

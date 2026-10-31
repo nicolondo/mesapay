@@ -170,8 +170,13 @@ export default async function OperatorHome() {
               <h2 id="sales-title">{tr("salesBeforeTaxAndTip")}</h2>
               <p className="text-xs text-op-muted mt-1">{tr("last7Days")}</p>
             </div>
-            <span className="text-sm font-medium tabular">
-              {fmtCOP(sales.totalNetCents)}
+            <span className="flex items-center gap-3">
+              <span className="text-sm font-medium tabular">
+                {fmtCOP(sales.totalNetCents)}
+              </span>
+              <Link href="/operator/reports/ventas?periodo=7d" prefetch={false} className="mp-text-link">
+                {tr("viewSalesAnalysis")}
+              </Link>
             </span>
           </div>
           <div className="mp-sales-chart" aria-hidden="true">

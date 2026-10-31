@@ -67,6 +67,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   /* ── Cobro y caja ── */
   "/operator/payments": ["cobros-reembolsos-y-conciliacion"],
   "/operator/reports": ["abrir-y-cerrar-el-turno", "la-caja", "cortesias-y-productos-no-cobrados"],
+  "/operator/reports/ventas": ["analizar-las-ventas"],
   "/operator/reports/no-cobrados": ["cortesias-y-productos-no-cobrados"],
   "/operator/reports/gastos-representacion": ["cortesias-y-productos-no-cobrados"],
   "/operator/shifts": ["abrir-y-cerrar-el-turno"],

@@ -1181,6 +1181,8 @@
     "impBackToGroup": "Back to group",
     "impStop": "Stop impersonating",
     "membershipOverdue": "<b>Subscription overdue.</b> Settle the payment to avoid losing access.",
+    "membershipPayNow": "Pay now",
+    "membershipViewPlan": "View my subscription",
     "membershipDueSoon": "Your subscription is due soon.",
     "membershipDueSoonDate": "Your subscription is due soon ({date}).",
     "switchTo": "Switch to:",

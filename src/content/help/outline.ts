@@ -89,7 +89,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "tomar-un-pedido-desde-mesas",
       title: "Toma y marcha un pedido desde Mesas",
       covers:
-        "Tocar una mesa libre abre la carta en \"Modo mesero\"; modificadores, \"+ Nota para la cocina\", \"Ver y enviar pedido\", \"Marchar orden\" / \"Marchar adición\" y \"¿Cómo quieres que salga?\" (\"Lo que vaya saliendo\" / \"Fuertes juntos\"); en mostrador el botón es \"Ir a pagar\" y la cocina recibe después del pago.",
+        "Tocar una mesa libre (o \"+ Agregar platos\") abre la carta en \"Modo mesero\"; modificadores, \"+ Nota para la cocina\", \"Ver y enviar pedido\", \"Marchar orden\" / \"Marchar adición\" y \"¿Cómo quieres que salga?\" (\"Lo que vaya saliendo\" / \"Fuertes juntos\", solo en el primer envío); al enviar vuelve a Salón; en mostrador el botón es \"Ir a pagar\" y la cocina recibe después del pago (se cobra desde la ficha de Mostrador).",
       legacy:
         "Los comensales piden por QR o el mesero desde su app. Cada pedido entra a Cocina y Bar por estación, con su tiquete.",
     },
@@ -121,7 +121,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "salon-entregar-platos-y-llamadas",
       title: "Usa Salón para entregar platos y atender llamadas",
       covers:
-        "Secciones de Salón: cancelaciones de cocina (\"Avisé al cliente\"), \"Llamadas pendientes\" (\"Voy en camino\"), pedidos de datáfono y de efectivo, platos listos por mesa (\"Marcar todo\", \"Entregar\"), \"Aún en preparación\" y \"Fuertes juntos\".",
+        "Secciones de Salón: cancelaciones (cuando queda cancelada toda una ronda; \"Avisé al cliente\"), \"Llamadas pendientes\" (\"Voy en camino\"), pedidos de datáfono y de efectivo, platos listos por mesa (\"Marcar todo\", \"Entregar\"), \"Aún en preparación\" y \"Fuertes juntos\".",
     },
     {
       slug: "corregir-un-pedido",
@@ -133,7 +133,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "buscar-y-revisar-ordenes",
       title: "Busca una orden y revisa su detalle",
       covers:
-        "\"Buscar orden\", el código corto de 6 caracteres, filtros de \"Órdenes\" (estado y periodo), y el detalle: rondas y sus estados, quién montó cada ronda, \"Por persona\", pagos y factura.",
+        "\"Buscar orden\", el código corto de 6 caracteres (la búsqueda respeta el periodo, que arranca en \"Hoy\"), filtros de \"Órdenes\" (estado y periodo), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
     },
     {
       slug: "reservas",
@@ -145,7 +145,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "etiquetas-de-platos",
       title: "Crea las etiquetas de tus platos",
       covers:
-        "\"Etiquetas de platos\": emoji, nombre visible e ID, ordenar, máximo 20, que cambiar el ID les quita la etiqueta a los platos que la tenían y dónde las ve el comensal.",
+        "\"Etiquetas de platos\": las cinco por defecto, emoji, nombre visible e ID, ordenar, máximo 20, cómo se asignan en el editor del plato, que cambiar el ID les quita la etiqueta a los platos que la tenían y dónde se ven (la carta del comensal y la del Modo mesero; no en cocina ni en comandas).",
     },
   ],
 
@@ -241,7 +241,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "mis-mesas",
       title: "Toma y suelta tus mesas",
       covers:
-        "\"Mis mesas\" en Yo: tomar o soltar una mesa, que no se toma una mesa de otro mesero y que sin mesas propias se ven todas.",
+        "\"Mis mesas\" en Yo: tomar o soltar una mesa, las mesas sin mesero, que la mesa de otro mesero solo se toma si está libre (ocupada queda bloqueada) y que sin mesas propias se ven todas.",
     },
     {
       slug: "mesas-y-ficha-en-la-app",
@@ -265,7 +265,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-desde-la-app",
       title: "Cobra una cuenta desde la app",
       covers:
-        "Formas de cobro, propina, efectivo, datáfono asignado o del comercio, crédito, gastos de representación, \"Cobro realizado\" y la factura al final.",
+        "\"¿Cómo cobrar?\" (Todo, Partes iguales, Individual, Combinar medios), propina, cliente, factura, efectivo, datáfono asignado o del comercio, crédito, gastos de representación, \"Cobro realizado\" / \"Pago recibido\" y la factura al final.",
     },
     {
       slug: "turno-del-mesero",

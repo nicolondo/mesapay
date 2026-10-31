@@ -3,23 +3,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/auditLog";
-import {
-  sendPasswordResetEmail,
-  sendRestaurantWelcomeEmail,
-} from "@/lib/mailer";
-import {
-  generateResetToken,
-  hashResetToken,
-  RESET_TOKEN_TTL_MS,
-  WELCOME_TOKEN_TTL_MS,
-  PENDING_PASSWORD_HASH,
-} from "@/lib/passwordReset";
-
-const BASE_URL = process.env.NEXTAUTH_URL ?? "https://mesapay.co";
+import { issuePasswordResetLink } from "@/lib/passwordResetIssue";
 
 /**
  * POST /api/admin/users/[id]/reset-email — sends a password-reset link.
- * platform_admin only. El link es de un solo uso y vence en 1 hora.
+ * platform_admin only. El link es de un solo uso y vence en 1 hora. La
+ * emisión (token, invalidación de los anteriores, correo) vive en
+ * `lib/passwordResetIssue.ts`, la misma que usa "olvidé mi contraseña".
  */
 async function POSTHandler(
   _req: Request,
@@ -48,33 +38,7 @@ async function POSTHandler(
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const token = generateResetToken();
-  const welcome =
-    user.passwordHash === PENDING_PASSWORD_HASH && !!user.restaurant;
-  await db.$transaction([
-    // Invalida cualquier link anterior aún activo del mismo usuario.
-    db.passwordResetToken.updateMany({
-      where: { userId: id, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-    db.passwordResetToken.create({
-      data: {
-        tokenHash: hashResetToken(token),
-        userId: id,
-        expiresAt: new Date(
-          Date.now() + (welcome ? WELCOME_TOKEN_TTL_MS : RESET_TOKEN_TTL_MS),
-        ),
-      },
-    }),
-  ]);
-
-  const resetUrl = `${BASE_URL}/restablecer/${token}`;
-  const sent = welcome
-    ? await sendRestaurantWelcomeEmail(user, user.restaurant!.name, token)
-    : await sendPasswordResetEmail(
-        { email: user.email, name: user.name },
-        resetUrl,
-      );
+  const { sent } = await issuePasswordResetLink(user);
 
   await recordAuditEvent({
     kind: "user.reset_email",

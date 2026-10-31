@@ -39,6 +39,12 @@ export type AuditKind =
   | "user.create"
   | "user.update"
   | "user.delete"
+  // Contraseñas del personal (nunca se guarda la contraseña ni el token)
+  | "user.password_set"
+  | "user.reset_email"
+  | "user.password_change"
+  | "user.password_reset"
+  | "user.password_reset_request"
   // Orden + items (cancel / comp / walkout)
   | "order.cancel"
   | "order.comp"
@@ -97,6 +103,11 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "user.create": "Creó usuario",
   "user.update": "Editó usuario",
   "user.delete": "Borró usuario",
+  "user.password_set": "Fijó la contraseña de un usuario",
+  "user.reset_email": "Envió enlace de restablecimiento",
+  "user.password_change": "Cambió su contraseña",
+  "user.password_reset": "Restableció su contraseña con un enlace",
+  "user.password_reset_request": "Pidió restablecer la contraseña",
   "order.cancel": "Canceló orden",
   "order.comp": "No cobró la cuenta",
   "order.manual_invoice.open": "Abrió factura manual",

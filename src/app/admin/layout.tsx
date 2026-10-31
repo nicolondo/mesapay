@@ -77,7 +77,16 @@ export default async function AdminLayout({
             >
               {t("backToOperator")}
             </Link>
-            <span className="text-op-muted">{session.user.email}</span>
+            <Link
+              href="/admin/cuenta"
+              title={t("navAccountTitle")}
+              className="inline-flex items-center gap-2 text-op-muted hover:text-op-text"
+            >
+              <span className="font-mono text-[10px] tracking-wider uppercase">
+                {t("navAccount")}
+              </span>
+              <span>{session.user.email}</span>
+            </Link>
             {signOutFormDesktop}
           </div>
           <AdminMobileMenu

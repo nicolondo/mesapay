@@ -25,7 +25,10 @@ async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promi
   return result as T;
 }
 
-export function CreditNotesClient() {
+export function CreditNotesClient({ initialInvoiceId = null }: {
+  /** Factura a preseleccionar (?factura=<SimpleInvoice.id>, desde Facturas). */
+  initialInvoiceId?: string | null;
+} = {}) {
   const t = useTranslations("opCreditNotes");
   const locale = useLocale() as Locale;
   const money = (cents: number) => formatMoney(cents, { currency: "COP", locale, fractionDigits: 2 });
@@ -53,6 +56,8 @@ export function CreditNotesClient() {
   const [notice, setNotice] = useState<string | null>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const adjustHeading = useRef<HTMLHeadingElement>(null);
+  const preselecting = useRef(!!initialInvoiceId);
 
   const errorText = (err: unknown) => {
     const originalCode = err instanceof Error ? err.message : "request_failed";
@@ -75,6 +80,7 @@ export function CreditNotesClient() {
     // The page is keyed to the active restaurant by the operator layout.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => { if (source && preselecting.current) { preselecting.current = false; adjustHeading.current?.focus(); } }, [source]);
   useEffect(() => { if (review) reviewHeading.current?.focus(); }, [review]);
   useEffect(() => { if (detail) detailHeading.current?.focus(); }, [detail]);
 
@@ -101,12 +107,26 @@ export function CreditNotesClient() {
   async function search() {
     await run("search", async () => { const data = await api<{ invoices: CreditNoteInvoiceChoice[] }>(`/invoices?search=${encodeURIComponent(query.trim())}`); setInvoices(data.invoices); setSearched(true); });
   }
+  function applySource(next: CreditNoteSource) {
+    setSource(next); setReview(null); setAmounts({}); setReasonText(""); setMode("total"); setReasonCode(next.notes.some(note => !note.abandonedAt) ? "3" : "2");
+  }
   async function selectInvoice(id: string) {
     await run("source", async () => {
       const data = await api<{ source: CreditNoteSource }>(`/source/${encodeURIComponent(id)}`);
-      setSource(data.source); setReview(null); setAmounts({}); setReasonText(""); setMode("total"); setReasonCode(data.source.notes.some(note => !note.abandonedAt) ? "3" : "2");
+      applySource(data.source);
     });
   }
+  // Preselección desde Facturas ("Anular con nota crédito"): se carga la
+  // factura por la misma ruta que el botón "Elegir", que valida comercio y
+  // estado; si no se puede acreditar, el error sale como siempre.
+  useEffect(() => {
+    if (!initialInvoiceId) return;
+    const abort = new AbortController();
+    api<{ source: CreditNoteSource }>(`/source/${encodeURIComponent(initialInvoiceId)}`, undefined, abort.signal).then(data => applySource(data.source)).catch(err => { if (!abort.signal.aborted) setError(errorText(err)); });
+    return () => abort.abort();
+    // Una vez al montar: la página está keyed al comercio activo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   async function preview() {
     if (!source) return;
     if (reasonText.trim().length < 3) { setError(t("explanationRequired")); return; }
@@ -177,7 +197,7 @@ export function CreditNotesClient() {
       {searched && <div className="mt-4"><p role="status" className="text-sm text-op-muted mb-2">{t(invoices.length ? "results" : "noInvoices", { count: invoices.length })}</p><ul className="divide-y divide-op-border">{invoices.map(invoice => <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="font-semibold break-words">{invoice.invoiceNumber}</p><p className="text-sm text-op-muted break-words">{invoice.customerName || t("finalConsumer")}</p><p className="text-sm">{money(invoice.totalCents)}</p></div><button type="button" className={buttonClass} disabled={!!busy || !!review} onClick={() => void selectInvoice(invoice.id)} aria-label={t("selectInvoice", { number: invoice.invoiceNumber })}>{t("select")}</button></li>)}</ul></div>}
     </section>
     {source && !review && <section className="rounded-2xl border border-op-border bg-op-surface p-4 md:p-5 space-y-4" aria-labelledby="credit-adjust-title">
-      <h2 id="credit-adjust-title" className="font-display text-xl">{t("adjustTitle", { number: source.original.invoiceNumber })}</h2>
+      <h2 ref={adjustHeading} tabIndex={-1} id="credit-adjust-title" className="font-display text-xl outline-none">{t("adjustTitle", { number: source.original.invoiceNumber })}</h2>
       <p className="text-sm break-words">{[source.original.customer?.name, source.original.customer?.companyId].filter(Boolean).join(" · ")}</p>
       <p className="text-sm">{t("available", { amount: money(source.remainingTotalCents) })}</p>
       <p className="text-sm text-op-muted">{t("separateRefund")}</p>

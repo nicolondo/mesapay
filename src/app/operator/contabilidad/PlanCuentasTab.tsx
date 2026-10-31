@@ -130,11 +130,18 @@ export function PlanCuentasTab() {
     }
     setIssues((j.issues as ImportIssue[]) ?? []);
     setImportMsg(
-      t("chartImportDone", {
-        created: j.created ?? 0,
-        updated: j.updated ?? 0,
-        parents: j.parentsCreated ?? 0,
-      }),
+      [
+        t("chartImportDone", {
+          created: j.created ?? 0,
+          updated: j.updated ?? 0,
+          parents: j.parentsCreated ?? 0,
+        }),
+        // Lo que el import deliberadamente no tocó: que no sorprenda.
+        (j.inactiveKept ?? 0) > 0 ? t("chartImportInactiveKept", { count: j.inactiveKept }) : null,
+        (j.natureKept ?? 0) > 0 ? t("chartImportNatureKept", { count: j.natureKept }) : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
     );
     setCsv("");
     await reload().catch(() => setErr(true));

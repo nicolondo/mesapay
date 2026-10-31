@@ -6529,6 +6529,8 @@
     "chartImportCta": "Importar cuentas",
     "chartImporting": "Importando…",
     "chartImportDone": "{created} cuentas nuevas, {updated} actualizadas y {parents} agrupadoras creadas.",
+    "chartImportInactiveKept": "{count, plural, one {# cuenta inactiva sigue inactiva} other {# cuentas inactivas siguen inactivas}}: reactívalas desde el plan si las necesitas.",
+    "chartImportNatureKept": "{count, plural, one {# cuenta con movimientos conservó su naturaleza} other {# cuentas con movimientos conservaron su naturaleza}}: cambiarla daría vuelta el signo de su saldo.",
     "chartImportFailed": "No se pudo importar el plan de cuentas.",
     "chartImportEmpty": "No se encontró ninguna cuenta válida en lo que pegaste.",
     "chartImportIssues": "{count} líneas quedaron por fuera:",

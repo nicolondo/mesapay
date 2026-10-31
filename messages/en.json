@@ -6529,6 +6529,8 @@
     "chartImportCta": "Import accounts",
     "chartImporting": "Importing…",
     "chartImportDone": "{created} new accounts, {updated} updated and {parents} parent accounts created.",
+    "chartImportInactiveKept": "{count, plural, one {# inactive account stays inactive} other {# inactive accounts stay inactive}}: reactivate them from the chart if you need them.",
+    "chartImportNatureKept": "{count, plural, one {# account with movements kept its nature} other {# accounts with movements kept their nature}}: changing it would flip the sign of its balance.",
     "chartImportFailed": "Couldn't import the chart of accounts.",
     "chartImportEmpty": "No valid account was found in what you pasted.",
     "chartImportIssues": "{count} lines were left out:",

@@ -66,7 +66,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
 
   /* ── Cobro y caja ── */
   "/operator/payments": ["cobros-reembolsos-y-conciliacion"],
-  "/operator/reports": ["abrir-y-cerrar-el-turno", "la-caja"],
+  "/operator/reports": ["abrir-y-cerrar-el-turno", "la-caja", "cortesias-y-productos-no-cobrados"],
   "/operator/reports/ventas": ["analizar-las-ventas"],
   "/operator/reports/no-cobrados": ["cortesias-y-productos-no-cobrados"],
   "/operator/reports/gastos-representacion": ["cortesias-y-productos-no-cobrados"],
@@ -100,20 +100,29 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
 
   /* ── Lo que ve el comensal ── */
   "/t/[slug]": ["el-qr-de-la-mesa"],
-  "/t/[slug]/menu": ["el-qr-de-la-mesa", "la-carta-del-comensal", "como-pide-el-comensal"],
+  "/t/[slug]/menu": [
+    "el-qr-de-la-mesa",
+    "la-carta-del-comensal",
+    "como-pide-el-comensal",
+    "cuenta-del-comensal",
+  ],
   "/t/[slug]/order/[orderId]": ["como-pide-el-comensal", "resenas-de-platos"],
   // La misma pantalla de cobro la usa el equipo desde "Cobrar la cuenta".
   "/t/[slug]/pay/[orderId]": [
     "como-paga-el-comensal",
     "factura-del-comensal",
     "cobrar-una-cuenta",
+    "cobrar-en-efectivo",
+    "cobrar-con-datafono",
     "dividir-la-cuenta",
+    "pagos-pendientes-del-comensal",
     "cobrar-a-credito",
+    "cortesias-y-productos-no-cobrados",
   ],
   "/t/[slug]/pay/[orderId]/cash": ["como-paga-el-comensal"],
-  "/t/[slug]/pay/[orderId]/terminal": ["como-paga-el-comensal"],
+  "/t/[slug]/pay/[orderId]/terminal": ["como-paga-el-comensal", "cobrar-con-datafono"],
   "/t/[slug]/pay/[orderId]/pending": ["como-paga-el-comensal"],
-  "/t/[slug]/pay/[orderId]/done": ["como-paga-el-comensal", "factura-del-comensal"],
+  "/t/[slug]/pay/[orderId]/done": ["como-paga-el-comensal", "factura-del-comensal", "cobrar-una-cuenta"],
   "/t/[slug]/pay/[orderId]/3ds-return": {
     internal: "Retorno técnico de la verificación del banco: resuelve el pago y redirige.",
   },

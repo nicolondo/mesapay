@@ -1,5 +1,465 @@
 {
   "title": "Payments and cash",
   "description": "Charging in cash, by card reader or on credit, tips, pre-bill, split bills, shifts and the cash drawer.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "cobrar-una-cuenta",
+      "title": "Charge a bill step by step",
+      "summary": "Open the checkout from the table or the order, review the order, choose the tip and the payment method, request the invoice and see what changes when only the administrator can charge.",
+      "keywords": [
+        "charge",
+        "checkout",
+        "bill",
+        "close the bill",
+        "close table",
+        "pay",
+        "tip",
+        "payment method",
+        "invoice",
+        "ask for the bill",
+        "cash desk",
+        "cash control",
+        "settle"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "The checkout screen is where you close a table's bill: you review what was ordered, choose the tip and record how the customer paid. It's the same in the panel and in the waiter app.\n\n## Open the checkout\n\n1. In [Tables](/operator/tables), tap the table to open its sheet, **Order status**.\n2. Tap **Charge the bill**. The button shows while the bill still has something to pay.\n\nYou can also charge from an order's detail in [Orders](/operator/orders): under **Actions**, tap **Charge the bill**.\n\n> In the panel, the checkout opens in a new browser tab. In the waiter app it opens inside the app.\n\n## Step by step\n\n1. At the top you see **Server mode** and **Charging** with the table name. To leave without charging, tap **Back to tables**.\n2. Review **Confirm your order**: dishes, quantities, prices and the **Subtotal**. If the bill has a discount, you also see the **Total after discount**.\n3. Under **How to charge?** keep **All** to charge the whole bill. The other options split it: see [Split the bill or combine payment methods](/operator/ayuda/cobro-y-caja/dividir-la-cuenta).\n4. Choose the **Tip**: **No tip**, 5%, 10%, 15% or 20%. 10% is selected by default. Below it you see **To charge now**, with the food plus the tip.\n5. If the customer wants an invoice, fill it in under **Does the customer need an electronic invoice?** before charging. See [Generic or personalized invoice for the guest](/operator/ayuda/experiencia-del-comensal/factura-del-comensal).\n6. Tap the payment method button. Each one shows the total to be charged.\n7. When it's done you see **Payment charged** and **Bill paid**. From there you generate or print the invoice and go back with **Back to tables**.\n\nIf your business has billing customers, you'll also see a **Customer** step, and if it has corporate vouchers, a **Corporate voucher** step.\n\n## Payment methods\n\n- **Receive in cash**: you record what you received and the change. See [Charge in cash and give change](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n- **Charge by card reader** (Kushki card reader) and **Charge by merchant's card reader** (your own card reader). See [Charge with a card reader](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n- **Charge on credit**: the bill becomes a customer's debt. It shows if at least one customer has credit. See [Sell on credit and record payments](/operator/ayuda/cobro-y-caja/cobrar-a-credito).\n- **Complimentary (on the house)** (or the name you gave it): closes the bill as a courtesy. See [Courtesies, representation expenses and uncharged products](/operator/ayuda/cobro-y-caja/cortesias-y-productos-no-cobrados).\n\nThe buttons depend on the payment methods MESAPAY enabled for your business. If one you need is missing, contact support.\n\n## When only the administrator can charge\n\nIf in [Permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos) you turned on **Only the administrator can start a charge**:\n\n- Waiters don't see **Charge the bill**. Instead they see **Ask for the bill**, which changes to **Notifying…** and then **Cash desk notified**.\n- A full-screen alert shows up in the panel, **The waiter is letting you know**, with the table in large type, **is asking for the bill** and how they'll pay.\n- The same alert shows as **Bill requested** when the guest chooses on their phone to pay in cash or by card reader (tables only, not counter). It reads **Paying in cash**, **Paying by card terminal** or **Paying with the venue's own card terminal**.\n- Tap **Go charge** to open the checkout or **Dismiss** to hide the alert. If more tables are waiting, tap **+1 more table waiting** (or however many) to go to Floor.\n- If a waiter opens the checkout anyway, they see **The administrator handles charging**.\n\nThis rule only stops waiters: the Datáfono (card reader) user can still charge, and guests can still pay on their own from their phone.\n\n## Common cases\n\n- **I don't see Charge the bill**: the bill is already paid or has nothing pending, or charging is reserved for the administrator (then you see **Ask for the bill**).\n- **The screen says Paid**: the bill was paid in full. Tap **View receipt and invoice**.\n- **The guest asked to pay with appears at the top**: the guest already chose a method on their phone. See [Confirm the payments the guest requested](/operator/ayuda/cobro-y-caja/pagos-pendientes-del-comensal).\n- **The waiter sees No tenés turno abierto** (You have no open shift): your venue uses **Shift by waiter** and the waiter needs their shift open to charge. Enter their opening float and tap **Abrir turno y cobrar** (Open shift and charge).\n- **I chose the wrong tip**: until you confirm the payment, change the percentage. Once charged, the payment is recorded with that tip.\n",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Go to Permissions, tips and shifts",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-en-efectivo",
+      "title": "Charge in cash and give change",
+      "summary": "Record a cash payment from the checkout or from Floor, work out the change, keep the change as a tip if the customer wants and see which cash box the money goes into.",
+      "keywords": [
+        "cash",
+        "money",
+        "bills",
+        "change",
+        "charge in cash",
+        "record charge",
+        "paid exact",
+        "tip",
+        "keep the change",
+        "cash box",
+        "drawer",
+        "notes",
+        "coins"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "When the customer pays with cash, MESAPAY records how much you received, how much change you gave and whether they left the change as a tip. That way the cash balances at the shift close-out.\n\nThere are two paths: you charge from the checkout screen, or the guest asked on their phone to pay in cash and you confirm you received the money.\n\n## When you charge\n\n1. Open the bill with **Charge the bill** and choose the tip. See [Charge a bill step by step](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n2. Tap **Receive in cash**. **Charge in cash** opens with the total, rounded up to the whole peso. If the total had cents, that fraction becomes tip.\n3. Under **What did they pay with?**, tap **Exact amount** or the bill they paid with. You can also type the amount in **Received from customer**.\n4. Check **Change given**: it's the money you hand back.\n5. If there's change, MESAPAY asks **What do they do with the $… change?**. Tap **I return the change** or **They keep it as a tip**. If they keep only part of it, type in **Change given** what you handed back.\n6. Check the **Tip from change** line (or **No tip from change.**) and tap **Confirm charge**.\n\n> ⚠ If you type the amount received by hand, **Change given** starts at $0, which means the customer leaves all the change as a tip. If you're giving change, tap **I return the change** before confirming.\n\n## When the guest asked to pay in cash\n\nIf the guest chose **Cash (call the server)** on their phone, the request shows up in [Floor](/operator/serve), under **Cash charges**, with the table and the amount. If they said which bill they'll pay with, you see **Will pay with $…** and how much change to bring. It also shows on the table sheet and at the top of the checkout.\n\n1. Take the change to the table and collect the payment.\n2. Tap **Record charge** in Floor, or **Confirm payment received** on the table sheet or in the checkout.\n3. In **Cash charge**, tap **Paid exact** or the bill they announced, or type the **Received** and **Change** amounts.\n4. If the customer keeps the change, tap **Keep the change · tip $…**.\n5. Tap **Confirm charge**.\n\nThe Datáfono (card reader) user does this from **Live tables**, with **Confirm cash received**.\n\n## Which cash box the money goes into\n\n- With **Single venue shift** (the default), all cash goes into the venue's cash box.\n- With **Shift by waiter**, cash a waiter collects stays in their box while their shift is open, and moves to the venue's box when they close it. Cash collected by an administrator or the Datáfono user goes straight into the venue's box.\n- A cash tip stays inside the payment: it's part of the cash expected at close-out.\n\nSee [Keep the cash box: float, deposits and withdrawals](/operator/ayuda/cobro-y-caja/la-caja).\n\n> ⚠ Open the venue's shift before the first charge: payments recorded with no open shift don't go into any close-out.\n\n## Common cases\n\n- **No tenés turno abierto** (You have no open shift): with **Shift by waiter**, the waiter needs their shift to charge. Enter the **Opening float (for change)** and tap **Open shift and charge**.\n- **The venue hasn't opened its shift yet…**: the manager opens the venue's shift in [Close-out](/operator/reports) and the waiter taps **Retry**.\n- **Your float can't exceed the venue's float**: lower the waiter's float.\n- **The customer must hand you at least $…**: what you received doesn't cover the total.\n- **Change can't be more than the amount received.**: fix the change.\n- **The change is $… more than it should be**: the customer would end up owing you. Tap **Correct to exact change**.\n- **Only the administrator can charge**: charging is reserved for the administrator in Permissions, tips and shifts.\n- **The customer asked for cash but pays by card**: charge with the other method; the cash request is replaced automatically.\n",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Floor (waiter app)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Go to Close-out",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-con-datafono",
+      "title": "Charge with a card reader",
+      "summary": "Charge with the Kushki card reader, straight to the assigned device or from Floor, or with the business's own card reader, and what to do when the charge doesn't arrive or is declined.",
+      "keywords": [
+        "card reader",
+        "card terminal",
+        "datafono",
+        "pos",
+        "kushki",
+        "smart pos",
+        "swipe card",
+        "debit",
+        "credit",
+        "approved",
+        "declined",
+        "terminal",
+        "charge by card",
+        "receipt"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "MESAPAY works with two kinds of card reader: the Kushki card reader, which receives the charge straight from MESAPAY, and your business's own card reader, from any other provider, where you mark the result. MESAPAY enables both payment methods for your business.\n\n## With the Kushki card reader\n\n1. In the checkout, choose the tip and tap **Charge by card reader**.\n2. If you have an assigned card reader (in Settings › Card readers, **Assigned waiter**), the charge goes straight to that device and the screen waits for the result. Run the customer's card.\n3. If you don't have an assigned card reader, the charge waits in [Floor](/operator/serve), under **Requested card terminal**. Take the card reader to the table and tap **Charge $…**. You'll see **Sending to terminal…** and the charge goes to the business's first active card reader.\n4. When the card reader approves, the bill is paid and you see the final screen.\n\nIf the guest chooses **Card with card reader** on their phone, the request shows in Floor, under **Requested card terminal**, and you charge it as in step 3.\n\nTo register and assign card readers, see [Set up card readers and assign them to waiters](/operator/ayuda/impresion-y-equipos/datafonos).\n\n## With the business's own card reader\n\n1. In the checkout, tap **Charge by merchant's card reader**. MESAPAY doesn't send anything to your card reader: it only notes that you'll charge there.\n2. Run the card on your card reader.\n3. In [Floor](/operator/serve), on the table's card (**Merchant's own card terminal**), mark the result: **Approved** or **Declined**. You can also tap **Confirm payment received** on the table sheet or at the top of the checkout.\n4. After **Approved**, Floor asks **Invoice for the customer?**.\n\n> ⚠ **Approved** and **Confirm payment received** record the payment without asking for confirmation. Tap them only once your card reader has approved the transaction.\n\nIf the guest chooses **Card (merchant's card reader)** on their phone, the request shows in Floor and is handled the same way.\n\nCard reader payments don't go into the cash box: at the shift close-out they show on their own line by payment method.\n\n## The Datáfono user and Live tables\n\nIf someone on your team is dedicated to charging with the card reader, create a user with the Datáfono role for them. When they sign in they see **Live tables**: every table, with the ones that asked to pay first (**📱 Requested terminal** or **💵 Requested cash**).\n\n1. Tap the table.\n2. Under **Pending payments**, tap **Charge $… with terminal** or **Confirm cash received**.\n\nThis screen doesn't start charges on its own: if the customer hasn't asked to pay yet, you'll see a note that it will show up there once they do.\n\n## Common cases\n\n- **I don't see Charge by card reader**: that payment method isn't enabled for your business. Contact support.\n- **No active card terminal registered…**: no card reader is marked as active. Activate or add one in [Card readers](/operator/settings/datafonos).\n- **We couldn't send the charge to the card reader.** or **We couldn't send to the card terminal.**: check the card reader is on and connected and that its serial number is registered correctly. Try again from Floor.\n- **The card was declined**: you'll see the bank's message. Try again or charge with another method. The guest sees **Your payment wasn't approved**.\n- **A … payment of … is waiting for the provider's confirmation**: there's already an electronic charge in progress for that bill. Wait for the result before charging another way.\n- **The charge was sent but no answer came back**: the payment stays pending. After more than 30 minutes it shows as **Needs review** in Payments, and an administrator resolves it with **Reconcile payment**. See [Review payments, refund one or reconcile](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Floor (waiter app)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Go to Card readers",
+          "href": "/operator/settings/datafonos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "dividir-la-cuenta",
+      "title": "Split the bill or combine payment methods",
+      "summary": "Charge the bill in equal parts, per person or in several payments with different methods, for example part in cash and the rest by card reader.",
+      "keywords": [
+        "split",
+        "split the bill",
+        "split evenly",
+        "per person",
+        "separate checks",
+        "pay your own",
+        "mixed payment",
+        "combine methods",
+        "half cash",
+        "half card",
+        "partial payment",
+        "balance",
+        "remaining"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "When a table doesn't pay all at once, the checkout lets you split the bill or charge it in several payments. The bill stays open until all the food is paid, and a single invoice is generated at the end.\n\n## Choose how to charge\n\nIn the checkout, **How to charge?** has four options:\n\n- **All**: the whole bill.\n- **Split evenly**: divides by a number of people.\n- **Individual**: just one person's items.\n- **Combine methods**: cash and other methods in several payments.\n\nAt the counter there's only **All** and **Combine methods**.\n\n## Split evenly\n\n1. Tap **Split evenly**.\n2. Under **Split between**, use the − and + buttons to choose how many people, from 2 to 20.\n3. You'll see **To charge (1 of N)** with one person's share. Choose the tip and charge with that person's method.\n4. Open the checkout again for the next person.\n\n> ⚠ The split is calculated on what's still owed and goes back to 2 people every time you open the checkout. If there were 4 and one already paid, split between 3 for the next charge.\n\n## Individual\n\n1. Tap **Individual**. You'll see the names guests left when ordering from the menu, with what each one ordered.\n2. Pick the person. Their share is the sum of their dishes.\n3. Choose the tip and charge.\n\nIf nobody left their name when ordering, **Individual** is disabled: use **Split evenly**.\n\n> ⚠ The **Individual** amount doesn't subtract the bill's discount and doesn't know whether that person already paid. Check the amount before charging.\n\n## Combine methods: cash and card reader\n\nUse it when one person pays part in cash and part by card, or when each person pays with a different method.\n\n1. Tap **Combine methods**.\n2. Choose the **Tip for the whole account**. It's chosen once and spread across the payments: it isn't added in full to each one.\n3. Under **Amount for this payment**, type how much is paid with the first method (it includes that part's tip), or tap **Collect remaining balance**. Below you see **After this payment, $… will remain.**\n4. Tap the method: **Receive in cash**, **Charge by card reader** or **Charge by merchant's card reader**.\n5. Once confirmed you'll see **Payment recorded. You can collect the balance using another method.** Under **Account payments** you see the **Payments received** and the **Remaining balance with tip**, and the amount fills in with what's left.\n6. Charge the balance with the next method. When the bill is paid you see the final screen.\n\nDetails for each method:\n\n- **Merchant's card reader**: the payment stays at the top as pending. Tap **Confirm payment received** when your card reader approves it, or **This payment was not received** if it didn't go through. While it's pending you can't record another payment.\n- **Assigned Kushki card reader**: the screen waits for the result and returns to the balance when the card reader approves. With no assigned card reader, the charge goes to Floor and you leave **Combine methods**.\n- **Cash**: works as always, with change and change kept as a tip. See [Charge in cash and give change](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n\n**Charge on credit** and the courtesy close aren't available in **Combine methods**. Only cash goes into the cash box; each payment is recorded separately. At the counter, preparation starts once the bill is fully paid.\n\n## Common messages\n\n- **The amount exceeds the remaining balance.**: lower the amount or tap **Collect remaining balance**.\n- **The payment must be at least $1.**\n- **Include the remaining cents in this payment or choose a smaller amount.**: the balance left would be too small to charge later.\n- **Adjust the amount so only tip is not left outstanding.**\n- **Confirm or dismiss the pending payment above before recording another.**\n- **An electronic payment is in progress. Wait for its outcome before collecting another part.**\n- **Check the same payment**: shows up if the response to a cash charge was lost. It checks the same payment without duplicating it.\n\nGuests can also split from their phone, with **All**, **Split evenly** or **Just mine**. See [How guests pay](/operator/ayuda/experiencia-del-comensal/como-paga-el-comensal).\n",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "pagos-pendientes-del-comensal",
+      "title": "Confirm the payments the guest requested",
+      "summary": "When the guest chooses to pay in cash or by card reader on their phone, the request reaches Floor and the table. Here's how to confirm it, dismiss it or replace it by charging another way.",
+      "keywords": [
+        "pending payment",
+        "payment request",
+        "guest asked to pay",
+        "confirm payment",
+        "confirm payment received",
+        "pending cash",
+        "pending card reader",
+        "online payment in progress",
+        "replace",
+        "dismiss",
+        "can't charge",
+        "blocked"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "When a guest chooses on their phone to pay in cash or by card reader, MESAPAY doesn't mark the bill as paid: it creates a request that someone on the team confirms once they get the money. Online payments (card, PSE and Apple Pay) confirm themselves.\n\n## Where they show up\n\n- In [Floor](/operator/serve): **Cash charges** for cash and **Requested card terminal** for the Kushki card reader or the business's own.\n- On the table sheet and at the top of the checkout: the notice **The guest asked to pay with** and the method (**Cash** or **Merchant's card terminal**), with the amount, **Includes a $… tip** and, for cash, **Says they will pay with $…**.\n- In **Live tables**, the Datáfono user's screen.\n- If charging is reserved for the administrator, the full-screen **Bill requested** alert also appears.\n\n## Confirm the payment\n\n1. Collect from the customer: take the cash or run the card.\n2. Tap **Confirm payment received**, or **Record charge** in Floor.\n3. For cash, **Cash charge** opens so you can record what you received and the change. See [Charge in cash and give change](/operator/ayuda/cobro-y-caja/cobrar-en-efectivo).\n4. With the merchant's card reader, the payment is approved instantly.\n\nIf the request is for the Kushki card reader, you charge it from Floor with **Charge $…**. See [Charge with a card reader](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).\n\n> ⚠ With the merchant's card reader, **Confirm payment received** approves the payment without asking. Tap it only once your card reader has approved the transaction.\n\nOnce you confirm, the guest sees **Payment received!** (cash) or **Payment approved!** (card reader) on their waiting screen.\n\n## If you charge another way\n\nIf the customer changes their mind, for example they asked for cash and end up paying by card, just charge with the other method. As the notice says: **If you charge another way, this request is replaced automatically.** This applies to cash and merchant's card reader requests, including when you close the bill on credit or as a courtesy.\n\nIn **Combine methods**, a merchant's card reader request can be dismissed with **This payment was not received**. MESAPAY asks you to confirm: only do it if you didn't receive the money.\n\n## Online payment in progress\n\nIf the guest is paying by card, PSE, Apple Pay or Kushki card reader, you'll see **Online payment in progress**. That payment isn't replaced: wait until the provider approves or declines it and tap **Refresh balance**. If you try to charge another way, you'll see **A … payment of … is waiting for the provider's confirmation**.\n\n- If it's a Kushki card reader request nobody has sent to the device yet, send it from Floor with **Charge $…**.\n- If more than 30 minutes go by with no answer, the payment shows in Payments as **Needs review** and an administrator resolves it with **Reconcile payment**. See [Review payments, refund one or reconcile](/operator/ayuda/cobro-y-caja/cobros-reembolsos-y-conciliacion).\n\n## Common cases\n\n- **Only the administrator can confirm this payment.**: charging is reserved for the administrator. Let them know so they confirm it.\n- **The payment could not be confirmed. Refresh and try again.**: refresh the screen. If your venue uses **Shift by waiter**, check the waiter has their shift open.\n- **The guest's screen says Payment cancelled**: this happens when the team charged another way and the cash request was replaced. The bill was paid: the guest can see it in their order.\n",
+      "links": [
+        {
+          "label": "Go to Floor",
+          "href": "/operator/serve"
+        },
+        {
+          "label": "Go to Floor (waiter app)",
+          "href": "/mesero/salon"
+        },
+        {
+          "label": "Go to Payments",
+          "href": "/operator/payments"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "imprimir-la-precuenta",
+      "title": "Print the pre-bill",
+      "summary": "Hand the customer the breakdown of what they ordered before they pay, with the suggested tip. The pre-bill isn't an invoice and doesn't use your invoice numbering.",
+      "keywords": [
+        "pre-bill",
+        "prebill",
+        "check",
+        "bill preview",
+        "print the bill",
+        "receipt",
+        "ticket",
+        "suggested tip",
+        "itemized bill",
+        "print"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "The pre-bill is the slip you take to the table so the customer can check what they ordered before paying. It's not an invoice: it doesn't use your invoice numbering or close the bill, so you can print it as many times as needed.\n\n## Print it\n\n1. In [Tables](/operator/tables), open the table's sheet.\n2. Tap **Print pre-bill**. You'll see **Sending pre-bill…** and then **Pre-bill sent to** with the printer's name.\n3. To see it on screen, tap **View pre-bill**. From there you can also tap **Print**, and go back with **Back to Tables**.\n\nThe buttons show while the bill is open and has items. Administrators and waiters can use them, even when charging is reserved for the administrator.\n\n## Where it prints\n\n- On the print agent's invoice printer: the one you chose in Settings › Network printers, under **Printer for invoices**, or, if you didn't choose one, the active invoice-type printers. See [Check your printers from the panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- If you have no invoice printer, you'll see **No receipt printer: printing from the browser instead.**\n- If the print agent isn't responding, you'll see **The print agent is not responding: printing from the browser instead.**\n- An administrator also sees the **Choose a print-agent printer** link to set it up.\n\n## What's on it\n\n- The business name, tax ID, address and phone.\n- **PRE-BILL** and **This document is not an invoice**.\n- The date, the table, the bill code and the waiter.\n- Grouped dishes, subtotal, included tax, discount and total.\n- If there were payments already: **Paid** and **Balance due**.\n- **Suggested tip 10%** and **Total with tip**, calculated on what's still owed, with a note that the tip is voluntary.\n\nThe pre-bill's suggested tip is always 10%. At checkout, the customer can choose another.\n\nThe pre-bill prints in the language the order was placed in.\n\n## Common cases\n\n- **I don't see Print pre-bill**: the bill was already paid, was cancelled or has no dishes.\n- **The pre-bill is not available: the bill is already closed or has no items.**: this happens when you open **View pre-bill** for a closed or empty bill.\n- **The pre-bill could not be printed.**: check the print agent. See [What to do when a ticket or invoice doesn't print](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **The browser wouldn't print from here or open the tab.**: allow pop-ups for MESAPAY in your browser and try again.\n- **The customer wants the invoice**: the invoice is generated when you charge. See [Charge a bill step by step](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Go to Network printers",
+          "href": "/operator/settings/impresoras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobrar-a-credito",
+      "title": "Sell on credit and record payments",
+      "summary": "Put the bill on a trusted customer's tab, control their limit and record their payments when they pay you. Credit sales don't go into the cash box.",
+      "keywords": [
+        "credit",
+        "on account",
+        "tab",
+        "receivables",
+        "debt",
+        "customer payment",
+        "pay later",
+        "regular customer",
+        "company",
+        "credit limit",
+        "statement",
+        "reverse payment",
+        "accounts receivable"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Credit sales are for customers who pay later, such as a company next door or a trusted regular: the bill closes as paid for the kitchen and the invoice, but it becomes the customer's debt. It doesn't go into the cash box: it goes to their receivables.\n\n## Enable the customer's credit\n\n1. Go to [Customers](/operator/clientes), under **Billing customers**.\n2. Tap **Create customer**, or **Edit** on an existing one.\n3. Under **Credit**, check **Allow paying on credit**.\n4. In **Credit limit**, type the most they can owe. If you leave it empty, there's no limit.\n5. In **Terms (days)**, type how many days they have to pay (30 by default).\n6. Tap **Save customer** or **Save changes**.\n\nIn the list, the customer shows **Credit**, their **Debt** (or **No debt**) and **Limit $… · Available $…**.\n\nThe terms show as the due date on the electronic invoice and in the receivables report. MESAPAY doesn't block the customer when it's overdue: the only cap is the limit.\n\n## Charge on credit\n\n1. In the checkout, tap **Charge on credit**. Below it reads **Doesn't enter the cash drawer: it goes to the customer's receivables.**\n2. If the bill already has a linked customer, you'll see their name, **Owes today** and, if they have a limit, **Limit · Available**. Otherwise, search for them in **Customer with credit**. To pick someone else, tap **Change**.\n3. Check the **The whole outstanding balance is charged** line, with the food, the tip and the total.\n4. Tap **Confirm $… on credit**.\n\n- Everything still owed is charged, plus the tip: there's no partial credit.\n- If the customer has a commercial discount, it's applied before the bill is charged.\n- **Charge on credit** isn't available in **Combine methods**.\n- Waiters can charge on credit too, unless charging is reserved for the administrator. With **Shift by waiter** they need their shift open.\n\nIn the shift detail, the sale shows as **Customer credit**. It counts toward what the shift collected, but not toward expected cash.\n\n## Record a payment\n\n1. In **Billing customers**, tap **Record payment** next to the customer. It's only active if they owe something.\n2. In **Payment from …**, check the **Amount** (it comes filled with the whole debt and can't exceed it) and the **Date**.\n3. Under **Account the money went into**, choose where you received the money, for example the main cash account or your bank account.\n4. Optionally add a **Note (optional)** and tap **Record payment**.\n5. You'll see **Payment recorded. Current debt: $…**.\n\nPayments are applied to the oldest bill first.\n\n> ⚠ A cash payment isn't added to the shift's cash box automatically. If you received it in the drawer, also record it as a deposit on the Cash box card so the count balances. See [Keep the cash box: float, deposits and withdrawals](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Statement\n\nTap **Statement** to see the **Current debt** and the activity: **Date**, **Item**, **Charge**, **Payment** and **Balance**. Each charge shows the bill, the table, whether it includes a tip and whether it's **Outstanding** or **Settled**.\n\nIf you recorded a payment by mistake, tap **Reverse payment** and confirm. The payment is deleted and the debt goes back up.\n\nAdministrators create customers and record and reverse payments.\n\n## Common cases\n\n- **I don't see Charge on credit**: no customer has **Allow paying on credit** checked, or you're in **Combine methods**.\n- **Exceeds the customer's credit limit. Available: $…**: the debt plus this bill goes over the limit. Raise the limit, record a payment or charge another way.\n- **… doesn't have credit enabled. Choose another customer.**: edit the customer and check **Allow paying on credit**.\n- **The payment cannot exceed the debt ($…).**: lower the amount.\n- **Choose a valid cash account.**: pick an account from the list.\n",
+      "links": [
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "descuentos-para-clientes",
+      "title": "Give your customers discounts",
+      "summary": "There are two customer discounts: the registered diner's, applied when you identify them at the table, and a billing customer's commercial discount. Here's how to set them up and apply them.",
+      "keywords": [
+        "discount",
+        "percentage",
+        "regular customer",
+        "vip",
+        "registered diner",
+        "identify customer",
+        "id number",
+        "commercial discount",
+        "company",
+        "agreement",
+        "perk",
+        "remove discount",
+        "loyalty"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "MESAPAY has two customer discounts. The registered diner discount is for people who created their account at your restaurant from the menu. The commercial discount is for your billing customers, such as a company with an agreement. They don't stack.\n\n## Registered diner discount\n\nTo set it up:\n\n1. Go to [Customers](/operator/clientes). Under **Registered diners**, search for the person with **Exact ID number or email** or pick them from the list.\n2. Open their profile. Under **Customer discount**, type the **Percentage**, a whole number from 1 to 100, and optionally a **Note (optional)**.\n3. Tap **Activate discount**. If they already had one, tap **Save changes**. To remove it, tap **Deactivate**.\n\nIt's applied to the table's bill in three ways:\n\n- If the guest signed in to their account and orders from the menu, it's applied on its own when they send the first order.\n- If there's already an order at the table, the guest who signed in opens their name in the menu and taps **I'm … · use my account**.\n- You or the waiter, from the table sheet: under **Diner**, type the **ID number or email** and tap **Identify**.\n\nThe discount applies to the table's whole bill. To remove it from one bill, tap **Remove discount**: the guest stays identified on that bill.\n\n> ⚠ You can only identify a guest or remove the discount before any payment: if the bill already has an approved or pending payment, you can't. Also, identifying the guest replaces any discount the bill already had with theirs, even if the previous one was bigger.\n\n## Billing customer's commercial discount\n\n1. In [Customers](/operator/clientes), under **Billing customers**, tap **Create customer** or **Edit**.\n2. Under **Discount**, check **Apply a commercial discount** and type the **Percentage**, from 0.01 to 50.\n3. Tap **Save customer** or **Save changes**.\n\nIt applies when you link the bill to that customer: in the checkout's **Customer** step, when charging them on credit or when requesting the invoice in their name. You'll see one of these notices:\n\n- **Customer discount X%: −$…. New total: $….**\n- **The bill already had a bigger discount (X%); it stays.**\n- **The customer's discount doesn't apply to this bill (it already has payments).**\n\n## The diner's history\n\nOn the registered diner's profile, **Invoices** shows what they've spent. Choose the range with **From**, **To** and **Apply**, or tap **This month**. At the top you see **Invoices**, **Total spent** and **Saved with discount**, and on each invoice **View invoice →**.\n\n## Common cases\n\n- **We couldn't find an account with those details at this restaurant. They can create one from the menu.**: the person has no account at your restaurant. See [The guest's account at your restaurant](/operator/ayuda/experiencia-del-comensal/cuenta-del-comensal).\n- **We couldn't identify the diner.**: the bill already has a payment or is being charged.\n- **I identified the wrong person**: tap **Remove discount** on that bill. For now there's no button to unlink them.\n- **The percentage must be a whole number from 1 to 100.**: type a number with no decimals.\n- **Enter a percentage between 0.01 and 50.**: the commercial discount can't go over 50%.\n",
+      "links": [
+        {
+          "label": "Go to Customers",
+          "href": "/operator/clientes"
+        },
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cortesias-y-productos-no-cobrados",
+      "title": "Courtesies, representation expenses and uncharged products",
+      "summary": "Close a bill as a courtesy, comp a dish with its reason and review in the reports everything that wasn't charged, with its value and who did it.",
+      "keywords": [
+        "courtesy",
+        "complimentary",
+        "on the house",
+        "comp",
+        "representation expenses",
+        "free dish",
+        "void dish",
+        "cancelled",
+        "report",
+        "uncharged products",
+        "gift",
+        "csv",
+        "waste"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Sometimes a bill or a dish isn't charged: a treat on the house, a dish that came out wrong or a customer who left without paying. MESAPAY records it with its reason and who did it: the dishes still use up inventory, but they don't count as sales.\n\n## Who can do it\n\nIn [Permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos):\n\n- **Allow complimentary bills** lets you close bills as a courtesy. In **Name the waiter sees** you can change what the button is called.\n- **Who can comp a bill or a dish?**: check **Administrator**, **Waiter** or **Terminal (card reader)**. Only **Administrator** is checked by default.\n\nThere's also a fixed rule: once the kitchen starts preparing a dish, only an administrator can cancel it or comp it. A delivered dish always counts as started. So, in practice:\n\n- **Comp** on a menu dish is for administrators only.\n- A waiter, if their role is checked, can only close as a courtesy a bill whose dishes haven't started being prepared.\n- The Datáfono (card reader) user has neither the table sheet nor the checkout, so checking **Terminal (card reader)** doesn't enable anything for them today.\n\n## Close a bill as a courtesy\n\n1. Open the checkout with **Charge the bill**.\n2. Tap **Complimentary (on the house)** (or the name you set).\n3. Under **Who was it given to?**, type who it was for. It's required.\n4. Tap **Close as courtesy**. The bill closes at $0 and you go back to Tables.\n\n- It only works if the bill has no payments: if part of it was already paid, it can't be closed as a courtesy.\n- It isn't available in **Combine methods**.\n- If the bill has dishes in preparation and you're not an administrator, you'll see **This bill includes dishes whose preparation has started. Only an administrator can close it as complimentary.**\n\n## Comp a dish\n\n1. On the table sheet, on a dish that was already delivered, tap **Comp**. On a dish that hasn't been delivered, the button is **Cancel**.\n2. In **Comp dish**, choose the **Reason**: **Customer didn't like it**, **Dish cold / poorly prepared**, **Wrong dish**, **Courtesy** or **Customer left without paying**. You can also type another reason, at least 3 letters long.\n3. Tap **Comp dish**. The dish comes off the bill and shows in the report.\n\nIf you don't have permission, you'll see **Only these roles can:** with the allowed roles, or **Once preparation starts, only an administrator can cancel or waive the charge for a dish.**\n\n## The reports\n\nThey're in the **Business** menu, or in [Close-out](/operator/reports), under **Sub-reports**:\n\n- [Representation expenses](/operator/reports/gastos-representacion): bills closed as a courtesy. It has two views, **Accounts and tables** and **Products**, and on each bill **View this account's products**.\n- [Uncharged products](/operator/reports/no-cobrados): everything that wasn't charged, with its type: **Representation expenses**, **Complimentary product**, **Cancelled product** or **Cancelled round**. The **Type** filter shows **All types**, **Representation expenses**, **Complimentary product** or **Cancellations**.\n\nTo filter:\n\n1. Choose the range: **Today**, **Last 7 days** (the default), **Last 30 days**, **This month** or **All history**, or type **From** and **To**.\n2. Optionally type in **Search** (product, reason, table or account) or in **Responsible person's email**.\n3. Tap **Apply filters**. To start over, **Clear filters**.\n\nAt the top you see **Product value**, **Accounts included**, **Product units** and **Product lines**, for everything filtered. The value is the menu price with its modifiers: it's not the inventory cost and it doesn't include the tip. Days follow your business day's cut-off time.\n\nTap **Download CSV** to take every row in the filter to a spreadsheet.\n\n## Common cases\n\n- **I don't see the courtesy button in the checkout**: check that **Allow complimentary bills** is on and your role is checked. It also doesn't show in **Combine methods**.\n- **Comp is disabled**: the dish already started being prepared and you're not an administrator, or your role isn't checked.\n- **No records for this filter**: try different dates or choose **All history**.\n",
+      "links": [
+        {
+          "label": "Go to Representation expenses",
+          "href": "/operator/reports/gastos-representacion"
+        },
+        {
+          "label": "Go to Uncharged products",
+          "href": "/operator/reports/no-cobrados"
+        },
+        {
+          "label": "Go to Permissions, tips and shifts",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cobros-reembolsos-y-conciliacion",
+      "title": "Review payments, refund one or reconcile",
+      "summary": "Find a payment in Payments, understand its statuses, refund a card, Apple Pay or Kushki card reader payment and resolve the ones left in Needs review.",
+      "keywords": [
+        "payments",
+        "charges",
+        "refund",
+        "give money back",
+        "reverse payment",
+        "card",
+        "kushki",
+        "reconcile",
+        "reconciliation",
+        "needs review",
+        "pending payment",
+        "declined payment",
+        "find payment"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Payments you see every payment at the restaurant, with its method and status. From the order's detail you can refund a card payment or resolve one whose result is unclear with the provider.\n\n## Find a payment\n\n1. Go to [Payments](/operator/payments), in the **Orders** menu.\n2. In **Search by order code**, type the bill's code or part of it.\n3. Pick a status: **All statuses**, **Needs review**, **Pending**, **Approved**, **Declined** or **Refunded**. Tap **Filter**.\n4. To go back to the full list, tap **Clear search**.\n\nEach row shows the date, the order, the table, the method, the card, the status and the amount. On card payments, tap the card (for example, Visa ···· 0063) to open **Payment details**: the amount charged, the tip, the cardholder, the approval code and the Kushki reference. Tap the order to open its detail.\n\n## Statuses\n\n- **Pending**: there's no answer yet, for example a guest's request or an online payment in progress.\n- **Approved**: the payment went through.\n- **Declined**: the payment didn't go through and nothing was charged.\n- **Refunded**: it was refunded in full.\n- **Needs review**: the result is unclear. This happens when the final answer for a charge or a refund never arrived, or when a Kushki or PSE payment has been pending for more than 30 minutes. The red link opens the order.\n\n## Refund a payment\n\nYou can only refund payments made by **Card**, **Apple Pay** or Kushki card reader that are **Approved** and not under review. Administrators do it.\n\n1. Open the order, from Payments or from [Orders](/operator/orders).\n2. Under **Payments**, tap **Refund** on the payment.\n3. In **Refund payment**, check the **Amount to refund**. It comes with what's left to refund and can't go over the **Max**. You can refund part of it. The amount includes the tip.\n4. Tap **Refund**. The money goes back to the customer's payment method through Kushki, and it can't be undone.\n\n- If you refund part of it, the payment stays **Approved** and shows **Refunded $…**. If you refund all of it, it becomes **Refunded**.\n- Cash, the business's own card reader, PSE, credit and vouchers can't be refunded from MESAPAY.\n- A refund doesn't void the bill's invoice.\n\n> ⚠ If you see **The operation is awaiting confirmation. Do not repeat the payment or refund.**, don't try again: the payment stays in **Needs review** until you reconcile it.\n\n## Reconcile a payment under review\n\nWhen a payment is in **Needs review**, an administrator sees **Reconcile payment** on the order's detail.\n\n1. First check the final result in Kushki.\n2. Under **Confirmed result**, choose what happened: **Charge approved** or **Charge declined**, **Refund completed** or **Refund not completed**, or **Reviewed with provider**, depending on the case.\n3. Type the **Reference or support case** (3 to 200 characters) and the **Verification evidence** (15 to 1,000).\n4. Check **I verified the final status and amount with the provider.**\n5. Tap **Save reconciliation**. You'll see **Reconciliation saved.**\n\nReconciling only updates the record in MESAPAY: it doesn't make a new charge or a refund. If you confirm a charge as approved, the bill counts it as paid.\n\n## Common cases\n\n- **I don't see Refund**: the payment isn't by card, Apple Pay or Kushki card reader, isn't approved, is under review or you're not an administrator.\n- **Couldn't process the refund.**: try again later or check the payment in Kushki.\n- **Could not save. Check the status before trying again.**: refresh the page; someone else may have already reconciled it.\n",
+      "links": [
+        {
+          "label": "Go to Payments",
+          "href": "/operator/payments"
+        },
+        {
+          "label": "Go to Orders",
+          "href": "/operator/orders"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "abrir-y-cerrar-el-turno",
+      "title": "Open and close the day's shift",
+      "summary": "Open the shift with the cash for making change and close it by counting the drawer. Each close-out shows sales by payment method, tips, consumption tax and the cash count difference.",
+      "keywords": [
+        "shift",
+        "close-out",
+        "cash count",
+        "balance the drawer",
+        "open drawer",
+        "close drawer",
+        "float",
+        "opening cash",
+        "business day",
+        "consumption tax",
+        "inc",
+        "short",
+        "over",
+        "end of day",
+        "z report"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The shift marks the start and end of the day's cash box. When you open it you declare how much cash you start with; when you close it you count the money and MESAPAY tells you whether it balances, with the detail of everything that was charged.\n\n## Open the shift\n\n1. Go to [Close-out](/operator/reports), in the **Business** menu, or tap **Close shift** at the top of the panel.\n2. If you see **No open shift**, tap **Open shift**.\n3. In **Initial cash in drawer**, type the money you start with to make change. It can be $0.\n4. Tap **Open shift**.\n\nOnly one venue shift can be open at a time, and administrators open and close it.\n\n> ⚠ Open the shift before the first charge: payments recorded with no open shift don't go into any close-out.\n\n## While the shift is open\n\nYou'll see **Shift open**, how long it's been open and the **Opening float**, plus **Charged**, **Tips**, **Cash in drawer (expected)** and **Closed bills**, the consumption tax and what was charged by each payment method. The Cash box card shows the cash live. See [Keep the cash box: float, deposits and withdrawals](/operator/ayuda/cobro-y-caja/la-caja).\n\n## Close the shift\n\n1. Charge or cancel the open bills. While there are any, you'll see **N open bills**, **Close or void these bills before closing the shift.** and **Go collect →**, and **Close shift** is disabled.\n2. Tap **Close shift**. **Cash count** opens with **Initial float**, **Cash collected** and **Expected cash in drawer**.\n3. If waiters have their shift open, leave **Also close waiter shifts** checked. You'll see how much each one has to hand over; that cash moves to the venue's box and counts toward the expected total.\n4. Count the money and type the total in **Cash counted physically**. It comes filled with the expected amount.\n5. Look at the **Difference**: **balances exactly ✓**, **over $…** or **short $…**. If there's a difference, explain why in **Notes (optional)**.\n6. Tap **Confirm close**.\n\n- The expected cash already subtracts the withdrawals and adds the deposits you recorded in the Cash box. That's why it may not equal **Initial float** plus **Cash collected**.\n- When you close the waiters' shifts together with the venue's, any shortfall from a waiter shows up in the overall difference.\n- Only bills opened during the shift block the close.\n\n## The business day\n\n- By default, the day runs from 5:00 to 5:00 the next day: a payment at 2 a.m. counts for the previous night. In Close-out you see it as **Business day: 5:00 to 5:00 the next day.**\n- To change the time, go to [Permissions, tips and shifts](/operator/ayuda/primeros-pasos/permisos-propinas-y-turnos), under **The business day starts at**.\n- Each close-out keeps the **Business day** when the shift opened, even if it closes after midnight. Changing the time later doesn't move earlier close-outs.\n- To see another day, use **Date** and **View**, the arrows or **Today**.\n\n## Recent close-outs and each shift's detail\n\n**Recent close-outs** lists the last 10 close-outs with their **Business day**, duration, INC (consumption tax), float, expected, counted and difference. Tap **Open →** to see the detail, or **View all →** to go to **Closed shifts**.\n\nThe detail, **Shift close-out**, prints with **Print** and includes:\n\n- **Summary**: **Gross sales**, **Food (no tip)**, **Tips** and **Payments · orders**.\n- **Consumption tax (INC)**: the consumption tax included in what the shift collected.\n- **By payment method**: payments, gross, tip and food for each method.\n- **By waiter**: who collected, how many payments, the gross, the cash and the tip.\n- **Cash and count**: **Initial base**, **Received in cash**, **Change given**, **Expected in drawer**, **Declared at close**, **Difference** and **Notes**.\n- The list of every payment in the shift.\n\nThe consumption tax is taken from the invoices issued. Payments that don't have an invoice yet show as payments without a tax breakdown and don't stop you from closing. If your restaurant charges VAT (IVA) instead of consumption tax, that card stays at $0.\n\n## Tips\n\nTips show in the total, by payment method and by waiter. MESAPAY doesn't distribute them: with **Shared**, you decide how to split them; with **By waiter**, each waiter sees their own in their app.\n\n## Common cases\n\n- **Close shift is disabled**: there are open bills. Charge them, cancel them or move them to another table.\n- **The Summary's sales for today don't match Charged**: the Summary's sales exclude taxes and tips; **Charged** includes everything collected in the shift, with taxes, tips and every method, credit included.\n- **ya hay un turno abierto** (a shift is already open): someone else opened it. Refresh the page.\n- **El monto declarado está fuera de rango.** (the declared amount is out of range): the maximum is $100,000,000.\n",
+      "links": [
+        {
+          "label": "Go to Close-out",
+          "href": "/operator/reports"
+        },
+        {
+          "label": "Go to Closed shifts",
+          "href": "/operator/shifts"
+        },
+        {
+          "label": "Go to Permissions, tips and shifts",
+          "href": "/operator/settings/staff-policies"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "la-caja",
+      "title": "Keep the cash box: float, deposits and withdrawals",
+      "summary": "The Cash box card tells you how much cash should be in the drawer. Record money going out and coming in outside of charges, fix the float and review the waiters' boxes.",
+      "keywords": [
+        "cash box",
+        "drawer",
+        "cash",
+        "in box",
+        "float",
+        "opening cash",
+        "withdrawal",
+        "deposit",
+        "petty cash",
+        "supplier payment",
+        "waiter boxes",
+        "consolidated",
+        "cash count"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The Cash box card shows, live, how much cash should be in the shift's drawer. Use it to note money that goes out or comes in outside of charges, so the close-out count balances.\n\n## Where it is\n\nOn the [Summary](/operator) and in [Close-out](/operator/reports), when you're viewing **Today**. If no shift is open, it reads **No open shift — the cash box opens when the venue shift starts.** Open the shift in Close-out. See [Open and close the day's shift](/operator/ayuda/cobro-y-caja/abrir-y-cerrar-el-turno).\n\n## How In box is calculated\n\n**In box** is:\n\n- the **Opening float**, the cash you opened with,\n- plus **Cash collected**,\n- plus **Deposits**,\n- minus **Withdrawals**,\n- and, if your venue uses **Shift by waiter**, minus **Floats handed to waiters** and plus **Returned by waiters**.\n\nOnly cash counts: card readers, cards, credit and vouchers aren't drawer money. A cash tip stays inside the payment, so it is in the drawer.\n\nWith **Single venue shift**, all cash counts, including what waiters collect. With **Shift by waiter**, each waiter's cash is in their box until they close their shift.\n\n## Record a withdrawal or a deposit\n\n1. On the Cash box card, tap **Record withdrawal**. The button shows while a shift is open.\n2. Choose **Withdrawal (cash out)** or **Deposit (cash in)**.\n3. Type the **Amount** and the **Concept**, for example \"supplier payment\" or \"withdrawal\".\n4. Tap **Record**.\n\nThe movement shows under **Movements**, with the name of whoever recorded it.\n\n- It can't be edited or deleted: if you made a mistake, record the opposite movement.\n- These movements only adjust the drawer's cash. If it's a business expense, also record it as an expense in Accounting, if you have that module.\n\n## Fix the float\n\nTap **Edit** next to **Opening float** to open **Edit venue float** and type the right amount. Every change is logged.\n\nWith **Shift by waiter** you can also fix a waiter's float (**Edit …'s float**). A waiter's float can never be larger than the venue's, and the venue's can't go below the highest float of a waiter with an open shift.\n\n## Waiter boxes\n\nWith **Shift by waiter** you'll see:\n\n- **Waiter boxes**: for each waiter with an open shift, their **Float**, what they **Collected** and what they **Must return**. With no waiters on shift, you'll see **No waiter with an open shift.**\n- **Consolidated (venue + waiters)**: all the restaurant's cash, including what waiters are holding.\n\nA waiter's box closes when they close their shift in their app, or when you close the venue's shift with **Also close waiter shifts**.\n\n> ⚠ If you close the venue's shift without closing the waiters' shifts, their boxes stop showing on this card. Use **Also close waiter shifts** when closing.\n\n## Common cases\n\n- **I don't see Record withdrawal**: there's no open shift.\n- **Couldn't record it.**: check the amount and the concept and try again.\n- **The venue's float can't be less than …'s**: lower that waiter's float first.\n- **The count is over and I received a credit payment in cash**: customer payments aren't added to the cash box automatically. Record it as a deposit.\n- **The count is short**: check whether money left the drawer without being recorded as a withdrawal.\n",
+      "links": [
+        {
+          "label": "Go to Summary",
+          "href": "/operator"
+        },
+        {
+          "label": "Go to Close-out",
+          "href": "/operator/reports"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

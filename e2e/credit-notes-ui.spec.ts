@@ -90,13 +90,13 @@ for (const width of [390, 1440]) {
     }
   });
 
-  test(`credit note numbering conflict keeps its explanation and safe actions at ${width}px`, async ({ page }) => {
+  test(`credit note numbering conflict explains itself and offers discard and reissue at ${width}px`, async ({ page }) => {
     const key = randomUUID(); const password = `Credit-${key}`;
     const restaurant = await db.restaurant.create({ data: { name: "Credit note conflict UI", slug: `credit-conflict-${key}`, enabledModules: ["einvoicing"] } });
     const user = await db.user.create({ data: { email: `credit-conflict-${key}@example.test`, role: "operator", restaurantId: restaurant.id, passwordHash: await bcrypt.hash(password, 4) } });
     const dianRule = "Regla: 90, Rechazo: Documento procesado anteriormente.";
     const note = {
-      id: "conflict-note", documentNumber: "NC2", number: 2, canRetry: false, canAbandon: false,
+      id: "conflict-note", documentNumber: "NC2", number: 2, canRetry: false, canAbandon: true, failure: "numbering_conflict", reissue: { prefix: "NCM", nextNumber: 2 },
       abandonedAt: null, originalInvoiceId: "invoice1", reasonCode: "2", reasonText: "Ajuste solicitado por cliente",
       createdAt: "2026-10-15T21:09:58Z", environment: "1", subtotalCents: 100001, taxCents: 8000, totalCents: 108001,
       snapshot: { original: source.original, lines: proposal.lines, recipientEmail: null },
@@ -124,13 +124,14 @@ for (const width of [390, 1440]) {
       await page.goto(`${base}/operator/facturas/notas-credito`);
       await page.getByRole("button", { name: t.detailNote.replace("{number}", note.documentNumber), exact: true }).click();
       const detail = page.locator('section[aria-labelledby="credit-detail-title"]');
-      const explanation = detail.getByText(t.error_dian_numbering_conflict, { exact: true });
+      const explanation = detail.getByText(t.failure_numbering_conflict.replace("{prefix}", "NCM"), { exact: true });
       await expect(explanation).toBeVisible();
       await expect(explanation).toHaveCount(1);
       await expect(detail.getByText(dianRule, { exact: true })).toHaveCount(1);
       await expect(detail).not.toContainText("dian_numbering_conflict");
       await expect(detail.getByRole("button", { name: t.retry, exact: true })).toHaveCount(0);
-      await expect(detail.getByRole("button", { name: t.abandon, exact: true })).toHaveCount(0);
+      await expect(detail.getByRole("button", { name: t.abandon, exact: true })).toBeVisible();
+      await expect(detail.getByRole("button", { name: t.reissue, exact: true })).toBeVisible();
       await expect(detail.getByRole("button", { name: t.checkStatus, exact: true })).toBeEnabled();
       await detail.getByRole("button", { name: t.checkStatus, exact: true }).click();
       await expect(page.getByRole("status").filter({ hasText: t.updated })).toBeVisible();

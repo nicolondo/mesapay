@@ -126,9 +126,14 @@ describe('credit-note fiscal reservations in PostgreSQL', () => {
         expect(Buffer.from(after.dianDocument!.xmlZip!)).toEqual(xmlZip);
         expect(after.series.nextNumber).toBe(original.series.nextNumber);
         expect((await getCreditNoteSource(tenants[0], invoiceIds[3])).remainingTotalCents).toBe(before.remainingTotalCents);
-        expect(await getCreditNote(tenants[0], original.id)).toMatchObject({ canRetry: false, canAbandon: false });
-        await expect(abandonCreditNote(tenants[0], original.id, null)).rejects.toThrow('cannot_abandon');
+        // El rechazo regla 90 es definitivo: no se reintenta, pero sí se puede descartar.
+        expect(await getCreditNote(tenants[0], original.id)).toMatchObject({ canRetry: false, canAbandon: true, failure: 'numbering_conflict' });
+        // La serie con conflicto deja de ser la activa: sin otra serie aceptada, se bloquea.
+        expect(await getCreditNoteSeries(tenants[0])).toMatchObject({ prefix, conflictPrefix: prefix, blocked: true });
+        await expect(configureCreditNoteSeries(tenants[0], null, { prefix })).rejects.toThrow('series_in_conflict');
         await expect(getCreditNote(tenants[1], original.id)).rejects.toMatchObject({ status: 404 });
+        // Limpieza: esta evidencia sintética no debe dejar fuera de uso la serie de las pruebas siguientes.
+        await db.dianDocument.update({ where: { id: original.dianDocument!.id }, data: { state: 'error', lastError: 'transport_error', errors: ['transport_error'], responseXml: null } });
     });
     it('configures a first number and never rewinds a global fiscal series', async () => {
         const current = await getCreditNoteSeries(tenants[0]);

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { emitDianCreditNote } from "./emitCreditNote";
 import { MAX_ATTEMPTS } from "./retry";
+import { CREDIT_NOTE_SWEEP_STOP_ERRORS } from "./creditNoteDeliveryState";
 
 /** Fiscal reservations persist through failures. Rejected/abandoned notes are
  * never submitted by this queue. Pending documents are queried by CUDE first. */
@@ -10,8 +11,10 @@ export async function sweepCreditNotes(opts:{now?:Date;limit?:number;budgetMs?:n
   const docs=await db.dianDocument.findMany({
     where:{kind:"credit_note",creditNote:{is:{abandonedAt:null}},AND:[
       {OR:[{state:{in:["to_send","sent","pending"]}},{state:"error",OR:[{attempts:{lt:MAX_ATTEMPTS}},{xmlZip:{not:null}}]}]},
-      // null nextAttemptAt means due, so a confirmed collision needs an explicit exclusion.
-      {OR:[{lastError:null},{lastError:{not:"dian_numbering_conflict"}}]},
+      // null nextAttemptAt means due: a confirmed collision and a note «No
+      // recibida por la DIAN» need an explicit exclusion. Only a manual status
+      // query (or a manual resend) can still reach them.
+      {OR:[{lastError:null},{lastError:{notIn:[...CREDIT_NOTE_SWEEP_STOP_ERRORS]}}]},
       {OR:[{nextAttemptAt:null},{nextAttemptAt:{lte:now}}]},
       {OR:[{leaseExpiresAt:null},{leaseExpiresAt:{lte:now}}]},
     ]},

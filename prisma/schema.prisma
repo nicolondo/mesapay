@@ -1542,6 +1542,9 @@ model Order {
   voucherRedemptions VoucherRedemption[]
 
   @@index([restaurantId, status])
+  // Ventas por fecha de pago (análisis de ventas, Resumen, libros): cuentas
+  // pagadas de un comercio en un rango de `paidAt`, sin recorrer su historia.
+  @@index([restaurantId, status, paidAt])
   @@index([tableId])
   @@index([restaurantId, needsWaiter])
   @@index([dinerId])

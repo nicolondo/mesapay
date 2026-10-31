@@ -1,5 +1,511 @@
 {
   "title": "Carta y producción",
   "description": "Carta, modificadores, traducciones, insumos, recetas, producción, inventario y compras.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "crear-la-carta",
+      "title": "Crea tu carta: categorías y productos",
+      "summary": "Crea las categorías de tu carta y agrega cada producto con su precio, tiempo de preparación, descripción, foto, estación y etiquetas, desde la pantalla Menú.",
+      "keywords": [
+        "carta",
+        "menu",
+        "platos",
+        "productos",
+        "categorias",
+        "crear plato",
+        "agregar producto",
+        "precio",
+        "foto del plato",
+        "descripcion",
+        "tiempo de preparacion",
+        "estacion",
+        "etiquetas",
+        "platos fuertes",
+        "fuertes juntos",
+        "descripcion con ia"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "La carta se arma en **Menú**: primero creas las categorías (por ejemplo, \"Para empezar\", \"Principales\", \"Postres\") y dentro de cada una agregas los productos. Lo que guardas aquí es lo que ve el comensal al escanear el QR y lo que pide el mesero.\n\n## Crea una categoría\n\n1. En el menú lateral, entra a **Carta › Menú**.\n2. Toca **+ Nueva categoría**.\n3. Escribe el **Nombre de la categoría** (hasta 40 caracteres).\n4. Si es la categoría de los platos principales, marca **Categoría de platos fuertes** (más abajo te explicamos para qué sirve).\n5. Toca **Crear**. La categoría queda al final; después puedes subirla o bajarla con las flechas que aparecen junto a su nombre.\n\n## Agrega un producto\n\n1. En la categoría, toca **+ Producto**.\n2. Completa el **Nombre** (hasta 60 caracteres) y el **Precio (COP)**.\n3. En **Prep (min)** escribe el tiempo de preparación en minutos. Arranca en 10 y acepta decimales: 0.5 son 30 segundos.\n4. Si quieres, escribe la **Descripción (opcional)** o toca **Generar descripción con IA**.\n5. Deja marcado **Llevar inventario** si el producto debe descontar los insumos de su receta al venderse. Desmárcalo para venderlo sin descontar inventario; la receta se conserva para consultar costos.\n6. Toca **Crear producto**.\n\nEl producto queda **Disponible** y ya sale en la carta.\n\n## Completa el producto: foto, estación y etiquetas\n\nToca el producto para abrir **Editar producto**. Ahí, además de los datos anteriores, encuentras:\n\n- **Foto**: toca **Subir foto**, arrastra una imagen encima o pégala con Ctrl+V (Cmd+V en Mac) sin tener ningún campo seleccionado. Acepta JPG, PNG o WebP.\n- **Categoría**: para pasar el producto a otra categoría o subcategoría.\n- **Estación**: a dónde va la comanda. Por defecto dice **Usar la de la categoría** y toma la que definiste en Estaciones de preparación. Cámbiala solo para excepciones, como un jugo natural que se prepara en la cocina aunque su categoría vaya al bar.\n- **Etiquetas**: toca las que apliquen, hasta 8 por producto. La lista se arma en Etiquetas de platos, desde **Editar lista →**.\n- **Modificadores**: tamaños, término, salsas o adiciones. Ver [Agrega modificadores y adiciones](/operator/ayuda/carta-y-produccion/modificadores).\n\nToca **Guardar** para aplicar los cambios. Con la hoja abierta puedes pasar al producto anterior o al siguiente con las flechas del teclado, y cerrarla con Esc.\n\n## La descripción con IA\n\n**Generar descripción con IA** propone un texto a partir del nombre del plato y de lo que ya escribiste en la descripción: si anotas los ingredientes principales, la propuesta sale más precisa. Aparece en **Descripción sugerida**, donde puedes corregirla antes de tocar **Usar descripción** o **Descartar**. Se publica cuando guardas el producto.\n\n> Revisa siempre los ingredientes que menciona la IA antes de usarla: el comensal la lee como cierta.\n\nPara generar descripciones de muchos platos a la vez, ver [Ordena la carta y edita en bloque](/operator/ayuda/carta-y-produccion/organizar-la-carta).\n\n## La categoría de platos fuertes\n\nMarca **Platos fuertes** en la categoría de los platos principales. Cuando el comensal elige al pedir que los fuertes salgan juntos, la cocina retiene esos platos hasta que todos estén listos para servirse a la vez. En una categoría ya creada, la casilla está en su encabezado; en el celular, en el botón **•••**.\n\n## Errores frecuentes\n\n- **Revisa el nombre y el precio.**: falta el nombre o el precio no es un número válido.\n- **Tiempo de preparación entre 0.1 y 120 minutos.**: corrige **Prep (min)**.\n- **No se pudo guardar: revisá el campo «…»**: ese campo quedó vacío o pasa el límite. El nombre admite 60 caracteres, la descripción 500 y el precio llega hasta 5.000.000.\n- **Sale un error al crear un producto con una descripción larga**: al crear, la descripción admite hasta 240 caracteres. Créalo con una descripción corta y complétala después en **Editar producto**, donde admite 500.\n- **Formato no válido. Usá JPG, PNG o WebP.**: la foto está en otro formato (por ejemplo, HEIC o PDF). Conviértela o toma una captura de pantalla.\n- **La generación con IA está desactivada por el administrador general.** o **El administrador general debe configurar la llave de IA de MESAPAY.**: la descripción con IA no está disponible por ahora. Escríbela a mano o escríbenos a soporte.\n- **Este comercio alcanzó el límite de solicitudes de IA. Inténtalo más tarde.**: espera un rato y vuelve a intentarlo.",
+      "links": [
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Ir a Estaciones de preparación",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Ir a Etiquetas de platos",
+          "href": "/operator/settings/etiquetas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "organizar-la-carta",
+      "title": "Ordena la carta, sepárala en cartas y edita en bloque",
+      "summary": "Elige si los platos van en orden alfabético o manual, ordena y anida categorías, busca platos, cambia muchos a la vez y separa la carta en varias cartas, como vinos o brunch.",
+      "keywords": [
+        "ordenar carta",
+        "orden alfabetico",
+        "orden manual",
+        "mover platos",
+        "arrastrar",
+        "subcategoria",
+        "buscar plato",
+        "acciones masivas",
+        "editar varios",
+        "seleccionar todos",
+        "cartas",
+        "menus",
+        "carta de vinos",
+        "pestañas",
+        "mover categoria"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En **Menú** decides en qué orden ven los platos tus comensales, agrupas las categorías y cambias muchos platos de una sola vez. En **Cartas** separas la carta en varias (comida, vinos, cócteles, brunch) que el comensal ve como pestañas.\n\n## El orden de los platos\n\nArriba de la pantalla **Menú** está **Orden de los platos**. Se guarda solo al cambiarlo y aplica a toda la carta: la del comensal, la del mesero y la que usas para tomar pedidos.\n\n- **Alfabético** (el que viene de fábrica): los platos de cada categoría se ordenan solos por nombre. No importan las tildes, las mayúsculas ni los signos del comienzo, y los números van en orden natural (\"Plato 2\" antes que \"Plato 10\"). Si la carta está traducida, el comensal la ve ordenada por el nombre en su idioma.\n- **Manual (según el editor)**: los platos salen en el orden que armes tú.\n\n### Ordena los platos a mano\n\n1. En **Orden de los platos**, elige **Manual (según el editor)**.\n2. En el computador, arrastra cada plato por su asa (los seis puntos de la izquierda) y suéltalo donde aparece la línea. En el celular o la tablet, usa las flechas ↑ y ↓ de cada plato.\n3. El orden se guarda en cuanto sueltas el plato o tocas la flecha.\n\nLos platos se mueven solo dentro de su categoría; para pasarlos a otra, cambia su **Categoría** en **Editar producto**. Mientras hay una búsqueda escrita, no se pueden mover.\n\n## Ordena y anida las categorías\n\n- **Flechas ↑ ↓ junto al nombre**: suben o bajan la categoría. El comensal las ve en ese orden.\n- **Subcat. de**: convierte la categoría en subcategoría de otra (por ejemplo, \"Tintos\" dentro de \"Vinos\"). Hay un solo nivel: una categoría que ya tiene subcategorías no puede volverse subcategoría. Para devolverla al nivel principal, elige **— ninguna (principal) —**.\n- **Renombrar** y **Eliminar**, en el mismo encabezado.\n\nEn el computador estas opciones están debajo del nombre de la categoría; en el celular, en el botón **•••**.\n\n## Busca un plato\n\nEscribe en **Buscar plato…**. Aparecen los platos que tienen todas las palabras, en cualquier orden y sin importar las tildes: \"solomito res\" encuentra \"Solomito de res\". Las categorías sin coincidencias se ocultan. Toca la ✕ para volver a ver toda la carta.\n\n## Cambia muchos platos a la vez\n\n1. Marca la casilla de cada plato, o la casilla junto al nombre de una categoría para marcar todos los suyos.\n2. Abajo aparece una barra con la cantidad seleccionada. **Seleccionar toda la carta** marca todos los de la carta que estás viendo y **Limpiar** quita la selección.\n3. Elige una acción de la barra. Cada una te pide confirmar en un botón que dice cuántos platos se cambian.\n\nLas acciones son:\n\n- **Descripción con IA**: propone descripciones para hasta 25 platos a la vez. Revisas cada una, corriges lo que haga falta, desmarcas las que no quieras y tocas **Guardar**.\n- **Mover de categoría**: elige la **Categoría destino** y toca **Mover**.\n- **Cambiar estación**: **Cocina**, **Bar**, **Refri / mostrador** o **Usar la de la categoría**.\n- **Copiar modificadores**: ver [Agrega modificadores y adiciones](/operator/ayuda/carta-y-produccion/modificadores).\n- **Eliminar**: los platos que ya se vendieron se archivan en vez de borrarse. Ver [Agota, archiva o elimina un plato](/operator/ayuda/carta-y-produccion/agotar-archivar-o-eliminar-un-plato).\n\n## Separa la carta en varias cartas\n\nCasi todos los restaurantes tienen una sola carta. Si quieres una aparte para vinos, cócteles o brunch:\n\n1. Entra a **Carta › Cartas** (la pantalla se llama **Menús**) y toca **+ Nuevo menú**.\n2. Escribe el **Nombre del menú** y, si quieres, una **Descripción (opcional)**.\n3. Toca **Crear menú**.\n\nCon dos o más cartas, en **Menú** aparece una pestaña por cada una, y **+ Nueva categoría** crea la categoría en la pestaña que estás viendo. Para pasar una categoría a otra carta, usa el selector de carta de su encabezado (en el celular, dentro de **•••**). Las subcategorías siempre siguen a su categoría principal.\n\nEn **Cartas** también cambias el nombre de una carta al tocarlo, las ordenas con las flechas y eliminas las que sobren con **Eliminar**. Siempre queda al menos una: al eliminar una carta, sus categorías pasan a la primera que quede.\n\n## Errores frecuentes\n\n- **No veo las flechas para mover los platos**: el orden está en **Alfabético** o hay una búsqueda escrita. Elige **Manual (según el editor)** y borra la búsqueda.\n- **No pudimos guardar el orden de los platos. Recargá la página e intentá de nuevo.**: recarga la página y vuelve a mover el plato.\n- **No pudimos cambiar el orden. Intentá de nuevo.**: el cambio de orden de una categoría no se guardó; repítelo.\n- **El botón Descripción con IA está apagado**: tienes más de 25 platos seleccionados. Quita algunos de la selección.\n- **Debe haber al menos un menú.**: la única carta no se puede eliminar.",
+      "links": [
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Ir a Cartas",
+          "href": "/operator/menus"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "modificadores",
+      "title": "Agrega modificadores y adiciones",
+      "summary": "Configura opciones como el término, el tamaño o las adiciones con recargo: grupos de una opción o de varias, obligatorios, con opción por defecto. Cópialos a otros platos o crea uno desde una categoría.",
+      "keywords": [
+        "modificadores",
+        "adiciones",
+        "opciones",
+        "extras",
+        "tamaño",
+        "termino de la carne",
+        "acompañamiento",
+        "guarnicion",
+        "recargo",
+        "obligatorio",
+        "opcion por defecto",
+        "copiar modificadores",
+        "convertir en modificador",
+        "variantes",
+        "toppings"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Los modificadores son las opciones que el comensal elige al pedir un plato: el término de la carne, el tamaño, la salsa o las adiciones con recargo. Se configuran dentro de cada producto, y la comanda le muestra a la cocina lo que se eligió.\n\n## Agrega un grupo de opciones\n\n1. En **Menú**, toca el producto para abrir **Editar producto**.\n2. En **Modificadores**, toca **+ Añadir**.\n3. Escribe la **Etiqueta** del grupo, por ejemplo \"Término\" o \"Adiciones\".\n4. En **Tipo**, elige **Uno solo** si el comensal escoge una sola opción (el término), o **Varias** si puede escoger varias (las adiciones).\n5. Si el comensal tiene que elegir sí o sí, marca **Obligatorio (el cliente debe elegir para agregar)**. Sin elegir, no puede agregar el plato.\n6. Escribe cada opción en **Añadir opción y Enter** y presiona Enter o toca **Añadir**.\n7. Toca **Guardar** abajo en la hoja. Los modificadores se guardan con el producto: si cierras sin guardar, se pierden.\n\n## Precio, descripción y opción por defecto\n\nCada opción tiene:\n\n- **+ (costo adicional)**: el campo con el signo más. Escribe cuánto suma esa opción al precio del plato; vacío significa sin recargo. También acepta un valor negativo si la opción descuenta.\n- **Agregar descripción**: el ícono de líneas abre un campo para explicar la opción, de hasta 200 caracteres. El comensal la ve al elegir.\n- **default**: solo en los grupos de **Uno solo**. Marca la opción que viene elegida; el comensal la puede cambiar.\n- La ✕ quita la opción. Las flechas ↑ ↓ cambian el orden de las opciones y de los grupos, y el comensal los ve en ese orden.\n\n> Si todos los grupos de un plato son de **Uno solo** y tienen opción por defecto, el comensal puede agregarlo con un solo toque. Si hay un grupo de **Varias** o uno sin opción por defecto, se abre el plato para que elija.\n\nPara que una adición descuente insumos del inventario, configúrala en la receta del plato. Ver [Arma recetas y controla el food cost](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n\n## Límites\n\n- Hasta 8 grupos por producto y 12 opciones por grupo.\n- La etiqueta del grupo y cada opción admiten hasta 60 caracteres.\n- En un mismo grupo no se repiten opciones: si escribes una que ya existe, no se agrega.\n\n## Copia los modificadores a otros platos\n\nPara no armar lo mismo plato por plato:\n\n1. En **Menú**, marca los platos que deben recibir los modificadores.\n2. En la barra de abajo, toca **Copiar modificadores**.\n3. Elige el producto del que se copian; puedes buscarlo. Solo aparecen los que ya tienen modificadores, y abajo ves lo que se va a copiar.\n4. Elige **Reemplazar** (quita los modificadores que ya tenían los platos seleccionados y pone los copiados) o **Combinar** (agrega solo los grupos que les falten, sin duplicar los que tienen la misma etiqueta).\n5. Toca **Aplicar a … productos**.\n\n## Convierte una categoría en modificador\n\nPasa mucho al importar una carta: las adiciones llegan como productos sueltos en una categoría, como \"Adiciones\" o \"Salsas\". Para volverlas opciones de un plato:\n\n1. En el encabezado de esa categoría, toca **Convertir en modificador** (en el celular, dentro de **•••**).\n2. Revisa la **Etiqueta del modificador** (viene como \"Adición de …\" con el nombre de la categoría) y el **Tipo**.\n3. En **Opciones (de los productos)**, desmarca las que no quieras y corrige nombres y precios.\n4. En **Agregar a este producto**, busca y elige el plato que las va a llevar.\n5. Si ya no necesitas los productos sueltos, marca **Borrar los productos y la categoría después**. Los que ya se vendieron se archivan, y la categoría se borra solo si queda vacía.\n6. Toca **Agregar a …** (el botón lleva el nombre del plato).\n\nEl modificador se suma como un grupo más del plato; no reemplaza los que ya tenía. Para ponerlo en otros platos, usa **Copiar modificadores**.\n\n## Errores frecuentes\n\n- **El modificador \"…\" necesita etiqueta y al menos una opción.**: completa la etiqueta del grupo y agrega al menos una opción, o quita el grupo con la ✕.\n- **El producto ya tiene el máximo de modificadores (8).**: quita o junta grupos de ese plato antes de convertir la categoría.\n- **Revisá los nombres y precios de las opciones.**: alguna opción quedó sin nombre, o marcaste más de 12. Desmarca las que sobren.\n- **No se pudo guardar: revisá el campo «…»** al guardar un plato: el plato pasa los límites, por ejemplo más de 8 grupos o más de 12 opciones en un grupo. Quita lo que sobre y guarda otra vez. Puede pasar después de **Combinar** modificadores en un plato que ya tenía varios.",
+      "links": [
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "agotar-archivar-o-eliminar-un-plato",
+      "title": "Agota, archiva o elimina un plato",
+      "summary": "Saca un plato de la carta por un rato con Agotado, archívalo sin perder su historial o elimínalo. Qué pasa con los platos que ya se vendieron y cuándo no se puede borrar una categoría.",
+      "keywords": [
+        "agotado",
+        "agotar plato",
+        "sin existencias",
+        "no disponible",
+        "ocultar plato",
+        "archivar",
+        "eliminar plato",
+        "borrar producto",
+        "reactivar",
+        "disponible",
+        "se acabo",
+        "sacar de la carta",
+        "borrar categoria",
+        "plato de temporada"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "Cuando se acaba un ingrediente o un plato sale de temporada no hace falta borrarlo: lo marcas como agotado y deja de verse hasta que lo vuelvas a activar. Esta guía explica las tres opciones y qué pasa con cada una.\n\n## Las tres opciones\n\n- **Agotado**: el plato deja de verse en la carta del comensal y en la del mesero, pero sigue en tu lista de **Menú**, atenuado. Se reactiva con un toque.\n- **Archivar**: deja el plato igual que **Agotado**. Está en **Editar producto**, pensado para los platos que salen de la carta por más tiempo, como los de temporada.\n- **Eliminar**: borra el plato de verdad si nunca se ha vendido. Si ya aparece en pedidos, no se borra: se archiva.\n\n## Marca un plato como agotado\n\n1. Entra a **Carta › Menú**.\n2. En la fila del plato, toca **Disponible**. Cambia a **Agotado**.\n3. Para volver a ofrecerlo, toca **Agotado**. Cambia a **Disponible** y el plato vuelve a la carta.\n\nTambién puedes hacerlo en **Editar producto** con la casilla **Disponible (se muestra en el menú)**, y luego **Guardar**.\n\n> Si un comensal ya tenía la carta abierta e intenta pedir el plato agotado, el pedido no se envía y le aparece un aviso para intentarlo de nuevo. Al recargar la carta, el plato ya no está.\n\n## Archiva un plato\n\n1. Toca el plato para abrir **Editar producto**.\n2. Abajo, toca **Archivar**. El plato queda como **Agotado** en tu lista.\n\n**Archivar** solo aparece mientras el plato está disponible. Para devolverlo a la carta, toca **Agotado** en su fila, o marca **Disponible (se muestra en el menú)** en **Editar producto** y toca **Guardar**.\n\n## Elimina un plato\n\n1. Abre el plato y toca **Eliminar**.\n2. Confirma. El aviso te recuerda que, si el plato aparece en pedidos anteriores, no se borra del todo.\n\nQué pasa después:\n\n- **Si nunca se ha vendido**, se borra junto con su receta. No se puede deshacer.\n- **Si ya se vendió**, aparece un aviso de que no se puede eliminar porque tiene movimientos, y el plato se archiva. Queda como **Agotado** para que tus ventas, facturas y reportes sigan cuadrando, y lo puedes reactivar cuando quieras.\n\nPara eliminar varios a la vez, márcalos en la lista y toca **Eliminar** en la barra de abajo. Los que tienen pedidos se archivan.\n\n## Cuando la cocina saca un plato de la carta\n\nSi la cocina o el bar cancelan un plato porque se acabó, pueden sacarlo de la carta en el mismo paso:\n\n1. En el tablero de **Cocina** (o de **Bar**), toca **Cancelar** en el plato.\n2. Toca **No está disponible**: cancela ese plato del pedido y lo deja **Agotado** en la carta.\n3. Si prefieres escribir otro motivo, escríbelo, marca **También quitar este plato de la carta hasta que vuelva a estar disponible** y toca **Confirmar cancelación**.\n\nEl plato no vuelve solo a la carta: cuando haya otra vez, alguien con acceso a **Menú** tiene que tocar **Agotado** para dejarlo **Disponible**.\n\n## Elimina una categoría\n\nUna categoría solo se elimina si está vacía. Si tiene platos, aparece \"Mueve los platos a otra categoría antes de borrarla.\" Cuentan también los platos agotados o archivados: márcalos, pásalos a otra categoría con **Mover de categoría** y vuelve a intentarlo. Si la categoría tenía subcategorías, estas quedan como categorías principales.\n\n## Preguntas frecuentes\n\n### ¿El mesero puede pedir un plato agotado?\n\nNo. Los platos agotados o archivados no aparecen en la carta del mesero ni en la del comensal.\n\n### ¿Qué diferencia hay entre Agotado y Archivar?\n\nNinguna en la carta: los dos dejan el plato oculto y se reactivan igual. **Archivar** es solo un atajo dentro de **Editar producto**.\n\n### No encuentro el botón Archivar\n\nSolo aparece si el plato está **Disponible**. Si ya está **Agotado**, ya está fuera de la carta.",
+      "links": [
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Ir a Cocina",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "importar-la-carta",
+      "title": "Importa tu carta desde un PDF, una foto o un enlace",
+      "summary": "Sube tu carta en PDF o en foto, o pega el enlace de tu página, y la IA arma las categorías y los productos con su precio y su descripción. Los revisas y los importas de una sola vez.",
+      "keywords": [
+        "importar carta",
+        "subir menu",
+        "pdf",
+        "foto de la carta",
+        "escanear carta",
+        "ia",
+        "inteligencia artificial",
+        "cargar platos",
+        "cluvi",
+        "justo",
+        "shopify",
+        "menupp",
+        "enlace",
+        "link",
+        "pasar la carta",
+        "migrar"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Si ya tienes la carta en un PDF, en una foto o en una página web, no tienes que escribirla plato por plato: la IA la lee y te propone las categorías y los productos, con su precio y su descripción. Tú revisas, corriges y los importas de una sola vez.\n\n## Importa desde un archivo\n\n1. En **Carta › Menú**, toca **Importar con AI**. Se abre **Importar carta con AI**.\n2. Si tienes varias cartas, elige en **Importar a** dónde se crean las categorías nuevas.\n3. Arrastra el archivo al recuadro o tócalo para elegirlo. Acepta PDF, JPG, PNG o WebP: un PDF hecho en Word o Canva, un PDF escaneado o una foto del menú impreso tomada con el celular.\n4. Espera mientras dice **Leyendo tu carta…**. Suele tardar entre 10 y 30 segundos.\n5. Revisa los **Productos detectados** (abajo te explicamos cómo) y toca **Importar … productos**.\n\nAl terminar verás cuántos productos quedaron en tu carta, con los botones **Ver mi carta** e **Importar otra**.\n\n## Importa desde un enlace\n\nDebajo del recuadro, en **¿La carta está en una página web?**, pega el enlace de tu carta o de un PDF público y toca **Leer**.\n\nSi tu carta está en Cluvi, Shopify, Justo o Menüpp, MESAPAY la trae directo de esa plataforma, con sus categorías, sus precios y, cuando las tiene, sus fotos. También funciona si tu página web muestra una carta de Cluvi. Con cualquier otra página, la IA lee lo que aparece en ella.\n\n## Revisa antes de importar\n\nCada producto detectado trae una casilla, su nombre, su precio, su descripción, su **Categoría** y sus etiquetas. Antes de importar:\n\n- Desmarca la casilla de los productos que la IA leyó mal o que no quieres: no se importan.\n- Corrige nombres, precios y descripciones directamente en cada tarjeta.\n- Fíjate en los que dicen **Revisar (confianza …%)**: la IA no está segura de haberlos leído bien.\n- En **Categoría**, las que terminan en **· nueva** se van a crear; las demás ya existen en tu carta y el producto se suma a ellas.\n- Si un producto trae una foto que no sirve, quítala con la ✕.\n- **Seleccionar todos** y **Quitar selección** marcan o desmarcan todo de una vez.\n\nAl lado ves el archivo original (o el enlace) para comparar y cuántos productos vas a importar.\n\n## Después de importar\n\nLos productos quedan **Disponible** y ya salen en la carta. Lo que la importación no trae se completa después en **Menú**: fotos, modificadores, estación y tiempo de preparación. Ver [Crea tu carta](/operator/ayuda/carta-y-produccion/crear-la-carta) y [Agrega modificadores y adiciones](/operator/ayuda/carta-y-produccion/modificadores). Si las adiciones llegaron como productos sueltos, conviértelas en modificador desde el encabezado de su categoría.\n\n> ⚠ Importar dos veces la misma carta duplica los productos: la importación siempre crea productos nuevos y no reemplaza los que ya tienes. Para corregir una carta ya importada, edítala en **Menú**; si vuelves a importar, desmarca en la revisión los productos que ya existen.\n\n## Errores frecuentes\n\n- **El archivo pesa … MB. El máximo es 32 MB**: comprime el PDF o sube las páginas como imágenes JPG o PNG. Los PDF con texto, como los hechos en Word o Canva, casi nunca llegan al límite; los escaneados y las fotos sí pueden.\n- **No detectamos productos. Prueba con una imagen más clara, otra URL, o sube un PDF.**: toma la foto de frente, con buena luz y sin reflejos, o prueba con el PDF.\n- **No pudimos leer el sitio.**, **El sitio tardó demasiado en responder.** o un aviso de tipo de contenido no soportado: la página no se deja leer. Descarga la carta en PDF o toma una captura y súbela como archivo.\n- **El recurso supera 15 MB.**: el PDF del enlace es muy pesado para leerlo desde la web. Descárgalo y súbelo como archivo.\n- **Selecciona al menos un producto para importar.**: marca al menos un producto en la revisión.",
+      "links": [
+        {
+          "label": "Ir a Importar carta con AI",
+          "href": "/operator/menu/import"
+        },
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "traducir-la-carta",
+      "title": "Traduce tu carta a inglés y portugués",
+      "summary": "Traduce con IA los nombres y las descripciones de tus platos y categorías para que el comensal que usa MESAPAY en inglés o portugués lea la carta en su idioma. Puedes corregir cada traducción a mano.",
+      "keywords": [
+        "traducir carta",
+        "traduccion",
+        "ingles",
+        "portugues",
+        "idiomas",
+        "turistas",
+        "carta en ingles",
+        "menu en ingles",
+        "english",
+        "idioma del comensal",
+        "traducir platos",
+        "ia",
+        "corregir traduccion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El comensal puede ver MESAPAY en español, inglés o portugués. Para que también los nombres y las descripciones de tus platos salgan en su idioma, tradúcelos en **Traducciones de la carta**: la IA hace la traducción y tú corriges lo que quieras.\n\n## Traduce la carta con IA\n\n1. Entra a **Configuración › Traducciones de la carta**.\n2. Toca **Traducir carta con IA**. Mientras dice **Traduciendo…**, no cierres la página: con muchos platos puede tardar hasta un minuto.\n3. Al terminar aparece \"Listo: … textos procesados en inglés y portugués.\" y la tabla se llena.\n\nLa IA traduce los nombres de las categorías y los nombres y descripciones de los platos, y también los nombres de tus cartas y de tus etiquetas. Los nombres propios y los platos que se llaman igual en el otro idioma (taco, tartar) se dejan como están.\n\n## Revisa y corrige a mano\n\nLa tabla tiene tres columnas, **Español (original)**, **Inglés** y **Portugués**, agrupadas por categoría.\n\n1. Toca la celda que quieras corregir y escribe la traducción.\n2. Sal de la celda tocando en otro lado. Se guarda sola y el borde se pone verde. Si se pone rojo, no se guardó: vuelve a intentarlo.\n\nLo que corriges a mano se respeta: la IA no lo cambia cuando vuelves a traducir, mientras el texto en español siga igual.\n\nEl texto en español no se edita aquí, sino en [Menú](/operator/menu).\n\n## Cuándo volver a traducir\n\nLa traducción no se hace sola. Toca otra vez **Traducir carta con IA** cada vez que:\n\n- Agregas platos o categorías. Solo se traduce lo que falta; lo ya traducido no se toca.\n- Cambias el nombre o la descripción de un plato en español. La traducción anterior deja de usarse y, hasta que vuelvas a traducir, el comensal ve ese texto en español. Si la habías corregido a mano, revísala después: se traduce de nuevo a partir del texto nuevo.\n\n**Volver a traducir todo con IA** rehace todas las traducciones automáticas, por ejemplo si no te gustó el resultado. Pide confirmación y conserva las que corregiste a mano.\n\n## Qué ve el comensal\n\nLa primera vez, la carta sale en el idioma del teléfono del comensal, y él lo puede cambiar en la misma carta. Ve la traducción de cada texto si existe; si no, el texto en español. Con orden alfabético, los platos se ordenan por el nombre en su idioma.\n\n> Los modificadores y sus opciones (término, salsas, adiciones) no se traducen: el comensal los ve como los escribiste.\n\n## Errores frecuentes\n\n- **No se pudo traducir. Intentá de nuevo.**: espera un momento y vuelve a tocar **Traducir carta con IA**. Lo que ya quedó traducido no se pierde.\n- **Un plato sigue en español en la carta en inglés**: es nuevo, o cambiaste su texto después de traducir. Toca **Traducir carta con IA**.\n- **Borré una traducción y ahora sale en español**: al dejar una celda vacía se borra esa traducción. Toca **Traducir carta con IA** para que la IA la vuelva a hacer, o escríbela a mano.",
+      "links": [
+        {
+          "label": "Ir a Traducciones de la carta",
+          "href": "/operator/settings/traducciones"
+        },
+        {
+          "label": "Ir a Menú",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "insumos-y-proveedores",
+      "title": "Crea tus insumos y proveedores",
+      "summary": "Registra las materias primas que compras (con su medida, precio de referencia, punto de reorden y código de barras) y a tus proveedores con su lista de precios y su proveedor preferido.",
+      "keywords": [
+        "insumos",
+        "materia prima",
+        "ingredientes",
+        "proveedores",
+        "lista de precios",
+        "presentacion",
+        "precio de referencia",
+        "punto de reorden",
+        "stock minimo",
+        "codigo de barras",
+        "archivar insumo",
+        "importar insumos",
+        "inventario inicial",
+        "iva descontable",
+        "proveedor preferido",
+        "distribuidor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Los insumos son las materias primas que compras: carne, aceite, cajas para llevar. Son la base del inventario, las compras y las recetas. Los proveedores son a quién se los compras, con sus condiciones de pago y la lista de precios de cada uno.\n\n**Insumos** está en el menú **Administración** y aparece si tu comercio tiene Inventario, Compras o Recetas. **Proveedores** está en **Configuración** y aparece solo con Compras. Si no los ves, escríbenos a soporte.\n\n## Crea un insumo\n\n1. Entra a [Insumos](/operator/settings/insumos) y toca **Nuevo insumo**.\n2. Escribe el **Nombre**. No puede repetirse entre tus insumos.\n3. Si quieres, ponle una **Categoría** (Proteínas, Lácteos, Empaques…). Es libre: las que ya usaste aparecen como sugerencia.\n4. Elige la **Dimensión de medida**: **Peso** (g, kg), **Volumen** (ml, L) o **Unidades** (un).\n5. Deja marcado **Llevar inventario** si quieres controlar sus existencias. Desmárcalo para lo que no cuentas, como las servilletas: el insumo sigue sirviendo en compras y recetas, pero sin entradas, conteos ni avisos de reposición.\n6. Opcional: el **Precio de referencia**, por kilo, litro o unidad. Se sugiere como costo en las compras sin presentación y en las recetas que no tienen otro costo. No cambia existencias ni compras anteriores.\n7. Opcional, si lleva inventario: el **Punto de reorden** (con esa existencia o menos, el insumo sale \"bajo mínimo\" en Inventario) y la **Cantidad a pedir**.\n8. Opcional: **SKU**, **Código de barras** y **Notas**. El código de barras sirve para encontrar el insumo al hacer el conteo; puedes agregarle más códigos desde Inventario (ver [Haz un conteo físico con código de barras](/operator/ayuda/carta-y-produccion/conteo-de-inventario)).\n9. Toca **Guardar**.\n\n## Importa tus insumos con IA\n\nSi ya tienes la lista en papel o en una hoja de cálculo, cárgala de una vez. Esta opción aparece solo si tu comercio tiene Inventario, porque también crea las existencias iniciales.\n\n1. En **Insumos**, toca **Importar con IA**.\n2. Toca **Elegir archivo** y sube una foto o un PDF de la lista, o un Excel o CSV. Máximo 15 MB.\n3. Si quieres, escribe **Instrucciones para la IA (opcional)**, por ejemplo: \"la columna PRECIO es el costo sin IVA\".\n4. Toca **Procesar con IA** y espera entre 30 y 60 segundos sin cerrar la pantalla.\n5. Revisa la tabla. Cada fila dice **Nuevo** o **Ya existe**, y las dudosas dicen **revisar**. Corrige el nombre, la medida, la categoría, la cantidad, la unidad o el **Costo unitario**, y desmarca **Incluir** en las filas que no quieras.\n6. Marca **Actualizar existencias de los que ya existen** solo si también quieres cargarles la cantidad a los insumos que ya tenías.\n7. Toca el botón **Crear**, que muestra cuántos insumos se van a crear (por ejemplo, **Crear 12 insumos**). La cantidad por el costo unitario queda como existencia inicial valorada.\n\n## Archiva, ordena y edita en bloque\n\n- **Archivar** oculta el insumo de las listas de siempre y conserva sus existencias e historial. Lo recuperas en **Archivados** con **Restaurar**.\n- Marca varios insumos y usa **Cambiar categoría** (**Mover a otra** o **Renombrar**) o **Cambiar dimensión**, y toca **Aplicar**. Renombrar cambia esa categoría en todos sus insumos, no solo en los marcados.\n\n## Crea un proveedor\n\n1. Entra a [Configuración › Proveedores](/operator/settings/proveedores) y toca **Nuevo proveedor**.\n2. Con el **Nombre** y un **Teléfono** basta para empezar. También puedes llenar **NIT / RFC**, **Contacto**, **Correo**, **Dirección** y **Notas**.\n3. En **Condiciones de pago (días)** escribe el plazo para pagarle. Vacío es de contado. Con este plazo se calcula el vencimiento de cada compra.\n4. Toca **Guardar**. Si tiene teléfono, en la lista aparece el botón **WhatsApp**.\n\n## Arma la lista de precios\n\n1. Toca el proveedor y, en **Lista de precios**, toca **Agregar insumo**.\n2. Elige el **Insumo** y escribe la **Presentación** en la que te lo vende (\"Caja × 24\", \"Bulto 50 kg\").\n3. En **Contenido por presentación** escribe cuánto trae una sola presentación, con su unidad.\n4. Escribe el **Precio por presentación** y, si quieres, el **SKU del proveedor**.\n5. Marca **Proveedor preferido para este insumo** si es a quien más le compras. También puedes tocar la estrella de la lista.\n6. Toca **Guardar**.\n\nCada insumo tiene un solo proveedor preferido: si marcas otro, el anterior deja de serlo. El preferido se usa en **Sugerir por reorden** y como costo de las recetas cuando no hay otro. El precio se actualiza solo cuando recibes una orden de compra en la que pediste esa presentación de la lista.\n\n## IVA de compras descontable\n\nEn la pantalla de Proveedores, la tarjeta **Impuestos de compras** tiene **IVA de compras descontable**. Actívalo si tu contador descuenta el IVA de las compras: así el IVA no entra al costo del inventario. Si está apagado, el IVA es parte del costo.\n\n## Casos frecuentes y errores\n\n- **Ya existe un insumo con ese nombre.**: busca el insumo en **Activos** o en **Archivados**, o usa otro nombre.\n- **Ese código de barras ya está en otro insumo.**: un código no se puede repetir entre insumos. Quítalo del otro o revisa el que escaneaste.\n- **No se puede cambiar: el insumo ya aparece en listas de precios de proveedores.** o **La dimensión está bloqueada: el insumo ya tiene referencias.**: cuando el insumo ya está en una lista de precios o ya tuvo movimientos de inventario, su dimensión queda fija para no dañar las cantidades guardadas. Si te equivocaste, crea un insumo nuevo con la dimensión correcta y archiva el anterior.\n- **Desmarcas \"Llevar inventario\" y aparece \"Dejar inventario en cero\"**: el insumo todavía tiene existencias. Toca **Poner en cero y guardar** para dejarlo en cero (el historial se conserva) o **Volver a editar**.\n- **El insumo está archivado…** al armar la lista de precios: restáuralo desde **Archivados**.\n- **Ese insumo ya está en la lista de este proveedor.**: edita la presentación que ya existe en vez de crear otra.\n- **El proveedor no aparece al crear una orden**: está desactivado. Búscalo en Proveedores y toca **Reactivar**.\n\nPara comprar, sigue con [Haz órdenes de compra, recibe la mercancía y paga a tus proveedores](/operator/ayuda/carta-y-produccion/ordenes-de-compra) o [Registra una compra subiendo la factura](/operator/ayuda/carta-y-produccion/cargar-facturas-de-compra).",
+      "links": [
+        {
+          "label": "Ir a Insumos",
+          "href": "/operator/settings/insumos"
+        },
+        {
+          "label": "Ir a Proveedores",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Ir a Compras",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "recetas-y-food-cost",
+      "title": "Arma las recetas y controla el food cost",
+      "summary": "Carga la receta de cada plato para ver su costo real, su food cost con semáforo y su margen. Detecta los platos caros y los insumos que subieron, y clasifica la carta con la ingeniería de menú.",
+      "keywords": [
+        "receta",
+        "recetas",
+        "food cost",
+        "costo del plato",
+        "costeo",
+        "margen",
+        "rentabilidad",
+        "CMV",
+        "costo de venta",
+        "merma",
+        "ficha tecnica",
+        "escandallo",
+        "ingenieria de menu",
+        "estrellas",
+        "perros",
+        "caballitos de batalla",
+        "incognitas",
+        "insumos al alza",
+        "subio el precio",
+        "modificadores"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Recetas cargas qué lleva cada plato y en qué cantidad. Con eso MESAPAY calcula su costo real, su food cost (la parte del precio de carta que se va en insumos) y su margen, y descuenta los insumos del inventario cada vez que se vende.\n\n> Recetas es un módulo que MESAPAY activa para cada comercio. Si no ves **Recetas** en el grupo **Administración** del menú, escríbenos a soporte.\n\n## Antes de empezar\n\n- Crea los platos en [Menú](/operator/menu) y los insumos en [Insumos](/operator/settings/insumos). Ver [Crea tus insumos y proveedores](/operator/ayuda/carta-y-produccion/insumos-y-proveedores).\n- Para tener costo, un insumo necesita al menos una de estas fuentes, en este orden: existencias valoradas en Inventario, una sub-receta, un precio de referencia o un proveedor preferido con precio.\n\n## Arma la receta de un plato\n\n1. Entra a **Administración › Recetas**, pestaña **Platos**.\n2. Busca el plato con **Buscar plato o categoría…** o filtra por categoría, y tócalo.\n3. En **Insumo**, escribe el nombre y toca el insumo para agregar una línea. La lista muestra el costo por unidad de cada insumo, o **Sin costo**.\n4. En cada línea escribe la **Cantidad neta** que lleva el plato, elige la unidad (g o kg, ml o L, un) y, si aplica, la **Merma %**.\n5. Revisa el resumen, que se actualiza mientras escribes: **Costo de receta**, **Food cost** y **Margen**.\n6. Si quieres, agrega **Notas** (el emplatado, por ejemplo) y toca **Guardar**.\n\n### La merma\n\nLa cantidad neta es lo que llega al plato; la merma es lo que se pierde al prepararlo (cáscaras, huesos, grasa). Con merma, el costo se calcula sobre el bruto: 180 g netos con 20 % de merma cuestan como 225 g, y la línea muestra **Bruto** con esa cantidad. La merma es un número entero entre 0 y 90.\n\n## Insumos por modificador\n\nSi el plato tiene modificadores, después de agregar el primer insumo aparece **Insumos por modificador**. Abre una opción, toca **Agregar insumos** y agrega lo que cambia esa opción: con **+** se agrega (extra queso) y con **−** se quita (sin cebolla). Esos insumos se descuentan del inventario solo cuando el comensal elige la opción. El costo, el food cost y el margen que ves en la receta son los de la receta base.\n\n## Lee el food cost\n\n- Verde: hasta 30 %. Ámbar: de 30 % a 40 %. Rojo: más de 40 %.\n- Si hay platos en rojo, arriba aparece un aviso como \"3 platos con food cost alto\". Tócalo, o toca el filtro **Food cost alto**, para ver solo esos platos.\n- **Sin receta**: el plato todavía no tiene receta. **Costo incompleto**: algún insumo no tiene costo, y el food cost no se calcula para no mostrarte un número falso.\n- El costo se calcula con los costos de hoy: si sube un insumo, sube el costo de todas las recetas que lo usan.\n\n### Insumos al alza\n\nSi el precio de un insumo con un proveedor subió un 10 % o más en los últimos 30 días, aparece la sección **Insumos al alza**. Al abrirla ves el proveedor y la presentación, el precio anterior y el nuevo, el porcentaje y los platos que afecta.\n\n## Ingeniería de menú\n\nLa pestaña **Ingeniería** cruza lo que más se vende con lo que más deja, en los últimos **7 días**, **30 días** o **90 días**:\n\n- **Estrellas**: populares y rentables. Protégelas.\n- **Caballitos de batalla**: populares pero poco rentables. Súbeles el precio o bájales el costo.\n- **Incógnitas**: rentables pero poco vendidas. Promociónalas.\n- **Perros**: ni populares ni rentables. Repiénsalos o sácalos de la carta.\n\nUn plato es popular si vendió al menos el 70 % del promedio de unidades por plato, y rentable si su margen (precio de carta menos costo de receta) está en el promedio o por encima. Arriba ves los umbrales usados. Solo cuentan las cuentas pagadas, sin los platos cancelados ni los que no se cobraron. Los platos sin receta, con costo incompleto o sin ventas en el período quedan en **Sin datos**.\n\n## Casos frecuentes\n\n- **Este insumo no tiene fuente de costo…** debajo de una línea: registra una entrada con costo en Inventario, ponle un precio de referencia en Insumos o define un proveedor preferido con precio.\n- **Merma inválida: usa un número entero entre 0 y 90.**: escribe la merma sin decimales.\n- **Hay un insumo repetido en la receta.**: deja una sola línea por insumo y suma las cantidades.\n- **No encuentro un insumo en la lista**: solo aparecen los insumos activos. Si lo archivaste, restáuralo desde Insumos.\n- **Quiero quitar la receta**: abre el plato y toca **Eliminar receta**. El plato queda sin costeo.\n- **Aún no hay platos en la carta**: crea los platos en Menú y vuelve.",
+      "links": [
+        {
+          "label": "Ir a Recetas",
+          "href": "/operator/recetas"
+        },
+        {
+          "label": "Ir a Insumos",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "sub-recetas-y-produccion",
+      "title": "Crea sub-recetas y registra la producción por lotes",
+      "summary": "Costea tus preparaciones propias (salsas, masas, fondos) con una sub-receta y registra cada lote que produces: los insumos salen del inventario y el elaborado entra con su costo real.",
+      "keywords": [
+        "sub-receta",
+        "subreceta",
+        "preparacion",
+        "elaborado",
+        "semielaborado",
+        "salsa",
+        "masa",
+        "fondo",
+        "lote",
+        "batch",
+        "produccion",
+        "producir",
+        "rendimiento",
+        "costo del lote",
+        "costo derivado",
+        "costo parcial",
+        "mise en place"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Una sub-receta es la receta de algo que preparas en tu cocina y después usas en varios platos: una salsa, una masa, un fondo. Sirve para saber cuánto te cuesta cada litro o cada kilo. Con Producción registras cada lote que preparas: los insumos salen del inventario y el elaborado entra con lo que costó.\n\n> Recetas y Producción son módulos que MESAPAY activa para cada comercio. Producción usa las sub-recetas de Recetas y las existencias de Inventario, así que necesita los tres módulos. Si no los ves en el grupo **Administración** del menú, escríbenos a soporte.\n\n## 1. Crea el insumo elaborado\n\nLa preparación tiene que existir como insumo. En [Insumos](/operator/settings/insumos) crea, por ejemplo, \"Salsa de la casa\" con dimensión de volumen. Para producirla por lotes, déjale marcada **Llevar inventario**.\n\n## 2. Arma la sub-receta\n\n1. Entra a **Administración › Recetas**, pestaña **Sub-recetas**, y toca **Nueva sub-receta**.\n2. En **Insumo elaborado**, busca y toca el insumo que creaste. Solo aparecen los insumos activos que todavía no tienen sub-receta.\n3. En **Rendimiento del lote**, escribe cuánto produce una preparación completa, por ejemplo 2 L.\n4. Agrega los insumos que lleva, con su cantidad neta y su merma, igual que en la receta de un plato. Ver [Arma las recetas y controla el food cost](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n5. Revisa el **Costo del lote** y el **Costo derivado**: el costo del lote dividido por el rendimiento, es decir, lo que cuesta cada unidad.\n6. Toca **Guardar**.\n\nUna sub-receta puede usar otras sub-recetas, hasta tres niveles. Después, agrega el elaborado como un insumo más en la receta de tus platos.\n\n### ¿Con qué costo se calculan los platos?\n\nMientras el elaborado no tenga existencias, los platos lo costean con su costo derivado. Cuando ya hay lotes producidos en el inventario, usan el costo promedio real de esas existencias. En la lista de sub-recetas ves los dos valores: **Costo derivado** e **Inventario**.\n\n## 3. Registra un lote\n\n1. Entra a **Administración › Producción** y toca **Producir**.\n2. En **Sub-receta**, busca y toca la preparación. Solo aparecen las sub-recetas con rendimiento y con insumos, cuyo elaborado está activo y lleva inventario.\n3. En **Cantidad producida** viene el rendimiento. Cámbialo por lo que salió de verdad: si hiciste lote y medio, escribe 3 L.\n4. Revisa el **Consumo estimado**: cuánto sale de cada insumo (ya con su merma), la **Existencia actual** de cada uno y el **Costo estimado del lote**.\n5. Agrega **Notas** si quieres y toca **Registrar producción**.\n\nAl registrar, cada insumo sale del inventario como **Producción (consumo)** y el elaborado entra como **Producción (entrada)**, valorado exactamente con lo que salió. El lote queda en la lista con su cantidad, su costo, la fecha y quién lo registró. Tócalo para ver los **Insumos consumidos**.\n\n> ⚠ Un lote registrado no se puede anular ni borrar. Si te equivocaste, corrige las existencias con un **Ajuste** en [Inventario](/operator/inventario) y deja una nota. Ver [Registra entradas, ajustes y mermas](/operator/ayuda/carta-y-produccion/inventario-del-dia-a-dia).\n\n## Casos frecuentes\n\n- **El lote dice \"Costo parcial\"**: algún insumo salió valorado en cero porque no tenía existencias con costo o porque no lleva inventario. Registra la entrada de ese insumo con su costo antes del próximo lote.\n- **No tengo existencias suficientes**: la producción se registra igual y la existencia del insumo puede quedar en negativo. Registra las entradas que faltan.\n- **No hay sub-recetas para producir…**: crea la sub-receta con su rendimiento en Recetas. Si ya existe, revisa que tenga insumos y que el elaborado esté activo y lleve inventario.\n- **El insumo elaborado no puede estar en su propia receta.** o **…crearía un ciclo entre preparaciones…**: una preparación no puede usarse a sí misma, ni dos preparaciones usarse una a la otra.\n- **El insumo está archivado…**: restaura el elaborado desde Insumos, en **Archivados**.\n- **Quiero eliminar una sub-receta**: ábrela y toca **Eliminar sub-receta**. El insumo pierde su costo derivado; los lotes ya registrados no cambian.",
+      "links": [
+        {
+          "label": "Ir a Recetas",
+          "href": "/operator/recetas"
+        },
+        {
+          "label": "Ir a Producción",
+          "href": "/operator/produccion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "inventario-del-dia-a-dia",
+      "title": "Registra entradas, ajustes y mermas de inventario",
+      "summary": "Consulta las existencias valoradas al costo promedio, registra entradas, ajustes y mermas, revisa los insumos bajo mínimo y entiende cómo cada venta descuenta los insumos de sus recetas.",
+      "keywords": [
+        "inventario",
+        "existencias",
+        "stock",
+        "bodega",
+        "entrada de mercancia",
+        "ajuste",
+        "merma",
+        "desperdicio",
+        "perdida",
+        "vencido",
+        "costo promedio",
+        "kardex",
+        "movimientos",
+        "consumo por venta",
+        "bajo minimo",
+        "punto de reorden",
+        "reposicion",
+        "categorias sin inventario",
+        "CMV"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Inventario ves cuánto tienes de cada insumo y cuánto vale, y registras lo que entra y lo que sale. Cada venta descuenta sola los insumos de su receta, así que en el día a día solo registras entradas, mermas y algún ajuste.\n\n> Inventario es un módulo que MESAPAY activa para cada comercio. Si no ves **Inventario** en el grupo **Administración** del menú, escríbenos a soporte.\n\n## Las existencias\n\nEn **Administración › Inventario**, pestaña **Existencias**, aparece cada insumo que lleva inventario con sus **Existencias**, su **Costo unitario** y su **Valor total**.\n\n- Busca por nombre, categoría o código de barras, y filtra por categoría.\n- Ordena por nombre, existencias, costo unitario o valor total. En computador, toca el encabezado de la columna.\n- **Bajo mínimo** muestra solo los insumos que llegaron a su punto de reorden, y **Con existencias** esconde los que están en cero.\n- Una existencia en rojo es negativa: salió más de lo que se registró como entrada.\n- Si archivaste insumos que todavía tienen existencias, aparece **Mostrar archivados** para verlos. Sus saldos se conservan.\n\n## Registra un movimiento\n\n1. Toca **Entrada**, **Ajuste** o **Merma**.\n2. En **Insumo**, busca y toca el insumo. Debajo ves su **Existencia actual**.\n3. Escribe la **Cantidad** y elige la unidad.\n4. Completa los datos propios de cada tipo, que se explican abajo.\n5. Toca **Registrar**.\n\n### Entrada\n\nPara la mercancía que llega sin orden de compra. En **Costo total** escribe lo que pagaste por toda la cantidad; si lo dejas vacío, la entrada se valora al costo promedio actual. Si usas Compras, recibir una orden registra la entrada sola. Ver [Órdenes de compra, recepción y cuentas por pagar](/operator/ayuda/carta-y-produccion/ordenes-de-compra).\n\n### Ajuste\n\nPara corregir una existencia. En **Tipo de ajuste** elige **+ Agregar** o **− Restar**, y deja una nota de por qué ajustas. Para cuadrar todo el inventario con lo que hay en la bodega, mejor haz un conteo. Ver [Haz un conteo físico](/operator/ayuda/carta-y-produccion/conteo-de-inventario).\n\n### Merma\n\nPara lo que se pierde. Elige el **Motivo**: **Vencido**, **Dañado**, **Error de cocina**, **Derrame** u **Otro**. La merma queda registrada con su costo.\n\n## Cómo se calcula el costo\n\nEl inventario usa costo promedio ponderado. Una entrada con costo cambia el promedio; las salidas (ventas, mermas, ajustes a la baja, producción) se valoran al promedio de ese momento. Por eso conviene registrar el costo de cada entrada.\n\n## El consumo por venta\n\nCuando se paga una cuenta, MESAPAY descuenta de cada plato los insumos de su receta, con su merma, y los de los modificadores que eligió el comensal. Se ve en **Movimientos** como **Consumo por venta**. Para que pase:\n\n- Tu comercio tiene activos Inventario y Recetas, y el plato tiene receta. Ver [Arma las recetas y controla el food cost](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n- El plato tiene marcada **Llevar inventario** en el Menú, y el insumo también, en Insumos.\n- El insumo no está en una categoría sin inventario.\n\nLos platos cancelados no descuentan; los que se entregaron sin cobrarse sí, porque se prepararon. Las ventas de antes de activar los módulos no se descuentan: arranca con un conteo físico.\n\n## Movimientos\n\nLa pestaña **Movimientos** es el historial: fecha, tipo, quién lo hizo, cantidad y valor. Los tipos son **Entrada**, **Ajuste +**, **Ajuste −**, **Merma**, **Ajuste por conteo**, **Consumo por venta**, **Producción (entrada)** y **Producción (consumo)**. Un movimiento no se edita ni se borra: un error se corrige con un movimiento contrario.\n\n## Bajo mínimo y categorías sin inventario\n\n- Si un insumo tiene **Punto de reorden** en Insumos, al llegar a ese nivel o menos se marca **Bajo mínimo** y arriba aparece un aviso como \"2 insumos bajo el punto de reorden\". Tócalo para ver solo esos insumos.\n- El botón ⚙ abre **Categorías sin inventario**. Desmarca **Maneja inventario** en las categorías de insumos que no quieres controlar (hielo, servilletas…) y toca **Guardar**. Sus insumos dejan de descontarse al vender y salen de las existencias y del reorden.\n\n## Casos frecuentes\n\n- **Este insumo no lleva inventario…**: activa **Llevar inventario** en su ficha de Insumos.\n- **El insumo está archivado…**: restáuralo desde Insumos, en **Archivados**.\n- **Cantidad inválida para esa unidad.**: revisa el número y la unidad elegida.\n- **No aparece un insumo**: solo se listan los insumos activos que llevan inventario y no están en una categoría sin inventario.\n- **Aún no hay nada que inventariar**: crea tus insumos en **Administración › Insumos** y registra la primera entrada.",
+      "links": [
+        {
+          "label": "Ir a Inventario",
+          "href": "/operator/inventario"
+        },
+        {
+          "label": "Ir a Insumos",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conteo-de-inventario",
+      "title": "Haz un conteo físico con lector de código de barras",
+      "summary": "Cuenta lo que hay en la bodega en dos pasadas, con lector de códigos o a mano. Revisa faltantes y sobrantes en el preliminar; el inventario solo se ajusta cuando confirmas el conteo definitivo.",
+      "keywords": [
+        "conteo",
+        "conteo fisico",
+        "toma fisica",
+        "inventario fisico",
+        "cuadrar inventario",
+        "codigo de barras",
+        "lector",
+        "escaner",
+        "pistola",
+        "faltantes",
+        "sobrantes",
+        "diferencias",
+        "preliminar",
+        "conteo definitivo",
+        "ajuste por conteo",
+        "borrar conteo",
+        "stock"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El conteo físico cuadra el inventario de MESAPAY con lo que de verdad hay en la bodega. Se hace en dos pasadas: un conteo inicial, cuyas diferencias revisas en un preliminar, y un conteo definitivo. Las existencias solo cambian cuando confirmas el resultado final.\n\n> Necesitas el módulo de Inventario. Si no ves **Inventario** en el grupo **Administración** del menú, escríbenos a soporte.\n\n## Prepara los códigos de barras (opcional)\n\nCon un lector de códigos el conteo va mucho más rápido. Sirve cualquier lector USB o Bluetooth que escriba como un teclado; no hace falta cámara.\n\n- Un insumo puede tener varios códigos, por ejemplo el mismo aceite de dos marcas. Todos identifican el mismo insumo y no cambian la unidad en la que se cuenta.\n- Agrégalos en la pestaña **Existencias**, debajo del nombre de cada insumo, con **Agregar código de barras** o **Agregar otro código**. Escanea el empaque o escribe el código y toca **Guardar código**. El código principal también se cambia en la ficha del insumo, en Insumos.\n- Un código no se puede repetir entre dos insumos de tu comercio.\n\n## 1. Crea el conteo\n\n1. Entra a **Administración › Inventario**, pestaña **Conteos**, y toca **Nuevo conteo**.\n2. En **Qué contar**, deja **Todos los insumos activos** o elige una categoría.\n3. Agrega **Notas** si quieres (por ejemplo, \"Bodega y barra\") y toca **Crear conteo**.\n\nEntran los insumos activos que llevan inventario, con la existencia que tenían al crear el conteo. Solo puede haber un conteo abierto a la vez.\n\n## 2. Haz el conteo inicial\n\n1. Escanea un empaque en **Escanear código de barras**. MESAPAY salta al insumo y deja lista su cantidad.\n2. Escribe la cantidad y pulsa Enter: vuelves al escáner para leer el siguiente código. Enter no guarda nada.\n3. Si escaneas otra vez un insumo que ya contaste, se abre una cantidad nueva (por ejemplo, 12 en la bodega y 3 en la barra) y se suman en **Total contado**. Sin lector, usa **+ Agregar cantidad**. Puedes mezclar unidades del mismo tipo, como kg y g.\n4. Sin lector, busca el insumo con **Buscar insumo en el conteo…** y escribe la cantidad.\n5. Toca **Guardar borrador** para seguir más tarde.\n6. Cuando termines, toca **Ver preliminar**.\n\nEscribe 0 cuando no haya nada. Un campo vacío no es cero: el insumo queda **Sin contar**.\n\n## 3. Revisa el preliminar\n\nEl preliminar compara lo que contaste con la existencia al iniciar el conteo y muestra cuántos insumos tienen **Faltantes**, **Sobrantes**, **Sin diferencias** o están **Pendientes**, con filtros para revisarlos. Todavía no cambia el inventario. Úsalo para encontrar errores: un empaque mal contado, algo guardado en otro lugar.\n\n## 4. Haz el conteo definitivo y ajusta\n\n1. Toca **Iniciar conteo definitivo**. Las cantidades quedan vacías para contar de nuevo; las del primer conteo se ven como referencia.\n2. Cuenta otra vez. Aquí hay que llenar todos los insumos: escribe 0 cuando no haya.\n3. Toca **Revisar ajuste definitivo** y revisa las diferencias. Si algo quedó mal, toca **Corregir conteo definitivo**.\n4. Toca **Confirmar y ajustar inventario**.\n\nCada diferencia queda en **Movimientos** como **Ajuste por conteo**, valorada al costo promedio, y ves un mensaje como \"Conteo cerrado: se generaron 4 ajustes.\"\n\n> ⚠ Durante el conteo definitivo evita registrar ventas, compras u otros movimientos de los insumos que estás contando. Lo ideal es hacerlo con el local cerrado.\n\n## Casos frecuentes\n\n- **El código … no está en este conteo…**: ese código no está asociado a ningún insumo del conteo. Busca el insumo y toca **Agregar código de barras** o **Agregar otro código**: el código que leíste ya aparece escrito.\n- **El inventario cambió desde que inició el conteo definitivo…**: hubo una venta, una compra o un ajuste de esos insumos. Toca **Reiniciar conteo definitivo** y vuelve a contar; el preliminar se conserva.\n- **Otra persona o ventana modificó este conteo…**: toca **Recargar conteo** antes de seguir.\n- **Ya hay un conteo abierto…**: termina o borra el que está abierto.\n- **No se activa Revisar ajuste definitivo**: falta contar algún insumo. Usa el filtro **Pendientes**.\n- **Quiero empezar de cero**: mientras el conteo no esté cerrado, toca **Borrar conteo**. Se pierde lo digitado y las existencias no se tocan. Un conteo cerrado ya no se puede borrar.\n- **Un insumo dice \"No inventariable\"**: le quitaron **Llevar inventario** después de crear el conteo, y no se cuenta.",
+      "links": [
+        {
+          "label": "Ir a Inventario",
+          "href": "/operator/inventario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "ordenes-de-compra",
+      "title": "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
+      "summary": "Pide mercancía a tus proveedores con una orden de compra, envíala por WhatsApp, recíbela completa o por partes y registra los pagos hasta dejar la cuenta en cero.",
+      "keywords": [
+        "orden de compra",
+        "OC",
+        "pedido a proveedor",
+        "compras",
+        "recibir mercancia",
+        "recepcion parcial",
+        "cuentas por pagar",
+        "CxP",
+        "abono",
+        "pagar proveedor",
+        "vencimiento",
+        "sugerir por reorden",
+        "reposicion",
+        "whatsapp proveedor",
+        "anular orden",
+        "descuento proveedor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con las órdenes de compra le pides mercancía a un proveedor, registras lo que llega y llevas la cuenta de lo que le debes. Al recibir, los insumos entran al inventario con su costo real.\n\nTodo está en **Administración › Compras**, que aparece si tu comercio tiene el módulo de Compras. Antes de empezar, crea tus proveedores y sus listas de precios: ver [Crea tus insumos y proveedores](/operator/ayuda/carta-y-produccion/insumos-y-proveedores).\n\n## Crea una orden\n\n1. Entra a [Compras](/operator/compras) y toca **Nueva orden**.\n2. En **Proveedor**, búscalo y elígelo. Si todavía no existe, toca **+ Crear proveedor**.\n3. Elige cómo agregar la línea, **De la lista de precios** o **Sin presentación** (ver abajo), y completa sus datos.\n4. Elige el **IVA** de la línea (en Colombia 0 %, 5 % o 19 %; en México 0 %, 8 % o 16 %) y toca **Agregar línea**. Repite con cada insumo.\n5. Si el proveedor te da descuentos, escríbelos en **Líneas**: cada línea tiene su **Descuento**, en porcentaje o en valor fijo, y abajo está el **Descuento sobre el total**.\n6. Opcional: la **Entrega esperada** y unas **Notas**.\n7. Revisa el **Total esperado** y toca **Crear orden**.\n\nLas dos formas de agregar una línea:\n\n- **De la lista de precios**: eliges la **Presentación** del proveedor y el **Nº de presentaciones**. El **Costo esperado** se llena con el último precio; ajústalo si cambió.\n- **Sin presentación**: eliges el **Insumo** (o tocas **+ Crear insumo**), la **Cantidad** y su unidad. Si el insumo tiene precio de referencia, el costo se sugiere con él.\n\nLa orden queda en **Borrador** con un número como OC-0001. Los costos que escribes son sin IVA: el IVA se suma aparte.\n\n### Sugerir por reorden\n\n**Sugerir por reorden** arma borradores con los insumos que están en su punto de reorden o por debajo, agrupados por su proveedor preferido. Ajusta el **Nº de presentaciones**, quita lo que no quieras y toca **Crear borrador** (o **Crear borradores**, si son varios proveedores). Necesita el módulo de Inventario y que el insumo tenga punto de reorden. Los insumos que salen en **Sin proveedor preferido** no entran: márcales un preferido en la lista de precios del proveedor.\n\n## Envía la orden\n\nAbre la orden desde la lista y toca:\n\n- **Enviar por WhatsApp**: abre WhatsApp con la orden escrita para el proveedor. Necesita que el proveedor tenga teléfono.\n- **Imprimir**: abre la orden lista para imprimir o guardar en PDF.\n- **Marcar enviada**: si se la mandaste por otro medio.\n\nEnviarla o imprimirla la pasa de **Borrador** a **Enviada**. Mientras está en borrador, con **Editar** cambias las notas y la entrega esperada.\n\n## Recibe la mercancía\n\n1. Abre la orden y toca **Recibir mercancía**. Se puede recibir desde **Borrador**, **Enviada** o **Recepción parcial**.\n2. Marca las líneas que llegaron y escribe la **Cantidad** y el **Costo real** de cada una, sin impuestos, tal como dice la factura.\n3. Toca **Registrar recepción**.\n\nSi llegó todo, la orden queda **Recibida**. Si falta algo, queda en **Recepción parcial** y vuelves a tocar **Recibir mercancía** cuando llegue el resto. Puedes recibir más de lo pedido. Al recibir, el inventario sube con el costo real y, en las líneas de la lista de precios, se actualiza el precio de esa presentación.\n\n> El IVA entra o no al costo del inventario según el ajuste **IVA de compras descontable** de la pantalla de Proveedores.\n\n## Paga al proveedor\n\nEn cuanto recibes mercancía, la orden muestra su **Cuenta por pagar** con **Total**, **Pagado** y **Saldo**.\n\n1. Toca **Registrar pago**.\n2. Escribe el **Monto** (viene lleno con el saldo), la **Fecha del pago** y en **Se pagó desde** elige la cuenta de donde salió la plata: caja, banco…\n3. Opcional: una **Nota de pago**, como la referencia de la transferencia.\n4. Toca **Registrar pago** para un abono o **Pagar saldo** para pagarlo todo de una vez.\n\nLa pestaña **Por pagar** reúne las órdenes recibidas con saldo, de la que vence primero a la última, con su estado: **Pendiente**, **Parcial**, **Vencida** o **Pagada**. Desde ahí también registras pagos y, con **Editar factura**, anotas el **Nº de factura** y el **Vencimiento**. El vencimiento se calcula solo: el día en que recibes todo, más los días de plazo del proveedor.\n\n## Casos frecuentes y errores\n\n- **Me equivoqué en un abono**: abre la orden y toca **Borrar** junto al abono. El saldo se recalcula.\n- **Quiero anular una orden**: toca **Anular orden**. Solo se puede mientras está en **Borrador** o **Enviada**, y no se puede deshacer. Si ya recibiste algo, ya no se anula.\n- **\"Enviar por WhatsApp\" está apagado**: el proveedor no tiene teléfono. Agrégaselo en Proveedores.\n- **Este proveedor no tiene lista de precios: agrega líneas sin presentación.**: puedes pedir igual con **Sin presentación**, o armar su lista de precios para la próxima vez.\n- **El monto supera el saldo pendiente.**: el abono no puede ser mayor que el saldo. Revisa el monto.\n- **La orden cambió de estado: recarga la página e inténtalo de nuevo.**: alguien más la recibió, la envió o la anuló mientras la tenías abierta. Recarga la página.\n- **Las sugerencias comparan existencias contra el punto de reorden…**: tu comercio no tiene Inventario. Escríbenos a soporte si lo necesitas.\n- **No veo el proveedor al crear la orden**: está desactivado. Reactívalo en Proveedores.\n\nSi ya tienes la factura en la mano, es más rápido [registrar la compra subiendo la factura](/operator/ayuda/carta-y-produccion/cargar-facturas-de-compra).",
+      "links": [
+        {
+          "label": "Ir a Compras",
+          "href": "/operator/compras"
+        },
+        {
+          "label": "Ir a Proveedores",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Ir a Insumos",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cargar-facturas-de-compra",
+      "title": "Registra una compra subiendo la factura",
+      "summary": "Sube la foto o el PDF de la factura del proveedor: la IA lee el proveedor, las líneas y los impuestos, tú revisas y MESAPAY crea la orden de compra y, si quieres, recibe la mercancía de una vez.",
+      "keywords": [
+        "factura de proveedor",
+        "factura de compra",
+        "subir factura",
+        "foto de factura",
+        "leer factura con IA",
+        "OCR",
+        "escanear factura",
+        "cuenta de cobro",
+        "retencion en la fuente",
+        "reteiva",
+        "reteica",
+        "impuesto al consumo",
+        "INC",
+        "IVA de compras",
+        "asociar insumos",
+        "recordar relacion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cargar la factura es la forma más rápida de registrar una compra: subes la foto o el PDF que te dio el proveedor, la IA lee el proveedor, el número, la fecha, las líneas y los impuestos, y tú solo revisas. Nada se crea hasta que confirmas.\n\nEstá en **Administración › Compras** y necesita el módulo de Compras.\n\n## Sube la factura\n\n1. Entra a [Compras](/operator/compras) y toca **Cargar factura**.\n2. Elige el archivo: un PDF o una imagen (JPG, PNG o WebP) de hasta 15 MB. Desde el celular puedes tomar la foto en ese momento.\n3. Espera mientras dice **Leyendo factura con IA…**. Puede tardar hasta un minuto; no cierres la pantalla.\n\nSe abre **Revisar factura**, con la imagen o el PDF al lado de lo que leyó la IA. Arriba ves cuántos insumos **ya existen** y cuántos **se crearán**.\n\n## Revisa el proveedor y los datos de la factura\n\n1. En **Proveedor**, si la IA lo reconoció dice **Ya existe**. Si no, dice **Se creará**, con el **Nombre del proveedor** y el **NIT / RFC** que leyó. Puedes cambiarlo con **Usar proveedor existente** o **Crear proveedor nuevo**.\n2. Si el documento es una **Cuenta de cobro**, el proveedor es a quien se le paga (el de \"debe a:\").\n3. Revisa el **Número de factura** y la **Fecha de la factura**.\n\n## Revisa cada línea\n\nEn **Líneas de la factura**, cada línea muestra el texto original (\"En la factura: …\"). Las dudosas dicen **revisar**.\n\n1. **El insumo**: si ya existe, aparece elegido; cámbialo con **Cambiar insumo**. Si es nuevo, revisa el **Nombre del insumo** y en **Se mide en** elige peso, volumen o unidades; o toca **Usar insumo existente**.\n2. **Recordar esta relación para próximas facturas de este proveedor**: márcalo cuando el proveedor llame al producto distinto que tú (\"ACEITE GIRASOL 3000\" = \"Aceite\"). Se guarda al confirmar, y en la próxima factura de ese proveedor la línea ya viene asociada y dice **Relación guardada para este proveedor**.\n3. **La cantidad**: **Por presentación**, si el insumo está en la lista de precios del proveedor, o **Cantidad directa**, con su unidad.\n4. **El importe**: en **Tipo de importe** elige si el valor es el **Total de la línea** o el **Precio unitario**, y escríbelo.\n5. **Los impuestos de la línea**: la IA marca si el importe ya trae impuestos (**Detectado: impuestos incluidos** o **Detectado: impuestos no incluidos**). Si dice **Por confirmar**, marca **Impuestos incluidos en este importe** si ya los trae, o toca **Confirmar que no incluye impuestos**. Elige la tarifa de **IVA** y, si la línea lleva impuesto al consumo, escribe el **Consumo total de la línea**.\n6. Revisa el resumen de la línea: **Base sin impuestos**, IVA, consumo y **Total final de la línea**.\n\nUsa **Quitar línea** para lo que no es mercancía y **Agregar línea** para lo que la IA no leyó.\n\n## Revisa los otros impuestos y el total\n\nEn **Otros impuestos del documento** están el **Consumo no distribuido en líneas**, la **Retención en la fuente**, la **Retención de IVA** y la **Retención de ICA**. Las retenciones se restan del total a pagar. Si tu comercio tiene Contabilidad, **Sugerir retenciones** las calcula con los conceptos de retención que tengas activos; después puedes ajustarlas.\n\nCompara el **Total a pagar** con el de la factura. Si no coinciden, MESAPAY te avisa. En **Notas de la lectura** la IA cuenta lo que no pudo leer bien.\n\n## Confirma\n\nEn **Al confirmar**, elige una opción:\n\n- **Solo crear borrador**: crea la orden de compra para recibirla después, cuando llegue la mercancía.\n- **Crear y recibir**: crea la orden y la recibe completa con los costos de la factura. El inventario sube y queda la cuenta por pagar. Puedes poner el **Vencimiento de la cuenta por pagar**; si lo dejas vacío, se calcula con el plazo del proveedor.\n\nDespués toca **Confirmar**. MESAPAY recuerda en ese equipo la última opción que elegiste. Al terminar se abre la orden de compra creada; la factura queda guardada en ella, en **Factura**, con el botón **Ver factura**. Para recibirla o pagarla, ver [Haz órdenes de compra, recibe la mercancía y paga a tus proveedores](/operator/ayuda/carta-y-produccion/ordenes-de-compra).\n\n## Casos frecuentes y errores\n\n- **Elige un proveedor existente o escribe el nombre de uno nuevo.**: la IA no reconoció al proveedor. Búscalo con **Usar proveedor existente** o escribe su nombre.\n- **Formato no válido: sube un PDF o una imagen (JPG, PNG, WebP).**: la carga de facturas no acepta Excel ni Word. Exporta la factura a PDF o tómale una foto.\n- **El archivo pesa demasiado (máx. 15 MB) o está vacío.**: reduce la foto o vuelve a exportar el PDF.\n- **No se pudo leer la factura. Intenta con otra foto o cárgala más nítida.**: toma la foto de frente, con buena luz y la factura completa.\n- **El total calculado (…) no coincide con el de la factura (…)**: revisa las cantidades, si cada importe es por línea o por unidad, si trae impuestos incluidos y las retenciones.\n- **Revisa los importes e impuestos señalados antes de confirmar…**: hay líneas en **Por confirmar** o sin tarifa de IVA. Resuélvelas una por una.\n- **Asigna el consumo pendiente a sus líneas antes de confirmar…**: pasa el impuesto al consumo del total a las líneas que lo llevan; lo que asignas se descuenta solo del pendiente.\n- **Un mismo nombre de este proveedor está asociado a dos insumos distintos en esta factura…**: elige el mismo insumo en esas líneas o desmarca **Recordar** en una.\n- **El insumo asociado a este nombre está archivado o ya no está disponible…**: elige otro insumo o crea uno nuevo.\n- **Cerré la revisión sin confirmar**: no se creó nada. Vuelve a cargar la factura. Para descartarla del todo, usa **Descartar**.\n- **Usé \"Solo crear borrador\" y en Por pagar sale \"Sin factura\"**: al recibir la orden, abre **Por pagar**, toca **Editar factura** y escribe el **Nº de factura** y el **Vencimiento**.",
+      "links": [
+        {
+          "label": "Ir a Compras",
+          "href": "/operator/compras"
+        },
+        {
+          "label": "Ir a Insumos",
+          "href": "/operator/settings/insumos"
+        },
+        {
+          "label": "Ir a Proveedores",
+          "href": "/operator/settings/proveedores"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

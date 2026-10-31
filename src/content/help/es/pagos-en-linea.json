@@ -1,5 +1,240 @@
 {
   "title": "Pagos en línea",
   "description": "Activar los pagos, tarjeta, PSE y Apple Pay, Wallet, transferencias, bonos empresariales y links de pago.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "activar-pagos-en-linea",
+      "title": "Activa los pagos en línea",
+      "summary": "Sube los siete documentos de tu empresa, revisa los datos que MESAPAY lee del RUT y de la certificación bancaria, y envía la solicitud para que Kushki habilite tus cobros en línea.",
+      "keywords": [
+        "activar pagos",
+        "pagos en linea",
+        "kushki",
+        "pasarela de pagos",
+        "onboarding",
+        "documentos",
+        "rut",
+        "camara de comercio",
+        "certificacion bancaria",
+        "cuenta bancaria",
+        "representante legal",
+        "composicion accionaria",
+        "origen de fondos",
+        "estados financieros",
+        "solicitud rechazada",
+        "en revision",
+        "editar documentos",
+        "reenviar solicitud",
+        "formulario de alta",
+        "excel"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Para cobrar en línea (tarjeta, PSE o Apple Pay) tu comercio necesita una cuenta en Kushki, la empresa que procesa los pagos de MESAPAY. En **Activar pagos** subes los documentos de tu empresa y envías la solicitud; cuando Kushki la aprueba, la pantalla muestra **¡Listo para cobrar!**.\n\n## Antes de empezar\n\nTen a mano estos documentos, en PDF o en foto (JPG, PNG o WebP), de máximo 10 MB cada uno:\n\n- **Cédula representante legal**\n- **RUT**\n- **Cámara de comercio**\n- **Certificación de composición accionaria**, expedida hace menos de 90 días.\n- **Certificación bancaria** de la cuenta donde vas a recibir el dinero. Tiene que estar a nombre del mismo NIT o cédula del RUT.\n- **Certificación origen de fondos (contador)**\n- **Estados financieros**\n\nRevisa también que la dirección y la ciudad estén completas en [Identidad del comercio](/operator/ayuda/primeros-pasos/identidad-del-comercio): se usan en el formulario de alta.\n\n## Pasos\n\n1. Entra a [Configuración › Pagos](/operator/settings/pagos).\n2. En **1 · Documentos**, arrastra cada archivo a su casilla o toca **Arrastra el archivo o haz click para subirlo**. La casilla queda con **✓ Cargado**. Al subir el RUT, MESAPAY lo lee solo (**Leyendo RUT con AI…**) y llena los datos legales.\n3. En **2 · Certificación bancaria**, sube la certificación. MESAPAY la lee y llena **3 · Datos bancarios**: banco, tipo de cuenta, número, titular y su documento.\n4. Revisa **4 · Datos legales del comercio**: razón social, NIT, correo y teléfono de contacto.\n5. Escribe **Nombre del representante legal** y **Cédula del representante legal** tal como aparecen en la cédula. Son los únicos datos que se escriben a mano.\n6. Comprueba que aparezca el aviso **El documento del titular de la cuenta coincide con el RUT**.\n7. Toca **Enviar solicitud**. El botón se activa cuando están los siete documentos y todos los datos completos.\n\n> Los datos bancarios y legales salen de los documentos y no se editan. Si alguno quedó mal, sube un archivo más nítido o toca **Volver a leer con AI** (certificación) o **Volver a leer el RUT con AI**.\n\nAl enviar la solicitud, MESAPAY le entrega a Kushki tus documentos y el formulario de alta que ellos piden (una planilla con los datos del negocio y del representante legal), ya lleno con lo que revisaste. No tienes que llenar ningún Excel.\n\n## Los estados de la solicitud\n\n- **En revisión**: Kushki está validando tus documentos. La solicitud queda bloqueada.\n- **Entrega pendiente a Kushki**: la solicitud quedó guardada, pero los documentos no terminaron de llegar (**Documentos entregados: … de …**). No los vuelvas a subir: escríbenos a soporte para completar el envío.\n- **¡Listo para cobrar!**: tu cuenta está activa. Desde ese momento aparece **Wallet y dispersiones** en Configuración y tus clientes pueden pagar en línea con los medios que MESAPAY tenga habilitados para tu comercio.\n- **Solicitud rechazada**: debajo ves el motivo. Reemplaza lo que haga falta y vuelve a tocar **Enviar solicitud**.\n\nEn Configuración, la tarjeta **Pagos** muestra el mismo estado en corto: **No iniciado**, **Documentos cargados**, **En revisión**, **Activo**, **Rechazado** o **Suspendido**. Si ves **Suspendido**, escríbenos a soporte.\n\n## Cambia un documento después de enviar\n\n1. Mientras la solicitud está en revisión, toca **Editar documentos**.\n2. En la casilla del documento, toca **Reemplazar / agregar** y elige el archivo nuevo. Reemplaza al anterior, también en Kushki.\n3. Toca **Reenviar solicitud**. Si te arrepientes, toca **Cancelar edición**.\n\nCon la cuenta ya activa, los documentos no se cambian desde aquí: escríbenos a soporte.\n\n## Errores frecuentes\n\n- **El titular de la cuenta no coincide con el RUT**: la cuenta tiene que estar a nombre del mismo NIT o cédula del RUT para que te puedan transferir el dinero. Sube la certificación de una cuenta a nombre de la empresa, o el RUT correcto.\n- **Faltan:** seguido de una lista: sube esos documentos; sin ellos el botón no se activa.\n- **Este documento tiene más de 90 días. Vuelve a subirlo actualizado.**: sale en la composición accionaria. No impide enviar, pero Kushki puede rechazar la solicitud por eso.\n- **Formato no soportado. Usa PDF, JPG, PNG o WebP.**: convierte el archivo a uno de esos formatos.\n- El archivo no sube por tamaño: el máximo es 10 MB. Comprímelo o tómale una foto.\n- **OCR falló.** u **OCR del RUT falló.**: MESAPAY no pudo leer el documento. Toca el botón de volver a leer o sube una versión más clara.",
+      "links": [
+        {
+          "label": "Ir a Pagos",
+          "href": "/operator/settings/pagos"
+        },
+        {
+          "label": "Ir a Identidad del comercio",
+          "href": "/operator/settings/identidad"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "medios-de-pago-en-linea",
+      "title": "Tarjeta, PSE y Apple Pay para tus clientes",
+      "summary": "Qué medios de pago en línea ve el comensal al pagar desde la mesa, qué necesita tu comercio para ofrecerlos, cuándo aparece Apple Pay y con qué medios se cobra el depósito de una reserva.",
+      "keywords": [
+        "medios de pago",
+        "metodos de pago",
+        "tarjeta",
+        "tarjeta de credito",
+        "tarjeta debito",
+        "pse",
+        "transferencia bancaria",
+        "apple pay",
+        "iphone",
+        "safari",
+        "pago en linea",
+        "pagar desde el celular",
+        "pasarela",
+        "datafono virtual",
+        "deposito de reserva",
+        "pago rechazado"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con los pagos en línea activos, el comensal paga la cuenta desde su celular, sin esperar el datáfono ni el efectivo. Aquí te contamos qué medios ve, quién los habilita y qué necesita cada uno.\n\n## Qué necesita tu comercio\n\n- **Tu solicitud de pagos aprobada.** En Configuración › Pagos tiene que decir **¡Listo para cobrar!**. Antes de eso, el comensal no ve ningún medio en línea. Ver [Activa los pagos en línea](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n- **Cada medio habilitado por MESAPAY.** Los medios de pago de cada restaurante los activa el equipo de MESAPAY; no se prenden ni se apagan desde tu panel. Si te falta alguno, escríbenos a soporte.\n\n## Lo que ve el comensal\n\nAl tocar pagar en la pantalla de la mesa, aparecen los botones que tu comercio tiene habilitados:\n\n1. **Tarjeta de crédito o débito**: escribe los datos de la tarjeta en la misma pantalla. Los datos viajan cifrados a Kushki; MESAPAY no los ve ni los guarda. Algunas tarjetas pueden pedir además una verificación del banco.\n2. **PSE (transferencia bancaria)**: elige su banco y lo llevamos a la página del banco para autorizar la transferencia. Al terminar vuelve a la pantalla de pago con el resultado.\n3. **Apple Pay**: paga con Face ID o Touch ID. Solo aparece en Safari, en iPhone o Mac con Apple Pay configurado. En otros navegadores el botón no se muestra.\n\nJunto a ellos salen los medios presenciales que tengas: **Tarjeta con datáfono**, **Tarjeta (datáfono del comercio)** y **Efectivo (llamar al mesero)**. Los datáfonos se explican en [Configura los datáfonos](/operator/ayuda/impresion-y-equipos/datafonos).\n\n> ⚠ Apple Pay depende de que MESAPAY lo active para tu comercio y no se configura desde tu panel. Si un cliente con iPhone no lo ve, escríbenos a soporte.\n\n## Adónde llega el dinero\n\nLos pagos en línea aprobados se suman a tu saldo en Wallet, desde donde lo pasas a tu cuenta bancaria. Ver [Tu saldo en Wallet y las transferencias al banco](/operator/ayuda/pagos-en-linea/wallet-y-transferencias).\n\n## El depósito de las reservas\n\nSi cobras un depósito para reservar, solo se puede pagar en línea (**Tarjeta**, **PSE** o **Apple Pay**), porque el cliente no está en el local cuando reserva.\n\n1. Entra a [Configuración › Reservas](/operator/settings/reservas).\n2. En **Depósito para reservar**, marca con qué medios se cobra.\n\nSi no marcas ninguno, verás **Sin ningún método marcado no se podrán cobrar depósitos: las mesas con depósito se reservarán sin cobrarlo.** Si tu comercio no tiene medios en línea, esa sección te lo avisa y te lleva a Pagos.\n\n## Casos frecuentes\n\n### El comensal no ve tarjeta ni PSE\n\nRevisa que Configuración › Pagos diga **¡Listo para cobrar!**. Si ya lo dice, escríbenos a soporte para revisar qué medios tienes habilitados.\n\n### Apple Pay no aparece\n\nEl cliente está usando Chrome, un celular Android o un iPhone sin Apple Pay configurado, o MESAPAY todavía no lo activó para tu comercio. Puede pagar con tarjeta o PSE.\n\n### El pago no se aprobó\n\nEl comensal ve **Tu pago no fue aprobado** y puede intentar con otra tarjeta o con otro medio. La cuenta sigue abierta hasta que se pague.",
+      "links": [
+        {
+          "label": "Ir a Pagos",
+          "href": "/operator/settings/pagos"
+        },
+        {
+          "label": "Ir a Reservas",
+          "href": "/operator/settings/reservas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "wallet-y-transferencias",
+      "title": "Tu saldo en Wallet y las transferencias al banco",
+      "summary": "Mira cuánto dinero de tus cobros en línea tienes disponible, pásalo a tu cuenta bancaria o transfiérelo a otra cuenta, y sigue el estado de cada transferencia.",
+      "keywords": [
+        "wallet",
+        "billetera",
+        "saldo",
+        "saldo disponible",
+        "pendiente",
+        "pasar al banco",
+        "retirar",
+        "retiro",
+        "dispersion",
+        "dispersiones",
+        "transferencia",
+        "transferir",
+        "pagar a proveedor",
+        "cuenta bancaria",
+        "plata",
+        "ach",
+        "dispersion automatica"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Wallet ves el dinero que tus clientes te pagaron en línea y lo mueves: a tu propia cuenta bancaria o a otra cuenta, por ejemplo la de un proveedor.\n\nWallet funciona cuando tus pagos en línea están activos (**¡Listo para cobrar!**). Antes de eso, al entrar te devuelve a Configuración. Ver [Activa los pagos en línea](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## Tu saldo\n\nEntra por el menú **Negocio › Wallet** o por Configuración › **Wallet y dispersiones**. Arriba ves:\n\n- **Saldo disponible**: lo que ya puedes transferir.\n- **Pendiente**: cobros recibidos que todavía no están disponibles. Solo aparece si hay algo pendiente.\n\n## Pasa el saldo a tu cuenta\n\n1. Toca **Pasar al banco**. Junto al botón ves el banco y los últimos cuatro números de la cuenta que registraste al activar los pagos.\n2. En **Monto** queda el saldo completo. Cámbialo si quieres pasar menos; no puede superar el **Máximo**.\n3. Toca **Enviar** con el monto (por ejemplo, **Enviar $ 350.000**).\n\nLa dispersión normalmente se acredita en 1 día hábil.\n\n## Transfiere a otra cuenta\n\nSirve para pagarle a un proveedor o a un empleado con tu saldo.\n\n1. Toca **Transferir a otra cuenta**.\n2. Completa **Banco destino**, **Tipo de cuenta**, **Número de cuenta**, **Documento**, **Número de documento** y **Nombre del titular**.\n3. Escribe el **Monto** y toca **Enviar**.\n4. Verás **Transferencia iniciada.** El banco la acredita en sus ciclos del día hábil y el resultado queda en **Transferencias**.\n\n> ⚠ Revisa bien los datos antes de enviar: una transferencia a una cuenta equivocada no se puede reversar desde MESAPAY.\n\n## La lista de transferencias\n\nCada transferencia muestra el banco, los últimos cuatro números de la cuenta, **A tu cuenta** o el nombre del titular, la fecha, el monto y su estado:\n\n- **En proceso**: el banco todavía no la acredita.\n- **Acreditada**: el dinero ya llegó.\n- **Rechazada**: el banco no la aceptó. Debajo aparece el motivo.\n- **No enviada**: no se pudo iniciar.\n\n## Dispersión automática\n\nLa casilla **Pasar saldo al banco automáticamente** guarda una **Frecuencia** (**Diaria**, **Semanal** o **Cuando pase un umbral**) con su **Hora (24h)** o su **Umbral en pesos**.\n\n> ⚠ Por ahora esta opción solo guarda tu preferencia: el saldo no se transfiere solo. Para mover el dinero usa **Pasar al banco**.\n\n## Casos frecuentes\n\n- **Pasar al banco** no se puede tocar: si debajo dice **«Pasar al banco» necesita tu cuenta bancaria registrada.**, tu cuenta se registra al enviar la solicitud en Configuración › Pagos. Si el saldo disponible está en cero, tampoco hay nada que pasar.\n- **No pudimos cargar el saldo**: vuelve a abrir la pantalla en unos minutos. Si sigue, escríbenos a soporte con el código que aparece entre paréntesis.\n- **No pudimos dispersar.** o un mensaje del banco: el dinero no se movió y la transferencia queda como **No enviada**. Revisa los datos y vuelve a intentarlo.\n- La lista **Movimientos** sale vacía: guíate por el **Saldo disponible** y por **Transferencias**, que se consultan cada vez que abres la pantalla.",
+      "links": [
+        {
+          "label": "Ir a Wallet",
+          "href": "/operator/wallet"
+        },
+        {
+          "label": "Ir a Pagos",
+          "href": "/operator/settings/pagos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "bonos-empresariales",
+      "title": "Bonos empresariales: configura y emite",
+      "summary": "Vende a una empresa un lote de bonos de valor fijo, prepagados o a crédito, para que sus invitados paguen la cuenta con un código. Es un módulo que activa MESAPAY para cada comercio.",
+      "keywords": [
+        "bonos",
+        "bonos empresariales",
+        "voucher",
+        "vouchers",
+        "cupon",
+        "cupones",
+        "tarjeta regalo",
+        "gift card",
+        "empresa",
+        "convenio empresarial",
+        "prepago",
+        "a credito",
+        "emitir bonos",
+        "lote de bonos",
+        "codigo de bono",
+        "redimir",
+        "cancelar bono",
+        "vencimiento"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Con los bonos empresariales le vendes a una empresa un lote de bonos de valor fijo, y sus empleados o invitados los usan para pagar la cuenta en tu restaurante con un código.\n\n> Los bonos son un módulo que el administrador de la plataforma (MESAPAY) activa para cada comercio. Si no ves **Bonos** en el menú **Negocio**, tu comercio no lo tiene activo: escríbenos a soporte.\n\n> ⚠ Habla antes con tu contador. Hoy MESAPAY no emite factura electrónica al vender un lote de bonos ni ajusta la factura de la venta cuando se redimen. Define con él si el bono se trata como anticipo o se factura al emitirlo; mientras tanto, cada lote queda marcado como pendiente de esa definición.\n\n## 1. Elige cómo se cobran\n\n1. Entra a [Configuración › Bonos empresariales](/operator/settings/bonos).\n2. En **Modo de cobro**, elige **Prepago** o **A crédito** (abajo se explica cada uno).\n3. Si quieres, llena **Valor por defecto de cada bono** y **Vigencia por defecto (días)**. Vacía, la vigencia queda **Sin vencimiento**.\n4. Toca **Guardar**.\n\nLos dos modos:\n\n- **Prepago**: la empresa paga el lote por adelantado, con tarjeta o PSE, desde el link que le llega en el correo. Los bonos no se pueden usar hasta que el pago se confirma.\n- **A crédito**: los bonos se emiten sin cobro. Cuando cierras el corte de lo usado, la empresa recibe el resumen con el link para pagar lo redimido.\n\nEl modo se copia a cada lote al emitirlo: cambiarlo después no afecta los lotes ya emitidos.\n\n> El modo **Prepago** necesita tus pagos en línea activos. Si no lo están, la empresa abre el link y no tiene cómo pagar. Ver [Activa los pagos en línea](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## 2. Emite un lote\n\n1. Entra a [Bonos](/operator/bonos).\n2. En **Emitir bonos**, busca la empresa. Si no aparece, toca **Crearla en Clientes**, créala con su correo y vuelve.\n3. Completa **Cantidad** (de 1 a 500), **Valor de cada bono**, **Vigencia (días)** (vacío es **Sin vencimiento**) y, si quieres, una **Nota**.\n4. Revisa el **Total del lote** y toca **Emitir** (por ejemplo, **Emitir 10 bonos**).\n\nLa empresa recibe un correo con todos los códigos (también en un archivo para repartirlos) y, en prepago, el botón para pagar. Si ves **El correo no salió**, entra al lote y toca **Reenviar correo**.\n\n## Los lotes y sus estados\n\nEn **Lotes emitidos** ves cada lote con su empresa, los bonos activos sobre el total, el valor de cada uno, el **Saldo disponible** y el estado:\n\n- **Pendiente de pago**: lote prepago que la empresa todavía no paga.\n- **Pagado**: lote prepago ya pagado; sus bonos ya se pueden usar.\n- **Emitido**: lote a crédito; sus bonos se pueden usar desde ya.\n- **Cancelado**.\n\nToca **Ver lote** para el detalle: lo **Redimido**, el saldo, la vigencia, quién lo emitió y, en prepago sin pagar, el **Link de pago** con **Copiar** para mandarlo por otro medio. En **Bonos del lote** cada código muestra su estado: **Activo**, **Con saldo**, **Agotado**, **Vencido**, **Esperando pago** o **Cancelado**.\n\n## Cancela un bono o un lote\n\n- **Cancelar**, en la fila de un bono: solo para bonos activos que no se han usado. El bono deja de valer.\n- **Cancelar lote**: anula todos los bonos y el link de pago. Solo se puede si ningún bono se ha usado y, en prepago, si la empresa todavía no pagó.\n\nSi ya hay bonos usados, verás **No se puede cancelar el lote: ya hay bonos usados. Cancelá los que quedan sin uso uno por uno.** Si el lote prepago ya está pagado, cancela los bonos sueltos y acuerda la devolución directamente con la empresa.\n\n## Cómo se usan los bonos\n\n- **El comensal**, al pagar desde el QR de la mesa, escribe el código en **¿Tenés un bono?**, toca **Verificar** y después **Aplicar … del bono**.\n- **El mesero o la caja**, al cobrar la cuenta, escriben el código en **Bono empresarial**.\n- Si la cuenta es mayor que el bono, la diferencia se paga con otro medio. Si es menor, lo que sobra queda en el bono para otra visita.\n- El bono paga la comida; la propina, si la dejan, va en el pago del resto.\n\nMensajes que pueden salir al aplicarlo:\n\n- **Este bono todavía no está activo: la empresa no pagó el lote.**: el lote es prepago y falta el pago.\n- **Este bono venció.** o **Este bono ya no tiene saldo.**: no se puede usar; la cuenta se paga con otro medio.\n- **No encontramos un bono con ese código.**: revisa que esté bien escrito.\n\nPara cobrarle a la empresa lo que usaron sus bonos a crédito, ver [Cierra el corte de bonos](/operator/ayuda/pagos-en-linea/corte-de-bonos).",
+      "links": [
+        {
+          "label": "Ir a Bonos",
+          "href": "/operator/bonos"
+        },
+        {
+          "label": "Ir a Configuración de bonos",
+          "href": "/operator/settings/bonos"
+        },
+        {
+          "label": "Ir a Clientes",
+          "href": "/operator/clientes"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "corte-de-bonos",
+      "title": "Cierra el corte de bonos y cobra lo usado",
+      "summary": "Revisa qué bonos usó cada empresa, en qué cuentas y por cuánto, exporta el detalle y cierra el corte para enviarle el resumen con el link de pago de lo redimido a crédito.",
+      "keywords": [
+        "corte de bonos",
+        "cierre de bonos",
+        "reporte de bonos",
+        "bonos usados",
+        "redenciones",
+        "estado de cuenta",
+        "cobrar a la empresa",
+        "a credito",
+        "exportar csv",
+        "reenviar correo",
+        "voucher",
+        "cupon"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El corte reúne los bonos que una empresa usó en un período y le envía el resumen por correo. Si esos bonos eran a crédito, el correo trae el link para que pague lo redimido.\n\nEsta pantalla es parte del módulo de bonos empresariales, que activa MESAPAY para cada comercio. Ver [Bonos empresariales: configura y emite](/operator/ayuda/pagos-en-linea/bonos-empresariales).\n\n## Revisa los bonos usados\n\n1. Entra a [Bonos](/operator/bonos) y toca **Reporte y corte**.\n2. Elige la **Empresa** (o **Todas las empresas**) y las fechas **Desde** y **Hasta**. Si no cambias nada, ves el mes en curso.\n3. Toca **Filtrar**.\n\nArriba aparecen los totales del rango: **Usos**, **Redimido**, **A crédito** y **Sin corte** (lo que todavía no entra en ningún corte).\n\nEn **Redenciones** ves cada uso: la fecha, la empresa, el código, la **Cuenta** (tócala para abrir la orden), lo **Redimido**, el **Saldo del bono** después del uso, el **Modo**, el **Canal** (**Comensal** si lo aplicó el cliente, **Staff** si lo aplicó tu equipo) y si ya está **En corte** o **Sin corte**.\n\nPara llevarte el detalle a una hoja de cálculo, toca **Exportar CSV**. Sale con el filtro que aplicaste.\n\n## Cierra el corte\n\n1. Filtra por una sola empresa y por el rango que quieres cobrar.\n2. Revisa el aviso con los usos sin corte y su total.\n3. Toca **Cerrar corte** y confirma.\n4. Verás **Corte cerrado: … El correo ya salió.**\n\nAl cerrar:\n\n- Entran todos los usos **Sin corte** de esa empresa en el rango. Un uso entra en un solo corte: cerrar dos veces el mismo rango no cobra doble.\n- Lo redimido de lotes **A crédito** se cobra con un link de pago que va en el correo.\n- Lo redimido de lotes **Prepago** ya estaba pagado: el correo solo lo informa.\n\n## La lista de cortes\n\nEn **Cortes** ves cada corte cerrado: la fecha de cierre, la empresa, el **Período**, los **Usos**, el total, lo que va **A crédito** y el estado:\n\n- **Pendiente de pago**: la empresa todavía no paga lo de crédito.\n- **Pagado**: ya pagó por el link, o el corte no tenía nada a crédito.\n\nSi la empresa no encuentra el correo, toca **Reenviar correo**: le llega otra vez el resumen y, si sigue pendiente, el link de pago.\n\n## Casos frecuentes\n\n- **Cerrar corte** no se puede tocar: tienes que filtrar por una empresa (**Elegí una empresa para cerrar su corte.**) y tener usos sin corte en el rango.\n- **No hay usos sin corte en ese rango.**: esos usos ya entraron en un corte anterior. Búscalo en **Cortes**.\n- **El correo no salió**: revisa el correo de la empresa en [Clientes](/operator/clientes) y toca **Reenviar correo** en la fila del corte.\n- **Demasiados reenvíos. Esperá unos minutos.**: espera un momento antes de volver a reenviar.",
+      "links": [
+        {
+          "label": "Ir a Reporte y corte",
+          "href": "/operator/bonos/reporte"
+        },
+        {
+          "label": "Ir a Bonos",
+          "href": "/operator/bonos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "links-de-pago",
+      "title": "Links de pago de bonos",
+      "summary": "MESAPAY crea solo el link con el que una empresa paga un lote de bonos prepago o el corte de sus bonos a crédito. Así se ve, cómo paga la empresa y qué pasa cuando el link ya no sirve.",
+      "keywords": [
+        "link de pago",
+        "enlace de pago",
+        "cobrar por link",
+        "pago en linea",
+        "cobro a empresa",
+        "bonos",
+        "voucher",
+        "tarjeta",
+        "pse",
+        "apple pay",
+        "pago pendiente",
+        "pago recibido",
+        "link vencido",
+        "link no disponible"
+      ],
+      "audience": [
+        "operator",
+        "comensal"
+      ],
+      "body": "Un link de pago es una página donde una empresa paga en línea lo que te debe por bonos. No se arma a mano: MESAPAY lo crea solo y lo manda por correo a la empresa.\n\nHoy los links de pago son parte de los bonos empresariales, un módulo que activa MESAPAY para cada comercio. Ver [Bonos empresariales: configura y emite](/operator/ayuda/pagos-en-linea/bonos-empresariales).\n\n## Cuándo se crea un link\n\n- **Al emitir un lote Prepago.** El link cobra el total del lote y va en el correo de emisión. También lo ves en el detalle del lote, en **Link de pago**: toca **Copiar** para mandarlo por otro medio, como WhatsApp.\n- **Al cerrar un corte con bonos A crédito.** El link cobra solo lo redimido a crédito y va en el correo del corte. Para mandarlo otra vez, toca **Reenviar correo** en la lista de cortes. Ver [Cierra el corte de bonos](/operator/ayuda/pagos-en-linea/corte-de-bonos).\n\nUn lote a crédito no tiene link al emitirse: se cobra en el corte.\n\n## Qué ve la empresa al pagar\n\n1. Abre el link y ve el nombre de tu restaurante, **Pago pendiente**, qué se cobra (por ejemplo, «10 bonos de $ 50.000 para Comercial Andina») y el **Total a pagar**.\n2. Elige cómo pagar con uno de los medios de abajo y completa el pago.\n3. Cuando el pago se aprueba ve **Pago recibido**. Si era un lote prepago, también **Los bonos del lote ya están activos y se pueden redimir.**\n\nLos medios que puede ver:\n\n- **Tarjeta de crédito o débito**: escribe el número, el nombre, la fecha de vencimiento, el CVV y un correo para el comprobante.\n- **PSE (transferencia bancaria)**: elige su banco y escribe el tipo y el número de documento del pagador; después autoriza en la página del banco.\n- **Apple Pay**: solo en Safari, en iPhone o Mac, y si MESAPAY lo tiene habilitado para tu comercio.\n\nCuando la empresa paga, el lote (o el corte) pasa a **Pagado** en tu panel. La página se puede ver en español, inglés o portugués.\n\n## Requisito: pagos en línea activos\n\nEl link cobra con los medios en línea de tu comercio. Si tus pagos en línea no están activos, la empresa ve **Este comercio no tiene habilitado ningún medio de pago en línea.** y no puede pagar. Ver [Activa los pagos en línea](/operator/ayuda/pagos-en-linea/activar-pagos-en-linea).\n\n## Cuando el link ya no sirve\n\n- **Este link ya no está disponible**: el cobro se canceló, por ejemplo porque cancelaste el lote. Si hace falta cobrar, emite un lote nuevo.\n- Si la empresa abre un link ya pagado, ve otra vez **Pago recibido**: no se cobra dos veces.\n- **Transferencia rechazada**: el banco no aprobó el PSE. La empresa puede tocar **Intentar de nuevo** o pagar con tarjeta.\n- Si el PSE quedó en confirmación, la página dice **Estamos confirmando la transferencia con tu banco.** y se actualiza sola.\n- Si el módulo de bonos se apaga, sus links dejan de abrir.",
+      "links": [
+        {
+          "label": "Ir a Bonos",
+          "href": "/operator/bonos"
+        },
+        {
+          "label": "Ir a Reporte y corte",
+          "href": "/operator/bonos/reporte"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

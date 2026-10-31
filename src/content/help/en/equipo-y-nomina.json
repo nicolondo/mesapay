@@ -1,5 +1,187 @@
 {
   "title": "Team and payroll",
   "description": "Employees, schedules, attendance, kiosk, payroll and waiter commissions.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "crear-el-equipo",
+      "title": "Add your team and their salaries",
+      "summary": "Create each employee with their position and monthly base salary, set their template schedule and face registration for the kiosk, and deactivate them when they stop working.",
+      "keywords": [
+        "employees",
+        "team",
+        "staff",
+        "workers",
+        "salary",
+        "wage",
+        "monthly base salary",
+        "hourly value",
+        "regular hour",
+        "position",
+        "template schedule",
+        "face registration",
+        "deactivate employee",
+        "delete employee"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Schedules, on the Team tab, you add the people who work at your restaurant with their position and salary. MESAPAY uses that data to plan shifts, track attendance, calculate surcharges and run payroll.\n\n> Schedules and Payroll appear in the side menu, under **Back office**, when your business has the schedules and payroll module turned on. If you don't see them, write to support.\n\n## Create an employee\n\n1. Go to [Schedules](/operator/horarios) and open the **Team** tab.\n2. Tap **New employee**.\n3. Enter the **Name** and the **Position** (for example, waiter, cook or dishwasher). Positions you've already used show up as suggestions.\n4. In **Monthly base salary**, enter what the person earns per month. Below it you'll see the **Regular hourly value** that comes from that salary.\n5. If the person signs in to MESAPAY with their own user, pick it in **App user (optional)**. If not, leave **No user**.\n6. Tap **Save**.\n\nThe **Team** list shows each person with their monthly salary and hourly value.\n\n## Salary and hourly value\n\nThe monthly base salary is the basis for payroll: it's paid in full every month, no matter how many hours the person has in the planner.\n\nThe regular hourly value is the salary divided by a divisor, which is 240 by default (30 days of 8 hours). For example, with a salary of $2,400,000 the regular hour is worth $10,000. That value is used only to calculate surcharges for shifts on holidays and Sundays.\n\nYou change the divisor in the gear icon, **Schedule settings**. See [Plan shifts and track attendance](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\nIf you leave the salary empty, the employee is marked **No salary**: they can have shifts, but no surcharges are calculated and they aren't included in payroll.\n\n## Template schedule and face registration\n\nThese two sections appear when you edit an employee you've already created: tap them in the **Team** list.\n\n- **Template schedule**: the person's usual shifts, Monday to Sunday, with up to two ranges per day (for split shifts). Tap **Add range** on the day and enter the start and end times. It's used by **Apply template** in the week and to create the automatic shift when someone clocks in at the kiosk without a planned shift. **Clear template** erases it. Changes are kept when you tap **Save**.\n- **Face registration**: the photos the kiosk uses to recognize the person. Tap **Register face**, take 1 to 3 front-facing photos in good light with **Take photo**, check the authorization box and tap **Save**. Nothing is saved without the authorization. To erase it, tap **Delete face registration**.\n\nAn employee without face registration can still clock in at the kiosk by picking their name. See [Set up and use the attendance kiosk](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\n## When someone stops working\n\nDeactivate them instead of deleting them:\n\n1. Tap them in the **Team** list.\n2. Uncheck **Active** and tap **Save**.\n3. Confirm the prompt.\n\nThey no longer appear in the planner or on the kiosk, and they're left out of upcoming payroll runs, but their shifts and attendance are kept. In the list they're marked **Inactive**, and you can reactivate them whenever you want.\n\n> ⚠ **Delete** removes the employee forever, together with all their shift and attendance history. Use it only if you created them by mistake.\n\n## Common cases\n\n- **An employee with that name already exists.**: two employees can't have the same name; add a last name or an initial. The same message appears if the user you picked is already linked to another employee: pick another one or leave **No user**.\n- **Check the employee details.**: the name or the position is missing.\n- **Invalid amount.**: the salary must be a number greater than zero, or left empty.\n- **Check the template ranges: each one must last between 15 minutes and 16 hours.**: fill in both times of each range. If the end time is earlier than the start time, the shift ends the next day.\n- **No camera access. Enable it in the browser to register the face.**: allow camera access in the browser and try again.\n- **We didn't see a face in the photo — try again with better light.**: look straight at the camera, find more light and take the photo again.\n- **You must accept the consent to save the face registration.**: check the authorization box before saving.\n- **Face recognition is not available on this device.**: register the face from another device or browser with a camera.",
+      "links": [
+        {
+          "label": "Go to Schedules",
+          "href": "/operator/horarios"
+        },
+        {
+          "label": "Go to Payroll",
+          "href": "/operator/nomina"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "turnos-y-asistencia",
+      "title": "Plan shifts and track attendance",
+      "summary": "Build your team's week, copy the previous one or apply the template, record clock-ins and clock-outs in Today, and check holiday and Sunday surcharges, doubtful punches and the attendance report.",
+      "keywords": [
+        "shifts",
+        "schedules",
+        "planner",
+        "weekly schedule",
+        "attendance",
+        "clock in",
+        "clock out",
+        "punch",
+        "time clock",
+        "holiday surcharge",
+        "Sunday surcharge",
+        "absences",
+        "hours worked",
+        "attendance report",
+        "csv",
+        "extra shift",
+        "divisor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Schedules you plan each week's shifts, record when each person clocks in and out, and see holiday and Sunday surcharges. The screen has three tabs: **Week**, **Today** and **Team**.\n\nBefore planning, add your team. See [Add your team and their salaries](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Plan the week\n\n1. Go to [Schedules](/operator/horarios). The **Week** tab opens, Monday to Sunday. Change weeks with the arrows on either side of the dates.\n2. Tap **New shift**.\n3. Pick the **Employee** and the **Date**, and enter **From** and **To**. If the end time is earlier than the start time, the shift ends the next day and you'll see **Ends the next day.** You can add **Notes**.\n4. Tap **Save**.\n\nTo avoid building the week from scratch:\n\n- **Copy previous week** copies last week's shifts into the week you're viewing.\n- **Apply template** fills the week with each active employee's template schedule.\n\nIn both cases, shifts that overlap one already planned are skipped, and when it finishes you see how many were created and how many were skipped.\n\nAbove the days you see **Hours this week** and, if there are any, **Surcharges** and **Absences**. Holidays carry the **Holiday** tag.\n\nTo change a shift, tap it: adjust the times or the notes and tap **Save**, or tap **Remove**. The employee and the date can't be changed; if you made a mistake, remove the shift and create it again.\n\n## Record today's attendance\n\nThe **Today** tab shows today's shifts.\n\n1. When the person arrives, tap **Clock in**. The exact time is recorded.\n2. When they leave, tap **Clock out**.\n3. If someone came in without a planned shift, tap **Extra shift** and create it with today's date.\n\nPunches made at the kiosk show up here with the clock-in and clock-out photos; tap a photo to see it full size. To open the kiosk on this device, tap **Open kiosk**. See [Set up and use the attendance kiosk](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\nIf nobody clocked in on time, open the shift and correct the **Actual clock-in** and **Actual clock-out** under **Actual attendance**. **Clear record** erases both.\n\nThe tags on each shift mean:\n\n- **✓ Attended**: it has a clock-in and a clock-out.\n- **Absent**: with strict attendance on, the shift is over and nobody clocked in.\n- **Auto-closed**: the person clocked in but not out. Once the day is over, MESAPAY closes the shift at the planned end time.\n- **No salary**: the employee has no salary, so no surcharges are calculated.\n\n## Surcharges and settings\n\nTap the gear icon, **Schedule settings**:\n\n- **Holiday surcharge (%)** and **Sunday surcharge (%)**: what's added on top of the regular hour when the shift starts on a holiday or a Sunday. They start at 75. If a Sunday is a holiday, only the holiday surcharge applies.\n- **Hours divisor**: the hourly value is the salary divided by this number. 240 is a traditional schedule (30 days of 8 hours).\n- **Strict attendance**: a past shift with no clock-in counts as **Absent** and adds no hours or surcharge.\n\nTap **Save**.\n\nThe surcharge uses the shift's actual hours when it has a clock-in and a clock-out, and the planned hours when it doesn't. Holidays are those of your business's country. The month's surcharges go into payroll as earnings. See [Run the month's payroll](/operator/ayuda/equipo-y-nomina/liquidar-la-nomina).\n\n> Today MESAPAY only calculates holiday and Sunday surcharges. Night surcharges and overtime aren't calculated: if you pay them, settle them separately with your accountant. An absence doesn't deduct salary in payroll either.\n\n## Check doubtful punches\n\nWhen the kiosk doesn't recognize someone and the person picks their name by hand, the photo is kept for you to review. The **Reviews** button lights up with the number of pending ones.\n\n1. Tap **Reviews**.\n2. Look at the clock-in or clock-out photo and check that it's that person.\n3. If it matches, tap **Confirm (reviewed)**. If it doesn't, edit or remove that shift from the **Week** tab.\n\n## Download the attendance report\n\n1. Tap **Download report**.\n2. Pick the **From** and **To** dates.\n3. Tap **Download CSV**.\n\nThe file opens in Excel, with one row per shift: date, employee, position, planned schedule, actual clock-in and clock-out, hours and status (**Present**, **No check-out**, **Absent** or **Auto-closed**).\n\n## Common cases\n\n- **It overlaps another shift for that employee on that day.**: they already have a shift at that time. Change the times or edit the existing shift. Two shifts on the same day are fine as long as they don't overlap.\n- **A shift must last between 15 minutes and 16 hours.**: check **From** and **To**.\n- **The actual clock-out must be after the clock-in.**: correct the **Actual clock-out**.\n- **That employee is inactive.** or the employee isn't in the list: reactivate them in the **Team** tab.\n- **Invalid date range.** in the report: the **From** date must be on or before **To**.\n- **Couldn't save. Please try again.**: check your internet connection and tap the button again.",
+      "links": [
+        {
+          "label": "Go to Schedules",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "kiosko-de-asistencia",
+      "title": "Set up and use the attendance kiosk",
+      "summary": "Leave a tablet at your venue so your team clocks in and out with their face. If it doesn't recognize someone, they pick their name and the photo is kept for you to review.",
+      "keywords": [
+        "kiosk",
+        "attendance",
+        "MP Asistencia",
+        "time clock",
+        "clock in",
+        "clock out",
+        "punch in",
+        "face recognition",
+        "biometric",
+        "tablet",
+        "camera",
+        "punch"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The attendance kiosk turns a tablet at your venue into a time clock: each person taps Clock in or Clock out and the camera recognizes their face. Each punch keeps a photo as evidence and goes straight to Schedules.\n\n> The kiosk is part of Schedules, so your business needs that module turned on and your team added. See [Add your team and their salaries](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Set up the tablet\n\n1. On the tablet, open MESAPAY in the browser and sign in with a user with the **Operator** role.\n2. Go to [Schedules](/operator/horarios), open the **Today** tab and tap **Open kiosk**.\n3. Install it on the home screen from the browser menu, with the option to add to the home screen or install the app. It shows up as **MP Asistencia** and opens straight on the kiosk.\n4. Allow camera access when the browser asks.\n5. Place the tablet at face height, in good light, and keep it plugged into the charger.\n\n> ⚠ The tablet stays signed in with an operator session: from the panel menu it's possible to leave the kiosk and go to other screens. Keep it somewhere you can see it.\n\n## Register each person's face\n\nFor the kiosk to recognize someone, register their face once: in [Schedules](/operator/horarios), on the **Team** tab, tap the person, then **Register face**, take 1 to 3 photos and check the authorization box. You can do it from the same tablet.\n\nPeople without a face registration can still clock in: the kiosk asks them to pick their name.\n\n## How your team clocks in\n\n1. The person taps **Clock in** when they arrive or **Clock out** when they leave.\n2. They center their face inside the circle. The photo is taken automatically after 3 seconds, or when they tap **Capture**.\n3. If it recognizes them, **Hi** appears with their name. The punch confirms itself in 3 seconds, or when they tap **Confirm clock-in** (or **Confirm clock-out**).\n4. The message **Clock-in recorded** (or **Clock-out recorded**) appears with the time, and the kiosk goes back to the start screen on its own.\n\nIf the name shown isn't theirs, the person taps **Not me** and picks their name from the list.\n\nThe face comparison happens on the tablet itself. What gets saved on each shift is the photo of the punch.\n\n## When it doesn't recognize someone\n\nIf the kiosk doesn't recognize the person, can't see a face or has no camera access, it shows **Who are you?**:\n\n1. The person types their name in **Search by name…**.\n2. They tap their name. The punch is recorded anyway.\n\nIf the camera managed to take the photo, that punch shows up in **Reviews**, in Schedules, so you can confirm the photo is of that person. See [Plan shifts and track attendance](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\n## If they had no planned shift\n\nIf someone clocks in without a shift for today, MESAPAY creates the shift on its own: with their template schedule for that day or, if they don't have one, 8 hours from the time they clocked in. They'll see **We created your shift for today automatically.** You can adjust the times later in the **Week** tab.\n\nIf they forget to clock out, once the day is over the shift closes itself at the planned end time and is tagged **Auto-closed**.\n\n## Common messages\n\n- **You already clocked in today.**: all their shifts for today already have a clock-in. If they're leaving, they should tap **Clock out**.\n- **You don't have an open clock-in — clock in first.**: they tapped **Clock out** without clocking in. Have them tap **Clock in**, or fix the attendance from the **Today** tab in Schedules.\n- **We didn't recognize you — pick your name.**: the face didn't match any registration or the person has no face registration. Have them pick their name; if it happens often, register their face again in better light.\n- **We couldn't see your face in the photo — pick your name.**: the person wasn't inside the circle. Have them pick their name or try again facing the camera.\n- **No camera access — clock by picking your name.**: allow camera access in the tablet's browser.\n- **Face recognition is unavailable — pick your name.**: check the tablet's internet connection or try another browser.\n- **There are no active employees to clock.**: add your team in Schedules or check that people are active.\n- **That employee is inactive.**: reactivate them in the **Team** tab in Schedules.",
+      "links": [
+        {
+          "label": "Go to the kiosk",
+          "href": "/operator/horarios/kiosko"
+        },
+        {
+          "label": "Go to Schedules",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "liquidar-la-nomina",
+      "title": "Run the month's payroll",
+      "summary": "Generate your team's monthly payroll: salary, holiday and Sunday surcharges, transport allowance, deductions, employer contributions and provisions, with legal parameters you can adjust.",
+      "keywords": [
+        "payroll",
+        "payroll run",
+        "salaries",
+        "paying employees",
+        "wages",
+        "social benefits",
+        "severance",
+        "cesantias",
+        "service bonus",
+        "vacation",
+        "health",
+        "pension",
+        "ARL",
+        "compensation fund",
+        "transport allowance",
+        "contributions",
+        "PILA"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Payroll you calculate what each employee is owed for the month: what they earn, what's deducted and what they cost you as an employer. It uses each person's salary and the surcharges that come from Schedules.\n\n> These are reference figures. The official settlement and social-security payments (PILA) must be validated by your accountant.\n\n## Before you run payroll\n\n- Each employee must be active and have a **Monthly base salary**. Those without a salary are left out. See [Add your team and their salaries](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n- Bring the month's shifts up to date, because the holiday and Sunday surcharges come from them.\n\n## Run the month\n\n1. Go to [Payroll](/operator/nomina). It's in the side menu, under **Back office**.\n2. Pick the month with the arrows.\n3. Tap **Run / refresh payroll**.\n\nAt the top you see **Net pay**, **Total company cost**, **Gross earnings** and **Contributions + provisions**. Below, each employee appears with their net pay: tap them to see the breakdown by item.\n\nIf you later change a salary, a shift or a parameter, tap **Run / refresh payroll** again: the month's payroll is rebuilt with the data at that moment.\n\n## What it includes\n\n- **Earnings**: the salary, the month's **Holiday and Sunday surcharges** and the **Transport allowance**, if the salary is under the cap (2 minimum wages by default).\n- **Deductions**: the employee's health and pension. They're calculated on the salary plus surcharges.\n- **Employer contributions**: health, pension, occupational risk (ARL), compensation fund, ICBF and SENA.\n- **Provisions**: severance, severance interest, service bonus and vacation.\n\n**Net pay** is earnings minus deductions. **Total company cost** adds up earnings plus contributions and provisions.\n\n> Payroll takes the full monthly salary: it doesn't deduct absences or prorate someone who started or left mid-month. It also doesn't include night surcharges, overtime or waiter commissions. Handle those cases with your accountant.\n\n## Adjust the parameters\n\n1. Tap **Parameters**.\n2. Review the values. They come with Colombia's 2026 legal values: minimum wage, transport allowance and its cap, and the rates for health, pension, ARL, compensation fund, ICBF, SENA, severance, severance interest, service bonus and vacation. Amounts are in pesos and rates in percent.\n3. Change what you need, for example the ARL rate for the risk level your accountant gives you.\n4. Tap **Save** and tap **Run / refresh payroll** again.\n\nIf you leave a value empty, that item is no longer calculated. For businesses in Mexico, payroll includes only the salary and the surcharges.\n\n## In accounting\n\nIf you use Accounting, the month's payroll entry comes from this payroll when you generate the month's entries with **Generate / refresh entries**. If the month has no payroll run, accounting records only salary and surcharges. If you run payroll again, generate that month's entries again too.\n\n## Common cases\n\n- **No settlement for this month yet…**: you haven't generated it yet. Tap **Run / refresh payroll**. If it's still empty, no active employee has a salary.\n- **An employee is missing**: check in the **Team** tab of Schedules that they're active and have a salary, then run payroll again.\n- **The surcharges don't add up**: check the month's shifts and the percentages in **Schedule settings**. See [Plan shifts and track attendance](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n- **Couldn't load the payroll.**: check your internet connection and try again.\n- **I want to pay commissions**: they're checked separately. See [Set up waiter commissions](/operator/ayuda/equipo-y-nomina/comisiones-de-meseros).",
+      "links": [
+        {
+          "label": "Go to Payroll",
+          "href": "/operator/nomina"
+        },
+        {
+          "label": "Go to Schedules",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "comisiones-de-meseros",
+      "title": "Set up waiter commissions",
+      "summary": "Set each waiter's commission percentage. It's fixed on each bill when it's charged, on the subtotal without tip, and the waiter sees it in My commissions in their app.",
+      "keywords": [
+        "commissions",
+        "commission",
+        "waiter",
+        "server",
+        "commission rate",
+        "sales commission",
+        "incentives",
+        "my commissions",
+        "commission report",
+        "pay commissions"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "A commission is a percentage of what's collected on each bill a waiter serves. You set it for each waiter and MESAPAY calculates it automatically when the bill is charged.\n\n## Set the percentage\n\n1. Go to [Settings › Tables by waiter](/operator/settings/meseros).\n2. On each waiter's card, enter the percentage in **Commission (%)**, between 0 and 100. You can use decimals, for example 2.5.\n3. It saves on its own and you'll see **Saved.** If you leave the field empty (**No commission**), that waiter earns no commission.\n\n## How it's calculated\n\n- **The base**: the bill's subtotal, that is, what was charged for the dishes, minus the customer's discount. It doesn't include the tip or tax added on top.\n- **The moment**: when the bill is fully paid. The waiter, the percentage and the commission are fixed on that bill. If you change the percentage, only bills charged afterwards change.\n- **The period**: it counts by payment date, not by order date.\n- Comps and zero-value bills don't earn commission.\n\n## Who the bill is assigned to\n\n1. The waiter who charged it. If several waiters charged it (for example, a split bill), the one who collected the most.\n2. If no waiter charged it (the customer paid from the QR or it was charged at the register), the waiter assigned to that table, as long as there's only one.\n3. If there's nobody to assign it to, the bill earns no commission. This happens, for example, with two waiters assigned to the same table, or with pickup orders and manual invoices charged at the register.\n\nThat's why it helps for each waiter to have their tables assigned. See [Assign tables to each waiter](/operator/ayuda/primeros-pasos/mesas-por-mesero).\n\n## What the waiter sees\n\nIn their app, on the **Yo** (Me) tab, the waiter has **My commissions**: the **Commission**, the amount **Collected**, the **Bills**, **Your %** and the **Latest bills**, for **This month** or **Last month**.\n\nThe section appears when the waiter has a percentage set or bills with commission in the month.\n\n## The report for paying commissions\n\nIn **Reports** › **Sales commissions** you see, by payment date, what each person collected and their commission, the bill-by-bill detail and two files for your accountant: **Summary CSV** and **Detail CSV**. The Reports group in the menu appears if your business has the accounting module.\n\n> Commissions don't go into payroll or accounting on their own: the report calculates what you need to pay. If you later refund money on a bill, adjust its commission by hand.\n\n## Common cases\n\n- **Must be between 0 and 100.**: enter a valid percentage.\n- **We couldn't save.**: tap **Retry**.\n- **A bill didn't count for anyone**: no waiter charged it and the table didn't have a single assigned waiter. Check the sections in Tables by waiter.\n- **The waiter doesn't see My commissions**: they don't have a percentage or bills with commission this month yet.\n- **I changed the percentage and earlier bills stayed the same**: that's on purpose; the percentage is fixed on each bill when it's charged.\n- **The waiter is also in Schedules**: the commission is set on their waiter user, not on the employee record, and it isn't added to payroll.",
+      "links": [
+        {
+          "label": "Go to Tables by waiter",
+          "href": "/operator/settings/meseros"
+        },
+        {
+          "label": "Go to Sales commissions",
+          "href": "/operator/reportes/comisiones"
+        },
+        {
+          "label": "Go to Yo (Me)",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

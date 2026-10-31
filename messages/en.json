@@ -1205,7 +1205,8 @@
     "loggedInAs": "Signed in as",
     "navCustomers": "Customers",
     "navRepresentation": "Representation expenses",
-    "navUncollected": "Uncharged products"
+    "navUncollected": "Uncharged products",
+    "navSalesAnalysis": "Sales analysis"
   },
   "kitchen": {
     "noRestaurant": "No restaurant.",
@@ -2115,7 +2116,9 @@
     "isColTax": "Tax",
     "isColResult": "Result",
     "isColOri": "OCI",
-    "isPartialTag": "partial"
+    "isPartialTag": "partial",
+    "rSalesAnalysis": "Sales analysis",
+    "rSalesAnalysisDesc": "Net sales with comparison, day and hour, products, team, payments and channels, one click from the detail."
   },
   "opSettings": {
     "tip_shared": "Shared",
@@ -3447,7 +3450,8 @@
     "noTable": "No table",
     "pillUncollected": "uncollected",
     "pillCancelled": "cancelled",
-    "subreportsRepresentation": "Representation expenses"
+    "subreportsRepresentation": "Representation expenses",
+    "analyzeDay": "Analyze this day"
   },
   "opShifts": {
     "noRestaurant": "No restaurant.",
@@ -3567,7 +3571,8 @@
     "statusPaying": "Paying",
     "ageNow": "now",
     "ageMinutes": "{mins}m",
-    "ageHours": "{hours}h"
+    "ageHours": "{hours}h",
+    "viewSalesAnalysis": "View analysis"
   },
   "opRatings": {
     "noRestaurant": "No restaurant.",
@@ -8059,5 +8064,351 @@
     "meseroIntro": "Short guides to use the waiter app.",
     "meseroEmpty": "There are no guides for the waiter app yet. If you have a question, ask the venue manager.",
     "meseroAskManager": "If you have a question, ask the venue manager."
+  },
+  "salesAnalysis": {
+    "title": "Sales analysis",
+    "description": "How the period sold: compare it, see when and what sells, and drill into the detail with a click.",
+    "noAccess": "This screen is only for the restaurant's management.",
+    "exportLabel": "Export the current view",
+    "exportExcel": "Export to Excel",
+    "exportCsv": "Export CSV",
+    "breadcrumbs": "Analysis path",
+    "filtersLabel": "Analysis filters",
+    "periodLabel": "Period",
+    "compareLabel": "Compare with",
+    "granularityLabel": "Group by",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "all": "All",
+    "moreFilters": "More filters",
+    "moreFiltersCount": "More filters ({count})",
+    "activeFilters": "Applied filters",
+    "removeFilter": "Remove the {filter} filter: {value}",
+    "clearFilters": "Remove all filters",
+    "noWaiter": "No assigned waiter",
+    "disabledWaiter": "{name} (inactive)",
+    "unknownValue": "(no longer exists)",
+    "freeLines": "Free lines (not from the menu)",
+    "tableNumber": "Table {number}",
+    "comparedWith": "compared with {period}",
+    "businessDayHint": "Business days: each day runs from {hour}:00 to {hour}:00 the next day, by payment time.",
+    "itemFilterNotice": "Product or category filter: money figures cover only those lines (with their share of discount and tax). Checks and diners are those of the checks that include them; tips, commissions, credit notes and refunds don't apply because they belong to the whole check.",
+    "deltaNote": "Arrows compare with {period}. Green = better, red = worse (for discounts and returns, going up is worse).",
+    "vsCompare": "versus {period}",
+    "notApplicable": "N/A",
+    "emptyDash": "—",
+    "emptyPeriod": "No sales with these filters in the period.",
+    "tableView": "View as table",
+    "variation": "Change",
+    "total": "Total",
+    "units": "Units",
+    "unitsCount": "{count, plural, one {# unit} other {# units}}",
+    "shareOfTotal": "of total",
+    "clickToFilter": "Click to filter the whole analysis",
+    "showAll": "Show all ({count})",
+    "showLess": "Show less",
+    "andMore": "and {count} more",
+    "weekOf": "Week of {date}",
+    "unitHours": "h",
+    "unitMinutes": "min",
+    "period": {
+      "hoy": "Today",
+      "ayer": "Yesterday",
+      "semana": "This week",
+      "semana-pasada": "Last week",
+      "mes": "This month",
+      "mes-pasado": "Last month",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "anio": "This year",
+      "rango": "Custom range…"
+    },
+    "compare": {
+      "anterior": "Previous period",
+      "anio": "Same period last year",
+      "no": "No comparison"
+    },
+    "granularity": {
+      "hora": "Hour",
+      "dia": "Day",
+      "semana": "Week",
+      "mes": "Month"
+    },
+    "channel": {
+      "salon": "Dining room",
+      "counter": "Counter",
+      "llevar": "Takeout",
+      "manual": "Manual invoice"
+    },
+    "dim": {
+      "canal": "Channel",
+      "mesero": "Waiter",
+      "categoria": "Category",
+      "producto": "Product",
+      "pago": "Payment method",
+      "mesa": "Table",
+      "dia": "Day",
+      "hora": "Hour"
+    },
+    "method": {
+      "cash": "Cash",
+      "demo_card": "Card (demo)",
+      "wompi_card": "Card (Wompi)",
+      "wompi_pse": "PSE (Wompi)",
+      "wompi_nequi": "Nequi",
+      "kushki_apple_pay": "Apple Pay",
+      "kushki_google_pay": "Google Pay",
+      "kushki_card_terminal": "MESAPAY card terminal",
+      "external_terminal": "Own card terminal",
+      "kushki_pse": "PSE",
+      "kushki_card": "Online card",
+      "reservation_deposit": "Reservation deposit",
+      "voucher": "Corporate voucher",
+      "customer_credit": "Customer credit"
+    },
+    "kpi": {
+      "salesGroup": "Sales",
+      "accountsGroup": "Checks and diners",
+      "net": "Net sales",
+      "netHint": "Excluding taxes and tips, after discounts",
+      "gross": "Gross sales",
+      "grossHint": "At menu price, taxes included",
+      "tax": "Taxes",
+      "taxHint": "Included in the menu + added on free lines",
+      "tips": "Tips",
+      "tipsHint": "Not restaurant sales",
+      "itemFilterNa": "N/A with a product or category filter",
+      "discountsComps": "Discounts and comps",
+      "discountsCompsHint": "Discounts {discounts} · Comps {comps}",
+      "returns": "Credit notes and refunds",
+      "returnsHint": "{notes, plural, one {# note} other {# notes}} · {refunds, plural, one {# refund} other {# refunds}} · Net after: {net}",
+      "orders": "Checks",
+      "ordersHint": "Paid (excluding full comps)",
+      "diners": "Diners",
+      "dinersHint": "As recorded on each check",
+      "avgTicket": "Average check",
+      "avgPerOrderItem": "Contribution per check",
+      "avgTicketHint": "Net sales ÷ checks",
+      "avgPerDiner": "Average per diner",
+      "avgPerDinerHint": "Net sales ÷ diners",
+      "unitsPerOrder": "Items per check",
+      "unitsPerOrderHint": "Menu units ÷ checks",
+      "tableTime": "Table time",
+      "tableTimeHint": "Median from first round to payment (dining room)",
+      "tableTimeNoData": "Not enough dining-room data"
+    },
+    "trend": {
+      "title": "Trend",
+      "subtitle": "How the period evolved, with the comparison overlaid.",
+      "best": "Best: {label} with {amount}",
+      "metricLabel": "What to measure",
+      "metric": {
+        "net": "Net sales",
+        "orders": "Checks",
+        "ticket": "Average check"
+      },
+      "current": "Current period",
+      "compare": "Comparison",
+      "compareNet": "Comparison net sales",
+      "ordersRow": "checks",
+      "netRow": "net sales",
+      "clickDay": "Click to see that day and its checks",
+      "clickRange": "Click to drill into that range",
+      "clickHour": "Click to filter that hour",
+      "aria": "{metric} trend for the period; arrow keys to move, Enter to drill in",
+      "inProgress": "{label} (in progress)"
+    },
+    "heat": {
+      "title": "Day and hour",
+      "subtitle": "Where net sales concentrate during the week.",
+      "summary": "The strongest day is {day}; the strongest hour, {hour}.",
+      "aria": "Heat map of net sales by weekday and hour",
+      "cellAria": "{slot}: {amount}, {orders, plural, one {# check} other {# checks}}",
+      "clickHint": "Click to filter that day and hour",
+      "low": "Less",
+      "high": "More",
+      "none": "No sales"
+    },
+    "mix": {
+      "title": "Payments and channels",
+      "subtitle": "How guests pay (collected, with tip) and where sales happen.",
+      "itemFilterNote": "Payments of the checks that include the filtered product or category.",
+      "methods": "Payment methods",
+      "channels": "Channels",
+      "tables": "Top-selling tables",
+      "collected": "Collected",
+      "methodSub": "{share} · {payments, plural, one {# payment} other {# payments}}",
+      "channelSub": "{share} · {orders, plural, one {# check} other {# checks}}",
+      "tableSub": "{orders, plural, one {# check} other {# checks}} · {diners, plural, one {# diner} other {# diners}}"
+    },
+    "products": {
+      "title": "Products and categories",
+      "subtitle": "{count, plural, one {# product sold} other {# products sold}}. Net sales split by line: they add up exactly to the period's net sales.",
+      "sortLabel": "Sort products",
+      "sort": {
+        "topNet": "Top sales",
+        "topUnits": "Top units",
+        "bottomNet": "Lowest sales",
+        "bottomUnits": "Lowest units"
+      },
+      "product": "Product",
+      "share": "Share",
+      "avgPrice": "Average net price",
+      "unitMargin": "Unit margin",
+      "new": "New",
+      "categories": "Categories",
+      "categorySub": "{share} · {units, plural, one {# unit} other {# units}}",
+      "modifiers": "Most ordered modifiers",
+      "noModifiers": "No modifiers chosen in the period.",
+      "modifierNoGroup": "Group no longer on the menu",
+      "unsold": "{count, plural, one {# available product with no sales} other {# available products with no sales}} in the period"
+    },
+    "eng": {
+      "title": "Menu engineering",
+      "subtitle": "Each dish by popularity (units) and margin (actual net price minus its recipe cost).",
+      "coverage": "{pct} of sales with reliable cost",
+      "notEnoughTitle": "Not enough reliable cost yet",
+      "notEnoughBody": "At least 3 dishes sold with a recipe and complete cost are needed; there are {count} today.",
+      "reason": {
+        "no_recipe": "{count, plural, one {# dish sold without a recipe} other {# dishes sold without a recipe}}",
+        "incomplete_cost": "{count, plural, one {# recipe with uncosted ingredients} other {# recipes with uncosted ingredients}}",
+        "zero_cost": "{count, plural, one {# recipe with zero cost} other {# recipes with zero cost}}"
+      },
+      "goRecipes": "Complete recipes and costs",
+      "lowCoverage": "Note: only {pct} of sales has reliable cost; the matrix leaves the rest out.",
+      "aria": "Menu engineering matrix: popularity versus unit margin",
+      "pointAria": "{name}: {quadrant}, {units} units, margin {margin}",
+      "quadrant": "Quadrant",
+      "unitCost": "Recipe cost",
+      "xLabel": "Units sold (popularity)",
+      "yLabel": "Unit margin",
+      "q": {
+        "star": {
+          "name": "Star",
+          "meaning": "Sells a lot and leaves a good margin.",
+          "action": "Protect it: keep quality and price, and keep it visible on the menu."
+        },
+        "plowhorse": {
+          "name": "Plowhorse",
+          "meaning": "Sells a lot but leaves little margin.",
+          "action": "Review the recipe cost or raise the price a little."
+        },
+        "puzzle": {
+          "name": "Puzzle",
+          "meaning": "Good margin but sells little.",
+          "action": "Give it visibility: recommend it, move it or rename it on the menu."
+        },
+        "dog": {
+          "name": "Dog",
+          "meaning": "Sells little and leaves little margin.",
+          "action": "Consider removing, redesigning or replacing it."
+        }
+      },
+      "caveat": "Cost is each recipe's CURRENT cost (not the cost on the day of each sale) and excludes ingredients added by modifiers. Popular = at least 70% of the average units per dish; high margin = at least the average margin. Same criteria as Recipes › Engineering."
+    },
+    "team": {
+      "title": "Team",
+      "subtitle": "Sales by waiter. Click a name to see the whole analysis for that person.",
+      "waiter": "Waiter",
+      "commission": "Commission",
+      "note": "Check's waiter: the one whose commission was sealed at payment; without a commission, the waiter who entered most of the check. The commission is the sealed one (not recalculated)."
+    },
+    "orders": {
+      "title": "Checks of the day",
+      "subtitle": "{count, plural, one {# check} other {# checks}}, newest first. Open any of them to see the detail.",
+      "itemFilterNote": "Checks that include the filtered product or category; net sales cover only those lines.",
+      "paidAt": "Paid",
+      "account": "Check",
+      "where": "Table or channel",
+      "collected": "Total collected",
+      "truncated": "Showing the first {count} checks; export to see them all."
+    },
+    "export": {
+      "summary": "Summary",
+      "indicator": "Metric",
+      "current": "Period",
+      "comparison": "Comparison",
+      "restaurant": "Restaurant",
+      "businessDay": "Business day",
+      "discounts": "Discounts",
+      "comps": "Comps",
+      "netAfterReturns": "Net sales after returns",
+      "tableMinutes": "Table time (minutes, median)",
+      "listValue": "List value",
+      "marginPct": "Margin %",
+      "modifierGroup": "Group",
+      "modifierOption": "Option",
+      "productsCount": "Products",
+      "payments": "Payments"
+    },
+    "def": {
+      "title": "How is each figure calculated?",
+      "sale": {
+        "term": "Sale",
+        "body": "A paid check, counted on the business day of its payment. A fully comped check closes at $0: it is not a sale and goes to comps."
+      },
+      "net": {
+        "term": "Net sales",
+        "body": "What was collected minus tips and taxes. Discounts are already deducted and comps are not included. It is the same figure as the Overview."
+      },
+      "gross": {
+        "term": "Gross sales",
+        "body": "Lines sold at menu price (with the tax they include) plus the tax added on free lines. Before discounts."
+      },
+      "tax": {
+        "term": "Taxes",
+        "body": "The tax each invoice froze when it was issued; if the check has no invoice, the restaurant's current rate line by line. Plus the tax added on free lines."
+      },
+      "discounts": {
+        "term": "Discounts",
+        "body": "The discount of the diner identified on the check."
+      },
+      "comps": {
+        "term": "Comps",
+        "body": "What was given away, at menu price: dishes not charged and checks closed as comps. Not included in sales."
+      },
+      "returns": {
+        "term": "Credit notes and refunds",
+        "body": "Credit notes accepted by the DIAN issued in the period (before tax) and card refunds not covered by a note (minus their estimated tax). They don't change the check's sale: they are shown separately, with net sales after them."
+      },
+      "tips": {
+        "term": "Tips",
+        "body": "Tips on the checks. They belong to the team, not to restaurant sales."
+      },
+      "orders": {
+        "term": "Checks and diners",
+        "body": "Paid checks in the period (excluding full comps) and the sum of diners recorded on each."
+      },
+      "ticket": {
+        "term": "Average check",
+        "body": "Net sales divided by checks; per diner, divided by diners."
+      },
+      "units": {
+        "term": "Items per check",
+        "body": "Menu units (excluding free lines) divided by checks."
+      },
+      "tableTime": {
+        "term": "Table time",
+        "body": "Median time between the first round and payment on dining-room checks. Checks under one minute or over 12 hours are discarded, and it is shown only if at least 60% of checks can be measured."
+      },
+      "waiter": {
+        "term": "Check's waiter",
+        "body": "The one whose commission was sealed at payment; without a commission, the waiter who entered most of the check. If nobody on the team entered it, it has no waiter."
+      },
+      "products": {
+        "term": "Sales by product",
+        "body": "Each check's net sales are split across its lines by menu value, deducting their share of the discount and their tax, so products add up exactly to net sales."
+      },
+      "methods": {
+        "term": "Payment methods",
+        "body": "Collected by method, with tip, including payments later refunded (refunds are shown separately). Cash groups current and historical cash."
+      },
+      "businessDay": {
+        "term": "Business day",
+        "body": "Each day runs from {hour}:00 to {hour}:00 the next day (Colombia time), by payment time: what is collected after midnight counts for the previous night."
+      }
+    }
   }
 }

@@ -137,6 +137,9 @@ export function AdminMobileMenu({
               <DrawerLink href="/admin/configuracion" pathname={pathname}>
                 {t("navConfig")}
               </DrawerLink>
+              <DrawerLink href="/admin/cuenta" pathname={pathname}>
+                {t("navAccount")}
+              </DrawerLink>
               <DrawerLink href="/operator" pathname={pathname}>
                 {t("backToOperatorFull")}
               </DrawerLink>

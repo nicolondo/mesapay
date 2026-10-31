@@ -806,6 +806,18 @@
     "expires": "Este enlace vence en 1 hora y es de un solo uso.",
     "ignore": "Si no solicitaste el cambio, puedes ignorar este correo."
   },
+  "emailPasswordChanged": {
+    "subject": "Se cambió tu contraseña de MESAPAY",
+    "title": "Tu contraseña cambió",
+    "greeting": "Hola,",
+    "greetingNamed": "Hola {name},",
+    "intro": "La contraseña de tu cuenta MESAPAY ({email}) acaba de cambiar.",
+    "sessions": "Por seguridad cerramos las sesiones que tenías abiertas en otros dispositivos.",
+    "notYou": "¿No fuiste tú? Crea una contraseña nueva ahora mismo con «Olvidé mi contraseña» y avisa al administrador de MESAPAY.",
+    "cta": "Restablecer mi contraseña",
+    "ctaText": "Restablece tu contraseña aquí: {url}",
+    "ignore": "Si fuiste tú, no tienes que hacer nada."
+  },
   "resetPwd": {
     "setupTitle": "Crea tu contraseña",
     "setupSuccessTitle": "¡Tu cuenta está lista!",
@@ -821,7 +833,23 @@
     "successBody": "Ya puedes iniciar sesión con tu nueva contraseña.",
     "goLogin": "Iniciar sesión",
     "invalidTitle": "Enlace inválido o vencido",
-    "invalidBody": "Pide que te envíen un nuevo enlace de restablecimiento."
+    "invalidBody": "Pide que te envíen un nuevo enlace de restablecimiento.",
+    "requestNew": "Pedir un enlace nuevo"
+  },
+  "forgotPwd": {
+    "title": "¿Olvidaste tu contraseña?",
+    "intro": "Escribe el correo con el que entras a MESAPAY y te mandamos un enlace para crear una nueva. El enlace vence en 1 hora.",
+    "fieldEmail": "Correo",
+    "submit": "Enviar enlace",
+    "sending": "Enviando…",
+    "sentTitle": "Revisa tu correo",
+    "sentBody": "Si el correo corresponde a una cuenta del personal de MESAPAY, te mandamos un enlace para crear una nueva contraseña. Vence en 1 hora y es de un solo uso. Revisa también la carpeta de correo no deseado.",
+    "backToSignin": "Volver a iniciar sesión",
+    "dinerQuestion": "¿Eres comensal?",
+    "dinerLink": "Entra con tu cédula o correo",
+    "errInvalidEmail": "Escribe un correo válido.",
+    "errRateLimited": "Hiciste demasiadas solicitudes. Espera un rato y vuelve a intentarlo.",
+    "errGeneric": "No pudimos procesar la solicitud. Inténtalo de nuevo en unos minutos."
   },
   "emailMagicLink": {
     "subject": "Tu enlace de acceso a MESAPAY",
@@ -896,7 +924,9 @@
     "customerQuestion": "¿Eres comensal?",
     "customerLink": "Entra con tu cédula o correo",
     "restaurantQuestion": "¿Eres restaurante?",
-    "restaurantLink": "Registra tu restaurante"
+    "restaurantLink": "Registra tu restaurante",
+    "forgotLink": "¿Olvidaste tu contraseña?",
+    "passwordChangedNotice": "Tu contraseña se cambió. Inicia sesión con la nueva."
   },
   "me": {
     "eyebrow": "MESAPAY · Mi cuenta",
@@ -3911,6 +3941,11 @@
     "audit_user_create": "Creó usuario",
     "audit_user_update": "Editó usuario",
     "audit_user_delete": "Borró usuario",
+    "audit_user_password_set": "Fijó la contraseña de un usuario",
+    "audit_user_reset_email": "Envió enlace de restablecimiento",
+    "audit_user_password_change": "Cambió su contraseña",
+    "audit_user_password_reset": "Restableció su contraseña con un enlace",
+    "audit_user_password_reset_request": "Pidió restablecer la contraseña",
     "audit_order_cancel": "Canceló orden",
     "audit_order_item_cancel": "Canceló plato",
     "audit_order_item_comp": "No cobró plato",
@@ -4190,7 +4225,31 @@
     "resetFail": "No se pudieron borrar los datos.",
     "resetBlocked": "Para borrar Menú o Mesas también debes incluir Órdenes (hay órdenes que dependen de ellas).",
     "resetSlugMismatch": "El slug no coincide.",
-    "resetNothing": "Selecciona al menos una opción."
+    "resetNothing": "Selecciona al menos una opción.",
+    "navAccount": "Mi cuenta",
+    "navAccountTitle": "Mi cuenta: cambiar mi contraseña"
+  },
+  "myAccount": {
+    "title": "Mi cuenta",
+    "intro": "Los datos con los que entras a MESAPAY.",
+    "emailLabel": "Correo de acceso",
+    "passwordSection": "Cambiar mi contraseña",
+    "passwordIntro": "Te pedimos la contraseña actual para confirmar que eres tú. Al cambiarla se cierran tus sesiones abiertas en otros dispositivos; esta sigue activa.",
+    "fieldCurrent": "Contraseña actual",
+    "fieldNew": "Nueva contraseña",
+    "fieldConfirm": "Confirmar nueva contraseña",
+    "hint": "Entre {min} y {max} caracteres, distinta de la actual.",
+    "submit": "Cambiar contraseña",
+    "saving": "Guardando…",
+    "success": "Listo: tu contraseña se cambió y cerramos tus otras sesiones. Te enviamos un aviso por correo.",
+    "errCurrentRequired": "Escribe tu contraseña actual.",
+    "errWrongCurrent": "La contraseña actual no es correcta.",
+    "errTooShort": "Debe tener al menos {min} caracteres.",
+    "errTooLong": "Debe tener como máximo {max} caracteres.",
+    "errSame": "La nueva contraseña debe ser distinta de la actual.",
+    "errMismatch": "Las contraseñas no coinciden.",
+    "errRateLimited": "Hiciste demasiados intentos. Espera unos minutos y vuelve a intentarlo.",
+    "errGeneric": "No se pudo cambiar la contraseña. Actualiza la página e inténtalo de nuevo."
   },
   "location": {
     "section": "Ubicación",

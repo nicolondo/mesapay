@@ -10,8 +10,8 @@ import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
 import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
-import { getRestaurantKushkiMode } from "@/lib/platformConfig";
-import { env } from "@/lib/env";
+import { kushkiTerminalSetup, terminalDeviceUsable } from "@/lib/payments/terminalAvailability";
+import { terminalClaimKey } from "@/lib/payments/methods";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 
@@ -82,10 +82,9 @@ async function POSTHandler(
   // no podemos autenticar contra cloudt.
   // Modo EFECTIVO del comercio (override propio o global). Define el host
   // del datáfono: sandbox → uat-cloudt, production → cloudt.
-  const mode = await getRestaurantKushkiMode(tenant);
-  const businessCode =
-    tenant.cloudTerminalBusinessCode || env.KUSHKI_BP_BUSINESS_CODE || null;
-  const useRealTerminal = mode !== "mock" || !!businessCode;
+  // (Mismas reglas que `kushkiTerminalAvailability`, que usa
+  // terminal-request para no crear solicitudes imposibles de empujar.)
+  const { mode, businessCode, useRealTerminal } = await kushkiTerminalSetup(tenant);
   if (useRealTerminal && !businessCode) {
     return NextResponse.json(
       { error: "cloud_business_code_missing" },
@@ -126,13 +125,18 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid_device" }, { status: 400 });
   }
 
-  if (useRealTerminal && !device.serialNumber) return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
+  if (!terminalDeviceUsable(device, useRealTerminal)) return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
   if (!useRealTerminal && process.env.NODE_ENV === "production") return NextResponse.json({ error: "mock_payments_disabled" }, { status: 409 });
+  // El reclamo `terminal:<id>` se crea bajo `lockOrder` y DESPUÉS de
+  // re-verificar que el pago sigue pendiente: es lo que lo convierte de
+  // solicitud (reemplazable por el cobro del staff o "Cancelar solicitud")
+  // en cobro en vuelo. Si el staff lo declinó mientras tanto, esto rebota
+  // con operation_conflict y no se llama a Kushki.
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
     if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
-    const result = await tx.financialOperation.createMany({ data: [{ key: `terminal:${payment.id}`, paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents }], skipDuplicates: true });
+    const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents }], skipDuplicates: true });
     return result.count === 1;
   });
   if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });

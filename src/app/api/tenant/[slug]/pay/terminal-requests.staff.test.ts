@@ -13,20 +13,28 @@ import { createFakePaymentsDb } from "@/test/fakePaymentsDb";
 const h = vi.hoisted(() => ({
   fake: null as unknown as ReturnType<typeof import("@/test/fakePaymentsDb").createFakePaymentsDb>,
   session: null as null | { user: { id: string; role: string } },
+  // Datáfonos del comercio (los que `terminal/charge` aceptaría).
+  devices: [] as Array<{ active: boolean; serialNumber: string | null }>,
+  tenant: null as unknown as Record<string, unknown>,
 }));
 
-const TENANT = {
+const BASE_TENANT = {
   id: "rest-1",
   slug: "sonymelona",
   name: "Son y Melona",
   adminOnlyCharge: false,
   suspended: false,
   enabledPaymentMethods: ["cash", "external_terminal", "kushki_card_terminal", "kushki_pse"],
+  // Datáfono REAL (producción) con su Business-Code: el equipo necesita serial.
+  kushkiMode: "production",
+  cloudTerminalBusinessCode: "bc-test",
 };
+const TENANT = BASE_TENANT;
 
 vi.mock("@/lib/db", () => ({
   db: {
-    restaurant: { findUnique: vi.fn(async () => TENANT) },
+    restaurant: { findUnique: vi.fn(async () => h.tenant) },
+    terminalDevice: { findMany: vi.fn(async () => h.devices.filter((d) => d.active)) },
     order: {
       findFirst: (a: never) => h.fake.tx.order.findFirst(a),
       findUnique: (a: never) => h.fake.tx.order.findUnique(a),
@@ -49,6 +57,9 @@ vi.mock("@/lib/orderLock", () => ({ lockOrder: async () => {} }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: vi.fn() }));
 vi.mock("@/lib/push", () => ({ sendPushToMeserosForTable: async () => {} }));
 vi.mock("@/lib/billRequest", () => ({ announceBillRequestedOnPay: async () => {} }));
+vi.mock("@/lib/platformConfig", () => ({
+  getRestaurantKushkiMode: async (r: { kushkiMode?: string | null }) => r.kushkiMode ?? "mock",
+}));
 
 import { POST as EXTERNAL } from "./external-terminal-request/route";
 import { POST as KUSHKI } from "./terminal-request/route";
@@ -81,6 +92,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("DATABASE_URL", "postgresql://u:p@localhost:5432/test");
   h.session = null;
+  h.tenant = { ...BASE_TENANT };
+  h.devices = [{ active: true, serialNumber: "PAX-0001" }];
 });
 
 describe.each([
@@ -139,5 +152,49 @@ describe("external-terminal-request: el staff reusa la solicitud idéntica del c
     expect(json.paymentId).toBe("req-datafono");
     expect(h.fake.payment("req-datafono")?.status).toBe("pending");
     expect(h.fake.state.payments).toHaveLength(1);
+  });
+});
+
+/**
+ * `terminal-request` no crea solicitudes que nadie va a poder empujar
+ * (Son y Melona, 2026-10-31: sin datáfonos ni método habilitado, la
+ * solicitud trabó la cuenta). Mismas precondiciones que `terminal/charge`.
+ */
+describe("terminal-request: sólo si el comercio puede empujar el cobro al datáfono", () => {
+  it.each([
+    ["sin ningún datáfono activo", [] as Array<{ active: boolean; serialNumber: string | null }>],
+    ["con un datáfono inactivo", [{ active: false, serialNumber: "PAX-0001" }]],
+    ["con datáfono real pero sin serial", [{ active: true, serialNumber: null }]],
+  ])("%s → 409 terminal_unavailable y no nace ningún pendiente", async (_label, devices) => {
+    seed([]);
+    h.devices = devices;
+    for (const session of [null, ADMIN, MESERO]) {
+      h.session = session;
+      const { status, json } = await call(KUSHKI, "terminal-request", { amountCents: TOTAL, tipCents: TIP });
+      expect(status).toBe(409);
+      expect(json).toMatchObject({ error: "terminal_unavailable", reason: "no_device" });
+    }
+    expect(h.fake.state.payments).toHaveLength(0);
+  });
+
+  it("el método no está habilitado (Son y Melona: sin kushki_card_terminal) → rechazado y no nace nada", async () => {
+    seed([]);
+    h.tenant = { ...BASE_TENANT, enabledPaymentMethods: ["external_terminal", "cash", "kushki_card"] };
+    h.session = ADMIN;
+    const { status, json } = await call(KUSHKI, "terminal-request", { amountCents: TOTAL, tipCents: TIP });
+    // El guard de secureApi corta primero los métodos deshabilitados (403
+    // method_disabled, ya traducido en la pantalla); la ruta lo vuelve a
+    // exigir (`kushkiTerminalAvailability`) por si la llaman sin el guard.
+    expect(status).toBe(403);
+    expect(json.error).toBe("method_disabled");
+    expect(h.fake.state.payments).toHaveLength(0);
+  });
+
+  it("con un datáfono activo con serial, la solicitud nace como siempre", async () => {
+    seed([]);
+    h.session = MESERO;
+    const { status, json } = await call(KUSHKI, "terminal-request", { amountCents: TOTAL, tipCents: TIP });
+    expect(status).toBe(200);
+    expect(h.fake.payment(json.paymentId as string)).toMatchObject({ method: "kushki_card_terminal", status: "pending" });
   });
 });

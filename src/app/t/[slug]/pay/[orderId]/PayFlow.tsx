@@ -21,6 +21,9 @@ import { normalizeCustomerDocument } from "@/lib/customerDocument";
 import type { PayCustomer } from "./PayClient";
 import { canCompOrders } from "@/lib/staffPolicies";
 import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
+import { withReplaceable } from "@/lib/payments/pendingRequests";
+import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
+import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -146,25 +149,32 @@ export async function PayFlow({
       : null;
 
   const approved = order.payments.filter((p) => p.status === "approved");
-  // Pagos pendientes (sólo staff): la solicitud del comensal (datáfono del
-  // comercio, efectivo) sale arriba del cobro con "Confirmar pago recibido";
-  // un pago en línea en curso, sin acción.
+  // Pagos pendientes (sólo staff): la solicitud (datáfono del comercio,
+  // efectivo, datáfono Kushki sin enviar) sale arriba del cobro con
+  // "Confirmar pago recibido" / "Cancelar solicitud"; un pago en línea en
+  // curso, sin acción.
+  // `replaceable`: el datáfono Kushki pedido que nadie envió al equipo es una
+  // solicitud (se cancela o se reemplaza); ya enviado, es un cobro en curso.
   const pendingPayments = operatorMode
-    ? order.payments
-        .filter((p) => p.status === "pending")
-        .map((p) => ({
-          id: p.id,
-          method: p.method,
-          amountCents: p.amountCents,
-          tipCents: p.tipCents,
-          cashTenderCents: p.cashTenderCents,
-          createdAt: p.createdAt.toISOString(),
-        }))
+    ? (await withReplaceable(db, order.payments.filter((p) => p.status === "pending"))).map((p) => ({
+        id: p.id,
+        method: p.method,
+        amountCents: p.amountCents,
+        tipCents: p.tipCents,
+        cashTenderCents: p.cashTenderCents,
+        createdAt: p.createdAt.toISOString(),
+        replaceable: p.replaceable,
+        reconciliationRequired: p.reconciliationRequired,
+        pushedAt: p.pushedAt?.toISOString() ?? null,
+      }))
     : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
   const paidTipCents = approved.reduce((s, p) => s + p.tipCents, 0);
   const kushkiReady =
     !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
+  // El botón del datáfono Kushki sólo sale si el comercio puede empujar el
+  // cobro al equipo (mismas reglas que terminal/charge y terminal-request).
+  const kushkiTerminalAvailable = (await kushkiTerminalAvailability(tenant)).available;
 
   // In operator mode, look up which Smart POS this user is logged into
   // (set by the operator in /operator/settings/datafonos). When set,
@@ -301,6 +311,10 @@ export async function PayFlow({
       }}
       initialTipPct={parseTipPct(tip)}
       pendingPayments={pendingPayments}
+      kushkiTerminalAvailable={kushkiTerminalAvailable}
+      // "Resolver cobro" de un datáfono Kushki sin respuesta: sólo el
+      // administrador, nunca el mesero (el servidor lo exige igual).
+      canResolveTerminal={operatorMode && canResolveTerminalCharge(session?.user?.role)}
       tableNumber={order.table.number}
     />
   );

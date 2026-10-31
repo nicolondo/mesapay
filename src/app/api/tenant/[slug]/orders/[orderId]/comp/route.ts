@@ -16,7 +16,7 @@ import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { canCompOrders } from "@/lib/staffPolicies";
 import { compBlockedResponse } from "@/lib/compGuard";
 import { recordAuditEvent } from "@/lib/auditLog";
-import { assertNoPaymentInFlightHolding, releasePaymentRequests } from "@/lib/payments/staffCharge";
+import { assertNoPaymentInFlightHolding, releaseStaffPaymentRequests } from "@/lib/payments/staffCharge";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +141,7 @@ async function POSTHandler(
     // Las solicitudes del comensal ("voy a pagar en efectivo", "tráiganme
     // el datáfono") quedan obsoletas: la cuenta se cierra como cortesía.
     // Son los únicos pendientes que pueden quedar a esta altura.
-    await releasePaymentRequests(tx, order.id);
+    await releaseStaffPaymentRequests(tx, order.id);
     // Marcar los ítems como comp: consumen inventario (se prepararon) pero
     // NO venden — reusa la exclusión de ventas existente en contabilidad.
     if (items.length > 0) {

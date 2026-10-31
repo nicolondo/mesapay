@@ -12,6 +12,7 @@ import {
   findPaymentInFlight,
   prepareStaffCharge,
   releasePaymentRequests,
+  releaseStaffPaymentRequests,
   staffOutstanding,
 } from "./staffCharge";
 
@@ -22,23 +23,46 @@ function setup(payments: Parameters<typeof createFakePaymentsDb>[0]["payments"],
   return createFakePaymentsDb({ order: { id: ORDER, subtotalCents }, payments });
 }
 
-describe("releasePaymentRequests", () => {
-  it("declina SÓLO las solicitudes pendientes del comensal (efectivo, demo_cash, datáfono propio)", async () => {
-    const fake = setup([
-      { id: "cash", method: "cash", status: "pending", amountCents: 10_000 },
-      { id: "old-cash", method: "demo_cash", status: "pending", amountCents: 10_000 },
-      { id: "ext", method: "external_terminal", status: "pending", amountCents: 10_000 },
-      { id: "pse", method: "kushki_pse", status: "pending", amountCents: 10_000 },
-      { id: "smart", method: "kushki_card_terminal", status: "pending", amountCents: 10_000 },
-      { id: "paid-cash", method: "cash", status: "approved", amountCents: 10_000 },
-    ]);
-    expect(await releasePaymentRequests(asTx(fake), ORDER)).toBe(3);
+describe("releaseStaffPaymentRequests", () => {
+  it("declina SÓLO las solicitudes: efectivo, demo_cash, datáfono propio y el datáfono Kushki que nadie envió", async () => {
+    const fake = createFakePaymentsDb({
+      order: { id: ORDER, subtotalCents: 100_000 },
+      payments: [
+        { id: "cash", method: "cash", status: "pending", amountCents: 10_000 },
+        { id: "old-cash", method: "demo_cash", status: "pending", amountCents: 10_000 },
+        { id: "ext", method: "external_terminal", status: "pending", amountCents: 10_000 },
+        { id: "pse", method: "kushki_pse", status: "pending", amountCents: 10_000 },
+        { id: "smart", method: "kushki_card_terminal", status: "pending", amountCents: 10_000, reconciliationRequired: true },
+        { id: "smart-sent", method: "kushki_card_terminal", status: "pending", amountCents: 10_000 },
+        { id: "smart-ref", method: "kushki_card_terminal", status: "pending", amountCents: 10_000, providerRef: "mock-123" },
+        { id: "paid-cash", method: "cash", status: "approved", amountCents: 10_000 },
+      ],
+      financialOperations: [{ key: "terminal:smart-sent", paymentId: "smart-sent" }],
+    });
+    expect(await releaseStaffPaymentRequests(asTx(fake), ORDER)).toBe(4);
     expect(fake.payment("cash")?.status).toBe("declined");
     expect(fake.payment("old-cash")?.status).toBe("declined");
     expect(fake.payment("ext")?.status).toBe("declined");
+    // Nunca se envió al equipo: solicitud. Si el barrido la había marcado
+    // para conciliación, al declinarla queda resuelta.
+    expect(fake.payment("smart")).toMatchObject({ status: "declined", reconciliationRequired: false });
+    // Ya en el datáfono (reclamo) o con referencia del proveedor: en vuelo.
+    expect(fake.payment("smart-sent")?.status).toBe("pending");
+    expect(fake.payment("smart-ref")?.status).toBe("pending");
     expect(fake.payment("pse")?.status).toBe("pending");
-    expect(fake.payment("smart")?.status).toBe("pending");
     expect(fake.payment("paid-cash")?.status).toBe("approved");
+  });
+});
+
+describe("releasePaymentRequests (sólo por método, lo usa la eliminación de comercios)", () => {
+  it("declina efectivo y datáfono propio, y deja en paz CUALQUIER datáfono Kushki", async () => {
+    const fake = setup([
+      { id: "cash", method: "cash", status: "pending", amountCents: 10_000 },
+      { id: "ext", method: "external_terminal", status: "pending", amountCents: 10_000 },
+      { id: "smart", method: "kushki_card_terminal", status: "pending", amountCents: 10_000 },
+    ]);
+    expect(await releasePaymentRequests(asTx(fake), ORDER)).toBe(2);
+    expect(fake.payment("smart")?.status).toBe("pending");
   });
 });
 
@@ -120,5 +144,39 @@ describe("prepareStaffCharge", () => {
     await expect(
       fake.$transaction((tx) => prepareStaffCharge(tx as unknown as Prisma.TransactionClient, ORDER, 50_001)),
     ).resolves.toEqual({ declinedRequests: 0 });
+  });
+});
+
+describe("datáfono Kushki pendiente: solicitud o en vuelo según el reclamo terminal:<id>", () => {
+  const TOTAL = 17_457_000;
+  const TIP = 1_587_000;
+  const SUBTOTAL = TOTAL - TIP;
+  const smart = { id: "smart", method: "kushki_card_terminal", status: "pending", amountCents: TOTAL, tipCents: TIP };
+
+  it("sin reclamo: no cuenta como en vuelo, no bloquea y el cobro del staff la declina", async () => {
+    const fake = createFakePaymentsDb({ order: { id: ORDER, subtotalCents: SUBTOTAL }, payments: [smart] });
+    expect(await findPaymentInFlight(asTx(fake), ORDER)).toBeNull();
+    expect(await staffOutstanding(asTx(fake), ORDER)).toMatchObject({ outstandingCents: SUBTOTAL });
+    await fake.$transaction(async (tx) => {
+      const t = tx as unknown as Prisma.TransactionClient;
+      expect(await prepareStaffCharge(t, ORDER, SUBTOTAL)).toEqual({ declinedRequests: 1 });
+      await tx.payment.create({ data: { orderId: ORDER, method: "cash", status: "approved", amountCents: TOTAL, tipCents: TIP } });
+    });
+    expect(fake.payment("smart")?.status).toBe("declined");
+  });
+
+  it("con el reclamo: en vuelo → PendingPaymentInFlightError y no se declina nada", async () => {
+    const fake = createFakePaymentsDb({
+      order: { id: ORDER, subtotalCents: SUBTOTAL },
+      payments: [smart, { id: "cash-req", method: "cash", status: "pending", amountCents: 1_000 }],
+      financialOperations: [{ key: "terminal:smart", paymentId: "smart" }],
+    });
+    expect(await findPaymentInFlight(asTx(fake), ORDER)).toMatchObject({ paymentId: "smart", method: "kushki_card_terminal", amountCents: TOTAL });
+    const err = await fake
+      .$transaction((tx) => prepareStaffCharge(tx as unknown as Prisma.TransactionClient, ORDER, SUBTOTAL))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PendingPaymentInFlightError);
+    expect(fake.payment("smart")?.status).toBe("pending");
+    expect(fake.payment("cash-req")?.status).toBe("pending");
   });
 });

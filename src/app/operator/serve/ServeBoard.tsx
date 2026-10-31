@@ -13,6 +13,8 @@ import { InvoiceRequestPanel } from "@/app/t/[slug]/pay/[orderId]/done/InvoiceRe
 import type { StaffPrintAccess } from "@/lib/print/staffPrint";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { CashSettleModal } from "@/components/payments/CashSettleModal";
+import { useApiError } from "@/lib/useApiError";
+import { TerminalResolveAction } from "@/components/payments/TerminalResolveAction";
 
 type InvoiceAfterSettle = { orderId: string; paid: boolean; invoiceId: string | null };
 
@@ -105,6 +107,11 @@ type TerminalPending = {
   amountCents: number;
   tipCents: number;
   createdAt: string;
+  // Kushki: `true` = sólo se pidió, todavía no se envió al equipo (se puede
+  // cancelar); `false` = ya está en el datáfono, esperando su resultado.
+  replaceable: boolean;
+  // Kushki enviado: cuándo (ISO), para la cuenta regresiva de "Resolver cobro".
+  pushedAt: string | null;
   order: {
     id: string;
     shortCode: string;
@@ -122,6 +129,7 @@ export function ServeBoard({
   terminalPending,
   device,
   chargeLocked,
+  canResolveTerminal = false,
   staffPrint = null,
 }: {
   tenantSlug: string;
@@ -137,6 +145,8 @@ export function ServeBoard({
   // datáfono). El servidor las bloquea igual — esto evita que el mesero
   // las intente y choque contra un 403.
   chargeLocked: boolean;
+  /** Quien mira es administrador (nunca el mesero): "Resolver cobro" del datáfono. */
+  canResolveTerminal?: boolean;
   /** Quien mira es staff: "Imprimir factura" sale por el agente. */
   staffPrint?: StaffPrintAccess | null;
 }) {
@@ -403,6 +413,7 @@ export function ServeBoard({
                 tenantSlug={tenantSlug}
                 device={device}
                 chargeLocked={chargeLocked}
+                canResolve={canResolveTerminal}
                 busy={chargingPaymentId === p.id}
                 onCharged={() => startTx(() => router.refresh())}
                 onExternalApproved={setInvoiceAfterSettle}
@@ -658,6 +669,7 @@ function TerminalPendingCard({
   tenantSlug,
   device,
   chargeLocked,
+  canResolve,
   busy,
   onCharged,
   onExternalApproved,
@@ -668,6 +680,7 @@ function TerminalPendingCard({
   tenantSlug: string;
   device: { id: string; label: string } | null;
   chargeLocked: boolean;
+  canResolve: boolean;
   busy: boolean;
   onCharged: () => void;
   // Se llama tras aprobar el datáfono del comercio (para ofrecer factura).
@@ -675,10 +688,15 @@ function TerminalPendingCard({
   onBusyChange: (id: string | null) => void;
 }) {
   const tr = useTranslations("serve");
+  const apiError = useApiError();
   const [err, setErr] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   // pending.amountCents YA es el TOTAL (food + tip).
   const total = pending.amountCents;
   const isExternal = pending.method === "external_terminal";
+  // Kushki ya enviado al equipo: hay un cobro en curso, no se reenvía ni se
+  // cancela. Sin enviar: "Cobrar" (si hay equipo) o "Cancelar solicitud".
+  const sentToDevice = !isExternal && !pending.replaceable;
   const title =
     serviceMode === "counter"
       ? tr("orderLabel", { code: displayOrderCode(pending.order.shortCode) })
@@ -706,6 +724,31 @@ function TerminalPendingCard({
       // es el código interno. Preferimos el mensaje humano si vino.
       setErr(j.message ?? j.error ?? tr("terminalSendError"));
       return;
+    }
+    onCharged();
+  }
+
+  /**
+   * "Cancelar solicitud" del datáfono Kushki que nadie envió al equipo: la
+   * cuenta queda libre para cobrarse de otra forma. Si mientras tanto se
+   * envió, el servidor rebota con pending_payment_in_flight.
+   */
+  async function cancelRequest() {
+    if (!window.confirm(tr("terminalCancelConfirm"))) return;
+    onBusyChange(pending.id);
+    setCancelling(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/operator/payments/${pending.id}/cancel-request`, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setErr(apiError(j, tr("terminalCancelError")));
+      }
+    } catch {
+      setErr(tr("terminalCancelError"));
+    } finally {
+      setCancelling(false);
+      onBusyChange(null);
     }
     onCharged();
   }
@@ -776,8 +819,30 @@ function TerminalPendingCard({
       <div className="text-[11px] text-op-muted mt-2">
         {isExternal
           ? tr("terminalSwipeExternal")
-          : tr("terminalBringDevice")}
+          : sentToDevice
+            ? tr("terminalSentWaiting")
+            : device
+              ? tr("terminalBringDevice")
+              : tr("terminalNoDeviceHint")}
       </div>
+      {!isExternal && !sentToDevice && (
+        <div className="text-[11px] text-op-muted mt-0.5">{tr("terminalNotSent")}</div>
+      )}
+      {sentToDevice && (
+        // Enviado y sin resultado: cuenta regresiva y, pasados 3 minutos,
+        // "Resolver cobro" para el administrador. No depende de "solo el
+        // administrador cobra": el mesero nunca lo ve.
+        <div className="mt-2">
+          <TerminalResolveAction
+            paymentId={pending.id}
+            pushedAt={pending.pushedAt}
+            amountCents={total}
+            canResolve={canResolve}
+            disabled={busy}
+            onResolved={onCharged}
+          />
+        </div>
+      )}
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
       {chargeLocked ? (
         // Cobro reservado al administrador: el mesero ve el pendiente
@@ -804,17 +869,29 @@ function TerminalPendingCard({
             {busy ? "…" : tr("terminalApproved")}
           </button>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={charge}
-          disabled={busy}
-          className="mt-3 h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
-        >
-          {busy
-            ? tr("terminalSending")
-            : tr("terminalChargeAmount", { amount: fmtCOP(total) })}
-        </button>
+      ) : sentToDevice ? null : (
+        <div className="mt-3 flex flex-col gap-2">
+          {device && (
+            <button
+              type="button"
+              onClick={charge}
+              disabled={busy}
+              className="h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
+            >
+              {busy && !cancelling
+                ? tr("terminalSending")
+                : tr("terminalChargeAmount", { amount: fmtCOP(total) })}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={cancelRequest}
+            disabled={busy}
+            className="h-10 rounded-full border border-op-border bg-paper text-ink text-sm disabled:opacity-60"
+          >
+            {cancelling ? tr("terminalCancelling") : tr("terminalCancelRequest")}
+          </button>
+        </div>
       )}
     </li>
   );

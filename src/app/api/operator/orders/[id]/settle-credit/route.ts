@@ -15,7 +15,7 @@ import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 import {
   assertNoPaymentInFlightHolding,
-  releasePaymentRequests,
+  releaseStaffPaymentRequests,
   staffOutstanding,
 } from "@/lib/payments/staffCharge";
 import { canChargeOnCredit, loadCustomerCreditSummary } from "@/lib/customerCredit";
@@ -137,7 +137,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
     // se declinan las solicitudes del comensal: un intento que rebota (tope
     // de crédito, cliente sin crédito) no le borra al comensal su pedido de
     // datáfono o efectivo.
-    await releasePaymentRequests(tx, order.id);
+    await releaseStaffPaymentRequests(tx, order.id);
     const now = new Date();
     const payment = await tx.payment.create({
       data: {

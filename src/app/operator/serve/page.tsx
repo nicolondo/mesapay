@@ -5,7 +5,9 @@ import { formatItemSelections } from "@/lib/modifiers";
 import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { auth } from "@/auth";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
-import { CASH_METHODS } from "@/lib/payments/methods";
+import { CASH_METHODS, isReplaceablePending } from "@/lib/payments/methods";
+import { terminalClaims } from "@/lib/payments/pendingRequests";
+import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { ServeBoard } from "./ServeBoard";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 
@@ -163,6 +165,10 @@ export default async function ServePage() {
   ]);
 
   const device = devices[0] ?? null;
+  // Datáfono Kushki pendiente: ¿ya se envió al equipo (reclamo
+  // `terminal:<id>`) o es sólo la solicitud? La tarjeta cambia: "Cobrar" /
+  // "Cancelar solicitud" vs. "esperando resultado".
+  const terminalClaimed = await terminalClaims(db, terminalPending);
 
   return (
     <ServeBoard
@@ -269,6 +275,8 @@ export default async function ServePage() {
         amountCents: p.amountCents,
         tipCents: p.tipCents,
         createdAt: p.createdAt.toISOString(),
+        replaceable: isReplaceablePending(p, terminalClaimed.has(p.id)),
+        pushedAt: terminalClaimed.get(p.id)?.toISOString() ?? null,
         order: {
           id: p.order.id,
           shortCode: p.order.shortCode,
@@ -279,6 +287,7 @@ export default async function ServePage() {
         device ? { id: device.kushkiDeviceId, label: device.label } : null
       }
       chargeLocked={chargeLocked}
+      canResolveTerminal={canResolveTerminalCharge(session?.user?.role)}
       staffPrint={staffPrintAccessFor(session?.user?.role)}
     />
   );

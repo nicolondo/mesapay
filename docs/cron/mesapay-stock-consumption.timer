@@ -1,0 +1,17 @@
+[Unit]
+# Cada 10 minutos. El barrido es idempotente (el consumo se reclama por
+# orden y marcar para conciliación no duplica nada), así que correrlo de
+# más no descuenta dos veces ni se pisa con la corrida anterior. Con el
+# umbral de 30 minutos, un cobro sin respuesta aparece en Cobros como
+# "Requiere revisión" entre 30 y 40 minutos después.
+Description=MESAPAY · barrido de consumo de inventario y cobros sin respuesta (cada 10 min)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+# Si el servidor estuvo apagado, corre apenas vuelva.
+Persistent=true
+Unit=mesapay-stock-consumption.service
+
+[Install]
+WantedBy=timers.target

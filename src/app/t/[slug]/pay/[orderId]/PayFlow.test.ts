@@ -3,13 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string; restaurantId?: string } },
   activeId: "r1", tenant: vi.fn(), order: vi.fn(), invoiceRequest: vi.fn(), customers: vi.fn(), device: vi.fn(), sync: vi.fn(),
+  claims: vi.fn(), terminalAvailable: true,
 }));
 vi.mock("@/auth", () => ({ auth: async () => m.session }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: async () => m.session ? { restaurantId: m.activeId, session: m.session } : null }));
 vi.mock("@/lib/db", () => ({ db: {
   restaurant: { findUnique: m.tenant }, order: { findUnique: m.order },
   invoiceRequest: { findFirst: m.invoiceRequest }, billingCustomer: { count: m.customers },
+  financialOperation: { findMany: m.claims },
 } }));
+vi.mock("@/lib/payments/terminalAvailability", () => ({
+  kushkiTerminalAvailability: async () => (m.terminalAvailable ? { available: true } : { available: false, reason: "no_device" }),
+}));
 vi.mock("@/lib/meseroDevice", () => ({ getAssignedDevice: m.device }));
 vi.mock("@/lib/orderTotals", () => ({ syncOrderSubtotalFromLiveItems: m.sync }));
 vi.mock("@/lib/platformConfig", () => ({ getRestaurantKushkiMode: async () => "mock" }));
@@ -31,6 +36,7 @@ beforeEach(() => {
     status: "paying", table: { id: "t1", number: 1, kind: "table" }, items: [], payments: [approved, pending], simpleInvoiceEmail: null,
   });
   m.invoiceRequest.mockResolvedValue(null); m.customers.mockResolvedValue(0); m.device.mockResolvedValue(null);
+  m.claims.mockResolvedValue([]); m.terminalAvailable = true;
 });
 const flow = (op = "1") => PayFlow({ slug: "sample", orderId: "o1", op });
 
@@ -62,5 +68,45 @@ describe("shared checkout staff scope", () => {
   it("keeps an authenticated operator in the diner flow without the explicit staff flag", async () => {
     expect((await flow("0")).props).toMatchObject({ operatorMode: false, approvedPayments: [], pendingPayments: [] });
     expect(m.customers).not.toHaveBeenCalled();
+  });
+});
+
+describe("datáfono Kushki en el cobro del staff", () => {
+  const smart = { id: "smart", method: "kushki_card_terminal", status: "pending", amountCents: 8580, tipCents: 780, cashTenderCents: null, providerRef: null, reconciliationRequired: false, createdAt: new Date() };
+  const withSmart = () => m.order.mockResolvedValue({
+    id: "o1", restaurantId: "r1", shortCode: "TEST", subtotalCents: 10000, taxCents: 0, discountCents: 0, discountPct: null,
+    status: "paying", table: { id: "t1", number: 1, kind: "table" }, items: [], payments: [smart], simpleInvoiceEmail: null,
+  });
+
+  it("sin enviar al equipo: la pantalla la recibe como solicitud (replaceable) y sin pushedAt", async () => {
+    withSmart();
+    const page = await flow();
+    expect(page.props.pendingPayments).toEqual([expect.objectContaining({ id: "smart", replaceable: true, pushedAt: null })]);
+  });
+
+  it("ya enviado (reclamo terminal:<id>): en vuelo, con la hora del envío para la cuenta regresiva", async () => {
+    withSmart();
+    const pushedAt = new Date("2026-10-31T18:30:00Z");
+    m.claims.mockResolvedValue([{ paymentId: "smart", createdAt: pushedAt }]);
+    const page = await flow();
+    expect(page.props.pendingPayments).toEqual([
+      expect.objectContaining({ id: "smart", replaceable: false, pushedAt: pushedAt.toISOString() }),
+    ]);
+  });
+
+  it.each([
+    ["operator", true],
+    ["platform_admin", true],
+    ["group_admin", true],
+    ["mesero", false],
+  ])("«Resolver cobro» para %s: %s", async (role, expected) => {
+    m.session = { user: { id: "u1", role, restaurantId: "r1" } };
+    expect((await flow()).props.canResolveTerminal).toBe(expected);
+  });
+
+  it("el botón del datáfono Kushki sólo sale si el comercio puede empujar el cobro", async () => {
+    expect((await flow()).props.kushkiTerminalAvailable).toBe(true);
+    m.terminalAvailable = false;
+    expect((await flow()).props.kushkiTerminalAvailable).toBe(false);
   });
 });

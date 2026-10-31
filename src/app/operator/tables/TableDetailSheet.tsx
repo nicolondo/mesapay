@@ -15,6 +15,7 @@ import {
   type PendingPaymentView,
 } from "@/components/payments/PendingPaymentNotice";
 import { roleLabelKey } from "@/lib/orders/placedBy";
+import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import type { CompPolicyView } from "@/lib/staffPolicies";
 import { TABLE_MOVE_ADMIN_ONLY_ERROR } from "@/lib/tableMoveControl";
 import {
@@ -828,6 +829,10 @@ export function TableDetailSheet({
                   serviceMode={counterMode ? "counter" : "table"}
                   chargeLocked={chargeLocked}
                   onConfirmed={onPendingConfirmed}
+                  onCancelled={() => startTx(() => router.refresh())}
+                  // "Resolver cobro" de un datáfono Kushki sin respuesta:
+                  // sólo el administrador, nunca el mesero.
+                  canResolveTerminal={!isMeseroView && canResolveTerminalCharge(viewerRole)}
                 />
               )}
 

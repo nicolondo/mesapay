@@ -17,6 +17,8 @@ import {
   type TileData,
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
+import { isReplaceablePending } from "@/lib/payments/methods";
+import { terminalClaims } from "@/lib/payments/pendingRequests";
 import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
 import {
@@ -213,6 +215,14 @@ export default async function TablesPage({
   const dangerMinutes = tenant?.walkoutDangerMinutes ?? 20;
   const now = new Date();
 
+  // Datáfonos Kushki pendientes que YA se enviaron al equipo (reclamo
+  // `terminal:<id>`): la ficha los muestra como cobro en curso; los que no,
+  // como solicitud que se puede cancelar. Una sola consulta para todas.
+  const terminalClaimed = await terminalClaims(
+    db,
+    allTables.flatMap((t) => t.orders.flatMap((o) => o.payments.filter((p) => p.status === "pending"))),
+  );
+
   // Lo que el tile necesita de una cuenta viva, compartido entre las mesas
   // físicas y las facturas manuales: cobrable neto del descuento, lo que
   // falta por cobrar, y el resumen de rondas/cliente para la ficha.
@@ -262,6 +272,9 @@ export default async function TablesPage({
           tipCents: p.tipCents,
           cashTenderCents: p.cashTenderCents,
           createdAt: p.createdAt.toISOString(),
+          replaceable: isReplaceablePending(p, terminalClaimed.has(p.id)),
+          reconciliationRequired: p.reconciliationRequired,
+          pushedAt: terminalClaimed.get(p.id)?.toISOString() ?? null,
         })),
       rounds: order.rounds.map((r) => ({
         id: r.id,

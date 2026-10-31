@@ -34,7 +34,7 @@ export function EngineeringPanel({
   const reasons = e.unreliable.reduce<Record<string, number>>((acc, u) => ({ ...acc, [u.reason]: (acc[u.reason] ?? 0) + 1 }), {});
 
   return (
-    <section className="mp-panel mp-sales-panel" aria-labelledby="sales-eng-title">
+    <section className="mp-panel mp-sa-panel" aria-labelledby="sales-eng-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-eng-title">{t("eng.title")}</h2>

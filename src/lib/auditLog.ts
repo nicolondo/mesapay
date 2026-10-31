@@ -115,6 +115,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",
   "order_item.move": "Movió plato de mesa",
+  "order_item.serve_all": "Sirvió todo el tablero",
   "order_item.free_line": "Agregó línea libre",
   "invoice.reprint": "Reimprimió factura",
   "printer.invoice_settings.update": "Cambió la impresión de facturas",

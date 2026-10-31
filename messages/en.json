@@ -1265,7 +1265,21 @@
     "soundTest": "Test sound",
     "soundUnlock": "Tap the screen to turn on the new-order sound",
     "soundUnsupported": "This browser can't play the new-order sound",
-    "preparedCancellationAdminOnly": "Preparation has started. Only an administrator can cancel this dish."
+    "preparedCancellationAdminOnly": "Preparation has started. Only an administrator can cancel this dish.",
+    "serveAll": "Serve all",
+    "serveAllTitle": "Serve everything pending?",
+    "serveAllItemsKitchen": "{count, plural, one {# dish} other {# dishes}}",
+    "serveAllItemsBar": "{count, plural, one {# item} other {# items}}",
+    "serveAllConfirmTables": "This will mark everything pending as served: {items} from {tables, plural, one {# table} other {# tables}}.",
+    "serveAllConfirmOrders": "This will mark everything pending as served: {items} from {orders, plural, one {# order} other {# orders}}.",
+    "serveAllHint": "Only what you see on this board right now. Anything that comes in later is left untouched.",
+    "serveAllHintSub": "Only the {sub} items you see right now. Anything that comes in later is left untouched.",
+    "serveAllConfirm": "Yes, serve all",
+    "serveAllWorking": "Serving…",
+    "serveAllDone": "Marked as served: {items}.",
+    "serveAllNothing": "There was nothing left to serve.",
+    "serveAllError": "We couldn't serve everything. Please try again.",
+    "serveAllForbidden": "Only an administrator can serve all."
   },
   "serve": {
     "noRestaurant": "No restaurant.",

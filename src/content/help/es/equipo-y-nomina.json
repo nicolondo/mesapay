@@ -1,5 +1,189 @@
 {
   "title": "Equipo y nómina",
   "description": "Empleados, horarios, asistencia, kiosko, nómina y comisiones de los meseros.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "crear-el-equipo",
+      "title": "Registra a tu equipo y sus salarios",
+      "summary": "Crea a cada empleado con su cargo y su salario básico mensual, define su horario de plantilla y su registro facial para el kiosko, y desactívalo cuando deje de trabajar.",
+      "keywords": [
+        "empleados",
+        "equipo",
+        "personal",
+        "trabajadores",
+        "salario",
+        "sueldo",
+        "salario basico mensual",
+        "valor hora",
+        "hora ordinaria",
+        "cargo",
+        "plantilla de horario",
+        "registro facial",
+        "desactivar empleado",
+        "eliminar empleado"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Horarios, pestaña Equipo, registras a las personas que trabajan en tu restaurante con su cargo y su salario. Con esos datos MESAPAY planea los turnos, controla la asistencia, calcula los recargos y liquida la nómina.\n\n> Horarios y Nómina aparecen en el menú lateral, en **Administración**, cuando tu comercio tiene activo el módulo de horarios y nómina. Si no los ves, escríbenos a soporte.\n\n## Crea un empleado\n\n1. Entra a [Horarios](/operator/horarios) y abre la pestaña **Equipo**.\n2. Toca **Nuevo empleado**.\n3. Escribe el **Nombre** y el **Cargo** (por ejemplo, mesero, cocinero o lavaplatos). Los cargos que ya usaste aparecen como sugerencia.\n4. En **Salario básico mensual**, escribe lo que gana la persona al mes. Debajo verás el **Valor hora ordinaria** que sale de ese salario.\n5. Si la persona entra a MESAPAY con su propio usuario, elígelo en **Usuario del app (opcional)**. Si no, deja **Sin usuario**.\n6. Toca **Guardar**.\n\nEn la lista de **Equipo** ves a cada persona con su salario al mes y su valor hora.\n\n## El salario y el valor de la hora\n\nEl salario básico mensual es la base de la nómina: se liquida completo cada mes, sin importar cuántas horas tenga la persona en el planeador.\n\nEl valor de la hora ordinaria es el salario dividido entre un divisor, que por defecto es 240 (30 días de 8 horas). Por ejemplo, con un salario de $2.400.000 la hora ordinaria vale $10.000. Ese valor se usa únicamente para calcular los recargos de los turnos en festivo y en domingo.\n\nEl divisor se cambia en el engranaje de **Ajustes de horarios**. Ver [Planea los turnos y controla la asistencia](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\nSi dejas el salario vacío, el empleado queda con la marca **Sin salario**: puede tener turnos, pero no se le calculan recargos y no entra en la nómina.\n\n## Horario de plantilla y registro facial\n\nEstas dos secciones aparecen cuando editas un empleado que ya creaste: tócalo en la lista de **Equipo**.\n\n- **Horario de plantilla**: los turnos habituales de la persona, de lunes a domingo, con hasta dos rangos por día (para turnos partidos). Toca **Agregar rango** en el día y escribe la hora de entrada y la de salida. Se usa con **Aplicar plantilla** en la semana y para crear el turno automático cuando alguien marca en el kiosko sin turno planeado. **Limpiar plantilla** la borra. Los cambios quedan al tocar **Guardar**.\n- **Registro facial**: las fotos con las que el kiosko reconoce a la persona. Toca **Registrar rostro**, toma de 1 a 3 fotos de frente y con buena luz con **Tomar foto**, marca la casilla de autorización y toca **Guardar**. Sin la autorización no se guarda nada. Para borrarlo, toca **Eliminar registro facial**.\n\nUn empleado sin registro facial igual puede marcar en el kiosko eligiendo su nombre. Ver [Instala y usa el kiosko de asistencia](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\n## Cuando alguien deja de trabajar\n\nDesactívalo en vez de eliminarlo:\n\n1. Tócalo en la lista de **Equipo**.\n2. Desmarca **Activo** y toca **Guardar**.\n3. Confirma el aviso.\n\nDeja de aparecer en el planeador y en el kiosko, y no entra en las próximas liquidaciones de nómina, pero sus turnos y su asistencia se conservan. En la lista queda con la marca **Inactivo**, y puedes volver a activarlo cuando quieras.\n\n> ⚠ **Eliminar** borra al empleado para siempre, junto con todo su historial de turnos y asistencia. Úsalo solo si lo creaste por error.\n\n## Casos frecuentes\n\n- **Ya existe un empleado con ese nombre.**: dos empleados no pueden llamarse igual; agrega el apellido o una inicial. El mismo mensaje sale si el usuario que elegiste ya está vinculado a otro empleado: elige otro o deja **Sin usuario**.\n- **Revisa los datos del empleado.**: faltan el nombre o el cargo.\n- **Monto inválido.**: el salario tiene que ser un número mayor que cero, o quedar vacío.\n- **Revisa los rangos de la plantilla: cada uno debe durar entre 15 minutos y 16 horas.**: completa las dos horas de cada rango. Si la hora de salida es menor que la de entrada, el turno termina al día siguiente.\n- **Sin acceso a la cámara. Habilítala en el navegador para registrar el rostro.**: permite el uso de la cámara en el navegador y vuelve a intentarlo.\n- **No vimos un rostro en la foto — intenta de nuevo con mejor luz.**: mira de frente a la cámara, busca más luz y toma la foto otra vez.\n- **Debes aceptar el consentimiento para guardar el registro facial.**: marca la casilla de autorización antes de guardar.\n- **El reconocimiento facial no está disponible en este dispositivo.**: registra el rostro desde otro equipo o navegador con cámara.",
+      "links": [
+        {
+          "label": "Ir a Horarios",
+          "href": "/operator/horarios"
+        },
+        {
+          "label": "Ir a Nómina",
+          "href": "/operator/nomina"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "turnos-y-asistencia",
+      "title": "Planea los turnos y controla la asistencia",
+      "summary": "Arma la semana de tu equipo, copia la anterior o aplica la plantilla, registra entradas y salidas en Hoy, revisa los recargos de festivos y domingos, las marcaciones dudosas y el reporte de asistencia.",
+      "keywords": [
+        "turnos",
+        "horarios",
+        "planeador",
+        "programacion semanal",
+        "asistencia",
+        "entrada",
+        "salida",
+        "marcacion",
+        "reloj checador",
+        "recargo festivo",
+        "recargo dominical",
+        "faltas",
+        "horas trabajadas",
+        "reporte de asistencia",
+        "csv",
+        "turno extra",
+        "divisor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Horarios planeas los turnos de cada semana, registras a qué hora entra y sale cada persona y ves los recargos de festivos y domingos. La pantalla tiene tres pestañas: **Semana**, **Hoy** y **Equipo**.\n\nAntes de planear, registra a tu equipo. Ver [Registra a tu equipo y sus salarios](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Planea la semana\n\n1. Entra a [Horarios](/operator/horarios). Se abre la pestaña **Semana**, de lunes a domingo. Cambia de semana con las flechas que están a los lados de las fechas.\n2. Toca **Nuevo turno**.\n3. Elige el **Empleado** y la **Fecha**, y escribe **Desde** y **Hasta**. Si la hora de salida es menor que la de entrada, el turno termina al día siguiente y verás **Termina al día siguiente.** Puedes agregar **Notas**.\n4. Toca **Guardar**.\n\nPara no armar la semana desde cero:\n\n- **Copiar semana anterior** copia los turnos de la semana pasada a la que estás viendo.\n- **Aplicar plantilla** llena la semana con el horario de plantilla de cada empleado activo.\n\nEn los dos casos, los turnos que se cruzan con uno ya planeado se saltan, y al terminar ves cuántos se crearon y cuántos se saltaron.\n\nArriba de los días ves las **Horas de la semana** y, si los hay, los **Recargos** y las **Faltas**. Los días festivos llevan la marca **Festivo**.\n\nPara cambiar un turno, tócalo: ajusta el horario o las notas y toca **Guardar**, o toca **Eliminar**. El empleado y la fecha no se pueden cambiar; si te equivocaste, elimina el turno y créalo de nuevo.\n\n## Registra la asistencia del día\n\nLa pestaña **Hoy** muestra los turnos de hoy.\n\n1. Cuando la persona llega, toca **Entró**. Queda registrada la hora exacta.\n2. Cuando se va, toca **Salió**.\n3. Si alguien vino sin turno planeado, toca **Turno extra** y créalo con la fecha de hoy.\n\nLas marcaciones hechas en el kiosko aparecen aquí con la foto de la entrada y de la salida; toca una foto para verla grande. Para abrir el kiosko en este equipo, toca **Abrir kiosko**. Ver [Instala y usa el kiosko de asistencia](/operator/ayuda/equipo-y-nomina/kiosko-de-asistencia).\n\nSi nadie marcó a tiempo, abre el turno y corrige la **Entrada real** y la **Salida real** en **Asistencia real**. **Limpiar registro** borra las dos.\n\nLas marcas de cada turno significan:\n\n- **✓ Asistió**: tiene entrada y salida.\n- **Falta**: con la asistencia estricta activa, el turno ya pasó y nadie marcó la entrada.\n- **Cierre automático**: la persona marcó la entrada pero no la salida. Pasado el día, MESAPAY cierra el turno a la hora de salida planeada.\n- **Sin salario**: el empleado no tiene salario, así que no se le calculan recargos.\n\n## Recargos y ajustes\n\nToca el engranaje de **Ajustes de horarios**:\n\n- **Recargo festivo (%)** y **Recargo dominical (%)**: lo que se suma sobre la hora ordinaria cuando el turno empieza en festivo o en domingo. Vienen en 75. Si un domingo es festivo, se aplica solo el recargo festivo.\n- **Divisor de horas**: el valor de la hora es el salario dividido entre este número. 240 es la jornada tradicional (30 días de 8 horas).\n- **Asistencia estricta**: un turno que ya pasó sin entrada marcada cuenta como **Falta** y no suma horas ni recargo.\n\nToca **Guardar**.\n\nEl recargo se calcula con las horas reales del turno cuando tiene entrada y salida, y con las planeadas cuando no. Los festivos son los del país de tu comercio. Los recargos del mes entran en la nómina como devengado. Ver [Liquida la nómina del mes](/operator/ayuda/equipo-y-nomina/liquidar-la-nomina).\n\n> Hoy MESAPAY calcula solo los recargos festivo y dominical. El recargo nocturno y las horas extra no se calculan: si los pagas, liquídalos aparte con tu contador. Una falta tampoco descuenta salario en la nómina.\n\n## Revisa las marcaciones dudosas\n\nCuando el kiosko no reconoce a alguien y la persona elige su nombre a mano, la foto queda guardada para que la revises. El botón **Revisiones** se resalta con el número de pendientes.\n\n1. Toca **Revisiones**.\n2. Mira la foto de la entrada o de la salida y verifica que sea de esa persona.\n3. Si coincide, toca **Confirmar (revisado)**. Si no, edita o elimina ese turno desde la pestaña **Semana**.\n\n## Descarga el reporte de asistencia\n\n1. Toca **Descargar reporte**.\n2. Elige las fechas **Desde** y **Hasta**.\n3. Toca **Descargar CSV**.\n\nEl archivo se abre en Excel, con una fila por turno: fecha, empleado, cargo, horario planeado, entrada y salida reales, horas y estado (**Presente**, **Sin salida**, **Falta** o **Auto-cerrado**).\n\n## Casos frecuentes\n\n- **Se cruza con otro turno de ese empleado ese día.**: ya tiene un turno a esa hora. Cambia el horario o edita el turno que ya existe. Dos turnos el mismo día sí se pueden, si no se cruzan.\n- **El turno debe durar entre 15 minutos y 16 horas.**: revisa **Desde** y **Hasta**.\n- **La salida real debe ser después de la entrada.**: corrige la **Salida real**.\n- **Ese empleado está inactivo.** o el empleado no aparece en la lista: actívalo en la pestaña **Equipo**.\n- **Rango de fechas inválido.** en el reporte: la fecha **Desde** tiene que ser anterior o igual a **Hasta**.\n- **No se pudo guardar. Intenta de nuevo.**: revisa la conexión a internet y vuelve a tocar el botón.",
+      "links": [
+        {
+          "label": "Ir a Horarios",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "kiosko-de-asistencia",
+      "title": "Instala y usa el kiosko de asistencia",
+      "summary": "Deja una tablet en el local para que tu equipo marque la entrada y la salida con la cara. Si no la reconoce, la persona elige su nombre y la foto queda para que la revises.",
+      "keywords": [
+        "kiosko",
+        "kiosco",
+        "asistencia",
+        "MP Asistencia",
+        "reloj checador",
+        "marcar entrada",
+        "marcar salida",
+        "fichar",
+        "reconocimiento facial",
+        "biometrico",
+        "tablet",
+        "camara",
+        "marcacion"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El kiosko de asistencia convierte una tablet del local en un reloj para marcar: cada persona toca Entrada o Salida y la cámara la reconoce por la cara. Cada marcación guarda una foto como evidencia y llega a Horarios.\n\n> El kiosko es parte de Horarios, así que tu comercio necesita ese módulo activo y tu equipo registrado. Ver [Registra a tu equipo y sus salarios](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n\n## Prepara la tablet\n\n1. En la tablet, abre MESAPAY en el navegador y entra con un usuario de rol **Operador**.\n2. Ve a [Horarios](/operator/horarios), abre la pestaña **Hoy** y toca **Abrir kiosko**.\n3. Instálalo en la pantalla de inicio desde el menú del navegador, con la opción para agregar a la pantalla de inicio o instalar la app. Queda como **MP Asistencia** y se abre directo en el kiosko.\n4. Permite el uso de la cámara cuando el navegador lo pida.\n5. Ubica la tablet a la altura de la cara, con buena luz, y déjala conectada al cargador.\n\n> ⚠ La tablet queda con una sesión de operador: desde el menú del panel se puede salir del kiosko a otras pantallas. Déjala en un lugar a la vista.\n\n## Registra la cara de cada persona\n\nPara que el kiosko reconozca a alguien, registra su rostro una vez: en [Horarios](/operator/horarios), pestaña **Equipo**, toca a la persona, luego **Registrar rostro**, toma de 1 a 3 fotos y marca la casilla de autorización. Puedes hacerlo desde la misma tablet.\n\nQuien no tiene registro facial igual puede marcar: el kiosko le pide que elija su nombre.\n\n## Cómo marca tu equipo\n\n1. La persona toca **Entrada** al llegar o **Salida** al irse.\n2. Ubica la cara dentro del círculo. La foto se toma sola a los 3 segundos, o al tocar **Capturar**.\n3. Si la reconoce, aparece **Hola** con su nombre. La marcación se confirma sola en 3 segundos, o al tocar **Confirmar entrada** (o **Confirmar salida**).\n4. Sale el mensaje **Entrada registrada** (o **Salida registrada**) con la hora, y el kiosko vuelve solo a la pantalla inicial.\n\nSi el nombre que aparece no es el suyo, la persona toca **No soy yo** y elige su nombre de la lista.\n\nLa comparación de la cara se hace en la misma tablet. Lo que queda guardado en cada turno es la foto de la marcación.\n\n## Cuando no la reconoce\n\nSi el kiosko no reconoce a la persona, no ve una cara o no tiene acceso a la cámara, muestra **¿Quién eres?**:\n\n1. La persona escribe su nombre en **Buscar por nombre…**.\n2. Toca su nombre. La marcación queda registrada igual.\n\nSi la cámara alcanzó a tomar la foto, esa marcación aparece en **Revisiones**, en Horarios, para que confirmes que la foto es de esa persona. Ver [Planea los turnos y controla la asistencia](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n\n## Si no tenía turno planeado\n\nSi alguien marca la entrada sin turno para hoy, MESAPAY crea el turno solo: con su horario de plantilla de ese día o, si no tiene, de 8 horas desde la hora en que marcó. Verás **Creamos tu turno de hoy automáticamente.** Puedes ajustar el horario después en la pestaña **Semana**.\n\nSi se le olvida marcar la salida, pasado el día el turno se cierra solo a la hora de salida planeada y queda con la marca **Cierre automático**.\n\n## Mensajes frecuentes\n\n- **Ya marcaste tu entrada de hoy.**: todos sus turnos de hoy ya tienen entrada. Si se va, debe tocar **Salida**.\n- **No tienes una entrada abierta — marca Entrada primero.**: tocó **Salida** sin haber marcado la entrada. Que marque **Entrada**, o corrige la asistencia desde la pestaña **Hoy** de Horarios.\n- **No te reconocimos — elige tu nombre.**: la cara no coincidió con ningún registro o la persona no tiene registro facial. Que elija su nombre; si pasa seguido, vuelve a registrar su rostro con mejor luz.\n- **No vimos tu cara en la foto — elige tu nombre.**: la persona no quedó dentro del círculo. Que elija su nombre o que lo intente otra vez de frente.\n- **Sin acceso a la cámara — marca eligiendo tu nombre.**: permite la cámara en el navegador de la tablet.\n- **El reconocimiento facial no está disponible — elige tu nombre.**: revisa la conexión a internet de la tablet o prueba con otro navegador.\n- **No hay empleados activos para marcar.**: crea a tu equipo en Horarios o revisa que las personas estén activas.\n- **Ese empleado está inactivo.**: actívalo en la pestaña **Equipo** de Horarios.",
+      "links": [
+        {
+          "label": "Ir al kiosko",
+          "href": "/operator/horarios/kiosko"
+        },
+        {
+          "label": "Ir a Horarios",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "liquidar-la-nomina",
+      "title": "Liquida la nómina del mes",
+      "summary": "Genera la liquidación mensual de tu equipo: salario, recargos de festivos y domingos, auxilio de transporte, deducciones, aportes del empleador y provisiones, con parámetros de ley que puedes ajustar.",
+      "keywords": [
+        "nomina",
+        "liquidacion",
+        "planilla",
+        "salarios",
+        "pago de empleados",
+        "prestaciones sociales",
+        "cesantias",
+        "prima",
+        "vacaciones",
+        "salud",
+        "pension",
+        "ARL",
+        "caja de compensacion",
+        "auxilio de transporte",
+        "aportes",
+        "parafiscales",
+        "PILA"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En Nómina calculas lo que corresponde a cada empleado en el mes: lo que gana, lo que se le descuenta y lo que te cuesta como empleador. Usa el salario de cada persona y los recargos que salen de Horarios.\n\n> Las cifras son de referencia. La liquidación oficial y el pago de aportes (PILA) los debe validar tu contador.\n\n## Antes de liquidar\n\n- Cada empleado tiene que estar activo y tener **Salario básico mensual**. Los que no tienen salario no entran. Ver [Registra a tu equipo y sus salarios](/operator/ayuda/equipo-y-nomina/crear-el-equipo).\n- Deja al día los turnos del mes, porque de ellos salen los recargos de festivos y domingos.\n\n## Liquida el mes\n\n1. Entra a [Nómina](/operator/nomina). Está en el menú lateral, en **Administración**.\n2. Elige el mes con las flechas.\n3. Toca **Liquidar / actualizar nómina**.\n\nArriba ves **Neto a pagar**, **Costo total empresa**, **Devengado** y **Aportes + provisiones**. Debajo aparece cada empleado con su neto: tócalo para ver el detalle por concepto.\n\nSi después cambias un salario, un turno o un parámetro, vuelve a tocar **Liquidar / actualizar nómina**: la liquidación del mes se rehace con los datos de ese momento.\n\n## Qué incluye\n\n- **Devengados**: el salario, los **Recargos festivos y dominicales** del mes y el **Auxilio de transporte**, si el salario no pasa del tope (2 salarios mínimos por defecto).\n- **Deducciones**: salud y pensión del empleado. Se calculan sobre el salario más los recargos.\n- **Aportes del empleador**: salud, pensión, ARL, caja de compensación, ICBF y SENA.\n- **Provisiones**: cesantías, intereses de cesantías, prima y vacaciones.\n\n**Neto a pagar** es lo devengado menos las deducciones. **Costo total empresa** suma lo devengado más los aportes y las provisiones.\n\n> La liquidación toma el salario completo del mes: no descuenta faltas ni calcula proporcional a quien entró o salió a mitad de mes. Tampoco incluye recargo nocturno, horas extra ni las comisiones de los meseros. Ajusta esos casos con tu contador.\n\n## Ajusta los parámetros\n\n1. Toca **Parámetros**.\n2. Revisa los valores. Vienen con los de ley de Colombia 2026: salario mínimo, auxilio de transporte y su tope, y los porcentajes de salud, pensión, ARL, caja de compensación, ICBF, SENA, cesantías, intereses de cesantías, prima y vacaciones. Los montos van en pesos y las tasas en porcentaje.\n3. Cambia lo que haga falta, por ejemplo la tarifa de ARL según el nivel de riesgo que te indique tu contador.\n4. Toca **Guardar** y vuelve a tocar **Liquidar / actualizar nómina**.\n\nSi dejas un valor vacío, ese concepto deja de calcularse. En comercios de México, la liquidación trae solo el salario y los recargos.\n\n## En la contabilidad\n\nSi usas Contabilidad, el asiento de nómina del mes sale de esta liquidación cuando generas los asientos del mes con **Generar / actualizar asientos**. Si el mes no tiene liquidación, la contabilidad registra solo el salario y los recargos. Si vuelves a liquidar, genera otra vez los asientos de ese mes.\n\n## Casos frecuentes\n\n- **Sin liquidación para este mes…**: todavía no la generaste. Toca **Liquidar / actualizar nómina**. Si sigue vacía, ningún empleado activo tiene salario.\n- **Falta un empleado**: revisa en la pestaña **Equipo** de Horarios que esté activo y tenga salario, y vuelve a liquidar.\n- **Los recargos no cuadran**: revisa los turnos del mes y los porcentajes de **Ajustes de horarios**. Ver [Planea los turnos y controla la asistencia](/operator/ayuda/equipo-y-nomina/turnos-y-asistencia).\n- **No se pudo cargar la nómina.**: revisa la conexión a internet y vuelve a intentarlo.\n- **Quiero pagar las comisiones**: se consultan aparte. Ver [Configura las comisiones de los meseros](/operator/ayuda/equipo-y-nomina/comisiones-de-meseros).",
+      "links": [
+        {
+          "label": "Ir a Nómina",
+          "href": "/operator/nomina"
+        },
+        {
+          "label": "Ir a Horarios",
+          "href": "/operator/horarios"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "comisiones-de-meseros",
+      "title": "Configura las comisiones de los meseros",
+      "summary": "Define el porcentaje de comisión de cada mesero. Se fija en cada cuenta al cobrarla, sobre el subtotal sin propina, y el mesero la consulta en Mis comisiones de su app.",
+      "keywords": [
+        "comisiones",
+        "comision",
+        "mesero",
+        "porcentaje de comision",
+        "comision por ventas",
+        "incentivos",
+        "mis comisiones",
+        "reporte de comisiones",
+        "pagar comisiones",
+        "garzon",
+        "mesonero"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "La comisión es un porcentaje de lo que se cobra en cada cuenta que atiende el mesero. La configuras para cada mesero y MESAPAY la calcula sola al cobrar.\n\n## Configura el porcentaje\n\n1. Entra a [Configuración › Mesas por mesero](/operator/settings/meseros).\n2. En la tarjeta de cada mesero, escribe el porcentaje en **Comisión (%)**, entre 0 y 100. Puedes usar decimales, por ejemplo 2,5.\n3. Se guarda solo y verás **Guardado.** Si dejas el campo vacío (**Sin comisión**), ese mesero no comisiona.\n\n## Cómo se calcula\n\n- **La base**: el subtotal de la cuenta, es decir, lo que se cobró por los platos, menos el descuento del cliente. No incluye la propina ni el impuesto que se suma aparte.\n- **El momento**: cuando la cuenta queda pagada. El mesero, el porcentaje y la comisión quedan fijados en esa cuenta. Si cambias el porcentaje, solo cambian las cuentas que se cobren después.\n- **El período**: se cuenta por la fecha de pago, no por la del pedido.\n- Las cortesías y las cuentas en cero no comisionan.\n\n## A quién se le asigna la cuenta\n\n1. Al mesero que la cobró. Si la cobraron varios meseros (por ejemplo, una cuenta dividida), al que cobró más.\n2. Si ningún mesero la cobró (el cliente pagó desde el QR o se cobró en la caja), al mesero que tiene esa mesa asignada, siempre que sea uno solo.\n3. Si no hay a quién asignarla, la cuenta no comisiona. Pasa, por ejemplo, con dos meseros asignados a la misma mesa, o con los pedidos para recoger y las facturas manuales que se cobran en la caja.\n\nPor eso conviene que cada mesero tenga sus mesas asignadas. Ver [Asigna mesas a cada mesero](/operator/ayuda/primeros-pasos/mesas-por-mesero).\n\n## Lo que ve el mesero\n\nEn su app, en la pestaña **Yo**, el mesero tiene **Mis comisiones**: la **Comisión**, lo **Cobrado**, las **Cuentas**, **Tu %** y las **Últimas cuentas**, de **Este mes** o del **Mes anterior**.\n\nLa sección aparece cuando el mesero tiene un porcentaje configurado o cuentas con comisión en el mes.\n\n## El reporte para pagar las comisiones\n\nEn **Reportes** › **Comisiones de ventas** ves, por fecha de pago, lo cobrado y la comisión de cada persona, el detalle cuenta a cuenta y dos archivos para tu contador: **CSV resumen** y **CSV detalle**. El grupo Reportes del menú aparece si tu comercio tiene el módulo de contabilidad.\n\n> Las comisiones no entran solas en la nómina ni en la contabilidad: el reporte calcula lo que debes pagar. Si después devuelves dinero de una cuenta, ajusta su comisión a mano.\n\n## Casos frecuentes\n\n- **Debe estar entre 0 y 100.**: escribe un porcentaje válido.\n- **No pudimos guardar.**: toca **Reintentar**.\n- **Una cuenta no le sumó a nadie**: ningún mesero la cobró y la mesa no tenía un único mesero asignado. Revisa las secciones en Mesas por mesero.\n- **El mesero no ve Mis comisiones**: todavía no tiene porcentaje ni cuentas con comisión este mes.\n- **Cambié el porcentaje y las cuentas anteriores siguen igual**: es a propósito; el porcentaje queda fijado en cada cuenta al cobrarla.\n- **El mesero también está en Horarios**: la comisión se configura en su usuario de mesero, no en la ficha de empleado, y no se suma a la nómina.",
+      "links": [
+        {
+          "label": "Ir a Mesas por mesero",
+          "href": "/operator/settings/meseros"
+        },
+        {
+          "label": "Ir a Comisiones de ventas",
+          "href": "/operator/reportes/comisiones"
+        },
+        {
+          "label": "Ir a Yo",
+          "href": "/mesero/yo"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

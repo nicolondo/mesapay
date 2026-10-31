@@ -1,5 +1,514 @@
 {
   "title": "Menu and production",
   "description": "Menu, modifiers, translations, supplies, recipes, production, inventory and purchasing.",
-  "articles": []
+  "articles": [
+    {
+      "slug": "crear-la-carta",
+      "title": "Build your menu: categories and products",
+      "summary": "Create your menu categories and add each product with its price, prep time, description, photo, station and tags, all from the Menu screen.",
+      "keywords": [
+        "menu",
+        "dishes",
+        "products",
+        "categories",
+        "create dish",
+        "add product",
+        "price",
+        "dish photo",
+        "description",
+        "prep time",
+        "station",
+        "tags",
+        "main courses",
+        "mains together",
+        "ai description",
+        "carta"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Your menu is built in **Menu**: first you create the categories (for example \"Starters\", \"Mains\", \"Desserts\") and then you add the products inside each one. What you save here is what diners see when they scan the QR code and what waiters order from.\n\n## Create a category\n\n1. In the side menu, go to **Menu › Menu**.\n2. Tap **+ New category**.\n3. Enter the **Category name** (up to 40 characters).\n4. If it is the category for your main dishes, check **Main course category** (see below for what it does).\n5. Tap **Create**. The category is added at the end; you can then move it up or down with the arrows next to its name.\n\n## Add a product\n\n1. In the category, tap **+ Product**.\n2. Fill in the **Name** (up to 60 characters) and the **Price (COP)**.\n3. In **Prep (min)**, enter the preparation time in minutes. It starts at 10 and accepts decimals: 0.5 is 30 seconds.\n4. If you like, write the **Description (optional)** or tap **Generate description with AI**.\n5. Leave **Track inventory** checked if the product should consume the ingredients in its recipe when it is sold. Uncheck it to sell the product without consuming inventory; the recipe is kept so you can still check costs.\n6. Tap **Create product**.\n\nThe product is **Available** and shows on the menu right away.\n\n## Finish the product: photo, station and tags\n\nTap the product to open **Edit product**. Besides the fields above, you will find:\n\n- **Photo**: tap **Upload photo**, drag an image onto it, or paste it with Ctrl+V (Cmd+V on a Mac) while no field is selected. JPG, PNG and WebP are accepted.\n- **Category**: to move the product to another category or subcategory.\n- **Station**: where the ticket goes. By default it says **Use the category's** and follows what you set in Prep stations. Change it only for exceptions, such as a fresh juice made in the kitchen even though its category goes to the bar.\n- **Tags**: tap the ones that apply, up to 8 per product. The list is managed in Dish tags, from **Edit list →**.\n- **Modifiers**: sizes, doneness, sauces or add-ons. See [Add modifiers and add-ons](/operator/ayuda/carta-y-produccion/modificadores).\n\nTap **Save** to apply the changes. While the sheet is open you can jump to the previous or next product with the keyboard arrows, and close it with Esc.\n\n## The AI description\n\n**Generate description with AI** suggests a text based on the dish name and whatever you already wrote in the description: if you list the main ingredients, the suggestion is more accurate. It appears under **Suggested description**, where you can edit it before tapping **Use description** or **Discard**. It is published when you save the product.\n\n> Always check the ingredients the AI mentions before using it: diners will take it as true.\n\nTo generate descriptions for many dishes at once, see [Sort your menu and edit in bulk](/operator/ayuda/carta-y-produccion/organizar-la-carta).\n\n## The main course category\n\nCheck **Main courses** on the category that holds your main dishes. When the diner chooses, while ordering, to have the mains served together, the kitchen holds those dishes until all of them are ready to go out at the same time. On an existing category, the checkbox is in its header; on a phone, in the **•••** button.\n\n## Common errors\n\n- **Check the name and the price.**: the name is missing or the price is not a valid number.\n- **Prep time between 0.1 and 120 minutes.**: fix **Prep (min)**.\n- **Couldn’t save: check the “…” field**: that field is empty or over its limit. The name allows 60 characters, the description 500, and the price goes up to 5,000,000.\n- **You get an error when creating a product with a long description**: when creating, the description allows up to 240 characters. Create it with a short description and complete it later in **Edit product**, where it allows 500.\n- **Invalid format. Use JPG, PNG or WebP.**: the photo is in another format (for example HEIC or PDF). Convert it or take a screenshot.\n- **AI generation is disabled by the platform administrator.** or **The platform administrator must configure the MESAPAY AI key.**: AI descriptions are not available right now. Write it by hand or contact support.\n- **This business has reached the AI request limit. Try again later.**: wait a while and try again.",
+      "links": [
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Go to Prep stations",
+          "href": "/operator/settings/estaciones"
+        },
+        {
+          "label": "Go to Dish tags",
+          "href": "/operator/settings/etiquetas"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "organizar-la-carta",
+      "title": "Sort your menu, split it into menus and edit in bulk",
+      "summary": "Choose alphabetical or manual order for dishes, sort and nest categories, search for dishes, change many at once and split your menu into several, such as wines or brunch.",
+      "keywords": [
+        "sort menu",
+        "alphabetical order",
+        "manual order",
+        "move dishes",
+        "drag",
+        "subcategory",
+        "search dish",
+        "bulk actions",
+        "edit many",
+        "select all",
+        "menus",
+        "wine list",
+        "tabs",
+        "move category",
+        "reorder"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In **Menu** you decide the order in which diners see your dishes, group categories and change many dishes at once. In **Menus** you split your offering into several menus (food, wines, cocktails, brunch) that diners see as tabs.\n\n## Dish order\n\nAt the top of the **Menu** screen there is **Dish order**. It saves as soon as you change it and applies to the whole menu: the diner's, the waiter's and the one you use to take orders.\n\n- **Alphabetical** (the default): dishes in each category are sorted by name automatically. Accents, capital letters and leading symbols are ignored, and numbers follow natural order (\"Dish 2\" before \"Dish 10\"). If the menu is translated, diners see it sorted by the name in their language.\n- **Manual (as set in the editor)**: dishes appear in the order you arrange.\n\n### Sort dishes by hand\n\n1. In **Dish order**, choose **Manual (as set in the editor)**.\n2. On a computer, drag each dish by its handle (the six dots on the left) and drop it where the line appears. On a phone or tablet, use each dish's ↑ and ↓ arrows.\n3. The order is saved as soon as you drop the dish or tap the arrow.\n\nDishes only move within their category; to move one to another category, change its **Category** in **Edit product**. While a search is typed in, dishes cannot be moved.\n\n## Sort and nest categories\n\n- **↑ ↓ arrows next to the name**: move the category up or down. Diners see them in that order.\n- **Subcat. of**: turns the category into a subcategory of another one (for example \"Reds\" inside \"Wines\"). There is only one level: a category that already has subcategories cannot become a subcategory. To bring it back to the top level, choose **— none (top level) —**.\n- **Rename** and **Delete**, in the same header.\n\nOn a computer these options are below the category name; on a phone, in the **•••** button.\n\n## Search for a dish\n\nType in **Search dish…**. You get the dishes that contain every word, in any order and regardless of accents: \"beef tenderloin\" finds \"Tenderloin of beef\". Categories with no matches are hidden. Tap the ✕ to see the whole menu again.\n\n## Change many dishes at once\n\n1. Check the box of each dish, or the box next to a category name to check all of its dishes.\n2. A bar appears at the bottom with the number selected. **Select whole menu** checks every dish in the menu you are viewing, and **Clear** removes the selection.\n3. Choose an action from the bar. Each one asks you to confirm with a button that says how many dishes will change.\n\nThe actions are:\n\n- **Describe with AI**: suggests descriptions for up to 25 dishes at a time. You review each one, fix what you need, uncheck the ones you don't want and tap **Save**.\n- **Move category**: choose the **Target category** and tap **Move**.\n- **Change station**: **Kitchen**, **Bar**, **Fridge / counter** or **Use the category's**.\n- **Copy modifiers**: see [Add modifiers and add-ons](/operator/ayuda/carta-y-produccion/modificadores).\n- **Delete**: dishes that have already been sold are archived instead of deleted. See [Mark a dish as sold out, archive it or delete it](/operator/ayuda/carta-y-produccion/agotar-archivar-o-eliminar-un-plato).\n\n## Split your offering into several menus\n\nMost restaurants have a single menu. If you want a separate one for wines, cocktails or brunch:\n\n1. Go to **Menu › Menus** and tap **+ New menu**.\n2. Enter the **Menu name** and, if you like, a **Description (optional)**.\n3. Tap **Create menu**.\n\nWith two or more menus, **Menu** shows one tab per menu, and **+ New category** creates the category in the tab you are viewing. To move a category to another menu, use the menu selector in its header (on a phone, inside **•••**). Subcategories always follow their parent category.\n\nIn **Menus** you can also rename a menu by tapping its name, sort them with the arrows and remove the ones you don't need with **Delete**. There is always at least one left: when you delete a menu, its categories move to the first remaining one.\n\n## Common errors\n\n- **I can't see the arrows to move dishes**: the order is set to **Alphabetical** or a search is typed in. Choose **Manual (as set in the editor)** and clear the search.\n- **We couldn't save the dish order. Reload the page and try again.**: reload the page and move the dish again.\n- **We couldn't change the order. Try again.**: a category move was not saved; repeat it.\n- **The Describe with AI button is greyed out**: you have more than 25 dishes selected. Remove some from the selection.\n- **There must be at least one menu.**: your only menu cannot be deleted.",
+      "links": [
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Go to Menus",
+          "href": "/operator/menus"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "modificadores",
+      "title": "Add modifiers and add-ons",
+      "summary": "Set up options such as doneness, size or paid add-ons: single or multiple-choice groups, required groups and default options. Copy them to other dishes or build one from a category.",
+      "keywords": [
+        "modifiers",
+        "add-ons",
+        "options",
+        "extras",
+        "size",
+        "doneness",
+        "side dish",
+        "garnish",
+        "surcharge",
+        "required",
+        "default option",
+        "copy modifiers",
+        "turn into modifier",
+        "variants",
+        "toppings"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Modifiers are the options the diner picks when ordering a dish: how the meat is cooked, the size, the sauce or paid add-ons. They are set up inside each product, and the ticket shows the kitchen what was chosen.\n\n## Add a group of options\n\n1. In **Menu**, tap the product to open **Edit product**.\n2. Under **Modifiers**, tap **+ Add**.\n3. Enter the group's **Label**, for example \"Doneness\" or \"Add-ons\".\n4. In **Type**, choose **Single** if the diner picks one option (doneness) or **Multiple** if they can pick several (add-ons).\n5. If the diner must choose, check **Required (the customer must choose to add)**. Without a choice, they cannot add the dish.\n6. Type each option in **Add option and press Enter** and press Enter or tap **Add**.\n7. Tap **Save** at the bottom of the sheet. Modifiers are saved with the product: if you close without saving, they are lost.\n\n## Price, description and default option\n\nEach option has:\n\n- **+ (extra cost)**: the field with the plus sign. Enter how much the option adds to the dish price; empty means no surcharge. It also accepts a negative value if the option takes something off.\n- **Add description**: the lines icon opens a field to explain the option, up to 200 characters. Diners see it when choosing.\n- **default**: only in **Single** groups. Marks the option that comes pre-selected; the diner can change it.\n- The ✕ removes the option. The ↑ ↓ arrows change the order of options and groups, and diners see them in that order.\n\n> If every group on a dish is **Single** and has a default option, diners can add it with one tap. If there is a **Multiple** group or one without a default, the dish opens so they can choose.\n\nTo have an add-on consume ingredients from inventory, set it up in the dish's recipe. See [Build recipes and control food cost](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n\n## Limits\n\n- Up to 8 groups per product and 12 options per group.\n- The group label and each option allow up to 60 characters.\n- Options don't repeat within a group: if you type one that already exists, it is not added.\n\n## Copy modifiers to other dishes\n\nSo you don't have to build the same thing dish by dish:\n\n1. In **Menu**, check the dishes that should receive the modifiers.\n2. In the bar at the bottom, tap **Copy modifiers**.\n3. Choose the product to copy from; you can search for it. Only products that already have modifiers appear, and below you can see what will be copied.\n4. Choose **Replace** (removes the modifiers the selected dishes had and adds the copied ones) or **Merge** (adds only the groups they are missing, without duplicating groups with the same label).\n5. Tap **Apply to … products**.\n\n## Turn a category into a modifier\n\nThis happens a lot after importing a menu: add-ons arrive as separate products in a category such as \"Add-ons\" or \"Sauces\". To turn them into options of a dish:\n\n1. In that category's header, tap **Turn into modifier** (on a phone, inside **•••**).\n2. Check the **Modifier label** (it comes as \"Add …\" with the category name) and the **Type**.\n3. In **Options (from the products)**, uncheck the ones you don't want and fix names and prices.\n4. In **Add to this product**, search for and pick the dish that will carry them.\n5. If you no longer need the separate products, check **Delete the products and category afterwards**. Products that were already sold are archived, and the category is only deleted if it ends up empty.\n6. Tap **Add to …** (the button shows the dish name).\n\nThe modifier is added as one more group on the dish; it doesn't replace the ones it already had. To put it on other dishes, use **Copy modifiers**.\n\n## Common errors\n\n- **The modifier \"…\" needs a label and at least one option.**: complete the group label and add at least one option, or remove the group with the ✕.\n- **This product already has the maximum number of modifiers (8).**: remove or combine groups on that dish before converting the category.\n- **Check the option names and prices.**: an option has no name, or you checked more than 12. Uncheck the extra ones.\n- **Couldn’t save: check the “…” field** when saving a dish: the dish is over the limits, for example more than 8 groups or more than 12 options in a group. Remove the extras and save again. This can happen after you **Merge** modifiers into a dish that already had several.",
+      "links": [
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "agotar-archivar-o-eliminar-un-plato",
+      "title": "Mark a dish as sold out, archive it or delete it",
+      "summary": "Take a dish off the menu for a while with Sold out, archive it without losing its history, or delete it. What happens to dishes that were already sold and when a category can't be deleted.",
+      "keywords": [
+        "sold out",
+        "86",
+        "out of stock",
+        "unavailable",
+        "hide dish",
+        "archive",
+        "delete dish",
+        "remove product",
+        "re-enable",
+        "available",
+        "ran out",
+        "take off the menu",
+        "delete category",
+        "seasonal dish"
+      ],
+      "audience": [
+        "operator",
+        "cocina"
+      ],
+      "body": "When an ingredient runs out or a dish goes out of season, there is no need to delete it: mark it as sold out and it stops showing until you turn it back on. This guide explains the three options and what happens with each one.\n\n## The three options\n\n- **Sold out**: the dish stops showing on the diner's menu and on the waiter's, but stays in your **Menu** list, dimmed. One tap brings it back.\n- **Archive**: leaves the dish exactly like **Sold out**. It sits in **Edit product** and is meant for dishes that leave the menu for longer, such as seasonal ones.\n- **Delete**: really deletes the dish if it has never been sold. If it already appears in orders, it is not deleted: it is archived.\n\n## Mark a dish as sold out\n\n1. Go to **Menu › Menu**.\n2. On the dish's row, tap **Available**. It changes to **Sold out**.\n3. To offer it again, tap **Sold out**. It changes to **Available** and the dish is back on the menu.\n\nYou can also do it in **Edit product** with the **Available (shown on the menu)** checkbox, and then **Save**.\n\n> If a diner already had the menu open and tries to order the sold-out dish, the order is not sent and they see a message to try again. When they reload the menu, the dish is gone.\n\n## Archive a dish\n\n1. Tap the dish to open **Edit product**.\n2. At the bottom, tap **Archive**. The dish shows as **Sold out** in your list.\n\n**Archive** only appears while the dish is available. To put it back on the menu, tap **Sold out** on its row, or check **Available (shown on the menu)** in **Edit product** and tap **Save**.\n\n## Delete a dish\n\n1. Open the dish and tap **Delete**.\n2. Confirm. The message reminds you that if the dish appears in past orders it can't be fully deleted.\n\nWhat happens next:\n\n- **If it has never been sold**, it is deleted together with its recipe. This can't be undone.\n- **If it has been sold**, a message says it can't be deleted because it has movements, and the dish is archived. It stays as **Sold out** so your sales, invoices and reports still add up, and you can re-enable it anytime.\n\nTo delete several at once, check them in the list and tap **Delete** in the bar at the bottom. Those with orders are archived.\n\n## When the kitchen takes a dish off the menu\n\nIf the kitchen or the bar cancels a dish because it ran out, they can take it off the menu in the same step:\n\n1. On the **Kitchen** board (or the **Bar** board), tap **Cancel** on the dish.\n2. Tap **Not available**: it cancels that dish from the order and leaves it **Sold out** on the menu.\n3. If you prefer to give another reason, type it, check **Also remove this dish from the menu until it's available again** and tap **Confirm cancellation**.\n\nThe dish doesn't come back on its own: once you have it again, someone with access to **Menu** has to tap **Sold out** to make it **Available**.\n\n## Delete a category\n\nA category can only be deleted if it is empty. If it has dishes, you see **Mueve los platos a otra categoría antes de borrarla.** (move the dishes to another category before deleting it). Sold-out and archived dishes count too: check them, move them to another category with **Move category** and try again. If the category had subcategories, they become top-level categories.\n\n## Frequently asked questions\n\n### Can a waiter order a sold-out dish?\n\nNo. Sold-out and archived dishes don't appear on the waiter's menu or the diner's.\n\n### What is the difference between Sold out and Archive?\n\nNone on the menu: both hide the dish and are re-enabled the same way. **Archive** is just a shortcut inside **Edit product**.\n\n### I can't find the Archive button\n\nIt only appears while the dish is **Available**. If it is already **Sold out**, it is already off the menu.",
+      "links": [
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        },
+        {
+          "label": "Go to Kitchen",
+          "href": "/operator/kitchen"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "importar-la-carta",
+      "title": "Import your menu from a PDF, a photo or a link",
+      "summary": "Upload your menu as a PDF or a photo, or paste the link to your page, and the AI builds the categories and products with their price and description. You review them and import them all at once.",
+      "keywords": [
+        "import menu",
+        "upload menu",
+        "pdf",
+        "menu photo",
+        "scan menu",
+        "ai",
+        "artificial intelligence",
+        "load dishes",
+        "cluvi",
+        "justo",
+        "shopify",
+        "menupp",
+        "link",
+        "url",
+        "migrate menu"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "If you already have your menu as a PDF, a photo or a web page, you don't have to type it dish by dish: the AI reads it and suggests the categories and products, with their price and description. You review, fix and import them all at once.\n\n## Import from a file\n\n1. In **Menu › Menu**, tap **Import with AI**. **Import menu with AI** opens.\n2. If you have several menus, choose in **Import into** where the new categories are created.\n3. Drag the file onto the box or tap it to choose one. PDF, JPG, PNG and WebP are accepted: a PDF made in Word or Canva, a scanned PDF or a phone photo of your printed menu.\n4. Wait while it says **Reading your menu…**. It usually takes 10 to 30 seconds.\n5. Review the **Products detected** (see below) and tap **Import … products**.\n\nWhen it finishes you'll see how many products were added to your menu, with the **View my menu** and **Import another** buttons.\n\n## Import from a link\n\nBelow the box, under **Is the menu on a web page?**, paste the link to your menu or to a public PDF and tap **Read**.\n\nIf your menu is on Cluvi, Shopify, Justo or Menüpp, MESAPAY brings it straight from that platform, with its categories, prices and, when it has them, photos. It also works if your website shows a Cluvi menu. With any other page, the AI reads what appears on it.\n\n## Review before importing\n\nEach detected product has a checkbox, its name, price, description, **Category** and tags. Before importing:\n\n- Uncheck the products the AI misread or that you don't want: they won't be imported.\n- Fix names, prices and descriptions directly on each card.\n- Look out for the ones marked **Review (confidence …%)**: the AI isn't sure it read them correctly.\n- In **Category**, the ones ending in **· new** will be created; the rest already exist in your menu and the product is added to them.\n- If a product brings a photo you don't want, remove it with the ✕.\n- **Select all** and **Clear selection** check or uncheck everything at once.\n\nOn the side you can see the original file (or the link) to compare, and how many products you are about to import.\n\n## After importing\n\nThe products are **Available** and already show on the menu. What the import doesn't bring is completed later in **Menu**: photos, modifiers, station and prep time. See [Build your menu](/operator/ayuda/carta-y-produccion/crear-la-carta) and [Add modifiers and add-ons](/operator/ayuda/carta-y-produccion/modificadores). If add-ons arrived as separate products, turn them into a modifier from their category's header.\n\n> ⚠ Importing the same menu twice duplicates the products: an import always creates new products and doesn't replace the ones you have. To fix a menu you already imported, edit it in **Menu**; if you import again, uncheck in the review the products that already exist.\n\n## Common errors\n\n- **The file is … MB. The max is 32 MB**: compress the PDF or upload the pages as JPG or PNG images. PDFs with text, like those made in Word or Canva, rarely hit the limit; scanned PDFs and photos can.\n- **We didn't detect any products. Try a clearer image, another URL, or upload a PDF.**: take the photo straight on, with good light and no glare, or try the PDF.\n- **We couldn't read the site.**, **El sitio tardó demasiado en responder.** (the site took too long to respond) or a message about an unsupported content type: the page can't be read. Download the menu as a PDF or take a screenshot and upload it as a file.\n- **El recurso supera 15 MB.** (the file is over 15 MB): the linked PDF is too heavy to read from the web. Download it and upload it as a file.\n- **Select at least one product to import.**: check at least one product in the review.",
+      "links": [
+        {
+          "label": "Go to Import menu with AI",
+          "href": "/operator/menu/import"
+        },
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "traducir-la-carta",
+      "title": "Translate your menu into English and Portuguese",
+      "summary": "Use AI to translate the names and descriptions of your dishes and categories so diners who use MESAPAY in English or Portuguese read the menu in their language. You can fix each translation by hand.",
+      "keywords": [
+        "translate menu",
+        "translation",
+        "english",
+        "portuguese",
+        "languages",
+        "tourists",
+        "menu in english",
+        "idioma",
+        "diner language",
+        "translate dishes",
+        "ai",
+        "fix translation",
+        "multilingual"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Diners can use MESAPAY in Spanish, English or Portuguese. To have your dish names and descriptions in their language too, translate them in **Menu translations**: the AI does the translation and you fix whatever you want.\n\n## Translate the menu with AI\n\n1. Go to **Settings › Menu translations**.\n2. Tap **Translate menu with AI**. While it says **Translating…**, don't close the page: with many dishes it can take up to a minute.\n3. When it finishes you'll see \"Done: … texts processed in English and Portuguese.\" and the table fills in.\n\nThe AI translates category names and dish names and descriptions, as well as the names of your menus and your tags. Proper names and dishes that have the same name in the other language (taco, tartare) are left as they are.\n\n## Review and fix by hand\n\nThe table has three columns, **Spanish (original)**, **English** and **Portuguese**, grouped by category.\n\n1. Tap the cell you want to fix and type the translation.\n2. Leave the cell by tapping somewhere else. It saves on its own and the border turns green. If it turns red, it wasn't saved: try again.\n\nWhat you fix by hand is respected: the AI doesn't change it when you translate again, as long as the Spanish text stays the same.\n\nThe Spanish text isn't edited here but in [Menu](/operator/menu).\n\n## When to translate again\n\nTranslation doesn't happen on its own. Tap **Translate menu with AI** again every time you:\n\n- Add dishes or categories. Only what's missing is translated; what is already translated isn't touched.\n- Change a dish's name or description in Spanish. The previous translation stops being used and, until you translate again, diners see that text in Spanish. If you had fixed it by hand, check it afterwards: it is translated again from the new text.\n\n**Re-translate everything with AI** redoes all automatic translations, for example if you didn't like the result. It asks for confirmation and keeps the ones you fixed by hand.\n\n## What diners see\n\nThe first time, the menu opens in the language of the diner's phone, and they can change it on the menu itself. They see the translation of each text when there is one; otherwise, the Spanish text. With alphabetical order, dishes are sorted by the name in their language.\n\n> Modifiers and their options (doneness, sauces, add-ons) are not translated: diners see them as you wrote them.\n\n## Common errors\n\n- **Couldn't translate. Try again.**: wait a moment and tap **Translate menu with AI** again. Whatever was already translated is not lost.\n- **A dish is still in Spanish on the English menu**: it's new, or you changed its text after translating. Tap **Translate menu with AI**.\n- **I deleted a translation and now it shows in Spanish**: leaving a cell empty deletes that translation. Tap **Translate menu with AI** so the AI does it again, or type it by hand.",
+      "links": [
+        {
+          "label": "Go to Menu translations",
+          "href": "/operator/settings/traducciones"
+        },
+        {
+          "label": "Go to Menu",
+          "href": "/operator/menu"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "insumos-y-proveedores",
+      "title": "Set up your ingredients and suppliers",
+      "summary": "Register the raw materials you buy (with their unit, reference price, reorder point and barcode) and your suppliers, with their price list and the preferred supplier for each ingredient.",
+      "keywords": [
+        "ingredients",
+        "supplies",
+        "raw materials",
+        "suppliers",
+        "vendors",
+        "price list",
+        "presentation",
+        "package",
+        "reference price",
+        "reorder point",
+        "minimum stock",
+        "barcode",
+        "archive ingredient",
+        "import ingredients",
+        "opening stock",
+        "deductible VAT",
+        "preferred supplier"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Ingredients are the raw materials you buy: meat, oil, takeout boxes. They are the foundation for inventory, purchasing and recipes. Suppliers are who you buy them from, with their payment terms and a price list for each one.\n\nIngredients is under **Supplies** in the **Back office** menu and shows up if your business has Inventory, Purchasing or Recipes. **Suppliers** is in **Settings** and only shows up with Purchasing. If you don't see them, write to support.\n\n## Create an ingredient\n\n1. Open [Ingredients](/operator/settings/insumos) and tap **New ingredient**.\n2. Enter the **Name**. It can't repeat among your ingredients.\n3. Optionally add a **Category** (Proteins, Dairy, Packaging…). It's free text: the ones you already used appear as suggestions.\n4. Choose the **Measure dimension**: **Weight** (g, kg), **Volume** (ml, L) or **Units** (un).\n5. Keep **Track inventory** checked if you want to control its stock. Uncheck it for things you don't count, like napkins: the ingredient still works in purchases and recipes, without stock movements, counts or reorder alerts.\n6. Optional: the **Reference price**, per kilo, liter or unit. It's suggested as the cost in purchases without a supplier presentation and in recipes with no other cost. It doesn't change existing stock or past purchases.\n7. Optional, if it tracks inventory: the **Reorder point** (at that stock or less, the ingredient is flagged \"low stock\" in Inventory) and the **Quantity to order**.\n8. Optional: **SKU**, **Barcode** and **Notes**. The barcode helps you find the ingredient during a count; you can add more codes from Inventory (see [Do a physical count with barcodes](/operator/ayuda/carta-y-produccion/conteo-de-inventario)).\n9. Tap **Save**.\n\n## Import your ingredients with AI\n\nIf you already have the list on paper or in a spreadsheet, load it all at once. This option only appears if your business has Inventory, because it also creates the opening stock.\n\n1. On **Ingredients**, tap **Import with AI**.\n2. Tap **Choose file** and upload a photo or PDF of the list, or an Excel or CSV file. Max. 15 MB.\n3. Optionally write **Instructions for the AI (optional)**, for example: \"the PRICE column is the cost before VAT\".\n4. Tap **Process with AI** and wait 30 to 60 seconds without closing the screen.\n5. Review the table. Each row says **New** or **Already exists**, and doubtful ones say **review**. Fix the name, measure, category, quantity, unit or **Unit cost**, and uncheck **Include** on rows you don't want.\n6. Check **Update stock for the ones that already exist** only if you also want to load the quantity into ingredients you already had.\n7. Tap the **Create** button, which shows how many ingredients will be created (for example, **Create 12 supplies**). Quantity times unit cost becomes the valued opening stock.\n\n## Archive, organize and edit in bulk\n\n- **Archive** hides the ingredient from the usual lists and keeps its stock and history. Bring it back from **Archived** with **Restore**.\n- Select several ingredients and use **Change category** (**Move to another** or **Rename**) or **Change dimension**, then tap **Apply**. Renaming changes that category on all its ingredients, not just the selected ones.\n\n## Create a supplier\n\n1. Open [Settings › Suppliers](/operator/settings/proveedores) and tap **New supplier**.\n2. A **Name** and a **Phone** are enough to start. You can also fill in **Tax ID**, **Contact**, **Email**, **Address** and **Notes**.\n3. In **Payment terms (days)** enter how long you have to pay them. Empty means cash. This term sets the due date of each purchase.\n4. Tap **Save**. If the supplier has a phone, a **WhatsApp** button appears in the list.\n\n## Build the price list\n\n1. Tap the supplier and, under **Price list**, tap **Add ingredient**.\n2. Choose the **Ingredient** and enter the **Presentation** they sell it in (\"Case × 24\", \"50 kg bag\").\n3. In **Content per presentation**, enter how much a single presentation holds, with its unit.\n4. Enter the **Price per presentation** and, optionally, the **Supplier SKU**.\n5. Check **Preferred supplier for this ingredient** if it's who you buy from the most. You can also tap the star in the list.\n6. Tap **Save**.\n\nEach ingredient has only one preferred supplier: if you mark another one, the previous one stops being preferred. The preferred supplier is used by **Suggest from reorder** and as the recipe cost when there is no other. The price updates on its own when you receive a purchase order in which you ordered that presentation from the list.\n\n## Deductible purchase VAT\n\nOn the Suppliers screen, the **Purchase taxes** card has **Purchase VAT is deductible**. Turn it on if your accountant deducts purchase VAT: that way VAT doesn't go into the inventory cost. If it's off, VAT is part of the cost.\n\n## Common cases and errors\n\n- **An ingredient with that name already exists.**: look for it under **Active** or **Archived**, or use another name.\n- **That barcode is already on another item.**: a code can't repeat between ingredients. Remove it from the other one or check the code you scanned.\n- **Can't be changed: this ingredient already appears in supplier price lists.** or **The dimension is locked: this ingredient already has references.**: once the ingredient is on a price list or has had inventory movements, its dimension is fixed so stored quantities stay correct. If you made a mistake, create a new ingredient with the right dimension and archive the old one.\n- **You uncheck \"Track inventory\" and \"Set inventory to zero\" appears**: the ingredient still has stock. Tap **Set to zero and save** to bring it to zero (history is kept) or **Back to editing**.\n- **This ingredient is archived…** while building a price list: restore it from **Archived**.\n- **That ingredient is already on this supplier's list.**: edit the existing presentation instead of creating another.\n- **The supplier doesn't appear when creating an order**: it's deactivated. Find it in Suppliers and tap **Reactivate**.\n\nTo buy, continue with [Create purchase orders, receive goods and pay your suppliers](/operator/ayuda/carta-y-produccion/ordenes-de-compra) or [Record a purchase by uploading the invoice](/operator/ayuda/carta-y-produccion/cargar-facturas-de-compra).",
+      "links": [
+        {
+          "label": "Go to Ingredients",
+          "href": "/operator/settings/insumos"
+        },
+        {
+          "label": "Go to Suppliers",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Go to Purchasing",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "recetas-y-food-cost",
+      "title": "Build your recipes and keep food cost in check",
+      "summary": "Enter each dish's recipe to see its real cost, its food cost with a traffic light and its margin. Spot expensive dishes and ingredients that went up, and classify your menu with menu engineering.",
+      "keywords": [
+        "recipe",
+        "recipes",
+        "food cost",
+        "dish cost",
+        "costing",
+        "margin",
+        "profitability",
+        "COGS",
+        "cost of goods sold",
+        "waste",
+        "yield",
+        "recipe card",
+        "menu engineering",
+        "stars",
+        "dogs",
+        "plowhorses",
+        "puzzles",
+        "ingredients on the rise",
+        "price increase",
+        "modifiers"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Recipes you enter what goes into each dish and how much. With that, MESAPAY calculates its real cost, its food cost (the share of the menu price that goes to ingredients) and its margin, and deducts the ingredients from inventory every time the dish is sold.\n\n> Recipes is a module MESAPAY turns on for each business. If you don't see **Recipes** in the **Back office** group of the menu, write to support.\n\n## Before you start\n\n- Create your dishes in [Menu](/operator/menu) and your ingredients in [Supplies](/operator/settings/insumos). See [Create your ingredients and suppliers](/operator/ayuda/carta-y-produccion/insumos-y-proveedores).\n- To have a cost, an ingredient needs at least one of these sources, in this order: valued stock in Inventory, a sub-recipe, a reference price, or a preferred supplier with a price.\n\n## Build a dish's recipe\n\n1. Go to **Back office › Recipes**, **Dishes** tab.\n2. Find the dish with **Search by dish or category…** or filter by category, and tap it.\n3. Under **Ingredient**, type the name and tap the ingredient to add a line. The list shows each ingredient's cost per unit, or **No cost**.\n4. On each line, enter the **Net quantity** that goes on the plate, pick the unit (g or kg, ml or L, un) and, if needed, the **Waste %**.\n5. Check the summary, which updates as you type: **Recipe cost**, **Food cost** and **Margin**.\n6. Optionally add **Notes** (plating, for example) and tap **Save**.\n\n### Waste\n\nThe net quantity is what reaches the plate; waste is what is lost while preparing it (peels, bones, fat). With waste, the cost is calculated on the gross amount: 180 g net with 20% waste costs as much as 225 g, and the line shows **Gross** with that amount. Waste is a whole number from 0 to 90.\n\n## Ingredients per modifier\n\nIf the dish has modifiers, **Ingredients per modifier** appears after you add the first ingredient. Open an option, tap **Add ingredients** and add what that option changes: **+** adds (extra cheese) and **−** removes (no onion). Those ingredients are deducted from inventory only when the diner picks that option. The cost, food cost and margin shown in the recipe are those of the base recipe.\n\n## Read the food cost\n\n- Green: up to 30%. Amber: 30% to 40%. Red: over 40%.\n- If any dishes are in the red, a notice such as \"3 dishes with high food cost\" appears at the top. Tap it, or tap the **High food cost** filter, to see only those dishes.\n- **No recipe**: the dish has no recipe yet. **Incomplete cost**: some ingredient has no cost, so the food cost isn't calculated rather than showing a false number.\n- Cost uses today's costs: if an ingredient goes up, every recipe that uses it goes up too.\n\n### Ingredients on the rise\n\nIf an ingredient's price with a supplier rose 10% or more in the last 30 days, the **Ingredients on the rise** section appears. Open it to see the supplier and package, the previous and new price, the percentage and the dishes it affects.\n\n## Menu engineering\n\nThe **Engineering** tab crosses what sells most with what earns most, over the last **7 days**, **30 days** or **90 days**:\n\n- **Stars**: popular and profitable. Protect them.\n- **Plowhorses**: popular but low-margin. Raise the price or cut the cost.\n- **Puzzles**: profitable but rarely sold. Promote them.\n- **Dogs**: neither popular nor profitable. Rethink them or take them off the menu.\n\nA dish is popular if it sold at least 70% of the average units per dish, and profitable if its margin (menu price minus recipe cost) is at or above the average. The thresholds used are shown at the top. Only paid checks count, without cancelled or uncharged dishes. Dishes with no recipe, an incomplete cost or no sales in the period go to **No data**.\n\n## Common cases\n\n- **This ingredient has no cost source…** under a line: record a stock entry with a cost in Inventory, give it a reference price in Supplies or set a preferred supplier with a price.\n- **Invalid waste: use a whole number between 0 and 90.**: enter the waste without decimals.\n- **There is a duplicate ingredient in the recipe.**: keep one line per ingredient and add up the quantities.\n- **I can't find an ingredient in the list**: only active ingredients appear. If you archived it, restore it from Supplies.\n- **I want to remove the recipe**: open the dish and tap **Delete recipe**. The dish is left without costing.\n- **No dishes on the menu yet**: create the dishes in Menu and come back.",
+      "links": [
+        {
+          "label": "Go to Recipes",
+          "href": "/operator/recetas"
+        },
+        {
+          "label": "Go to Supplies",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "sub-recetas-y-produccion",
+      "title": "Create sub-recipes and log production in batches",
+      "summary": "Cost your own preparations (sauces, doughs, stocks) with a sub-recipe and log every batch you make: ingredients leave inventory and the prepared item comes in at its real cost.",
+      "keywords": [
+        "sub-recipe",
+        "subrecipe",
+        "preparation",
+        "prepared item",
+        "semi-finished",
+        "sauce",
+        "dough",
+        "stock",
+        "batch",
+        "production",
+        "produce",
+        "yield",
+        "batch cost",
+        "derived cost",
+        "partial cost",
+        "prep",
+        "mise en place"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A sub-recipe is the recipe for something you prepare in your kitchen and then use in several dishes: a sauce, a dough, a stock. It tells you how much each liter or kilo costs you. With Production you log every batch you make: ingredients leave inventory and the prepared item comes in at what it cost.\n\n> Recipes and Production are modules MESAPAY turns on for each business. Production uses the sub-recipes from Recipes and the stock from Inventory, so it needs all three modules. If you don't see them in the **Back office** group of the menu, write to support.\n\n## 1. Create the prepared ingredient\n\nThe preparation has to exist as an ingredient. In [Supplies](/operator/settings/insumos) create, for example, \"House sauce\" with the volume dimension. To produce it in batches, leave **Track inventory** checked.\n\n## 2. Build the sub-recipe\n\n1. Go to **Back office › Recipes**, **Sub-recipes** tab, and tap **New sub-recipe**.\n2. Under **Prepared ingredient**, search for and tap the ingredient you created. Only active ingredients that don't have a sub-recipe yet appear.\n3. Under **Batch yield**, enter how much one full preparation produces, for example 2 L.\n4. Add the ingredients it uses, with their net quantity and waste, just like in a dish's recipe. See [Build your recipes and keep food cost in check](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n5. Check the **Batch cost** and the **Derived cost**: the batch cost divided by the yield, that is, what each unit costs.\n6. Tap **Save**.\n\nA sub-recipe can use other sub-recipes, up to three levels deep. Then add the prepared item as one more ingredient in your dishes' recipes.\n\n### Which cost do dishes use?\n\nWhile the prepared item has no stock, dishes cost it at its derived cost. Once there are produced batches in inventory, they use the real average cost of that stock. The sub-recipe list shows both values: **Derived cost** and **Inventory**.\n\n## 3. Log a batch\n\n1. Go to **Back office › Production** and tap **Produce**.\n2. Under **Sub-recipe**, search for and tap the preparation. Only sub-recipes with a yield and ingredients, whose prepared item is active and tracks inventory, appear.\n3. **Quantity produced** starts with the yield. Change it to what you actually got: if you made one and a half batches, enter 3 L.\n4. Check the **Estimated consumption**: how much of each ingredient leaves (waste included), each one's **Current stock** and the **Estimated batch cost**.\n5. Add **Notes** if you like and tap **Log production**.\n\nWhen you log it, each ingredient leaves inventory as **Production (consumed)** and the prepared item comes in as **Production (in)**, valued at exactly what left. The batch appears in the list with its quantity, cost, date and who logged it. Tap it to see the **Ingredients consumed**.\n\n> ⚠ A logged batch can't be voided or deleted. If you made a mistake, correct the stock with an **Adjustment** in [Inventory](/operator/inventario) and leave a note. See [Record stock in, adjustments and waste](/operator/ayuda/carta-y-produccion/inventario-del-dia-a-dia).\n\n## Common cases\n\n- **The batch says \"Partial cost\"**: some ingredient left at zero value because it had no stock with a cost or doesn't track inventory. Record that ingredient's stock entry with its cost before the next batch.\n- **I don't have enough stock**: production is logged anyway and the ingredient's stock may go negative. Record the missing entries.\n- **No sub-recipes to produce…**: create the sub-recipe with its yield in Recipes. If it already exists, check that it has ingredients and that the prepared item is active and tracks inventory.\n- **The prepared ingredient can't be in its own recipe.** or **…would create a cycle between preparations…**: a preparation can't use itself, and two preparations can't use each other.\n- **This ingredient is archived…**: restore the prepared item from Supplies, under **Archived**.\n- **I want to delete a sub-recipe**: open it and tap **Delete sub-recipe**. The ingredient loses its derived cost; batches already logged don't change.",
+      "links": [
+        {
+          "label": "Go to Recipes",
+          "href": "/operator/recetas"
+        },
+        {
+          "label": "Go to Production",
+          "href": "/operator/produccion"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "inventario-del-dia-a-dia",
+      "title": "Record stock in, adjustments and waste",
+      "summary": "Check stock valued at average cost, record stock in, adjustments and waste, review items below their reorder point and understand how each sale deducts the ingredients of its recipes.",
+      "keywords": [
+        "inventory",
+        "stock",
+        "stock on hand",
+        "storeroom",
+        "receive stock",
+        "stock in",
+        "adjustment",
+        "waste",
+        "spoilage",
+        "loss",
+        "expired",
+        "average cost",
+        "ledger",
+        "movements",
+        "sale consumption",
+        "low stock",
+        "reorder point",
+        "replenishment",
+        "categories without inventory",
+        "COGS"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In Inventory you see how much of each ingredient you have and what it is worth, and you record what comes in and what goes out. Each sale deducts the ingredients of its recipe on its own, so day to day you only record stock in, waste and the occasional adjustment.\n\n> Inventory is a module MESAPAY turns on for each business. If you don't see **Inventory** in the **Back office** group of the menu, write to support.\n\n## Stock\n\nIn **Back office › Inventory**, **Stock** tab, every ingredient that tracks inventory appears with its **Stock**, **Unit cost** and **Total value**.\n\n- Search by name, category or barcode, and filter by category.\n- Sort by name, stock, unit cost or total value. On a computer, tap the column header.\n- **Low stock** shows only the items that reached their reorder point, and **In stock** hides those at zero.\n- Stock shown in red is negative: more went out than was recorded as coming in.\n- If you archived ingredients that still have stock, **Show archived** appears so you can see them. Their balances are kept.\n\n## Record a movement\n\n1. Tap **Stock in**, **Adjustment** or **Waste**.\n2. Under **Ingredient**, search for and tap the ingredient. Its **Current stock** shows below.\n3. Enter the **Quantity** and pick the unit.\n4. Fill in the details of each type, explained below.\n5. Tap **Record**.\n\n### Stock in\n\nFor goods that arrive without a purchase order. In **Total cost**, enter what you paid for the whole quantity; if you leave it empty, the entry is valued at the current average cost. If you use Purchasing, receiving an order records the entry on its own. See [Purchase orders, receiving and accounts payable](/operator/ayuda/carta-y-produccion/ordenes-de-compra).\n\n### Adjustment\n\nTo correct a stock level. Under **Adjustment type**, choose **+ Add** or **− Subtract**, and leave a note explaining why. To square the whole inventory with what is in the storeroom, a count is better. See [Do a physical count](/operator/ayuda/carta-y-produccion/conteo-de-inventario).\n\n### Waste\n\nFor what is lost. Choose the **Reason**: **Expired**, **Damaged**, **Kitchen error**, **Spill** or **Other**. The waste is recorded with its cost.\n\n## How cost is calculated\n\nInventory uses weighted average cost. A stock entry with a cost changes the average; outgoing movements (sales, waste, downward adjustments, production) are valued at the average at that moment. That's why it pays to record the cost of every entry.\n\n## Sale consumption\n\nWhen a check is paid, MESAPAY deducts each dish's recipe ingredients, with their waste, plus those of the modifiers the diner chose. It shows in **Movements** as **Sale consumption**. For this to happen:\n\n- Your business has Inventory and Recipes turned on, and the dish has a recipe. See [Build your recipes and keep food cost in check](/operator/ayuda/carta-y-produccion/recetas-y-food-cost).\n- The dish has **Track inventory** checked in the Menu, and so does the ingredient, in Supplies.\n- The ingredient isn't in a category without inventory.\n\nCancelled dishes don't deduct anything; dishes served without being charged do, because they were prepared. Sales from before the modules were turned on aren't deducted: start with a physical count.\n\n## Movements\n\nThe **Movements** tab is the history: date, type, who did it, quantity and value. The types are **Stock in**, **Adjustment +**, **Adjustment −**, **Waste**, **Count adjustment**, **Sale consumption**, **Production (in)** and **Production (consumed)**. A movement can't be edited or deleted: a mistake is corrected with an opposite movement.\n\n## Low stock and categories without inventory\n\n- If an ingredient has a **Reorder point** in Supplies, it is marked **Low stock** when it reaches that level or less, and a notice such as \"2 ingredients below their reorder point\" appears at the top. Tap it to see only those items.\n- The ⚙ button opens **Categories without inventory**. Uncheck **Tracks inventory** for the ingredient categories you don't want to control (ice, napkins…) and tap **Save**. Their ingredients stop being deducted on sale and leave the stock list and reorder alerts.\n\n## Common cases\n\n- **This supply does not track inventory…**: turn on **Track inventory** in its Supplies record.\n- **This ingredient is archived…**: restore it from Supplies, under **Archived**.\n- **Invalid quantity for that unit.**: check the number and the unit you picked.\n- **An ingredient doesn't appear**: only active ingredients that track inventory and aren't in a category without inventory are listed.\n- **Nothing to track yet**: create your ingredients in **Back office › Supplies** and record the first entry.",
+      "links": [
+        {
+          "label": "Go to Inventory",
+          "href": "/operator/inventario"
+        },
+        {
+          "label": "Go to Supplies",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "conteo-de-inventario",
+      "title": "Do a physical count with a barcode scanner",
+      "summary": "Count what's in your storeroom in two passes, with a barcode scanner or by hand. Review shortages and surpluses in the preliminary report; inventory is adjusted only when you confirm the definitive count.",
+      "keywords": [
+        "count",
+        "physical count",
+        "stocktake",
+        "stock take",
+        "inventory count",
+        "reconcile inventory",
+        "barcode",
+        "scanner",
+        "reader",
+        "scan gun",
+        "shortages",
+        "surpluses",
+        "differences",
+        "preliminary",
+        "definitive count",
+        "count adjustment",
+        "delete count",
+        "stock"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "A physical count squares MESAPAY's inventory with what is really in your storeroom. It takes two passes: an initial count, whose differences you review in a preliminary report, and a definitive count. Stock changes only when you confirm the final result.\n\n> You need the Inventory module. If you don't see **Inventory** in the **Back office** group of the menu, write to support.\n\n## Set up barcodes (optional)\n\nA barcode scanner makes counting much faster. Any USB or Bluetooth scanner that types like a keyboard works; no camera needed.\n\n- An ingredient can have several codes, for example the same oil from two brands. They all identify the same ingredient and don't change the unit it is counted in.\n- Add them in the **Stock** tab, under each ingredient's name, with **Add barcode** or **Add another code**. Scan the package or type the code and tap **Save code**. The primary code can also be changed in the ingredient's record, in Supplies.\n- A code can't be repeated between two ingredients of your business.\n\n## 1. Create the count\n\n1. Go to **Back office › Inventory**, **Counts** tab, and tap **New count**.\n2. Under **What to count**, leave **All active items** or choose a category.\n3. Add **Notes** if you like (for example, \"Storeroom and bar\") and tap **Create count**.\n\nIt includes the active ingredients that track inventory, with the stock they had when the count was created. Only one count can be open at a time.\n\n## 2. Do the initial count\n\n1. Scan a package in **Scan barcode**. MESAPAY jumps to the ingredient and gets its quantity ready.\n2. Type the quantity and press Enter: you go back to the scanner to read the next code. Enter doesn't save anything.\n3. If you scan an ingredient you already counted, a new quantity opens (for example, 12 in the storeroom and 3 at the bar) and they add up in **Total counted**. Without a scanner, use **+ Add quantity**. You can mix units of the same kind, such as kg and g.\n4. Without a scanner, find the ingredient with **Search item in this count…** and type the quantity.\n5. Tap **Save draft** to continue later.\n6. When you're done, tap **View preliminary report**.\n\nEnter 0 when there is none. An empty field isn't zero: the item stays **Not counted**.\n\n## 3. Review the preliminary report\n\nThe preliminary report compares what you counted with the stock when the count started and shows how many items have **Shortages**, **Surpluses**, **No differences** or are **Pending**, with filters to review them. It doesn't change inventory yet. Use it to find mistakes: a package counted wrong, something stored somewhere else.\n\n## 4. Do the definitive count and adjust\n\n1. Tap **Start definitive count**. Quantities are cleared so you can count again; the first count's quantities show as a reference.\n2. Count again. This time every item must be filled in: enter 0 when there is none.\n3. Tap **Review final adjustment** and check the differences. If something is wrong, tap **Correct definitive count**.\n4. Tap **Confirm and adjust inventory**.\n\nEach difference goes to **Movements** as a **Count adjustment**, valued at average cost, and you see a message such as \"Count closed: 4 adjustments generated.\"\n\n> ⚠ During the definitive count, avoid recording sales, purchases or other movements of the items you are counting. Ideally, do it while the restaurant is closed.\n\n## Common cases\n\n- **Code … is not in this count…**: that code isn't linked to any ingredient in the count. Find the ingredient and tap **Add barcode** or **Add another code**: the code you scanned is already filled in.\n- **Inventory changed since the definitive count started…**: there was a sale, a purchase or an adjustment of those items. Tap **Restart definitive count** and count again; the preliminary report is kept.\n- **Another person or window changed this count…**: tap **Reload count** before continuing.\n- **There is already an open count…**: finish or delete the one that is open.\n- **Review final adjustment won't activate**: some item hasn't been counted. Use the **Pending** filter.\n- **I want to start over**: as long as the count isn't closed, tap **Delete count**. What you typed is lost and stock levels are untouched. A closed count can no longer be deleted.\n- **An item says \"Non-inventory item\"**: **Track inventory** was turned off after the count was created, so it isn't counted.",
+      "links": [
+        {
+          "label": "Go to Inventory",
+          "href": "/operator/inventario"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "ordenes-de-compra",
+      "title": "Create purchase orders, receive goods and pay your suppliers",
+      "summary": "Order goods from your suppliers with a purchase order, send it via WhatsApp, receive it in full or in parts and record payments until the balance is zero.",
+      "keywords": [
+        "purchase order",
+        "PO",
+        "supplier order",
+        "purchasing",
+        "receive goods",
+        "partial delivery",
+        "accounts payable",
+        "AP",
+        "partial payment",
+        "pay supplier",
+        "due date",
+        "suggest from reorder",
+        "restock",
+        "supplier whatsapp",
+        "cancel order",
+        "supplier discount"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "With purchase orders you order goods from a supplier, record what arrives and keep track of what you owe. When you receive, the ingredients go into inventory at their actual cost.\n\nEverything is in **Back office › Purchasing**, which shows up if your business has the Purchasing module. Before you start, create your suppliers and their price lists: see [Set up your ingredients and suppliers](/operator/ayuda/carta-y-produccion/insumos-y-proveedores).\n\n## Create an order\n\n1. Open [Purchasing](/operator/compras) and tap **New order**.\n2. Under **Supplier**, search for it and choose it. If it doesn't exist yet, tap **+ New supplier**.\n3. Choose how to add the line, **From the price list** or **No presentation** (see below), and fill in its details.\n4. Choose the line **VAT** (0%, 5% or 19% in Colombia; 0%, 8% or 16% in Mexico) and tap **Add line**. Repeat for each ingredient.\n5. If the supplier gives you discounts, enter them under **Lines**: each line has its own **Discount**, as a percentage or a fixed amount, and below is the **Discount on the total**.\n6. Optional: the **Expected delivery** and some **Notes**.\n7. Check the **Expected total** and tap **Create order**.\n\nThe two ways to add a line:\n\n- **From the price list**: you choose the supplier's **Presentation** and the **Number of presentations**. The **Expected cost** is filled in with the last price; adjust it if it changed.\n- **No presentation**: you choose the **Ingredient** (or tap **+ New item**), the **Quantity** and its unit. If the ingredient has a reference price, the cost is suggested from it.\n\nThe order is saved as **Draft** with a number like PO-0001. The costs you enter are before VAT: VAT is added separately.\n\n### Suggest from reorder\n\n**Suggest from reorder** builds drafts with the ingredients at or below their reorder point, grouped by their preferred supplier. Adjust the **Number of presentations**, remove what you don't want and tap **Create draft** (or **Create drafts**, if there are several suppliers). It needs the Inventory module and a reorder point on the ingredient. Ingredients listed under **No preferred supplier** are left out: mark a preferred supplier for them in that supplier's price list.\n\n## Send the order\n\nOpen the order from the list and tap:\n\n- **Send via WhatsApp**: opens WhatsApp with the order written out for the supplier. The supplier needs a phone number.\n- **Print**: opens the order ready to print or save as PDF.\n- **Mark as sent**: if you sent it some other way.\n\nSending or printing it moves it from **Draft** to **Sent**. While it's a draft, **Edit** lets you change the notes and the expected delivery.\n\n## Receive the goods\n\n1. Open the order and tap **Receive goods**. You can receive from **Draft**, **Sent** or **Partially received**.\n2. Check the lines that arrived and enter the **Quantity** and the **Actual cost** of each one, before taxes, as shown on the invoice.\n3. Tap **Record reception**.\n\nIf everything arrived, the order becomes **Received**. If something is missing, it stays **Partially received** and you tap **Receive goods** again when the rest arrives. You can receive more than you ordered. When you receive, inventory goes up at the actual cost and, for price-list lines, the price of that presentation is updated.\n\n> Whether VAT goes into the inventory cost depends on the **Purchase VAT is deductible** setting on the Suppliers screen.\n\n## Pay the supplier\n\nAs soon as you receive goods, the order shows its **Accounts payable** with **Total**, **Paid** and **Balance**.\n\n1. Tap **Register payment**.\n2. Enter the **Amount** (prefilled with the balance), the **Payment date**, and under **Paid from** choose the account the money came out of: cash, bank…\n3. Optional: a **Payment note**, such as the transfer reference.\n4. Tap **Register payment** for a partial payment or **Pay balance** to pay it all at once.\n\nThe **To pay** tab gathers received orders with a balance, from the earliest due to the latest, with their status: **Pending**, **Partial**, **Overdue** or **Paid**. From there you can also register payments and, with **Edit invoice**, record the **Invoice no.** and the **Due date**. The due date is calculated automatically: the day you receive everything, plus the supplier's payment terms.\n\n## Common cases and errors\n\n- **I made a mistake in a payment**: open the order and tap **Delete** next to the payment. The balance is recalculated.\n- **I want to cancel an order**: tap **Cancel order**. It's only possible while it's **Draft** or **Sent**, and it can't be undone. Once you've received something, it can no longer be canceled.\n- **\"Send via WhatsApp\" is disabled**: the supplier has no phone. Add one in Suppliers.\n- **This supplier has no price list: add lines without a presentation.**: you can still order with **No presentation**, or build their price list for next time.\n- **The amount exceeds the outstanding balance.**: a payment can't be larger than the balance. Check the amount.\n- **The order changed status: reload the page and try again.**: someone else received, sent or canceled it while you had it open. Reload the page.\n- **Suggestions compare stock against the reorder point…**: your business doesn't have Inventory. Write to support if you need it.\n- **I don't see the supplier when creating the order**: it's deactivated. Reactivate it in Suppliers.\n\nIf you already have the invoice in hand, it's faster to [record the purchase by uploading the invoice](/operator/ayuda/carta-y-produccion/cargar-facturas-de-compra).",
+      "links": [
+        {
+          "label": "Go to Purchasing",
+          "href": "/operator/compras"
+        },
+        {
+          "label": "Go to Suppliers",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Go to Ingredients",
+          "href": "/operator/settings/insumos"
+        }
+      ],
+      "updated": "2026-10-31"
+    },
+    {
+      "slug": "cargar-facturas-de-compra",
+      "title": "Record a purchase by uploading the invoice",
+      "summary": "Upload a photo or PDF of the supplier's invoice: the AI reads the supplier, lines and taxes, you review them, and MESAPAY creates the purchase order and, if you want, receives the goods right away.",
+      "keywords": [
+        "supplier invoice",
+        "purchase invoice",
+        "upload invoice",
+        "invoice photo",
+        "read invoice with AI",
+        "OCR",
+        "scan invoice",
+        "collection note",
+        "cuenta de cobro",
+        "withholding tax",
+        "VAT withholding",
+        "ICA withholding",
+        "consumption tax",
+        "INC",
+        "purchase VAT",
+        "match ingredients",
+        "remember association"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Uploading the invoice is the fastest way to record a purchase: you upload the photo or PDF the supplier gave you, the AI reads the supplier, number, date, lines and taxes, and you just review. Nothing is created until you confirm.\n\nIt's in **Back office › Purchasing** and needs the Purchasing module.\n\n## Upload the invoice\n\n1. Open [Purchasing](/operator/compras) and tap **Upload invoice**.\n2. Choose the file: a PDF or an image (JPG, PNG or WebP) up to 15 MB. On a phone you can take the photo right then.\n3. Wait while it says **Reading invoice with AI…**. It can take up to a minute; don't close the screen.\n\n**Review invoice** opens, with the image or PDF next to what the AI read. At the top you see how many ingredients already **exist** and how many there are **to create**.\n\n## Review the supplier and invoice details\n\n1. Under **Supplier**, if the AI recognized it, it says **Exists**. If not, it says **New**, with the **Supplier name** and **Tax ID** it read. You can change it with **Use existing supplier** or **Create new supplier**.\n2. If the document is a **Collection note** (cuenta de cobro), the supplier is whoever gets paid (the \"pay to\" party).\n3. Check the **Invoice number** and the **Invoice date**.\n\n## Review each line\n\nUnder **Invoice lines**, each line shows the original text (\"On the invoice: …\"). Doubtful ones say **review**.\n\n1. **The ingredient**: if it already exists, it's selected; change it with **Change ingredient**. If it's new, check the **Ingredient name** and under **Measured in** choose weight, volume or units; or tap **Use existing ingredient**.\n2. **Remember this association for future invoices from this supplier**: check it when the supplier calls the product something different from you (\"SUNFLOWER OIL 3000\" = \"Oil\"). It's saved when you confirm, and on that supplier's next invoice the line comes already matched and says **Saved association for this supplier**.\n3. **The quantity**: **By presentation**, if the ingredient is on the supplier's price list, or **Direct quantity**, with its unit.\n4. **The amount**: under **Amount type**, choose whether the value is the **Line total** or the **Unit price**, and enter it.\n5. **The line taxes**: the AI flags whether the amount already includes taxes (**Detected: taxes included** or **Detected: taxes not included**). If it says **Confirmation needed**, check **Taxes included in this amount** if it already includes them, or tap **Confirm taxes are not included**. Choose the **VAT** rate and, if the line carries consumption tax, enter the **Total line consumption tax**.\n6. Check the line summary: **Amount before taxes**, VAT, consumption tax and **Final line total**.\n\nUse **Remove line** for anything that isn't goods and **Add line** for anything the AI missed.\n\n## Review the other taxes and the total\n\n**Other taxes on the document** holds the **Consumption tax not allocated to lines**, the **Withholding tax**, the **VAT withholding** and the **ICA withholding**. Withholdings are subtracted from the amount due. If your business has Accounting, **Suggest withholdings** calculates them with the withholding concepts you have active; you can adjust them afterwards.\n\nCompare the **Amount due** with the invoice. If they don't match, MESAPAY warns you. Under **Reading notes**, the AI explains anything it couldn't read well.\n\n## Confirm\n\nUnder **On confirm**, choose an option:\n\n- **Create draft only**: creates the purchase order so you can receive it later, when the goods arrive.\n- **Create and receive**: creates the order and receives it in full at the invoice costs. Inventory goes up and the account payable is created. You can set the **Accounts payable due date**; if you leave it empty, it's calculated from the supplier's payment terms.\n\nThen tap **Confirm**. MESAPAY remembers the last option you chose on that device. When it's done, the new purchase order opens; the invoice is saved in it under **Invoice**, with the **View invoice** button. To receive or pay it, see [Create purchase orders, receive goods and pay your suppliers](/operator/ayuda/carta-y-produccion/ordenes-de-compra).\n\n## Common cases and errors\n\n- **Choose an existing supplier or enter a new supplier name.**: the AI didn't recognize the supplier. Find it with **Use existing supplier** or type its name.\n- **Invalid format: upload a PDF or an image (JPG, PNG, WebP).**: invoice upload doesn't accept Excel or Word. Export the invoice to PDF or take a photo of it.\n- **The file is too large (max 15 MB) or empty.**: shrink the photo or export the PDF again.\n- **Couldn't read the invoice. Try another photo or upload a sharper one.**: take the photo straight on, in good light, with the whole invoice in frame.\n- **The computed total (…) does not match the invoice total (…)**: check the quantities, whether each amount is per line or per unit, whether taxes are included, and the withholdings.\n- **Review the flagged amounts and taxes before confirming…**: some lines are in **Confirmation needed** or have no VAT rate. Resolve them one by one.\n- **Allocate the remaining consumption tax to its lines before confirming…**: move the consumption tax from the total to the lines that carry it; what you allocate is subtracted from the pending amount automatically.\n- **The same name from this supplier is associated with two different ingredients on this invoice…**: choose the same ingredient on those lines or uncheck **Remember** on one of them.\n- **The ingredient associated with this name is archived or no longer available…**: choose another ingredient or create a new one.\n- **I closed the review without confirming**: nothing was created. Upload the invoice again. To throw it away for good, use **Discard**.\n- **I used \"Create draft only\" and To pay shows \"No invoice\"**: after receiving the order, open **To pay**, tap **Edit invoice** and enter the **Invoice no.** and the **Due date**.",
+      "links": [
+        {
+          "label": "Go to Purchasing",
+          "href": "/operator/compras"
+        },
+        {
+          "label": "Go to Ingredients",
+          "href": "/operator/settings/insumos"
+        },
+        {
+          "label": "Go to Suppliers",
+          "href": "/operator/settings/proveedores"
+        }
+      ],
+      "updated": "2026-10-31"
+    }
+  ]
 }

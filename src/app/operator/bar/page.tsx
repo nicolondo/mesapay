@@ -99,6 +99,7 @@ export default async function BarPage({
         mode="bar"
         serverNow={serverNowMs}
         soundScope={activeSub ?? ""}
+        barSubStation={activeSub}
         tenantSlug={tenant.slug}
         serviceMode={tenant.serviceMode}
         rounds={rounds.map((r) => ({

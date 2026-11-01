@@ -90,7 +90,7 @@ export default async function LibroMayorPage({ searchParams }: { searchParams: S
               defaultValue={q.cuenta ?? ""}
               placeholder={t("glAccountPlaceholder")}
               autoComplete="off"
-              className={`${inputCls} min-w-[220px]`}
+              className={`${inputCls} md:min-w-[220px]`}
             />
             <datalist id="ledger-accounts">
               {accounts

@@ -4,15 +4,29 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney } from "@/lib/format";
-import type { GeneralLedgerAccount } from "@/lib/erp/reports/generalLedger";
+import type { GeneralLedgerAccount, LedgerMovement } from "@/lib/erp/reports/generalLedger";
 import { formatVoucherNumber } from "@/lib/erp/reports/generalLedger";
 import { fmtIsoDate } from "../_components/fmt";
+import {
+  CardFacts,
+  CardTotal,
+  cx,
+  ReportCards,
+  ReportScroll,
+  ReportTable,
+} from "../_components/ReportCards";
 
 /**
  * Tabla del libro mayor (portado de zenith `mayor/mayor-table.tsx`):
  * una fila por cuenta con Debe / Haber / Balance, desplegable para ver
  * «Saldo inicial al período» y los movimientos con saldo corrido.
  * El estado de plegado es local (no viaja en la URL: son muchas cuentas).
+ *
+ * En el celular (< 768px) la tabla oficial se oculta (`.report-table`) y
+ * sale una tarjeta por cuenta (`.report-cards`): código + nombre, número de
+ * movimientos y la grilla Debe / Haber / Balance; al desplegarla, el saldo
+ * inicial y cada movimiento con fecha, comprobante, origen, glosa e
+ * importe. La tabla se imprime siempre completa (plegadas incluidas).
  */
 export function GeneralLedgerView({
   accounts,
@@ -44,7 +58,7 @@ export function GeneralLedgerView({
   const num = "px-3 py-1.5 text-right font-mono tabular whitespace-nowrap";
 
   return (
-    <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
       <div className="no-print flex items-center justify-end gap-2 border-b border-op-border bg-op-bg px-3 py-2">
         <button
           type="button"
@@ -54,7 +68,7 @@ export function GeneralLedgerView({
           {allOpen ? t("collapseAll") : t("expandAll")}
         </button>
       </div>
-      <div className="overflow-x-auto">
+      <ReportTable>
         <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-op-border text-op-muted">
@@ -90,8 +104,35 @@ export function GeneralLedgerView({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ReportTable>
+      <ReportCards>
+        {accounts.map((a) => (
+          <AccountCard
+            key={a.code}
+            account={a}
+            isOpen={open.has(a.code)}
+            onToggle={() => toggle(a.code)}
+            money={money}
+            sourceLabel={sourceLabel}
+            locale={locale}
+          />
+        ))}
+        <CardTotal
+          label={t("total")}
+          items={[
+            { label: t("colDebit"), value: money(totals.debitCents) },
+            { label: t("colCredit"), value: money(totals.creditCents) },
+          ]}
+        />
+      </ReportCards>
     </div>
+  );
+}
+
+function Voucher({ movement: m }: { movement: LedgerMovement }) {
+  const t = useTranslations("opReportes");
+  return (
+    formatVoucherNumber(m.voucherNumber) ?? <span className="text-op-muted">{t("unnumbered")}</span>
   );
 }
 
@@ -148,7 +189,7 @@ function AccountRows({
               <span className="font-mono tabular">{money(a.initialCents)}</span>
             </div>
             {a.movements.length > 0 && (
-              <div className="overflow-x-auto">
+              <ReportScroll>
                 <table className="w-full text-xs min-w-[560px]">
                   <thead>
                     <tr className="text-op-muted">
@@ -165,9 +206,7 @@ function AccountRows({
                       <tr key={m.id} className={m.voided ? "opacity-60" : ""}>
                         <td className="px-2 py-1 whitespace-nowrap">{fmtIsoDate(m.date, locale)}</td>
                         <td className="px-2 py-1 font-mono whitespace-nowrap">
-                          {formatVoucherNumber(m.voucherNumber) ?? (
-                            <span className="text-op-muted">{t("unnumbered")}</span>
-                          )}
+                          <Voucher movement={m} />
                         </td>
                         <td className="px-2 py-1 min-w-0">
                           <span className="mr-2 inline-block rounded-full border border-op-border px-1.5 text-[10px] text-op-muted">
@@ -193,11 +232,104 @@ function AccountRows({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ReportScroll>
             )}
           </div>
         </td>
       </tr>
     </>
+  );
+}
+
+/** Tarjeta de una cuenta para el celular (con sus movimientos al desplegar). */
+function AccountCard({
+  account: a,
+  isOpen,
+  onToggle,
+  money,
+  sourceLabel,
+  locale,
+}: {
+  account: GeneralLedgerAccount;
+  isOpen: boolean;
+  onToggle: () => void;
+  money: (c: number) => string;
+  sourceLabel: (s: string) => string;
+  locale: Locale;
+}) {
+  const t = useTranslations("opReportes");
+  return (
+    <div>
+      <div className="px-3 py-2.5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          className="flex w-full min-w-0 items-start gap-2 text-left"
+        >
+          <span
+            aria-hidden
+            className={`inline-block w-3 shrink-0 text-op-muted transition-transform ${isOpen ? "rotate-90" : ""}`}
+          >
+            ›
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block break-words font-medium">
+              <span className="mr-1.5 font-mono text-xs text-op-muted">{a.code}</span>
+              {a.name}
+            </span>
+            <span className="block text-xs text-op-muted">{t("glMovements", { n: a.movements.length })}</span>
+          </span>
+        </button>
+        <CardFacts
+          className="mt-1.5 pl-5"
+          items={[
+            { label: t("colDebit"), value: money(a.debitCents) },
+            { label: t("colCredit"), value: money(a.creditCents) },
+            { label: t("colBalance"), value: money(a.balanceCents), strong: true },
+          ]}
+        />
+      </div>
+      {isOpen && (
+        <div className="bg-op-bg/40 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-3 py-1 text-op-muted">
+            <span>{t("glInitial")}</span>
+            <span className="font-mono tabular">{money(a.initialCents)}</span>
+          </div>
+          {a.movements.length > 0 && (
+            <ul className="divide-y divide-op-border/40">
+              {a.movements.map((m) => (
+                <li key={m.id} className={cx("py-1.5", m.voided && "opacity-60")}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="whitespace-nowrap">{fmtIsoDate(m.date, locale)}</span>
+                    <span className="font-mono">
+                      <Voucher movement={m} />
+                    </span>
+                    <span className="inline-block rounded-full border border-op-border px-1.5 text-[10px] text-op-muted">
+                      {sourceLabel(m.source)}
+                    </span>
+                    {m.voided && (
+                      <span className="inline-block rounded-full bg-danger/10 px-1.5 text-[10px] font-semibold text-danger">
+                        {t("voided")}
+                      </span>
+                    )}
+                  </div>
+                  {m.memo && <p className="mt-0.5 break-words">{m.memo}</p>}
+                  <CardFacts
+                    className="mt-1"
+                    items={[
+                      m.debitCents
+                        ? { label: t("colDebit"), value: money(m.debitCents) }
+                        : { label: t("colCredit"), value: money(m.creditCents) },
+                      { label: t("colRunning"), value: money(m.runningCents), strong: true },
+                    ]}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

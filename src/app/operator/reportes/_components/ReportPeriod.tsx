@@ -42,10 +42,14 @@ export function ReportPeriod({
   const prevLabel = step === "año" ? t("prevYear") : t("prevMonth");
   const nextLabel = step === "año" ? t("nextYear") : t("nextMonth");
   const inputCls =
-    "w-full min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm";
+    "w-full min-w-0 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm";
 
+  // `minmax(0,1fr)` y no `1fr`: en un celular (358px útiles) los dos
+  // <input type="date"> deben poder encoger por debajo de su ancho
+  // intrínseco; con `1fr` (= minmax(auto,1fr)) la grilla desbordaba la
+  // tarjeta de filtros y la página entera se desplazaba de lado.
   return (
-    <div className="grid grid-cols-[auto_1fr_1fr_auto] items-end gap-2">
+    <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
       <button
         type="button"
         aria-label={prevLabel}

@@ -484,8 +484,10 @@ function Tbl({
   const th = "px-3 py-2 font-mono text-[9px] uppercase tracking-wider font-normal";
   const cell = (j: number) =>
     cols[j]?.num ? "px-3 py-1.5 text-right font-mono tabular whitespace-nowrap" : "px-3 py-1.5";
+  // Hasta ocho columnas por formato: en el celular la tabla se desplaza
+  // dentro de su marco (`.report-scroll`), la página no.
   return (
-    <div className="overflow-x-auto rounded-xl border border-op-border">
+    <div className="report-scroll rounded-xl border border-op-border">
       <table className="w-full text-sm min-w-[560px]">
         <thead>
           <tr className="border-b border-op-border bg-op-bg text-op-muted">

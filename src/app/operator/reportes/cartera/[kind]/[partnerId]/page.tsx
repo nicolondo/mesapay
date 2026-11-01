@@ -17,6 +17,13 @@ import { firstParam, reportGate } from "../../../_components/gate";
 import { fmtIsoDate } from "../../../_components/fmt";
 import { PrintButton } from "../../../_components/PrintButton";
 import {
+  CardFacts,
+  CardTotal,
+  cx,
+  ReportCards,
+  ReportTable,
+} from "../../../_components/ReportCards";
+import {
   EmptyNote,
   FilterField,
   ReportFilterForm,
@@ -66,6 +73,11 @@ function docHref(source: CarteraDocSource, partnerId: string): { href: string; k
  * abonos por pago en orden cronológico con saldo corrido, más la tabla de
  * edades por antigüedad del documento. Portado de zenith
  * `reportes/cartera/[partnerId]/page.tsx` (sin FIFO ni anticipos).
+ *
+ * En el celular (< 768px) el extracto sale como una tarjeta por movimiento
+ * (fecha, documento, vencimiento, enlace al módulo; cargo o abono y saldo)
+ * y las edades como grilla rótulo → valor en vez de una fila de seis
+ * columnas. Las tablas se imprimen siempre.
  */
 export default async function CarteraExtractoPage({
   params,
@@ -110,6 +122,7 @@ export default async function CarteraExtractoPage({
     { label: t("totalPending"), cents: st.aging.pendingCents },
     { label: t("totalOverdue"), cents: st.aging.overdueCents, tone: "danger" },
   ];
+  const overdue = (r: (typeof ageRows)[number]) => r.tone === "danger" && r.cents > 0;
 
   return (
     <ReportShell
@@ -154,11 +167,11 @@ export default async function CarteraExtractoPage({
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3">
+      <div className="min-w-0 rounded-2xl border border-op-border bg-op-surface px-4 py-3">
         <div className="text-[10px] uppercase tracking-wider text-op-muted">
           {kind === "cxp" ? t("kindSupplier") : t("kindCustomer")}
         </div>
-        <div className="mt-1 text-lg font-semibold">{name}</div>
+        <div className="mt-1 break-words text-lg font-semibold">{name}</div>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-op-muted">
           {data.partner.taxId && (
             <span>
@@ -166,15 +179,15 @@ export default async function CarteraExtractoPage({
             </span>
           )}
           {data.partner.phone && <span>{t("phone", { phone: data.partner.phone })}</span>}
-          {data.partner.email && <span>{t("email", { email: data.partner.email })}</span>}
+          {data.partner.email && <span className="break-all">{t("email", { email: data.partner.email })}</span>}
         </div>
       </div>
 
       {st.entries.length === 0 ? (
         <EmptyNote>{t("stEmpty")}</EmptyNote>
       ) : (
-        <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
+          <ReportTable>
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-op-border text-op-muted">
@@ -201,14 +214,27 @@ export default async function CarteraExtractoPage({
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ReportTable>
+          <ReportCards>
+            {st.entries.map((e) => (
+              <EntryCard key={e.key} entry={e} partnerId={partnerId} money={money} locale={loc} />
+            ))}
+            <CardTotal
+              label={t("finalBalance")}
+              items={[
+                { label: t("colCharge"), value: money(st.totals.cargosCents) },
+                { label: t("colPayment"), value: money(st.totals.abonosCents) },
+                { label: t("colRunning"), value: money(st.totals.balanceCents) },
+              ]}
+            />
+          </ReportCards>
         </div>
       )}
 
-      <section className="space-y-2">
+      <section className="min-w-0 space-y-2">
         <h2 className="text-[11px] uppercase tracking-wider text-op-muted">{t("agingTitle")}</h2>
-        <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
+          <ReportTable>
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-op-border text-op-muted">
@@ -222,17 +248,26 @@ export default async function CarteraExtractoPage({
               <tbody>
                 <tr>
                   {ageRows.map((r) => (
-                    <td
-                      key={r.label}
-                      className={`${NUM} ${r.tone === "danger" && r.cents > 0 ? "font-semibold text-danger" : ""}`}
-                    >
+                    <td key={r.label} className={cx(NUM, overdue(r) && "font-semibold text-danger")}>
                       {money(r.cents)}
                     </td>
                   ))}
                 </tr>
               </tbody>
             </table>
-          </div>
+          </ReportTable>
+          <ReportCards>
+            <div className="px-3 py-2.5">
+              <CardFacts
+                items={ageRows.map((r) => ({
+                  label: r.label,
+                  value: money(r.cents),
+                  strong: overdue(r),
+                  tone: overdue(r) ? "danger" : undefined,
+                }))}
+              />
+            </div>
+          </ReportCards>
         </div>
       </section>
     </ReportShell>
@@ -277,5 +312,52 @@ async function EntryRow({
       <td className={NUM}>{e.abonoCents > 0 ? money(e.abonoCents) : ""}</td>
       <td className={`${NUM} font-semibold`}>{money(e.balanceCents)}</td>
     </tr>
+  );
+}
+
+/** El mismo movimiento como tarjeta para el celular. */
+async function EntryCard({
+  entry: e,
+  partnerId,
+  money,
+  locale,
+}: {
+  entry: StatementEntry;
+  partnerId: string;
+  money: (c: number) => string;
+  locale: Locale;
+}) {
+  const t = await getTranslations("opCartera");
+  const link = e.kind === "cargo" ? docHref(e.source, partnerId) : null;
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-xs text-op-muted whitespace-nowrap">{fmtIsoDate(e.date, locale)}</span>
+        <span className={e.kind === "abono" ? "text-op-muted" : "font-medium"}>
+          {e.kind === "abono" ? t("srcPayment") : t(SOURCE_KEY[e.source])}
+        </span>
+        <span className="font-mono text-xs">{e.number}</span>
+      </div>
+      {(e.dueDate || e.note || link) && (
+        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-op-muted">
+          {e.dueDate && <span>{t("dueOn", { date: fmtIsoDate(e.dueDate, locale) })}</span>}
+          {e.note && <span className="break-words">{e.note}</span>}
+          {link && (
+            <Link href={link.href} className="text-op-accent hover:underline">
+              {t(link.key)}
+            </Link>
+          )}
+        </div>
+      )}
+      <CardFacts
+        className="mt-1.5"
+        items={[
+          e.kind === "abono"
+            ? { label: t("colPayment"), value: money(e.abonoCents) }
+            : { label: t("colCharge"), value: money(e.cargoCents) },
+          { label: t("colRunning"), value: money(e.balanceCents), strong: true },
+        ]}
+      />
+    </div>
   );
 }

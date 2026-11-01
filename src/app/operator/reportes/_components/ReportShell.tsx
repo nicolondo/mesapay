@@ -88,6 +88,13 @@ export async function ReportShell({
   .report-print table { font-size: 10pt; }
   .report-print thead { display: table-header-group; }
   .report-print tr { break-inside: avoid; }
+  /* Vista móvil (workspace.css «Reportes contables»): en papel manda la
+     tabla oficial completa, nunca las tarjetas apiladas; sin scroll
+     containers (monolíticos al paginar) y sangría de escritorio. */
+  .report-print .report-table { display: block !important; overflow: visible !important; }
+  .report-print .report-scroll { overflow: visible !important; }
+  .report-print .report-cards { display: none !important; }
+  .report-print .report-indent { padding-left: calc(var(--depth, 0) * 16px) !important; }
 }
 @page {
   margin: 16mm 12mm;
@@ -96,7 +103,7 @@ export async function ReportShell({
 }`;
 
   return (
-    <div className="report-print p-4 sm:p-6 max-w-6xl mx-auto w-full space-y-4">
+    <div className="report-print p-4 sm:p-6 max-w-6xl mx-auto w-full min-w-0 space-y-4">
       <style dangerouslySetInnerHTML={{ __html: css }} />
 
       {print && (
@@ -110,21 +117,21 @@ export async function ReportShell({
         </div>
       )}
 
-      <div className="no-print">
+      <div className="no-print min-w-0">
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm text-op-muted hover:text-op-text mb-2"
+          className="inline-flex max-w-full items-center gap-1 text-sm text-op-muted hover:text-op-text mb-2 break-words"
         >
           ← {t("backToReports")}
         </Link>
-        <div className="font-display text-3xl">{title}</div>
-        {description && <p className="text-sm text-op-muted mt-1">{description}</p>}
+        <div className="font-display text-2xl sm:text-3xl break-words">{title}</div>
+        {description && <p className="text-sm text-op-muted mt-1 break-words">{description}</p>}
       </div>
 
       {(filters || actions) && (
-        <div className="no-print flex flex-wrap items-end justify-between gap-3">
+        <div className="no-print flex flex-wrap items-end justify-between gap-3 min-w-0">
           <div className="min-w-0 w-full lg:w-auto lg:flex-1">{filters}</div>
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
 
@@ -148,11 +155,14 @@ export function StatTile({
   tone?: "default" | "danger";
 }) {
   return (
-    <div className="rounded-xl border border-op-border bg-op-surface px-4 py-3">
-      <div className="text-[10px] uppercase tracking-wider text-op-muted">{label}</div>
+    <div className="min-w-0 rounded-xl border border-op-border bg-op-surface px-3 py-3 sm:px-4">
+      <div className="text-[10px] uppercase tracking-wider text-op-muted break-words">{label}</div>
+      {/* En el celular (2 teselas por fila, ~150px útiles) la cifra baja un
+          punto y puede partirse en el espacio tras el símbolo antes que
+          desbordar la tesela; en sm+ queda como estaba. */}
       <div
         className={cx(
-          "mt-1 text-lg font-semibold tabular",
+          "mt-1 min-w-0 text-base sm:text-lg font-semibold tabular break-words",
           tone === "danger" && "text-danger",
         )}
       >
@@ -184,11 +194,11 @@ export async function ReportCheck({
   const t = await getTranslations("opReportes");
   return (
     <div className="rounded-xl border border-op-border bg-op-surface px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-      <div>
+      <div className="min-w-0">
         <div className="text-[10px] uppercase tracking-wider text-op-muted">
           {title ?? t("checkTitle")}
         </div>
-        <p className="text-sm text-op-muted mt-1">{description}</p>
+        <p className="text-sm text-op-muted mt-1 break-words">{description}</p>
       </div>
       <span
         className={cx(
@@ -221,12 +231,14 @@ export async function ReportFilterForm({
   return (
     <form
       method="get"
-      className="rounded-2xl border border-op-border bg-op-surface p-3 sm:p-4"
+      className="min-w-0 rounded-2xl border border-op-border bg-op-surface p-3 sm:p-4"
     >
       {Object.entries(keep).map(([k, v]) =>
         v ? <input key={k} type="hidden" name={k} value={v} /> : null,
       )}
-      <div className="flex flex-wrap items-end gap-3">
+      {/* `.report-filters` (workspace.css): fila que envuelve en md+; en el
+          celular, controles apilados a todo el ancho y «Aplicar» también. */}
+      <div className="report-filters">
         {children}
         <button type="submit" className="mp-btn mp-btn--secondary mp-btn--sm">
           {t("apply")}
@@ -240,7 +252,7 @@ export async function ReportFilterForm({
 /** Etiqueta pequeña sobre un control del formulario de filtros. */
 export function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="min-w-0">
+    <label className="min-w-0 max-w-full">
       <span className="block text-[11px] uppercase tracking-wider text-op-muted mb-1">{label}</span>
       {children}
     </label>
@@ -264,7 +276,7 @@ export function ReportTabs<T extends string>({
   label: string;
 }) {
   return (
-    <div role="group" aria-label={label} className="mp-seg no-print">
+    <div role="group" aria-label={label} className="mp-seg no-print max-w-full max-md:overflow-x-auto">
       {options.map((o) => (
         <Link
           key={o.key}

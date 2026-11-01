@@ -26,8 +26,8 @@ export default async function ReportesHubPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">{t("hubTitle")}</div>
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full min-w-0">
+      <div className="font-display text-2xl sm:text-3xl mb-1 break-words">{t("hubTitle")}</div>
       <p className="text-sm text-op-muted mb-6">{t("hubIntro")}</p>
 
       <div className="space-y-8">
@@ -36,15 +36,15 @@ export default async function ReportesHubPage() {
             <h2 className="text-[11px] uppercase tracking-wider text-op-muted mb-3">
               {dict[cat.ns](cat.labelKey)}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {cat.items.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group rounded-2xl border border-op-border bg-op-surface p-4 transition-colors hover:border-op-accent"
+                  className="group min-w-0 rounded-2xl border border-op-border bg-op-surface p-4 transition-colors hover:border-op-accent"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="font-medium">{dict[item.ns](item.nameKey)}</div>
+                    <div className="min-w-0 break-words font-medium">{dict[item.ns](item.nameKey)}</div>
                     <span
                       aria-hidden
                       className="text-op-muted transition-transform group-hover:translate-x-0.5"

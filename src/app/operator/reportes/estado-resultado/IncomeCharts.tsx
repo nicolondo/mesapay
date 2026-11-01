@@ -20,6 +20,12 @@ import type { IncomeClassification, IncomeMonth, IncomeSummary } from "@/lib/erp
  * (no puede pasar con centavos enteros, pero se comprueba), no se pintan.
  * Las gráficas no se imprimen (`no-print`): el papel lleva la tabla y el
  * resumen mensual, que tienen las cifras exactas.
+ *
+ * CELULAR (< 768px): la cascada se dibuja en una segunda geometría
+ * «apilada» (rótulo y cifra en una línea, la barra debajo a todo el
+ * ancho) porque el lienzo de 640 encogido a ~326px dejaba el texto en
+ * 6px; las barras mensuales (hasta 12 meses × 4 series) se desplazan de
+ * lado dentro de su tarjeta, con la leyenda envolviendo arriba.
  */
 export type ChartMonth = IncomeMonth & { label: string };
 
@@ -62,6 +68,98 @@ function waterfallSteps(
   });
   steps.push({ key: "result", label: labels.result, value: s.resultCents, start: 0, end: s.resultCents, total: true });
   return steps;
+}
+
+/**
+ * La cascada en dos geometrías. `stacked: false` (escritorio) es la
+ * original: rótulo a la izquierda, barra al centro, cifra a la derecha, en
+ * filas de 34 sobre un lienzo de 640. `stacked: true` (celular): lienzo de
+ * 360 (≈ 326px reales, texto a ~11px), rótulo y cifra en la primera línea
+ * y la barra debajo a todo el ancho. Cuál se ve lo decide el CSS
+ * (`max-md:hidden` / `md:hidden`): un componente cliente no conoce el
+ * ancho de la pantalla hasta hidratar.
+ */
+function Waterfall({
+  steps,
+  stacked,
+  titleId,
+  title,
+  money,
+  axis,
+}: {
+  steps: Step[];
+  stacked: boolean;
+  titleId: string;
+  title: string;
+  money: (c: number) => string;
+  axis: (c: number) => string;
+}) {
+  const domain = domainOf(steps.flatMap((s) => [s.start, s.end]));
+  const W = stacked ? 360 : 640;
+  const ROW_H = stacked ? 46 : 34;
+  const BAR_X0 = stacked ? 4 : 200;
+  const BAR_X1 = stacked ? W - 4 : 520;
+  const TEXT_Y = stacked ? 13 : ROW_H / 2 + 4;
+  const BAR_Y = stacked ? 22 : 8;
+  const BAR_H = stacked ? 14 : ROW_H - 16;
+  const wx = (v: number) => BAR_X0 + ((v - domain.min) / (domain.max - domain.min)) * (BAR_X1 - BAR_X0);
+  const height = steps.length * ROW_H + 24;
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${height}`}
+      className={stacked ? "mt-3 w-full md:hidden" : "mt-3 w-full max-md:hidden"}
+      role="img"
+      aria-labelledby={titleId}
+    >
+      <title id={titleId}>{title}</title>
+      <line x1={wx(0)} y1={4} x2={wx(0)} y2={steps.length * ROW_H} stroke={COLOR.grid} strokeDasharray="3 4" />
+      {steps.map((s, i) => {
+        const y = i * ROW_H;
+        const x0 = wx(Math.min(s.start, s.end));
+        const x1 = wx(Math.max(s.start, s.end));
+        const fill = s.total
+          ? s.value < 0
+            ? COLOR.negative
+            : COLOR.result
+          : s.value >= 0
+            ? COLOR.income
+            : COLOR.tax;
+        return (
+          <g key={s.key}>
+            {s.total && <line x1={0} y1={y} x2={W} y2={y} stroke={COLOR.grid} />}
+            <text
+              x={0}
+              y={y + TEXT_Y}
+              fontSize="12"
+              fill="currentColor"
+              fontWeight={s.total ? 600 : 400}
+            >
+              {s.label}
+            </text>
+            <rect x={x0} y={y + BAR_Y} width={Math.max(1, x1 - x0)} height={BAR_H} rx="2" fill={fill}>
+              <title>{`${s.label}: ${money(s.value)}`}</title>
+            </rect>
+            <text
+              x={W - 4}
+              y={y + TEXT_Y}
+              fontSize="11"
+              textAnchor="end"
+              fill="currentColor"
+              fontWeight={s.total ? 600 : 400}
+              className="font-mono tabular"
+            >
+              {s.total || s.value === 0 ? money(s.value) : `${s.value > 0 ? "+" : ""}${money(s.value)}`}
+            </text>
+          </g>
+        );
+      })}
+      <g fontSize="10" fill={COLOR.text}>
+        <text x={BAR_X0} y={height - 6}>{axis(domain.min)}</text>
+        <text x={wx(0)} y={height - 6} textAnchor="middle">0</text>
+        <text x={BAR_X1} y={height - 6} textAnchor="end">{axis(domain.max)}</text>
+      </g>
+    </svg>
+  );
 }
 
 export function IncomeCharts({
@@ -113,14 +211,6 @@ export function IncomeCharts({
     },
     co,
   );
-  const wDomain = domainOf(steps.flatMap((s) => [s.start, s.end]));
-  const W = 640;
-  const LABEL_W = 190;
-  const BAR_X0 = LABEL_W + 10;
-  const BAR_X1 = 520;
-  const ROW_H = 34;
-  const wx = (v: number) => BAR_X0 + ((v - wDomain.min) / (wDomain.max - wDomain.min)) * (BAR_X1 - BAR_X0);
-  const wHeight = steps.length * ROW_H + 24;
   const ratio = summary.incomeCents > 0 ? (summary.resultCents / summary.incomeCents) * 100 : null;
 
   // ── Barras mensuales ───────────────────────────────────────────────────
@@ -146,84 +236,49 @@ export function IncomeCharts({
   const labelEvery = Math.max(1, Math.ceil(months.length / 8));
 
   return (
-    <section className="no-print space-y-4">
+    <section className="no-print min-w-0 space-y-4">
       {allZero && (
         <p className="text-sm text-op-muted">
           {hasMovements ? t("isChartAllZero") : t("isChartNoMovements")}
         </p>
       )}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-op-border bg-op-surface p-4">
+      {/* `grid-cols-1` + `min-w-0` en las tarjetas: sin eso la pista
+          implícita tomaba el min-content del SVG mensual (28rem) y la
+          página se desplazaba de lado en el celular. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 rounded-2xl border border-op-border bg-op-surface p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-semibold">{t("isChartWaterfallTitle")}</h2>
               <p className="mt-1 text-xs text-op-muted">{t("isChartWaterfallDesc")}</p>
             </div>
             <span className="font-mono text-xs text-op-muted">{currency}</span>
           </div>
-          <svg
-            viewBox={`0 0 ${W} ${wHeight}`}
-            className="mt-3 w-full"
-            role="img"
-            aria-labelledby={`${uid}-wf`}
-          >
-            <title id={`${uid}-wf`}>{t("isChartWaterfallTitle")}</title>
-            <line x1={wx(0)} y1={4} x2={wx(0)} y2={steps.length * ROW_H} stroke={COLOR.grid} strokeDasharray="3 4" />
-            {steps.map((s, i) => {
-              const y = i * ROW_H;
-              const x0 = wx(Math.min(s.start, s.end));
-              const x1 = wx(Math.max(s.start, s.end));
-              const fill = s.total
-                ? s.value < 0
-                  ? COLOR.negative
-                  : COLOR.result
-                : s.value >= 0
-                  ? COLOR.income
-                  : COLOR.tax;
-              return (
-                <g key={s.key}>
-                  {s.total && <line x1={0} y1={y} x2={W} y2={y} stroke={COLOR.grid} />}
-                  <text
-                    x={0}
-                    y={y + ROW_H / 2 + 4}
-                    fontSize="12"
-                    fill="currentColor"
-                    fontWeight={s.total ? 600 : 400}
-                  >
-                    {s.label}
-                  </text>
-                  <rect x={x0} y={y + 8} width={Math.max(1, x1 - x0)} height={ROW_H - 16} rx="2" fill={fill}>
-                    <title>{`${s.label}: ${money(s.value)}`}</title>
-                  </rect>
-                  <text
-                    x={W - 4}
-                    y={y + ROW_H / 2 + 4}
-                    fontSize="11"
-                    textAnchor="end"
-                    fill="currentColor"
-                    fontWeight={s.total ? 600 : 400}
-                    className="font-mono tabular"
-                  >
-                    {s.total || s.value === 0 ? money(s.value) : `${s.value > 0 ? "+" : ""}${money(s.value)}`}
-                  </text>
-                </g>
-              );
-            })}
-            <g fontSize="10" fill={COLOR.text}>
-              <text x={BAR_X0} y={wHeight - 6}>{axis(wDomain.min)}</text>
-              <text x={wx(0)} y={wHeight - 6} textAnchor="middle">0</text>
-              <text x={BAR_X1} y={wHeight - 6} textAnchor="end">{axis(wDomain.max)}</text>
-            </g>
-          </svg>
+          <Waterfall
+            steps={steps}
+            stacked={false}
+            titleId={`${uid}-wf`}
+            title={t("isChartWaterfallTitle")}
+            money={money}
+            axis={axis}
+          />
+          <Waterfall
+            steps={steps}
+            stacked
+            titleId={`${uid}-wfm`}
+            title={t("isChartWaterfallTitle")}
+            money={money}
+            axis={axis}
+          />
           <div className="mt-3 grid gap-3 border-t border-op-border pt-3 text-xs sm:grid-cols-2">
-            <div>
+            <div className="min-w-0">
               <span className="block text-op-muted">{t("isStatMargin")}</span>
               <strong className="mt-1 block font-mono text-sm font-medium">
                 {ratio == null ? t("isChartRatioNa") : `${pct.format(ratio)} %`}
               </strong>
             </div>
             {co && (
-              <div>
+              <div className="min-w-0">
                 <span className="block text-op-muted">{t("isChartOri")}</span>
                 <strong className="mt-1 block font-mono text-sm font-medium">{money(summary.oriCents)}</strong>
                 <span className="mt-1 block text-op-muted">
@@ -234,9 +289,9 @@ export function IncomeCharts({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-op-border bg-op-surface p-4">
+        <div className="min-w-0 rounded-2xl border border-op-border bg-op-surface p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-semibold">{t("isChartMonthlyTitle")}</h2>
               <p className="mt-1 text-xs text-op-muted">{t("isChartMonthlyDesc")}</p>
             </div>
@@ -250,10 +305,12 @@ export function IncomeCharts({
               </span>
             ))}
           </div>
-          <div className="mt-2 overflow-x-auto">
+          {/* En el celular el lienzo mantiene 40rem (texto legible) y se
+              desplaza dentro de la tarjeta; en md+ como antes (28rem). */}
+          <div className="report-scroll mt-2">
             <svg
               viewBox={`0 0 ${MW} ${MH}`}
-              className="w-full min-w-[28rem]"
+              className="w-full min-w-[40rem] md:min-w-[28rem]"
               role="img"
               aria-labelledby={`${uid}-m`}
             >

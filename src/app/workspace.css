@@ -1751,3 +1751,106 @@ a.mp-viz-heat-cell:focus-visible {
     columns: 1;
   }
 }
+
+/* ─── Reportes contables (/operator/reportes): celular e impresión ───────
+ *
+ * Fuera de @layer a propósito (como el resto del archivo): ganan a las
+ * utilidades de Tailwind sin pelear por especificidad.
+ *
+ *  .report-table   Envuelve la tabla OFICIAL (la que se imprime). Da el
+ *                  desplazamiento horizontal SOLO dentro de la tarjeta.
+ *                  En pantallas de menos de 768px se oculta porque al lado
+ *                  hay una .report-cards; al imprimir vuelve a salir SIEMPRE
+ *                  (también lo refuerza el bloque @media print que inyecta
+ *                  ReportShell.tsx). No usar `hidden md:block`: el bloque de
+ *                  impresión no puede revertir la utilidad.
+ *  .report-cards   Vista apilada para el celular (una tarjeta por fila con
+ *                  los datos clave). Lleva además `no-print`: el papel es
+ *                  de la tabla.
+ *  .report-scroll  Para tablas SIN vista apilada: sólo el scroll interno.
+ *  .report-indent  Sangría por profundidad del árbol (--depth): 8px por
+ *                  nivel en el celular, 16px en md+ y en papel.
+ *  .report-name    Nombre de cuenta en la tabla: hasta 2 líneas en el
+ *                  celular; en md+ una sola con puntos suspensivos (igual
+ *                  que el `truncate` que llevaba).
+ *  .report-filters Barra de filtros: en el celular los controles van
+ *                  apilados a todo el ancho y «Aplicar» también.
+ *
+ * Al imprimir, .report-table y .report-scroll dejan de ser contenedores
+ * de scroll (overflow visible): un scroll container es monolítico en
+ * medios paginados y el navegador rebanaba las filas a la altura de la
+ * página (misma lección que los QRs de mesa, globals.css).
+ */
+.report-table,
+.report-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.report-cards {
+  display: none;
+}
+.report-indent {
+  padding-left: calc(var(--depth, 0) * 16px);
+}
+.report-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .report-table {
+    display: none;
+  }
+  .report-cards {
+    display: block;
+  }
+  .report-indent {
+    padding-left: calc(var(--depth, 0) * 8px);
+  }
+  .report-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .report-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .report-filters > * {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+@media print {
+  .report-table {
+    display: block !important;
+  }
+  .report-cards {
+    display: none !important;
+  }
+  .report-table,
+  .report-scroll {
+    overflow: visible !important;
+  }
+  .report-indent {
+    padding-left: calc(var(--depth, 0) * 16px);
+  }
+  .report-name {
+    display: block;
+    -webkit-line-clamp: unset;
+    white-space: nowrap;
+  }
+}

@@ -23,6 +23,7 @@ import {
   ReportShell,
   StatTile,
 } from "../_components/ReportShell";
+import { ReportScroll } from "../_components/ReportCards";
 import { StatementTree, type TreeRow } from "../_components/StatementTree";
 import { IncomeCharts } from "./IncomeCharts";
 
@@ -205,12 +206,14 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
         firstColumnLabel={t("csvConcept")}
       />
 
-      {/* Resumen mensual: las cifras exactas de las barras, también en papel. */}
+      {/* Resumen mensual: las cifras exactas de las barras, también en papel.
+          Seis columnas de dinero: en el celular se desplaza dentro de la
+          tarjeta (regla mínima), la página no. */}
       <section className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
         <h2 className="border-b border-op-border px-3 py-2 text-[11px] uppercase tracking-wider text-op-muted">
           {t("isMonthlyTitle")}
         </h2>
-        <div className="overflow-x-auto">
+        <ReportScroll>
           <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="border-b border-op-border text-op-muted">
@@ -265,7 +268,7 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ReportScroll>
       </section>
     </ReportShell>
   );

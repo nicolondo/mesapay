@@ -15,6 +15,7 @@ import { loadEntriesWithLines } from "@/lib/erp/reports/queries";
 import { firstParam, reportGate } from "../_components/gate";
 import { fmtIsoDate } from "../_components/fmt";
 import { PrintButton } from "../_components/PrintButton";
+import { CardFacts, CardTotal, cx, ReportCards, ReportTable } from "../_components/ReportCards";
 import { ReportPeriod } from "../_components/ReportPeriod";
 import {
   CsvButton,
@@ -38,6 +39,12 @@ const MODE_KEY = { detallado: "dbDetailed", resumido: "dbSummarized" } as const;
  * orden cronológico. Modo detallado (comprobante por comprobante) o
  * resumido (día × cuenta, D. 2649/93 art. 125). Se pinta en el servidor:
  * no hay interacción más allá de filtrar, exportar e imprimir.
+ *
+ * En el celular (< 768px) la tabla oficial de cuatro columnas se oculta y
+ * sale una tarjeta por comprobante (o por día en el resumido): cabecera
+ * con número, origen, fecha y glosa; cada línea con su cuenta y el importe
+ * rotulado débito/crédito; y los totales del comprobante. La tabla se
+ * sigue imprimiendo completa.
  */
 export default async function LibroDiarioPage({ searchParams }: { searchParams: SearchParams }) {
   const [t, tErp, tSettings, locale] = await Promise.all([
@@ -154,6 +161,55 @@ export default async function LibroDiarioPage({ searchParams }: { searchParams: 
 const TH = "px-3 py-2 font-mono text-[9px] uppercase tracking-wider font-normal";
 const NUM = "px-3 py-1.5 text-right font-mono tabular whitespace-nowrap";
 
+type MobileLine = {
+  accountCode: string;
+  accountName: string;
+  memo?: string | null;
+  debitCents: number;
+  creditCents: number;
+};
+
+/**
+ * Líneas de un comprobante (o de un día) en la vista apilada: cuenta a la
+ * izquierda (envuelve), importe a la derecha con su rótulo débito/crédito
+ * debajo, con los mismos textos que los encabezados de la tabla.
+ */
+async function MobileLines({
+  lines,
+  money,
+  voided,
+}: {
+  lines: MobileLine[];
+  money: (c: number) => string;
+  voided?: boolean;
+}) {
+  const t = await getTranslations("opReportes");
+  return (
+    <ul className={cx("mt-1.5 space-y-1", voided && "line-through")}>
+      {lines.map((l, i) => {
+        const debit = l.debitCents > 0;
+        return (
+          <li key={i} className="flex min-w-0 items-baseline justify-between gap-3">
+            <span className="min-w-0 break-words">
+              <span className="mr-1.5 font-mono text-xs text-op-muted">{l.accountCode}</span>
+              {l.accountName}
+              {l.memo && <span className="ml-1.5 text-xs text-op-muted">{l.memo}</span>}
+            </span>
+            <span className="shrink-0 text-right">
+              <span className="block font-mono tabular text-[13px] whitespace-nowrap">
+                {money(debit ? l.debitCents : l.creditCents)}
+              </span>
+              <span className="block font-mono text-[9px] uppercase tracking-wider text-op-muted">
+                {debit ? t("colDebit") : t("colCredit")}
+              </span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 async function DetailedTable({
   book,
   money,
@@ -166,9 +222,13 @@ async function DetailedTable({
   locale: Locale;
 }) {
   const t = await getTranslations("opReportes");
+  const totals = [
+    { label: t("colDebit"), value: money(book.stats.debitCents) },
+    { label: t("colCredit"), value: money(book.stats.creditCents) },
+  ];
   return (
-    <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
+      <ReportTable>
         <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-op-border text-op-muted">
@@ -193,10 +253,18 @@ async function DetailedTable({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ReportTable>
+      <ReportCards>
+        {book.entries.map((e) => (
+          <EntryCard key={e.id} entry={e} money={money} sourceLabel={sourceLabel} locale={locale} />
+        ))}
+        <CardTotal label={t("total")} items={totals} />
+      </ReportCards>
     </div>
   );
 }
+
+type DetailedEntry = Extract<DailyBook, { mode: "detallado" }>["entries"][number];
 
 async function EntryRows({
   entry: e,
@@ -204,7 +272,7 @@ async function EntryRows({
   sourceLabel,
   locale,
 }: {
-  entry: Extract<DailyBook, { mode: "detallado" }>["entries"][number];
+  entry: DetailedEntry;
   money: (c: number) => string;
   sourceLabel: (s: string) => string;
   locale: Locale;
@@ -253,6 +321,50 @@ async function EntryRows({
   );
 }
 
+/** Tarjeta de un comprobante para el celular. */
+async function EntryCard({
+  entry: e,
+  money,
+  sourceLabel,
+  locale,
+}: {
+  entry: DetailedEntry;
+  money: (c: number) => string;
+  sourceLabel: (s: string) => string;
+  locale: Locale;
+}) {
+  const t = await getTranslations("opReportes");
+  return (
+    <div className={cx("px-3 py-2.5", e.voided && "opacity-60")}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-mono font-semibold">
+          {formatVoucherNumber(e.voucherNumber) ?? (
+            <span className="text-op-muted font-normal">{t("unnumbered")}</span>
+          )}
+        </span>
+        <span className="rounded-full border border-op-border px-1.5 text-[10px] text-op-muted">
+          {sourceLabel(e.source)}
+        </span>
+        <span className="text-xs text-op-muted whitespace-nowrap">{fmtIsoDate(e.date, locale)}</span>
+        {e.voided && (
+          <span className="rounded-full bg-danger/10 px-1.5 text-[10px] font-semibold text-danger">
+            {t("voided")}
+          </span>
+        )}
+      </div>
+      {e.memo && <p className="mt-0.5 break-words text-xs text-op-muted">{e.memo}</p>}
+      <MobileLines lines={e.lines} money={money} voided={e.voided} />
+      <CardFacts
+        className="mt-2 border-t border-op-border/50 pt-1.5"
+        items={[
+          { label: t("colDebit"), value: money(e.debitCents), strong: true },
+          { label: t("colCredit"), value: money(e.creditCents), strong: true },
+        ]}
+      />
+    </div>
+  );
+}
+
 async function SummarizedTable({
   book,
   money,
@@ -263,9 +375,13 @@ async function SummarizedTable({
   locale: Locale;
 }) {
   const t = await getTranslations("opReportes");
+  const totals = [
+    { label: t("colDebits"), value: money(book.stats.debitCents) },
+    { label: t("colCredits"), value: money(book.stats.creditCents) },
+  ];
   return (
-    <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
+      <ReportTable>
         <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="border-b border-op-border text-op-muted">
@@ -290,17 +406,25 @@ async function SummarizedTable({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ReportTable>
+      <ReportCards>
+        {book.days.map((d) => (
+          <DayCard key={d.date} day={d} money={money} locale={locale} />
+        ))}
+        <CardTotal label={t("total")} items={totals} />
+      </ReportCards>
     </div>
   );
 }
+
+type SummarizedDay = Extract<DailyBook, { mode: "resumido" }>["days"][number];
 
 async function DayRows({
   day: d,
   money,
   locale,
 }: {
-  day: Extract<DailyBook, { mode: "resumido" }>["days"][number];
+  day: SummarizedDay;
   money: (c: number) => string;
   locale: Locale;
 }) {
@@ -324,5 +448,34 @@ async function DayRows({
         </tr>
       ))}
     </>
+  );
+}
+
+/** Tarjeta de un día (modo resumido) para el celular. */
+async function DayCard({
+  day: d,
+  money,
+  locale,
+}: {
+  day: SummarizedDay;
+  money: (c: number) => string;
+  locale: Locale;
+}) {
+  const t = await getTranslations("opReportes");
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="font-semibold">{fmtIsoDate(d.date, locale)}</span>
+        <span className="text-xs text-op-muted">{t("dbDayTotal")}</span>
+      </div>
+      <MobileLines lines={d.rows} money={money} />
+      <CardFacts
+        className="mt-2 border-t border-op-border/50 pt-1.5"
+        items={[
+          { label: t("colDebits"), value: money(d.debitCents), strong: true },
+          { label: t("colCredits"), value: money(d.creditCents), strong: true },
+        ]}
+      />
+    </div>
   );
 }

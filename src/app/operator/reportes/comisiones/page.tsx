@@ -14,6 +14,13 @@ import {
 import { firstParam, reportGate } from "../_components/gate";
 import { fmtIsoDate } from "../_components/fmt";
 import { PrintButton } from "../_components/PrintButton";
+import {
+  CardFacts,
+  CardTotal,
+  ReportCards,
+  ReportScroll,
+  ReportTable,
+} from "../_components/ReportCards";
 import { ReportPeriod } from "../_components/ReportPeriod";
 import { EmptyNote, ReportFilterForm, ReportShell, StatTile } from "../_components/ReportShell";
 
@@ -36,6 +43,10 @@ function csvLink(format: "csv-resumen" | "csv-detalle", period: { desde: string;
  * en curso), resumen por persona, detalle cuenta a cuenta, estadísticas y
  * dos CSV. Lo que se muestra es lo SELLADO en cada cuenta al cobrarla
  * (mesero, %, base y comisión), no el % de hoy.
+ *
+ * En el celular (< 768px) el resumen sale como una tarjeta por persona
+ * (cuentas, cobrado, % y comisión); el detalle, de siete columnas, se
+ * desplaza dentro de su tarjeta. Ambas tablas se imprimen.
  */
 export default async function ComisionesPage({ searchParams }: { searchParams: SearchParams }) {
   const [t, tSettings, locale] = await Promise.all([
@@ -138,11 +149,11 @@ export default async function ComisionesPage({ searchParams }: { searchParams: S
         <EmptyNote>{t("empty")}</EmptyNote>
       ) : (
         <>
-          <section className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
             <h2 className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-op-muted">
               {t("sectionSummary")}
             </h2>
-            <div className="overflow-x-auto">
+            <ReportTable>
               <table className="w-full text-sm">
                 <thead className="text-op-muted">
                   <tr>
@@ -174,15 +185,40 @@ export default async function ComisionesPage({ searchParams }: { searchParams: S
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </ReportTable>
+            <ReportCards className="border-t border-op-border/40">
+              {report.summary.map((p: CommissionPersonRow) => (
+                <div key={p.waiterId} className="px-3 py-2.5">
+                  <div className="break-words font-medium">{p.waiterName}</div>
+                  <CardFacts
+                    className="mt-1.5"
+                    items={[
+                      { label: t("colOrders"), value: p.orders },
+                      { label: t("colCollected"), value: money(p.baseCents) },
+                      { label: t("colPct"), value: pct(p.bps) },
+                      { label: t("colCommission"), value: money(p.commissionCents), strong: true },
+                    ]}
+                  />
+                </div>
+              ))}
+              <CardTotal
+                label={t("csvTotal")}
+                items={[
+                  { label: t("colOrders"), value: report.totals.orders },
+                  { label: t("colCollected"), value: money(report.totals.baseCents) },
+                  { label: t("colCommission"), value: money(report.totals.commissionCents) },
+                ]}
+              />
+            </ReportCards>
           </section>
 
-          <section className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
             <h2 className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wider text-op-muted">
               {t("sectionDetail")}
             </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            {/* Siete columnas: en el celular se desplaza dentro de la tarjeta. */}
+            <ReportScroll>
+              <table className="w-full text-sm min-w-[640px]">
                 <thead className="text-op-muted">
                   <tr>
                     <th className={`${TH} text-left`}>{t("colPaidAt")}</th>
@@ -208,7 +244,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: S
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ReportScroll>
           </section>
         </>
       )}

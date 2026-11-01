@@ -114,7 +114,7 @@ export default async function EstadoSituacionPage({ searchParams }: { searchPara
     title: string,
     totalLabel: string,
   ) => (
-    <section className="space-y-2">
+    <section className="min-w-0 space-y-2">
       <h2 className="text-[11px] uppercase tracking-wider text-op-muted">{title}</h2>
       <StatementTree
         rows={bs.sections[key].rows.map(toTree)}
@@ -163,13 +163,17 @@ export default async function EstadoSituacionPage({ searchParams }: { searchPara
     >
       <div className="text-sm text-op-muted">{cutoffLabel}</div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* `grid-cols-1` explícito (= minmax(0,1fr)) y `min-w-0` en las
+          secciones: con la pista implícita `auto` el mínimo era el
+          min-content de la tabla y en un celular la tarjeta se salía de la
+          pantalla (la página entera se desplazaba de lado). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {section("activo", t("bsActivo"), t("bsTotalActivo"))}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {section("pasivo", t("bsPasivo"), t("bsTotalPasivo"))}
           {section("patrimonio", t("bsPatrimonio"), t("bsTotalPatrimonio"))}
           {/* Fila de CUADRE: la que confirma de un vistazo que el balance cierra. */}
-          <div className="flex items-baseline justify-between gap-4 rounded-xl border border-op-border bg-op-surface px-4 py-3 text-sm font-semibold">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-xl border border-op-border bg-op-surface px-4 py-3 text-sm font-semibold">
             <span>{t("bsTotalPasivoPatrimonio")}</span>
             <span className="font-mono tabular whitespace-nowrap">
               {money(bs.totals.totalPasivoPatrimonioCents)}

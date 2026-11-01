@@ -15,6 +15,7 @@ import { todayIso } from "@/lib/erp/reports/period";
 import { firstParam, reportGate } from "../_components/gate";
 import { fmtIsoDate } from "../_components/fmt";
 import { PrintButton } from "../_components/PrintButton";
+import { CardFacts, CardTotal, ReportCards, ReportTable } from "../_components/ReportCards";
 import {
   CsvButton,
   csvHref,
@@ -49,6 +50,11 @@ function carteraHref(vista: Vista, hasta: string): string {
  * Cartera: cuentas por cobrar (cortes de bonos a crédito) y por pagar
  * (OC recibidas y gastos) por tercero, con antigüedad por vencimiento y
  * corte «a una fecha». Portado de zenith `reportes/cartera/page.tsx`.
+ *
+ * En el celular (< 768px) la tabla de seis columnas se oculta y sale una
+ * tarjeta por tercero: nombre (enlace al extracto), documento y tramo de
+ * antigüedad arriba; documentos, vencimiento más antiguo y saldo debajo.
+ * La tabla se imprime siempre.
  */
 export default async function CarteraPage({ searchParams }: { searchParams: SearchParams }) {
   const [t, tSettings, locale] = await Promise.all([
@@ -224,14 +230,18 @@ async function Section({
   empty: ReactNode;
 }) {
   const t = await getTranslations("opCartera");
+  const partnerHref = (partnerId: string) =>
+    `/operator/reportes/cartera/${KIND_SLUG[kind]}/${encodeURIComponent(partnerId)}?hasta=${asOf}`;
+  const partnerName = (p: CarteraSide["partners"][number]) =>
+    p.partnerId === NO_SUPPLIER_ID ? t("noSupplier") : p.partnerName;
   return (
-    <section className="space-y-2">
+    <section className="min-w-0 space-y-2">
       <h2 className="text-[11px] uppercase tracking-wider text-op-muted">{title}</h2>
       {side.partners.length === 0 ? (
         empty
       ) : (
-        <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
+          <ReportTable>
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-op-border text-op-muted">
@@ -247,11 +257,8 @@ async function Section({
                 {side.partners.map((p) => (
                   <tr key={p.partnerId} className="border-b border-op-border/60 last:border-b-0">
                     <td className="px-3 py-2 min-w-0">
-                      <Link
-                        href={`/operator/reportes/cartera/${KIND_SLUG[kind]}/${encodeURIComponent(p.partnerId)}?hasta=${asOf}`}
-                        className="font-medium hover:underline"
-                      >
-                        {p.partnerId === NO_SUPPLIER_ID ? t("noSupplier") : p.partnerName}
+                      <Link href={partnerHref(p.partnerId)} className="font-medium hover:underline">
+                        {partnerName(p)}
                       </Link>
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-op-muted whitespace-nowrap">
@@ -277,7 +284,39 @@ async function Section({
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ReportTable>
+          <ReportCards>
+            {side.partners.map((p) => (
+              <div key={p.partnerId} className="px-3 py-2.5">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link href={partnerHref(p.partnerId)} className="break-words font-medium hover:underline">
+                      {partnerName(p)}
+                    </Link>
+                    {p.partnerTaxId && (
+                      <div className="font-mono text-xs text-op-muted">{p.partnerTaxId}</div>
+                    )}
+                  </div>
+                  <BucketBadge bucket={p.worstBucket} />
+                </div>
+                <CardFacts
+                  className="mt-1.5"
+                  items={[
+                    { label: t("colDocs"), value: p.docs },
+                    { label: t("colOldestDue"), value: fmtIsoDate(p.oldestDue, locale) },
+                    { label: t("colBalance"), value: money(p.outstandingCents), strong: true },
+                  ]}
+                />
+              </div>
+            ))}
+            <CardTotal
+              label={totalLabel}
+              items={[
+                { label: t("colDocs"), value: side.totals.docs },
+                { label: t("colBalance"), value: money(side.totals.outstandingCents) },
+              ]}
+            />
+          </ReportCards>
         </div>
       )}
     </section>

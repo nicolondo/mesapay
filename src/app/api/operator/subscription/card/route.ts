@@ -7,6 +7,10 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getSubscriptionProvider } from "@/lib/payments/subscription";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { recordAuditEvent } from "@/lib/auditLog";
+import {
+  classifySubscriptionError,
+  subscriptionErrorHttpStatus,
+} from "@/lib/billing/subscriptionErrors";
 
 function guard(role?: string | null) {
   return role === "operator" || role === "platform_admin";
@@ -52,8 +56,20 @@ async function PATCHHandler(req: Request) {
       token,
     });
   } catch (err) {
-    console.error("[billing] card update: updateSubscriptionCard failed", err);
-    return NextResponse.json({ error: "update_failed" }, { status: 502 });
+    const { reason, providerCode } = classifySubscriptionError(err);
+    console.error("[billing] card update: updateSubscriptionCard failed", { reason, providerCode }, err);
+    if (reason === "not_configured") {
+      // No es la tarjeta del cliente: es config nuestra en Kushki. Ruido fuerte.
+      console.error(
+        "[billing][NOT_CONFIGURED] card update: updateSubscriptionCard falló por NUESTRO lado (credenciales/habilitación en Kushki), no por la tarjeta",
+        { restaurantId, providerCode, mode },
+      );
+    }
+    // Sólo el `code` de Kushki, nunca el body crudo. La tarjeta anterior sigue.
+    return NextResponse.json(
+      { error: "update_failed", reason, providerCode },
+      { status: subscriptionErrorHttpStatus(reason) },
+    );
   }
 
   const { card } = result;

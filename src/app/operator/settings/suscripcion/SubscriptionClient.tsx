@@ -7,6 +7,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { CardForm } from "./CardForm";
 import type { Locale } from "@/i18n/config";
 import type { MembershipMethod } from "@prisma/client";
+import type { SubscriptionErrorReason } from "@/lib/billing/subscriptionErrors";
 
 // KushkiMode redefinido localmente para no importar el módulo server platformConfig
 type KushkiMode = "mock" | "sandbox" | "production";
@@ -43,6 +44,41 @@ type Props = {
 };
 
 type Mode = "idle" | "activating" | "changing_card";
+
+// Respuesta de error de /activate y /card: `reason` lo clasifica el server;
+// `providerCode` es el código de Kushki (p. ej. K322) para citar a soporte.
+type ActionErrorJson = {
+  error?: string;
+  reason?: SubscriptionErrorReason;
+  providerCode?: string | null;
+  detail?: string;
+};
+
+type ActionError = {
+  message: string;
+  reference?: string | null;
+  detail?: string | null;
+};
+
+type FallbackKey = "errActivateGeneric" | "errChangeCardGeneric";
+
+// Clave i18n por motivo. Todas aclaran que NO se hizo ningún cobro.
+function failureKey(
+  json: ActionErrorJson,
+  fallback: FallbackKey,
+): "errSecurityRejected" | "errDeclined" | "errCardInvalid" | FallbackKey {
+  if (json.error === "charge_declined") return "errDeclined";
+  switch (json.reason) {
+    case "security_rejected":
+      return "errSecurityRejected";
+    case "card_declined":
+      return "errDeclined";
+    case "card_invalid":
+      return "errCardInvalid";
+    default:
+      return fallback;
+  }
+}
 
 function statusI18nKey(
   key: Props["statusKey"],
@@ -118,7 +154,7 @@ export function SubscriptionClient({
 
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
-  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState<ActionError | null>(null);
   const [selectedPlan] = useState<string>(plan);
 
   const i18nKey = statusI18nKey(statusKey);
@@ -133,6 +169,15 @@ export function SubscriptionClient({
     return formatDate(iso, { locale, dateStyle: "medium" });
   }
 
+  function showFailure(json: ActionErrorJson, fallback: FallbackKey) {
+    setActionErr({
+      message: t(failureKey(json, fallback)),
+      reference: json.providerCode ?? null,
+      // Detalle crudo sólo llega en sandbox/mock (el server no lo manda en prod).
+      detail: json.detail ?? null,
+    });
+  }
+
   // Tokenización exitosa → POST al endpoint correspondiente
   async function handleToken(token: string) {
     setActionErr(null);
@@ -144,23 +189,14 @@ export function SubscriptionClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token, planTier: selectedPlan }),
         });
-        const json = await res.json().catch(() => ({})) as { error?: string; message?: string; detail?: string };
+        const json = await res.json().catch(() => ({})) as ActionErrorJson;
         if (!res.ok) {
-          if (json.error === "charge_declined") {
-            setActionErr(t("errDeclined"));
-          } else if (json.error === "already_active") {
-            setActionErr(t("errAlreadyActive"));
+          if (json.error === "already_active") {
+            setActionErr({ message: t("errAlreadyActive") });
           } else if (json.error === "invalid_plan_price") {
-            setActionErr(t("errInvalidPlanPrice"));
+            setActionErr({ message: t("errInvalidPlanPrice") });
           } else {
-            // Detalle visible solo cuando el server lo manda (sandbox/mock) para
-            // depurar contra Kushki; en prod el server no lo incluye.
-            const extra = json.detail
-              ? " — " + json.detail
-              : json.error
-                ? " (" + json.error + ")"
-                : "";
-            setActionErr((json.message ?? t("errActivate")) + extra);
+            showFailure(json, "errActivateGeneric");
           }
           return;
         }
@@ -172,9 +208,9 @@ export function SubscriptionClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        const json = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        const json = await res.json().catch(() => ({})) as ActionErrorJson;
         if (!res.ok) {
-          setActionErr(json.message ?? t("errChangeCard"));
+          showFailure(json, "errChangeCardGeneric");
           return;
         }
         setMode("idle");
@@ -182,7 +218,7 @@ export function SubscriptionClient({
       }
     } catch (e) {
       console.error("[billing] action failed", e);
-      setActionErr(mode === "activating" ? t("errActivate") : t("errChangeCard"));
+      setActionErr({ message: mode === "activating" ? t("errActivate") : t("errChangeCard") });
     } finally {
       setBusy(false);
     }
@@ -196,12 +232,12 @@ export function SubscriptionClient({
       const res = await fetch("/api/operator/subscription/cancel", { method: "POST" });
       const json = await res.json().catch(() => ({})) as { error?: string };
       if (!res.ok) {
-        setActionErr(json.error ?? t("errCancel"));
+        setActionErr({ message: json.error ?? t("errCancel") });
         return;
       }
       router.refresh();
     } catch {
-      setActionErr(t("errCancel"));
+      setActionErr({ message: t("errCancel") });
     } finally {
       setBusy(false);
     }
@@ -256,7 +292,17 @@ export function SubscriptionClient({
 
         {actionErr && (
           <div className="mb-3 text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">
-            {actionErr}
+            {actionErr.message}
+            {actionErr.reference && (
+              <div className="mt-1 text-xs opacity-80">
+                {t("errReference", { code: actionErr.reference })}
+              </div>
+            )}
+            {actionErr.detail && (
+              <div className="mt-1 font-mono text-[11px] opacity-70 break-all">
+                {actionErr.detail}
+              </div>
+            )}
           </div>
         )}
 

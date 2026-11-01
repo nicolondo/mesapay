@@ -8586,6 +8586,7 @@
     "subscriptionError_provider_rejected": "Kushki no canceló el débito ({detail}). Sigue activo: inténtalo de nuevo o revísalo con Kushki.",
     "subscriptionError_billing_not_configured": "No se pudo cancelar: falta la clave privada de cobro de la plataforma (configuración de la plataforma). El débito sigue activo.",
     "subscriptionError_provider_unavailable": "Kushki no respondió. El débito sigue activo: inténtalo de nuevo en un momento.",
+    "subscriptionNote_providerUnknown": "Kushki no reconocía esta suscripción (K012): quedó cancelada en MESAPAY y ya no bloquea el borrado.",
     "goto_payments_review": "Entrar como el comercio → Cobros por revisar",
     "goto_wallet": "Entrar como el comercio → Wallet",
     "goto_invoices": "Entrar como el comercio → Facturas",

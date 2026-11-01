@@ -6,7 +6,7 @@ vi.mock("@/lib/env", () => ({ env: {}, requireKushkiKey: () => "test" }));
 vi.mock("@/lib/platformConfig", () => ({ getKushkiModeSync: () => "production" }));
 
 import { KushkiHttpError, KushkiSchemaError } from "@/lib/payments/kushki/client";
-import { classifySubscriptionError, subscriptionErrorHttpStatus } from "./subscriptionErrors";
+import { classifySubscriptionError, isSubscriptionNotFound, subscriptionErrorHttpStatus } from "./subscriptionErrors";
 
 const URL = "https://api.kushkipagos.com/subscriptions/v1/card";
 const kushki = (status: number, body: string) => new KushkiHttpError(status, body, URL);
@@ -40,6 +40,23 @@ describe("classifySubscriptionError", () => {
   it("comercio no habilitado para suscripciones (K010) → not_configured", () => {
     const err = kushki(400, '{"code":"K010","message":"Comercio no habilitado para suscripciones"}');
     expect(classifySubscriptionError(err)).toEqual({ reason: "not_configured", providerCode: "K010" });
+  });
+
+  it("K012 (id de suscripción no válida) → not_found con la referencia", () => {
+    // El caso real de producción: suscripción creada en sandbox, cuenta de cobro hoy en producción.
+    const err = kushki(400, '{"code":"K012","message":"ID de suscripción no válida."}');
+    expect(classifySubscriptionError(err)).toEqual({ reason: "not_found", providerCode: "K012" });
+  });
+
+  it("404 sin código → not_found", () => {
+    expect(classifySubscriptionError(kushki(404, "Not Found"))).toEqual({ reason: "not_found", providerCode: null });
+  });
+
+  it("el code se normaliza (espacios, minúsculas) antes de buscarlo en la tabla", () => {
+    expect(classifySubscriptionError(kushki(400, '{"code":" k322 "}'))).toEqual({
+      reason: "security_rejected",
+      providerCode: "K322",
+    });
   });
 
   it("código no mapeado → unknown, pero conserva la referencia", () => {
@@ -90,13 +107,38 @@ describe("classifySubscriptionError", () => {
   });
 });
 
+describe("isSubscriptionNotFound", () => {
+  it("K012 o HTTP 404 → true, sea KushkiHttpError o un objeto {status, body} cualquiera", () => {
+    expect(isSubscriptionNotFound(kushki(400, '{"code":"K012","message":"ID de suscripción no válida."}'))).toBe(true);
+    expect(isSubscriptionNotFound(kushki(404, "<html>Not Found</html>"))).toBe(true);
+    // Robusto: minúsculas, espacios, y sin instanceof.
+    expect(isSubscriptionNotFound({ status: 400, body: '{"code":" k012 "}' })).toBe(true);
+    expect(isSubscriptionNotFound(Object.assign(new Error("x"), { status: 404, body: "" }))).toBe(true);
+  });
+
+  it("cualquier otro error → false (nunca se da por cancelada por un fallo distinto)", () => {
+    // K004 con un mensaje que habla de "not found" NO cuenta: se va por el código, no por el texto.
+    expect(isSubscriptionNotFound(kushki(400, '{"code":"K004","message":"Subscription not found"}'))).toBe(false);
+    expect(isSubscriptionNotFound(kushki(400, '{"code":"K001"}'))).toBe(false);
+    expect(isSubscriptionNotFound(kushki(401, '{"message":"Unauthorized"}'))).toBe(false);
+    expect(isSubscriptionNotFound(kushki(500, "boom"))).toBe(false);
+    expect(isSubscriptionNotFound(kushki(400, "<html>Bad Request</html>"))).toBe(false);
+    expect(isSubscriptionNotFound(new Error("billing_not_configured: falta la clave"))).toBe(false);
+    expect(isSubscriptionNotFound(new TypeError("fetch failed"))).toBe(false);
+    expect(isSubscriptionNotFound(null)).toBe(false);
+    expect(isSubscriptionNotFound("raro")).toBe(false);
+    expect(isSubscriptionNotFound({ status: "404" })).toBe(false);
+  });
+});
+
 describe("subscriptionErrorHttpStatus", () => {
-  it("402 del lado de la tarjeta, 500 si es nuestro, 502 si no se sabe", () => {
+  it("402 del lado de la tarjeta, 500 si es nuestro, 502 si no se sabe (not_found incluido)", () => {
     expect(subscriptionErrorHttpStatus("security_rejected")).toBe(402);
     expect(subscriptionErrorHttpStatus("card_declined")).toBe(402);
     expect(subscriptionErrorHttpStatus("card_invalid")).toBe(402);
     expect(subscriptionErrorHttpStatus("not_configured")).toBe(500);
     expect(subscriptionErrorHttpStatus("unavailable")).toBe(502);
     expect(subscriptionErrorHttpStatus("unknown")).toBe(502);
+    expect(subscriptionErrorHttpStatus("not_found")).toBe(502);
   });
 });

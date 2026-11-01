@@ -5,6 +5,7 @@ import { recordAuditEvent } from "@/lib/auditLog";
 import { REPLACEABLE_PENDING_METHODS } from "@/lib/payments/methods";
 import { releasePaymentRequests } from "@/lib/payments/staffCharge";
 import { getSubscriptionProvider } from "@/lib/payments/subscription";
+import { isSubscriptionNotFound } from "@/lib/billing/subscriptionErrors";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { cancellablePaymentLinksWhere, pendingPaymentRequestsWhere } from "./checks";
 import type { DeletionActor } from "./service";
@@ -25,6 +26,15 @@ import type { DeletionActor } from "./service";
  *     misma llamada que /api/operator/subscription/cancel. A diferencia de
  *     esa ruta, si Kushki falla NO se marca cancelada: el débito podría
  *     seguir cobrando y el bloqueo tiene que quedar con el error.
+ *     ÚNICA excepción: Kushki responde que la suscripción NO EXISTE (K012
+ *     "ID de suscripción no válida" o HTTP 404). Pasa con suscripciones
+ *     creadas cuando la cuenta de cobro estaba en sandbox y hoy se cancelan
+ *     con las credenciales de producción. Ahí sí se marca cancelada en
+ *     MESAPAY: Kushki no puede cobrar con un id que no reconoce con estas
+ *     credenciales, así que no queda ningún débito vivo huérfano. Se
+ *     distingue en el resultado (`providerUnknown`), queda en la auditoría y
+ *     en el log. Cualquier OTRO error (credenciales, 4xx distinto, 5xx, red)
+ *     sigue siendo fallo y deja la suscripción como está.
  *
  * Todas dejan auditoría con el admin como actor.
  */
@@ -106,7 +116,12 @@ export async function cancelOpenPaymentLinks(
 export type SubscriptionCancelError = "billing_not_configured" | "provider_rejected" | "provider_unavailable";
 
 export type SubscriptionCancelResult =
-  | { ok: true; alreadyCanceled: boolean }
+  | {
+      ok: true;
+      alreadyCanceled: boolean;
+      /** Kushki no conocía la suscripción (K012 / 404): se marcó cancelada sólo en MESAPAY. */
+      providerUnknown: boolean;
+    }
   | { ok: false; error: SubscriptionCancelError; detail?: string };
 
 /**
@@ -139,15 +154,27 @@ export async function cancelSubscriptionDebit(restaurantId: string, actor: Actor
     where: { restaurantId },
     include: { restaurant: { select: { kushkiMode: true } } },
   });
-  if (!sub || sub.status === "canceled") return { ok: true, alreadyCanceled: true };
+  if (!sub || sub.status === "canceled") return { ok: true, alreadyCanceled: true, providerUnknown: false };
 
+  let providerUnknown = false;
+  let providerDetail: string | undefined;
   if (sub.kushkiSubscriptionId) {
     try {
       const provider = await getSubscriptionProvider(await getRestaurantKushkiMode(sub.restaurant));
       await provider.cancelSubscription({ subscriptionId: sub.kushkiSubscriptionId });
     } catch (err) {
-      console.error("[restaurantDeletion] cancelar débito: Kushki falló", { restaurantId, err });
-      return { ok: false, ...describeSubscriptionCancelError(err) };
+      if (!isSubscriptionNotFound(err)) {
+        console.error("[restaurantDeletion] cancelar débito: Kushki falló", { restaurantId, err });
+        return { ok: false, ...describeSubscriptionCancelError(err) };
+      }
+      // Kushki no conoce ese id con estas credenciales (K012 / 404): no hay
+      // débito que pueda cobrar, así que no es un fallo (ver cabecera).
+      providerUnknown = true;
+      providerDetail = describeSubscriptionCancelError(err).detail;
+      console.warn(
+        "[restaurantDeletion] cancelar débito: Kushki no reconoce la suscripción; se marca cancelada sólo en MESAPAY",
+        { restaurantId, subscriptionId: sub.kushkiSubscriptionId, detail: providerDetail },
+      );
     }
   }
 
@@ -159,8 +186,10 @@ export async function cancelSubscriptionDebit(restaurantId: string, actor: Actor
     kind: "subscription.cancel",
     restaurantId,
     target: { type: "billing_subscription", id: sub.kushkiSubscriptionId ?? sub.id },
-    summary: `Canceló débito automático desde Eliminar comercio (subscriptionId=${sub.kushkiSubscriptionId})`,
+    summary: providerUnknown
+      ? `Kushki no reconocía la suscripción (${providerDetail ?? "K012 / 404"}): se marcó cancelada en MESAPAY desde Eliminar comercio (subscriptionId=${sub.kushkiSubscriptionId})`
+      : `Canceló débito automático desde Eliminar comercio (subscriptionId=${sub.kushkiSubscriptionId})`,
     actor: auditActor(actor),
   });
-  return { ok: true, alreadyCanceled: false };
+  return { ok: true, alreadyCanceled: false, providerUnknown };
 }

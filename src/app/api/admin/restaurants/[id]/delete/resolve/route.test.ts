@@ -42,7 +42,7 @@ beforeEach(() => {
   mocks.preview.mockResolvedValue(freshPreview);
   mocks.decline.mockResolvedValue({ declined: 1 });
   mocks.cancelLinks.mockResolvedValue({ cancelled: 2 });
-  mocks.cancelSubscription.mockResolvedValue({ ok: true, alreadyCanceled: false });
+  mocks.cancelSubscription.mockResolvedValue({ ok: true, alreadyCanceled: false, providerUnknown: false });
 });
 
 describe("permisos: sólo platform_admin", () => {
@@ -106,7 +106,19 @@ describe("acciones", () => {
     const res = await post({ action: "cancel_subscription" });
     expect(res.status).toBe(200);
     expect(mocks.cancelSubscription).toHaveBeenCalledWith("r1", actor);
-    expect(await res.json()).toMatchObject({ ok: true, result: { alreadyCanceled: false } });
+    expect(await res.json()).toMatchObject({ ok: true, result: { alreadyCanceled: false, providerUnknown: false } });
+  });
+
+  it("si Kushki no reconocía la suscripción (K012 / 404), `providerUnknown` llega al cliente con 200", async () => {
+    mocks.cancelSubscription.mockResolvedValue({ ok: true, alreadyCanceled: false, providerUnknown: true });
+    const res = await post({ action: "cancel_subscription" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      action: "cancel_subscription",
+      result: { alreadyCanceled: false, providerUnknown: true },
+      preview: freshPreview,
+    });
   });
 
   it("si Kushki no cancela el débito → 502 con el motivo, el detalle y el resumen (el bloqueo sigue)", async () => {

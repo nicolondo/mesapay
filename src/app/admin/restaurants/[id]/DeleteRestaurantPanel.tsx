@@ -53,6 +53,8 @@ type ResolveResponse = {
   error?: string;
   reason?: string;
   detail?: string;
+  /** Con éxito: lo que hizo la acción (p. ej. `providerUnknown` al cancelar el débito). */
+  result?: Record<string, number | boolean | undefined>;
   preview?: Preview | null;
 };
 
@@ -119,6 +121,10 @@ function DeleteDialog({
   const [confirming, setConfirming] = useState<BlockerAction | null>(null);
   const [running, setRunning] = useState<BlockerAction | null>(null);
   const [actionErrors, setActionErrors] = useState<Partial<Record<BlockerAction, string>>>({});
+  // Avisos de una acción que SÍ salió bien pero con algo que el admin debe
+  // saber (p. ej. Kushki no conocía la suscripción). Se muestran aparte de la
+  // lista de bloqueos porque el resumen recalculado ya no trae el resuelto.
+  const [actionNotes, setActionNotes] = useState<Partial<Record<BlockerAction, string>>>({});
   const [opening, setOpening] = useState<OperatorDestination | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const working = busy || running !== null || opening !== null;
@@ -167,6 +173,7 @@ function DeleteDialog({
   const blocked = gate.reason === "blocked";
   const canConfirm = !!preview && gate.canDelete && !working;
   const reasonId = "delete-restaurant-reason";
+  const notes = Object.entries(actionNotes).filter((entry): entry is [string, string] => typeof entry[1] === "string");
 
   function actionErrorText(body: ResolveResponse): string {
     if (body.error === "subscription_cancel_failed" && body.reason && SUBSCRIPTION_ERRORS.has(body.reason)) {
@@ -179,6 +186,7 @@ function DeleteDialog({
     setConfirming(null);
     setRunning(action);
     setActionErrors((prev) => ({ ...prev, [action]: undefined }));
+    setActionNotes((prev) => ({ ...prev, [action]: undefined }));
     try {
       const res = await fetch(`/api/admin/restaurants/${restaurantId}/delete/resolve`, {
         method: "POST",
@@ -189,7 +197,13 @@ function DeleteDialog({
       // El servidor devuelve el resumen recalculado (también si falló).
       if (body.preview) setPreview(body.preview);
       else refresh();
-      if (!res.ok) setActionErrors((prev) => ({ ...prev, [action]: actionErrorText(body) }));
+      if (!res.ok) {
+        setActionErrors((prev) => ({ ...prev, [action]: actionErrorText(body) }));
+      } else if (action === "cancel_subscription" && body.result?.providerUnknown === true) {
+        // Kushki no conocía la suscripción (K012 / 404): quedó cancelada sólo
+        // en MESAPAY. No es error —el bloqueo ya no está— pero se avisa.
+        setActionNotes((prev) => ({ ...prev, [action]: t("subscriptionNote_providerUnknown") }));
+      }
     } catch {
       setActionErrors((prev) => ({ ...prev, [action]: t("actionError_generic") }));
       refresh();
@@ -374,6 +388,14 @@ function DeleteDialog({
                     {openError}
                   </p>
                 )}
+              </div>
+            )}
+
+            {notes.length > 0 && (
+              <div className="rounded-xl border border-op-border bg-op-bg/40 p-3 space-y-1 text-xs text-op-muted" role="status">
+                {notes.map(([action, note]) => (
+                  <p key={action}>{note}</p>
+                ))}
               </div>
             )}
 

@@ -1,12 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 type Mode = "single" | "bulk";
 
-export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
+/**
+ * Alta de mesas: disparador "+ Añadir mesa" + formulario (una / varias).
+ *
+ * El disparador comparte la fila de acciones de la cabecera con lo que
+ * llegue en `actions` (hoy el enlace "Imprimir QRs"); el formulario
+ * abierto se despliega A TODO EL ANCHO debajo de esa fila. Para no subir
+ * el estado `open` al padre (un server component), el componente devuelve
+ * un fragmento con DOS hijos directos del flex de la cabecera: la fila de
+ * acciones y, si está abierto, el formulario con `w-full`. En móvil la
+ * cabecera es columna, así que caen apilados; en md+ es `flex-wrap`, así
+ * que el formulario salta a su propia línea bajo título y acciones.
+ */
+export function NewTableForm({
+  suggestedNumber,
+  actions,
+}: {
+  suggestedNumber: number;
+  /** Otras acciones de la cabecera que acompañan al disparador. */
+  actions?: ReactNode;
+}) {
   const t = useTranslations("opTables");
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -96,147 +115,159 @@ export function NewTableForm({ suggestedNumber }: { suggestedNumber: number }) {
     startTx(() => router.refresh());
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => {
-          setOpen(true);
-          setMode("single");
-        }}
-        className="mp-btn mp-btn--primary mp-btn--sm"
-      >
-        {t("newTableAdd")}
-      </button>
-    );
-  }
-
   return (
-    <form
-      onSubmit={mode === "single" ? submitSingle : submitBulk}
-      className="bg-op-surface border border-op-border rounded-xl px-4 py-3 space-y-3"
-    >
-      {/* Toggle Una / Varias */}
-      <div className="mp-seg" role="tablist">
+    <>
+      {/* Fila de acciones de la cabecera. El disparador sigue visible con
+          el formulario abierto (volver a tocarlo lo cierra), así la fila
+          no salta de tamaño al abrir/cerrar. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {actions}
         <button
           type="button"
-          role="tab"
-          aria-selected={mode === "single"}
+          aria-expanded={open}
           onClick={() => {
+            if (open) {
+              reset();
+              return;
+            }
+            setOpen(true);
             setMode("single");
-            setErr(null);
-            setMsg(null);
           }}
-          className="mp-seg__i"
+          className="mp-btn mp-btn--primary mp-btn--sm"
         >
-          {t("bulkToggleSingle")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "bulk"}
-          onClick={() => {
-            setMode("bulk");
-            setErr(null);
-            setMsg(null);
-          }}
-          className="mp-seg__i"
-        >
-          {t("bulkToggleMany")}
+          {t("newTableAdd")}
         </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        {mode === "single" ? (
-          <>
-            <label className="flex flex-col">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {t("newTableNumber")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={999}
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-                className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-                autoFocus
-              />
-            </label>
-            <label className="flex flex-col flex-1 min-w-[160px]">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {t("newTableLabel")}
-              </span>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder={t("newTableLabelPlaceholder")}
-                maxLength={40}
-                className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              />
-            </label>
-          </>
-        ) : (
-          <>
-            <label className="flex flex-col">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {t("bulkFrom")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={999}
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-                autoFocus
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
-                {t("bulkTo")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={999}
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              />
-            </label>
-            <p className="font-mono text-[10px] text-op-muted self-end mb-2">
-              {t("bulkSkipNote")}
-            </p>
-          </>
-        )}
+      {open && (
+        <form
+          onSubmit={mode === "single" ? submitSingle : submitBulk}
+          className="w-full bg-op-surface border border-op-border rounded-xl px-4 py-3 space-y-3"
+        >
+          {/* Toggle Una / Varias */}
+          <div className="mp-seg" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "single"}
+              onClick={() => {
+                setMode("single");
+                setErr(null);
+                setMsg(null);
+              }}
+              className="mp-seg__i"
+            >
+              {t("bulkToggleSingle")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "bulk"}
+              onClick={() => {
+                setMode("bulk");
+                setErr(null);
+                setMsg(null);
+              }}
+              className="mp-seg__i"
+            >
+              {t("bulkToggleMany")}
+            </button>
+          </div>
 
-        <div className="flex gap-2 ml-auto">
-          <button
-            type="button"
-            onClick={reset}
-            className="mp-btn mp-btn--secondary mp-btn--sm"
-          >
-            {t("newTableCancel")}
-          </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className="mp-btn mp-btn--primary mp-btn--sm"
-          >
-            {busy
-              ? mode === "single"
-                ? t("newTableCreating")
-                : t("bulkCreating")
-              : mode === "single"
-                ? t("newTableCreate")
-                : t("bulkCreate")}
-          </button>
-        </div>
-      </div>
+          <div className="flex flex-wrap items-end gap-3">
+            {mode === "single" ? (
+              <>
+                <label className="flex flex-col">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                    {t("newTableNumber")}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
+                    className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                    autoFocus
+                  />
+                </label>
+                <label className="flex flex-col flex-1 min-w-[160px]">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                    {t("newTableLabel")}
+                  </span>
+                  <input
+                    type="text"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    placeholder={t("newTableLabelPlaceholder")}
+                    maxLength={40}
+                    className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="flex flex-col">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                    {t("bulkFrom")}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                    autoFocus
+                  />
+                </label>
+                <label className="flex flex-col">
+                  <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+                    {t("bulkTo")}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="w-20 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+                  />
+                </label>
+                <p className="font-mono text-[10px] text-op-muted self-end mb-2">
+                  {t("bulkSkipNote")}
+                </p>
+              </>
+            )}
 
-      {err && <div className="text-danger text-xs">{err}</div>}
-      {msg && <div className="text-ok text-xs">{msg}</div>}
-    </form>
+            <div className="flex gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={reset}
+                className="mp-btn mp-btn--secondary mp-btn--sm"
+              >
+                {t("newTableCancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="mp-btn mp-btn--primary mp-btn--sm"
+              >
+                {busy
+                  ? mode === "single"
+                    ? t("newTableCreating")
+                    : t("bulkCreating")
+                  : mode === "single"
+                    ? t("newTableCreate")
+                    : t("bulkCreate")}
+              </button>
+            </div>
+          </div>
+
+          {err && <div className="text-danger text-xs">{err}</div>}
+          {msg && <div className="text-ok text-xs">{msg}</div>}
+        </form>
+      )}
+    </>
   );
 }

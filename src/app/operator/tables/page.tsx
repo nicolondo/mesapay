@@ -422,26 +422,43 @@ export default async function TablesPage({
   const base = appOrigin(await headers());
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
+  // Mismo sistema de botón que "+ Añadir mesa" (mp-btn--sm) para que los
+  // dos queden a la misma altura cuando van lado a lado en la cabecera.
+  const printLink = (
+    <a
+      href="/operator/tables/print"
+      target="_blank"
+      className="mp-btn mp-btn--secondary mp-btn--sm"
+    >
+      {counterMode ? tr("printQr") : tr("printQrs")}
+    </a>
+  );
+
   return (
     <div className="mp-page">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div><p className="mp-eyebrow">{tenant?.name}</p><h1 className="mp-page-title">{counterMode ? tr("headerCounter") : tr("headerTables")}</h1><p className="mp-page-description">{ux("tablesDescription")}</p></div>
-        {!isMeseroView && (
-          <a
-            href="/operator/tables/print"
-            target="_blank"
-            className="h-9 px-4 rounded-full border border-op-border inline-flex items-center text-sm font-medium"
-          >
-            {counterMode ? tr("printQr") : tr("printQrs")}
-          </a>
-        )}
-      </div>
-      {!counterMode && !isMeseroView && (
-        <div className="mb-4">
-          <NewTableForm suggestedNumber={nextNumber} />
+      {/* Cabecera. En móvil: título a todo el ancho y debajo UNA fila con
+          las acciones ("Imprimir QRs" + "+ Añadir mesa"). En md+: título a
+          la izquierda, acciones a la derecha. `flex-wrap` en md+ es para
+          que el formulario de alta (hijo `w-full` que devuelve
+          NewTableForm cuando está abierto) caiga a su propia línea bajo
+          la cabecera en vez de empujar las acciones. */}
+      <div className="mb-5 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+        <div className="min-w-0">
+          <p className="mp-eyebrow">{tenant?.name}</p>
+          <h1 className="mp-page-title">
+            {counterMode ? tr("headerCounter") : tr("headerTables")}
+          </h1>
+          <p className="mp-page-description">{ux("tablesDescription")}</p>
         </div>
-      )}
+        {/* Mostrador: no hay alta de mesas, sólo el enlace de impresión. */}
+        {!isMeseroView &&
+          (counterMode ? (
+            printLink
+          ) : (
+            <NewTableForm suggestedNumber={nextNumber} actions={printLink} />
+          ))}
+      </div>
 
       {!counterMode && !isMeseroView && tenant?.pickupEnabled && pickupTable && (
         <div className="mb-4 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-3">

@@ -62,12 +62,25 @@ type ActionError = {
 
 type FallbackKey = "errActivateGeneric" | "errChangeCardGeneric";
 
-// Clave i18n por motivo. Todas aclaran que NO se hizo ningún cobro.
+// Clave i18n por motivo. Todas aclaran que NO se hizo ningún cobro, salvo
+// cuando el cobro inicial se cayó sin respuesta clara de Kushki (timeout,
+// 5xx): ahí no sabemos si cobró y un reintento podría cobrar doble.
 function failureKey(
   json: ActionErrorJson,
   fallback: FallbackKey,
-): "errSecurityRejected" | "errDeclined" | "errCardInvalid" | FallbackKey {
+):
+  | "errSecurityRejected"
+  | "errDeclined"
+  | "errCardInvalid"
+  | "errChargeUncertain"
+  | FallbackKey {
   if (json.error === "charge_declined") return "errDeclined";
+  if (
+    json.error === "charge_failed" &&
+    (json.reason === "unavailable" || json.reason === "unknown")
+  ) {
+    return "errChargeUncertain";
+  }
   switch (json.reason) {
     case "security_rejected":
       return "errSecurityRejected";
@@ -232,7 +245,9 @@ export function SubscriptionClient({
       const res = await fetch("/api/operator/subscription/cancel", { method: "POST" });
       const json = await res.json().catch(() => ({})) as { error?: string };
       if (!res.ok) {
-        setActionErr({ message: json.error ?? t("errCancel") });
+        // `json.error` es un código interno: nunca se muestra crudo.
+        console.error("[billing] cancel failed", json.error);
+        setActionErr({ message: t("errCancel") });
         return;
       }
       router.refresh();

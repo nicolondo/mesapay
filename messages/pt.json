@@ -5343,6 +5343,7 @@
     "errActivateGeneric": "Não conseguimos ativar o débito automático. Nenhuma cobrança foi feita. Tente novamente em alguns minutos; se continuar acontecendo, fale com a gente.",
     "errChangeCardGeneric": "Não conseguimos atualizar o cartão. Nenhuma cobrança foi feita e seu cartão atual continua ativo. Tente novamente em alguns minutos; se continuar acontecendo, fale com a gente.",
     "errReference": "Referência: {code}",
+    "errChargeUncertain": "Não conseguimos confirmar se a cobrança foi feita. Antes de tentar novamente, confira os lançamentos do seu cartão ou fale com a gente para verificarmos.",
     "activating": "Ativando…",
     "changing": "Atualizando…",
     "canceling": "Cancelando…",

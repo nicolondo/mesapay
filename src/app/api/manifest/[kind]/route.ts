@@ -21,10 +21,85 @@ import { NextResponse } from "next/server";
 
 type Kind = "mesero" | "cocina" | "bar" | "comercial" | "asistencia" | "app";
 
-const VARIANTS: Record<
-  Kind,
-  { name: string; shortName: string; start: string; scope: string }
-> = {
+type ManifestIcon = {
+  src: string;
+  sizes: string;
+  type: string;
+  purpose: "any" | "maskable";
+};
+
+type Variant = {
+  name: string;
+  shortName: string;
+  start: string;
+  scope: string;
+  /**
+   * Identidad propia (opcional). `id` hace que Chrome/Android traten la
+   * variante como una app DISTINTA aunque comparta origen con MESAPAY; sin
+   * `id`, dos manifests con el mismo start_url se pisan. Colores e iconos
+   * propios permiten que la sección se vea como su propia app.
+   */
+  id?: string;
+  description?: string;
+  themeColor?: string;
+  backgroundColor?: string;
+  icons?: ManifestIcon[];
+};
+
+// Logo genérico MESAPAY: lo usan todas las variantes salvo las que traen
+// iconos propios.
+const GENERIC_ICONS: ManifestIcon[] = [
+  {
+    src: "/icons/icon-192.png",
+    sizes: "192x192",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/icons/icon-512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/icons/icon-512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "maskable",
+  },
+];
+
+// Iconos exclusivos del CRM comercial ("MP CRM"): terracota con el glifo de
+// pipeline de la barra inferior. Se generan con scripts/icons/crm-icon.mjs.
+const CRM_ICONS: ManifestIcon[] = [
+  {
+    src: "/icons/crm-192.png",
+    sizes: "192x192",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/icons/crm-512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "any",
+  },
+  {
+    src: "/icons/crm-512-maskable.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "maskable",
+  },
+];
+
+const DEFAULTS = {
+  description: "MESAPAY · operación de restaurante",
+  themeColor: "#0F0F0F",
+  backgroundColor: "#F5EFE4",
+  icons: GENERIC_ICONS,
+} as const;
+
+const VARIANTS: Record<Kind, Variant> = {
   // Manifest genérico del sitio (diners / landing). Antes vivía como
   // convención de archivo (src/app/manifest.ts), pero esa convención
   // inyecta su <link rel="manifest"> en TODAS las páginas — quedaban dos
@@ -56,11 +131,22 @@ const VARIANTS: Record<
     start: "/bar",
     scope: "/bar",
   },
+  // CRM comercial: app propia "MP CRM". La ruta sigue siendo
+  // /api/manifest/comercial para no romper las instalaciones existentes
+  // (que se llamaban "MP COMERCIAL"); al reinstalar toman el nombre e icono
+  // nuevos. El scope abarca todo /comercial/ porque la barra inferior navega
+  // a hoy / calendario / más — un scope más estrecho los abriría en el
+  // navegador.
   comercial: {
-    name: "MP COMERCIAL",
-    shortName: "MP COMERCIAL",
+    name: "MESAPAY CRM",
+    shortName: "MP CRM",
+    description: "MESAPAY · CRM comercial",
+    id: "/comercial/crm",
     start: "/comercial/crm",
     scope: "/comercial/",
+    themeColor: "#C4532B",
+    backgroundColor: "#F5EFE4",
+    icons: CRM_ICONS,
   },
   // Kiosko de asistencia (tablet en pared): el empleado puncha por
   // reconocimiento facial o eligiendo su nombre.
@@ -90,35 +176,17 @@ async function GETHandler(
     kind === "cocina" || kind === "bar" ? "landscape" : "portrait";
 
   const body = {
+    ...(v.id ? { id: v.id } : {}),
     name: v.name,
     short_name: v.shortName,
-    description: "MESAPAY · operación de restaurante",
+    description: v.description ?? DEFAULTS.description,
     start_url: v.start,
     scope: v.scope,
     display: "standalone",
     orientation,
-    background_color: "#F5EFE4",
-    theme_color: "#0F0F0F",
-    icons: [
-      {
-        src: "/icons/icon-192.png",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icons/icon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/icons/icon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
-    ],
+    background_color: v.backgroundColor ?? DEFAULTS.backgroundColor,
+    theme_color: v.themeColor ?? DEFAULTS.themeColor,
+    icons: v.icons ?? DEFAULTS.icons,
   };
 
   return new NextResponse(JSON.stringify(body), {

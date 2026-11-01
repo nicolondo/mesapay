@@ -194,6 +194,8 @@ const MIGRATED = [
   "src/components/help/**/*.{ts,tsx}",
   "src/lib/help/**/*.{ts,tsx}",
   "src/content/help/**/*.{ts,tsx}",
+  // CRM comercial: guía de instalación de la PWA "MP CRM". Nació trilingüe.
+  "src/app/comercial/InstallCrmApp.tsx",
 ];
 
 const eslintConfig = defineConfig([

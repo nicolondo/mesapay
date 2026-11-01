@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -11,17 +11,35 @@ import { PushSetup } from "@/app/mesero/PushSetup";
  * Roles: `comercial`, `gerente_comercial`, `platform_admin`.
  *
  * Mobile-first: bottom nav fija <lg, sidebar links en desktop.
- * PWA: manifest "MP COMERCIAL" (per-role pattern).
+ * PWA: app propia "MP CRM" (manifest /api/manifest/comercial, iconos
+ * public/icons/crm-*.png generados por scripts/icons/crm-icon.mjs).
  */
 export const metadata: Metadata = {
-  title: "MP COMERCIAL",
-  applicationName: "MP COMERCIAL",
+  title: "MP CRM",
+  applicationName: "MP CRM",
   manifest: "/api/manifest/comercial",
+  // iOS ignora los iconos del manifest y toma el apple-touch-icon. Definir
+  // `icons` acá reemplaza POR COMPLETO los del root (Next sólo inyecta
+  // src/app/icon.png y apple-icon.png cuando ningún segmento define
+  // `icons`), por eso va también el favicon de la sección.
+  icons: {
+    icon: [{ url: "/icons/crm-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/crm-180.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
-    title: "MP COMERCIAL",
+    title: "MP CRM",
     statusBarStyle: "black-translucent",
   },
+};
+
+// Mismo viewport que el root (viewport-fit=cover para el notch en la PWA)
+// pero con la barra del sistema en terracota, el color de "MP CRM".
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#C4532B",
 };
 
 const CRM_ROLES = new Set(["comercial", "gerente_comercial", "platform_admin"]);

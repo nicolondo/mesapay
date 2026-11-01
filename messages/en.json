@@ -4936,7 +4936,8 @@
     "saving": "Saving…",
     "errorSave": "Could not save.",
     "seededInfo": "{count} cities loaded.",
-    "citiesCount": "{count} cities"
+    "citiesCount": "{count} cities",
+    "datasetAvailable": "{count} available"
   },
   "crm": {
     "phonePrefixLabel": "Country calling code",

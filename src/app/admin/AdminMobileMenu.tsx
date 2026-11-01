@@ -112,7 +112,10 @@ export function AdminMobileMenu({
               </button>
             </div>
 
-            <nav className="flex flex-col p-3 gap-1">
+            {/* min-h-0 + overflow-y-auto: con 10 enlaces de 44 px la lista
+                no cabe en un iPhone SE / en horizontal; sin esto el pie
+                (correo + cerrar sesión) quedaba fuera de pantalla. */}
+            <nav className="flex flex-col p-3 gap-1 flex-1 min-h-0 overflow-y-auto">
               <DrawerLink href="/admin/restaurants" pathname={pathname}>
                 {t("navRestaurants")}
               </DrawerLink>
@@ -145,7 +148,10 @@ export function AdminMobileMenu({
               </DrawerLink>
             </nav>
 
-            <div className="mt-auto border-t border-op-border p-5">
+            <div
+              className="mt-auto border-t border-op-border p-5 shrink-0"
+              style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+            >
               <div className="text-[11px] text-op-muted mb-2">
                 {t("loggedInAs")}
               </div>

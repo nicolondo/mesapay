@@ -453,6 +453,20 @@ input[type="time"] {
   }
 }
 
+/* Panel de administración de plataforma (/admin): misma receta que el editor
+ * de carta. Es una clase NUEVA aplicada sólo en src/app/admin/layout.tsx — no
+ * toca al panel del operador. Se excluyen los campos con .font-display (el
+ * editor inline del nombre del comercio) porque ya son grandes y la regla
+ * los achicaría. */
+.op-admin :is(button, a, [role="button"], input, select, textarea) {
+  touch-action: manipulation;
+}
+@media (max-width: 640px) {
+  .op-admin :is(input, select, textarea):not(.font-display) {
+    font-size: 16px;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SISTEMA DE BOTONES MESAPAY
    Clases compartidas para el backend (operador + admin) y los CTAs del

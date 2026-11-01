@@ -71,7 +71,7 @@ export function RestaurantNameEditor({
               setEditing(false);
             }
           }}
-          className="font-display text-3xl px-2 -mx-2 bg-transparent border-b-2 border-ink focus:outline-none min-w-0 w-full"
+          className="font-display text-2xl md:text-3xl px-2 -mx-2 bg-transparent border-b-2 border-ink focus:outline-none min-w-0 w-full"
         />
       </div>
     );
@@ -79,7 +79,9 @@ export function RestaurantNameEditor({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className="font-display text-3xl">{name}</div>
+      {/* 2xl en móvil (igual que el título de la lista); min-w-0 +
+          break-words para que un nombre largo parta en vez de desbordar. */}
+      <div className="font-display text-2xl md:text-3xl min-w-0 break-words">{name}</div>
       <button
         type="button"
         onClick={() => setEditing(true)}

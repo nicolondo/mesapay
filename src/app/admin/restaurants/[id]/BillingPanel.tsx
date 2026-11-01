@@ -83,7 +83,11 @@ export function PlanEditor({
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
           {t("plan")}
         </div>
-        <div className="mp-seg" role="tablist">
+        {/* En móvil el control segmentado ocupa todo el ancho y las tres
+            pastillas se reparten el espacio (los nombres de plan son
+            editables y podrían no caber en una fila a 390 px). .mp-seg no
+            fija width ni flex, así que estas utilidades sí aplican. */}
+        <div className="mp-seg w-full sm:w-auto" role="tablist">
           {PLAN_OPTIONS.map((p) => (
             <button
               key={p.value}
@@ -97,7 +101,7 @@ export function PlanEditor({
                   setPriceCop(String(Math.round(monthlyPriceCents / 100)));
                 }
               }}
-              className="mp-seg__i"
+              className="mp-seg__i flex-1 min-w-0 justify-center truncate sm:flex-none"
             >
               {p.label}
             </button>
@@ -186,18 +190,21 @@ export function RecordPaymentForm({
 
   return (
     <form onSubmit={submit} className="space-y-2">
-      <div className="flex gap-2 flex-wrap items-end">
-        <label className="flex flex-col">
+      {/* Móvil: grilla de 2 columnas (monto | método) con la nota y el botón
+          a todo el ancho. Con flex-wrap los cuatro controles de anchos
+          distintos caían en tres filas desparejas. En md+ vuelve a la fila. */}
+      <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-end">
+        <label className="flex flex-col min-w-0">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("amountCop")}
           </span>
           <MoneyInput
             value={amountCop}
             onChange={setAmountCop}
-            className="h-9 w-36 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular"
+            className="h-10 md:h-9 w-full md:w-36 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular"
           />
         </label>
-        <label className="flex flex-col">
+        <label className="flex flex-col min-w-0">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("method")}
           </span>
@@ -206,14 +213,14 @@ export function RecordPaymentForm({
             onChange={(e) =>
               setMethod(e.target.value as typeof method)
             }
-            className="h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+            className="h-10 md:h-9 w-full md:w-auto px-2 rounded-lg border border-op-border bg-op-bg text-sm"
           >
             <option value="manual_transfer">{t("methodTransfer")}</option>
             <option value="manual_cash">{t("methodCash")}</option>
             <option value="wompi">{t("methodWompi")}</option>
           </select>
         </label>
-        <label className="flex flex-col flex-1 min-w-[180px]">
+        <label className="flex flex-col col-span-2 md:col-span-1 md:flex-1 md:min-w-[180px]">
           <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("noteOptional")}
           </span>
@@ -222,13 +229,13 @@ export function RecordPaymentForm({
             onChange={(e) => setNote(e.target.value)}
             maxLength={240}
             placeholder={t("notePlaceholder")}
-            className="h-9 px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+            className="h-10 md:h-9 w-full px-2 rounded-lg border border-op-border bg-op-bg text-sm"
           />
         </label>
         <button
           type="submit"
           disabled={busy}
-          className="mp-btn mp-btn--accent mp-btn--sm"
+          className="mp-btn mp-btn--accent mp-btn--sm col-span-2 w-full md:col-span-1 md:w-auto"
         >
           {busy ? t("recording") : t("markPayment")}
         </button>
@@ -593,10 +600,13 @@ export function PickupSchedulePanel({
             {DAY_ORDER.map((day) => (
               <li
                 key={day.key}
-                className="flex items-start gap-3 py-2 border-t border-op-border first:border-t-0"
+                // Móvil: el día arriba y las franjas debajo. Con la columna
+                // fija de 96 px más dos <input type="time"> y el botón ×,
+                // la fila medía ~350 px y desbordaba la tarjeta (318 px).
+                className="flex flex-col gap-1 py-2 border-t border-op-border first:border-t-0 sm:flex-row sm:items-start sm:gap-3"
               >
-                <div className="w-24 shrink-0 text-sm pt-1">{t(day.tKey)}</div>
-                <div className="flex-1 space-y-1.5">
+                <div className="text-sm sm:w-24 sm:shrink-0 sm:pt-1">{t(day.tKey)}</div>
+                <div className="flex-1 min-w-0 space-y-1.5">
                   {draft[day.key].length === 0 ? (
                     <div className="text-xs text-op-muted">{t("closed")}</div>
                   ) : (
@@ -608,21 +618,21 @@ export function PickupSchedulePanel({
                           onChange={(e) =>
                             setWindow(day.key, idx, { from: e.target.value })
                           }
-                          className="h-8 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
+                          className="h-9 sm:h-8 min-w-0 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
                         />
-                        <span className="text-op-muted text-xs" aria-hidden>{"–"}</span>
+                        <span className="text-op-muted text-xs shrink-0" aria-hidden>{"–"}</span>
                         <input
                           type="time"
                           value={w.to}
                           onChange={(e) =>
                             setWindow(day.key, idx, { to: e.target.value })
                           }
-                          className="h-8 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
+                          className="h-9 sm:h-8 min-w-0 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-xs tabular"
                         />
                         <button
                           type="button"
                           onClick={() => removeWindow(day.key, idx)}
-                          className="h-7 w-7 rounded-full border border-op-border text-op-muted hover:text-danger hover:border-danger/40 text-xs"
+                          className="h-8 w-8 sm:h-7 sm:w-7 shrink-0 rounded-full border border-op-border text-op-muted hover:text-danger hover:border-danger/40 text-xs"
                           aria-label={t("removeWindow")}
                         >
                           {"×"}

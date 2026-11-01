@@ -326,16 +326,16 @@ export default async function AdminDashboard() {
               return (
                 <li
                   key={p.tier}
-                  className="py-2.5 flex items-center justify-between text-sm"
+                  className="py-2.5 flex items-center justify-between gap-3 text-sm"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <div>{p.name}</div>
                     <div className="font-mono text-[10px] text-op-muted">
                       {p.tier} <span aria-hidden>{"·"}</span>{" "}
                       {t("priceSuggested", { price: fmtCOP(p.defaultPriceCents) })}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className="font-mono tabular">{b.count}</div>
                     <div className="font-mono text-[10px] text-op-muted">
                       {t("mrrSuffix", { value: fmtCOP(b.mrr) })}
@@ -360,10 +360,10 @@ export default async function AdminDashboard() {
               {topRestaurants.map((r, i) => (
                 <li
                   key={r.id}
-                  className="py-2.5 flex items-center justify-between text-sm"
+                  className="py-2.5 flex items-center justify-between gap-3 text-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-[10px] text-op-muted w-4">
+                    <span className="font-mono text-[10px] text-op-muted w-4 shrink-0">
                       {i + 1}
                     </span>
                     <Link
@@ -373,7 +373,7 @@ export default async function AdminDashboard() {
                       {r.name}
                     </Link>
                   </div>
-                  <div className="font-mono tabular text-sm">
+                  <div className="font-mono tabular text-sm shrink-0">
                     {fmtCOP(r.volumeCents)}
                   </div>
                 </li>
@@ -483,7 +483,7 @@ export default async function AdminDashboard() {
           {recentRestaurants.map((r) => (
             <li
               key={r.id}
-              className="py-2.5 flex items-center justify-between text-sm"
+              className="py-2.5 flex items-center justify-between gap-3 text-sm"
             >
               <Link
                 href={`/admin/restaurants/${r.id}`}
@@ -523,13 +523,17 @@ function KpiCard({
   big?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+    // min-w-0 + break-words + cifra un paso más chica en móvil: en la grilla
+    // de 2 columnas a 390 px cada tarjeta tiene ~130 px útiles y un MRR como
+    // "$2.400.000" a 2xl desbordaba el borde.
+    <div className="rounded-2xl border border-op-border bg-op-surface p-4 md:p-5 min-w-0">
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
         {label}
       </div>
       <div
         className={
-          "font-display tabular mt-1 " + (big ? "text-3xl" : "text-2xl")
+          "font-display tabular mt-1 break-words " +
+          (big ? "text-3xl" : "text-xl md:text-2xl")
         }
       >
         {value}

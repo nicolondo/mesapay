@@ -133,14 +133,14 @@ export function UsersPanel({
 
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-3 mb-3">
         <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
           {t("usersTitle")}
         </div>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium"
+          className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium shrink-0"
         >
           {showForm ? t("usersClose") : t("usersCreate")}
         </button>
@@ -152,15 +152,19 @@ export function UsersPanel({
         <ul className="divide-y divide-op-border">
           {users.map((u) => (
             <li key={u.id} className="py-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
+              {/* Móvil: identidad arriba y las tres acciones en una fila con
+                  wrap debajo. Al lado, los tres enlaces (~230 px) dejaban
+                  ~90 px para nombre y correo. Los enlaces mantienen su look
+                  de texto pero con 32 px de alto para que se puedan tocar. */}
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div className="font-medium truncate">
                       {u.name ?? u.email}
                     </div>
                     <span
                       className={
-                        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium " +
+                        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
                         ROLE_TINT[u.role as Role]
                       }
                     >
@@ -171,7 +175,7 @@ export function UsersPanel({
                     {u.email}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-0 sm:gap-3 sm:shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -179,7 +183,7 @@ export function UsersPanel({
                       setPwdValue("");
                       setNotice(null);
                     }}
-                    className="text-[11px] text-op-muted hover:text-op-text hover:underline"
+                    className="inline-flex items-center h-8 text-[11px] text-op-muted hover:text-op-text hover:underline"
                   >
                     {t("usersPwdBtn")}
                   </button>
@@ -187,14 +191,14 @@ export function UsersPanel({
                     type="button"
                     onClick={() => sendReset(u.id, u.email)}
                     disabled={rowBusy === u.id}
-                    className="text-[11px] text-op-muted hover:text-op-text hover:underline disabled:opacity-50"
+                    className="inline-flex items-center h-8 text-[11px] text-op-muted hover:text-op-text hover:underline disabled:opacity-50"
                   >
                     {t("usersResetBtn")}
                   </button>
                   <button
                     type="button"
                     onClick={() => deleteUser(u.id, u.name ?? u.email)}
-                    className="text-[11px] text-danger hover:underline"
+                    className="inline-flex items-center h-8 text-[11px] text-danger hover:underline"
                   >
                     {t("usersDelete")}
                   </button>
@@ -260,7 +264,7 @@ export function UsersPanel({
             </label>
           </div>
           {err && <div className="text-danger text-sm">{err}</div>}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={createUser}

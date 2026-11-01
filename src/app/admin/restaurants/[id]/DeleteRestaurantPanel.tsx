@@ -267,7 +267,7 @@ function DeleteDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h2 className="font-display text-2xl text-danger">{t("dialogTitle", { name })}</h2>
+          <h2 className="font-display text-2xl text-danger min-w-0 break-words">{t("dialogTitle", { name })}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -429,8 +429,11 @@ function DeleteDialog({
               {error && <div className="text-xs text-danger" role="alert">{error}</div>}
             </div>
 
-            <div className="flex items-center justify-end gap-3">
-              <button type="button" onClick={onClose} disabled={working} className="mp-btn mp-btn--secondary mp-btn--sm">
+            {/* Móvil: botones apilados a todo el ancho (acción destructiva
+                arriba, Cancelar debajo); en fila "Cancelar" + "Eliminar
+                definitivamente" no cabían en el ancho del sheet. */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+              <button type="button" onClick={onClose} disabled={working} className="mp-btn mp-btn--secondary mp-btn--sm w-full sm:w-auto">
                 {t("cancel")}
               </button>
               <button
@@ -438,7 +441,7 @@ function DeleteDialog({
                 onClick={confirm}
                 disabled={!canConfirm}
                 aria-describedby={gate.reason ? reasonId : undefined}
-                className="mp-btn mp-btn--danger-solid mp-btn--sm"
+                className="mp-btn mp-btn--danger-solid mp-btn--sm w-full sm:w-auto"
               >
                 {busy ? t("busy") : t("confirmCta")}
               </button>

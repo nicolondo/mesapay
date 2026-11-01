@@ -181,11 +181,12 @@ export default async function AdminAuditPage({
             {events.map((e) => {
               const { date, time } = fmtBogotaDateTime(e.occurredAt);
               return (
-                <li key={e.id} className="px-5 py-3 flex gap-4 items-start">
-                  <div className="font-mono text-[10px] text-op-muted shrink-0 w-32 leading-snug">
-                    {date}
-                    <br />
-                    {time}
+                // Móvil: fecha y hora en una línea arriba del resumen; la
+                // columna fija de 128 px dejaba el texto en ~170 px de ancho.
+                <li key={e.id} className="px-4 sm:px-5 py-3 flex flex-col gap-1 sm:flex-row sm:gap-4 sm:items-start">
+                  <div className="font-mono text-[10px] text-op-muted shrink-0 sm:w-32 leading-snug">
+                    <span>{date}</span>{" "}
+                    <span className="sm:block">{time}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm">{e.summary}</div>

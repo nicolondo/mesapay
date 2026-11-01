@@ -8586,6 +8586,7 @@
     "subscriptionError_provider_rejected": "Kushki didn't cancel the charge ({detail}). It's still active: try again or check it with Kushki.",
     "subscriptionError_billing_not_configured": "It couldn't be cancelled: the platform's private billing key is missing (platform settings). The charge is still active.",
     "subscriptionError_provider_unavailable": "Kushki didn't respond. The charge is still active: try again in a moment.",
+    "subscriptionNote_providerUnknown": "Kushki didn't recognize this subscription (K012): it's now cancelled in MESAPAY and no longer blocks the deletion.",
     "goto_payments_review": "Enter as the merchant → Payments to review",
     "goto_wallet": "Enter as the merchant → Wallet",
     "goto_invoices": "Enter as the merchant → Invoices",

@@ -217,7 +217,7 @@ describe("cancelar el débito automático", () => {
 
   it("llama a la misma función de Kushki que la ruta del operador, marca cancelada y audita", async () => {
     h.state.subs.push(activeSub());
-    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: false });
+    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: false, providerUnknown: false });
     expect(h.kushkiMode).toHaveBeenCalledWith({ kushkiMode: "sandbox" });
     expect(h.getProvider).toHaveBeenCalledWith("sandbox");
     expect(h.cancelSubscription).toHaveBeenCalledWith({ subscriptionId: "ks-1" });
@@ -246,16 +246,81 @@ describe("cancelar el débito automático", () => {
 
   it("ya cancelada (o sin suscripción): no llama a Kushki", async () => {
     h.state.subs.push({ ...activeSub(), status: "canceled" });
-    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: true });
-    expect(await cancelSubscriptionDebit("nadie", actor)).toEqual({ ok: true, alreadyCanceled: true });
+    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: true, providerUnknown: false });
+    expect(await cancelSubscriptionDebit("nadie", actor)).toEqual({ ok: true, alreadyCanceled: true, providerUnknown: false });
     expect(h.cancelSubscription).not.toHaveBeenCalled();
   });
 
   it("sin id de Kushki: sólo se marca cancelada", async () => {
     h.state.subs.push({ ...activeSub(), kushkiSubscriptionId: null });
-    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: false });
+    expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: false, providerUnknown: false });
     expect(h.cancelSubscription).not.toHaveBeenCalled();
     expect(h.state.subs[0].status).toBe("canceled");
+  });
+
+  describe("Kushki no reconoce la suscripción (K012 / 404): se marca cancelada sólo en MESAPAY", () => {
+    // Forma de KushkiHttpError (status + body), como lo lanza el cliente real.
+    const kushkiError = (status: number, body: string) =>
+      Object.assign(new Error(`kushki ${status} on https://api.kushkipagos.com/x`), {
+        status,
+        body,
+        url: "https://api.kushkipagos.com/x",
+      });
+
+    it("K012 (id de suscripción no válida) → cancelada, auditada con el motivo y distinguida con providerUnknown", async () => {
+      // El caso real: suscripción creada en sandbox, cuenta de cobro hoy en producción.
+      h.state.subs.push(activeSub());
+      h.cancelSubscription.mockRejectedValue(
+        kushkiError(400, JSON.stringify({ code: "K012", message: "ID de suscripción no válida." })),
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const result = await cancelSubscriptionDebit("dani", actor);
+      expect(result).toEqual({ ok: true, alreadyCanceled: false, providerUnknown: true });
+      expect(h.cancelSubscription).toHaveBeenCalledWith({ subscriptionId: "ks-1" });
+      expect(h.state.subs[0]).toMatchObject({ status: "canceled" });
+      expect(h.state.subs[0].canceledAt).toBeInstanceOf(Date);
+      expect(h.audit).toHaveBeenCalledTimes(1);
+      const event = h.audit.mock.calls[0][0];
+      expect(event).toMatchObject({
+        kind: "subscription.cancel",
+        restaurantId: "dani",
+        target: { type: "billing_subscription", id: "ks-1" },
+        actor: { userId: "admin-1", email: "admin@mesapay.co", role: "platform_admin" },
+      });
+      expect(event.summary).toContain("Kushki no reconocía la suscripción");
+      expect(event.summary).toContain("K012");
+      expect(event.summary).toContain("cancelada en MESAPAY");
+      expect(warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ restaurantId: "dani", subscriptionId: "ks-1" }),
+      );
+    });
+
+    it("HTTP 404 → igual que K012", async () => {
+      h.state.subs.push(activeSub());
+      h.cancelSubscription.mockRejectedValue(kushkiError(404, "Not Found"));
+      vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      expect(await cancelSubscriptionDebit("dani", actor)).toEqual({ ok: true, alreadyCanceled: false, providerUnknown: true });
+      expect(h.state.subs[0].status).toBe("canceled");
+      expect(h.audit).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "subscription.cancel", summary: expect.stringContaining("HTTP 404") }),
+      );
+    });
+
+    it("cualquier OTRO rechazo (p. ej. K001) sigue siendo fallo: no se marca cancelada ni se audita", async () => {
+      h.state.subs.push(activeSub());
+      h.cancelSubscription.mockRejectedValue(
+        kushkiError(400, JSON.stringify({ code: "K001", message: "Cuerpo de la petición inválido." })),
+      );
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      expect(await cancelSubscriptionDebit("dani", actor)).toEqual({
+        ok: false,
+        error: "provider_rejected",
+        detail: "HTTP 400 · K001 · Cuerpo de la petición inválido.",
+      });
+      expect(h.state.subs[0].status).toBe("active");
+      expect(h.audit).not.toHaveBeenCalled();
+    });
   });
 
   it("traduce los fallos a códigos, sin mandar la URL ni mensajes internos", () => {

@@ -46,7 +46,9 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
     result = await cancelOpenPaymentLinks(id, actor);
   } else {
     const outcome = await cancelSubscriptionDebit(id, actor);
-    if (outcome.ok) result = { alreadyCanceled: outcome.alreadyCanceled };
+    // `providerUnknown`: Kushki no conocía la suscripción (K012 / 404) y se
+    // marcó cancelada sólo en MESAPAY; el diálogo lo avisa.
+    if (outcome.ok) result = { alreadyCanceled: outcome.alreadyCanceled, providerUnknown: outcome.providerUnknown };
     else failure = { error: outcome.error, detail: outcome.detail };
   }
 

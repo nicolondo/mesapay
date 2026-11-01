@@ -9,6 +9,7 @@ export type SubscriptionErrorReason =
   | "security_rejected" // una regla de seguridad (antifraude) de Kushki bloqueó la tarjeta
   | "card_declined" // el banco emisor o el procesador rechazó
   | "card_invalid" // datos de tarjeta malos, vencida o no válida para este medio
+  | "not_found" // Kushki no conoce ese id de suscripción con estas credenciales (K012 / 404)
   | "not_configured" // NUESTRO lado: credenciales, comercio no habilitado, request mal armado
   | "unavailable" // timeout, 5xx, red caída
   | "unknown";
@@ -39,6 +40,7 @@ const REASON_BY_CODE: Record<string, SubscriptionErrorReason> = {
   K029: "card_invalid", // datos de tarjeta no coinciden
   K044: "card_invalid", // el BIN no soporta este medio
   K049: "card_invalid", // tarjeta expirada
+  K012: "not_found", // id de suscripción no válida: Kushki no la conoce con estas credenciales
   K001: "not_configured", // body inválido (bug nuestro)
   K004: "not_configured", // id de comercio no válido
   K010: "not_configured", // comercio no habilitado para suscripciones
@@ -83,7 +85,11 @@ const REASON_BY_CODE: Record<string, SubscriptionErrorReason> = {
   "596": "unavailable", // problema del emisor al autorizar
 };
 
-/** Lee `code` y `processorError` del body de error de Kushki (si es JSON). */
+/**
+ * Lee `code` y `processorError` del body de error de Kushki (si es JSON).
+ * Acepta string o número, recorta espacios y deja el `code` en mayúsculas
+ * para que la tabla de arriba lo encuentre aunque venga como "k012".
+ */
 function parseKushkiBody(body: string): { code: string | null; processorError: string | null } {
   try {
     const json: unknown = JSON.parse(body);
@@ -91,7 +97,7 @@ function parseKushkiBody(body: string): { code: string | null; processorError: s
       const o = json as Record<string, unknown>;
       const str = (v: unknown) =>
         typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" ? String(v) : null;
-      return { code: str(o.code), processorError: str(o.processorError) };
+      return { code: str(o.code)?.toUpperCase() ?? null, processorError: str(o.processorError) };
     }
   } catch {
     // body no-JSON (HTML de un proxy, texto plano…)
@@ -101,8 +107,25 @@ function parseKushkiBody(body: string): { code: string | null; processorError: s
 
 function reasonFromHttpStatus(status: number): SubscriptionErrorReason {
   if (status === 401 || status === 403) return "not_configured"; // credenciales nuestras
+  if (status === 404) return "not_found";
   if (status === 429 || status >= 500) return "unavailable";
   return "unknown";
+}
+
+/**
+ * Kushki NO conoce esa suscripción con las credenciales en uso: K012 ("ID de
+ * suscripción no válida") o HTTP 404. Pasa con suscripciones creadas cuando
+ * la cuenta de cobro estaba en sandbox y hoy se consultan con las credenciales
+ * de producción. Acepta un KushkiHttpError o cualquier objeto con `status`
+ * numérico y `body` string (los consumidores que no hacen instanceof, p. ej.
+ * restaurantDeletion/resolve.ts, lo ven así).
+ */
+export function isSubscriptionNotFound(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const { status, body } = err as { status?: unknown; body?: unknown };
+  if (status === 404) return true;
+  if (typeof body !== "string") return false;
+  return parseKushkiBody(body).code === "K012";
 }
 
 export function classifySubscriptionError(err: unknown): SubscriptionErrorInfo {
@@ -133,7 +156,11 @@ export function classifySubscriptionError(err: unknown): SubscriptionErrorInfo {
   return { reason: "unknown", providerCode: null };
 }
 
-/** Status HTTP de la respuesta según el motivo. */
+/**
+ * Status HTTP de la respuesta según el motivo. `not_found` cae en 502 como
+ * `unknown`: al activar o cambiar tarjeta no debería pasar nunca y no tiene
+ * copy propio (su tratamiento especial vive en restaurantDeletion/resolve.ts).
+ */
 export function subscriptionErrorHttpStatus(reason: SubscriptionErrorReason): number {
   switch (reason) {
     case "security_rejected":

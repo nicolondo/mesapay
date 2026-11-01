@@ -65,6 +65,8 @@ type FallbackKey = "errActivateGeneric" | "errChangeCardGeneric";
 // Clave i18n por motivo. Todas aclaran que NO se hizo ningún cobro, salvo
 // cuando el cobro inicial se cayó sin respuesta clara de Kushki (timeout,
 // 5xx): ahí no sabemos si cobró y un reintento podría cobrar doble.
+// `not_found` (Kushki no conoce la suscripción) acá no debería pasar nunca;
+// se trata igual que `unknown`, sin copy propio.
 function failureKey(
   json: ActionErrorJson,
   fallback: FallbackKey,
@@ -77,7 +79,7 @@ function failureKey(
   if (json.error === "charge_declined") return "errDeclined";
   if (
     json.error === "charge_failed" &&
-    (json.reason === "unavailable" || json.reason === "unknown")
+    (json.reason === "unavailable" || json.reason === "unknown" || json.reason === "not_found")
   ) {
     return "errChargeUncertain";
   }

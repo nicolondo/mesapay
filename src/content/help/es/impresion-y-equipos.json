@@ -149,27 +149,30 @@
     },
     {
       "slug": "datafonos",
-      "title": "Configura los datáfonos y asígnalos a tus meseros",
-      "summary": "Registra tus datáfonos Kushki, asigna cada uno al mesero que lo carga para que el cobro le llegue directo y conoce la pantalla del usuario Datáfono.",
+      "title": "Configura los datáfonos del comercio",
+      "summary": "Registra tus datáfonos Kushki con su serial y su Business-Code. Son del comercio: al cobrar, quien cobra elige a cuál enviar el cobro. También, la pantalla del usuario Datáfono.",
       "keywords": [
         "datáfono",
         "datafono",
         "Kushki",
         "Smart POS",
         "terminal",
-        "código de comercio",
         "serial",
-        "asignar datáfono",
-        "mesero asignado",
         "mesas en vivo",
         "usuario datáfono",
         "datáfono propio",
-        "cobrar con tarjeta"
+        "cobrar con tarjeta",
+        "business code",
+        "business-code",
+        "elegir datáfono",
+        "a qué datáfono",
+        "varios datáfonos",
+        "merchant id"
       ],
       "audience": [
         "operator"
       ],
-      "body": "Si tu restaurante cobra con datáfonos Kushki, en Datáfonos los registras y asignas cada uno al mesero que lo carga. Así, cuando ese mesero cobra con datáfono desde su app, el monto llega directo a su aparato.\n\nLa tarjeta **Datáfonos** aparece en Configuración solo cuando tu comercio tiene activo el cobro con datáfono Kushki. Ese medio de pago lo activa MESAPAY.\n\n## Configurar los datáfonos\n\n1. Entra a [Configuración › Datáfonos](/operator/settings/datafonos).\n2. En **Código de comercio**, escribe el código que te entregó el proveedor del datáfono al activarlo y toca **Guardar**.\n3. En **Agregar datáfono**, escribe un nombre (por ejemplo, «Caja 1») y el serial del equipo, y toca **Agregar**.\n4. En cada datáfono, elige el **Mesero asignado**.\n\nEl serial se puede corregir después en **Serial del datáfono**; se guarda al salir del campo.\n\n## Asignado o sin asignar\n\n- **Con mesero asignado**: cuando ese mesero cobra con datáfono, el monto se envía directo a su datáfono, sin pasar por Salón.\n- **Sin asignar (cualquiera lo puede usar)**: el cobro queda en [Salón](/operator/serve), en **Pidió datáfono**. Quien lleva el datáfono a la mesa toca el botón **Cobrar** con el monto, y el cobro se envía al primer datáfono activo de la lista.\n\nToca **Activo** o **Inactivo** para sacar un datáfono de uso sin borrarlo.\n\n## El usuario Datáfono\n\nSi una persona se dedica a cobrar con el datáfono (por ejemplo, en la caja), créale un usuario con rol **Datáfono** en [Usuarios](/operator/settings/usuarios). Al entrar ve **Mesas en vivo**: todas las mesas con su estado y las que pidieron datáfono (**📱 Pidió datáfono**) o efectivo (**💵 Pidió efectivo**). Desde ahí cobra con el datáfono o confirma el efectivo recibido.\n\n## Datáfono propio del comercio\n\nSi cobras con un datáfono de otro proveedor, no hay nada que configurar aquí: pasas la tarjeta por tu datáfono y después marcas el resultado, **Aprobado** o **Rechazado**, en Salón. Ese medio de pago también lo activa MESAPAY.\n\n## Casos frecuentes\n\n- **No veo la tarjeta Datáfonos**: tu comercio no tiene activo el cobro con datáfono Kushki. Escríbenos a soporte.\n- **\"No hay un datáfono activo registrado\"**: no hay ningún datáfono marcado como **Activo**. Agrega uno o actívalo.\n- **\"Todavía no hay datáfonos vinculados al comercio\"**: agrega el primero con **Agregar datáfono**.",
+      "body": "Los datáfonos Kushki son del comercio, no de un mesero: cualquiera del equipo cobra con cualquiera. En Datáfonos los registras con su serial y guardas el Business-Code que les entrega Kushki. Al cobrar, si hay más de uno disponible, quien cobra elige a cuál enviar el cobro.\n\nLa tarjeta **Datáfonos** aparece en Configuración solo cuando tu comercio tiene activo el cobro con datáfono Kushki. Ese medio de pago lo activa MESAPAY.\n\n## Configurar los datáfonos\n\n1. Entra a [Configuración › Datáfonos](/operator/settings/datafonos).\n2. En **Business-Code del Cloud Terminal**, pega el Business-Code que Kushki entrega para el datáfono y toca **Guardar**. Queda guardado y se muestra solo con sus últimos 4 caracteres (**Guardado: ••••…**).\n3. En **Agregar datáfono**, escribe un nombre (por ejemplo, «Caja 1») y el serial del equipo, y toca **Agregar**.\n\nEl serial se puede corregir después en **Serial del datáfono**; se guarda al salir del campo. Toca **Activo** o **Inactivo** para sacar un datáfono de uso sin borrarlo.\n\n> ⚠ El Business-Code NO es el Merchant ID ni la llave pública de Kushki. Si pegas alguno de esos, MESAPAY no lo guarda y te avisa: con ellos, Kushki rechaza cada cobro por validación.\n\nPara cambiar el Business-Code, escribe uno nuevo encima y toca **Guardar**. **Borrar** lo quita, y el datáfono deja de poder cobrar hasta que guardes otro.\n\n## Elegir el datáfono al cobrar\n\nUn datáfono está disponible cuando está **Activo**, tiene su serial y el comercio tiene Business-Code.\n\n- **Con un solo datáfono disponible**, el cobro va directo a ese, sin pasar por Salón.\n- **Con dos o más**, aparece **¿A qué datáfono?** con los nombres. Toca el que tienes en la mano. Cada celular o tablet recuerda el último que eligió y lo deja marcado para el próximo cobro; se cambia con un toque.\n\nEsto vale en la pantalla de cobro, en las tarjetas de [Salón](/operator/serve) (**Pidió datáfono**) y en **Mesas en vivo**. Si el cobro está reservado al administrador, el mesero no puede enviar cobros al datáfono.\n\n## El usuario Datáfono\n\nSi una persona se dedica a cobrar con el datáfono (por ejemplo, en la caja), créale un usuario con rol **Datáfono** en [Usuarios](/operator/settings/usuarios). Al entrar ve **Mesas en vivo**: todas las mesas con su estado y las que pidieron datáfono (**📱 Pidió datáfono**) o efectivo (**💵 Pidió efectivo**). Desde ahí cobra con el datáfono o confirma el efectivo recibido.\n\n## Datáfono propio del comercio\n\nSi cobras con un datáfono de otro proveedor, no hay nada que configurar aquí: pasas la tarjeta por tu datáfono y después marcas el resultado, **Aprobado** o **Rechazado**, en Salón. Ese medio de pago también lo activa MESAPAY.\n\n## Casos frecuentes\n\n- **No veo la tarjeta Datáfonos**: tu comercio no tiene activo el cobro con datáfono Kushki. Escríbenos a soporte.\n- **\"No hay un datáfono activo registrado\"**: no hay ningún datáfono **Activo** con serial. Agrega uno o actívalo.\n- **\"Todavía no hay datáfonos\"**: agrega el primero con **Agregar datáfono**.\n- **\"Ese es el Merchant ID de Kushki, no el Business-Code del datáfono\"**: pegaste otra credencial de Kushki. Pídele a Kushki el Business-Code del Cloud Terminal.\n- **\"Sin código propio: los cobros usan el de la plataforma\"**: tu comercio no tiene Business-Code propio y los cobros usan el de MESAPAY. Si Kushki te entregó uno para tu datáfono, guárdalo.\n- **\"Kushki rechazó la solicitud por validación…\"** al cobrar: revisa el Business-Code y el serial del equipo. Ver [Cobra con datáfono](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).",
       "links": [
         {
           "label": "Ir a Datáfonos",

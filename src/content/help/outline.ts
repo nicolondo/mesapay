@@ -169,7 +169,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono asignado o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
     },
     {
       slug: "dividir-la-cuenta",
@@ -265,7 +265,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-desde-la-app",
       title: "Cobra una cuenta desde la app",
       covers:
-        "\"¿Cómo cobrar?\" (Todo, Partes iguales, Individual, Combinar medios), propina, cliente, factura, efectivo, datáfono asignado o del comercio, crédito, gastos de representación, \"Cobro realizado\" / \"Pago recibido\" y la factura al final.",
+        "\"¿Cómo cobrar?\" (Todo, Partes iguales, Individual, Combinar medios), propina, cliente, factura, efectivo, datáfono Kushki (\"¿A qué datáfono?\") o del comercio, crédito, gastos de representación, \"Cobro realizado\" / \"Pago recibido\" y la factura al final.",
     },
     {
       slug: "turno-del-mesero",
@@ -687,9 +687,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "datafonos",
-      title: "Configura los datáfonos y asígnalos",
+      title: "Configura los datáfonos del comercio",
       covers:
-        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Código de comercio\", \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", \"Mesero asignado\", el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
+        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Business-Code del Cloud Terminal\" (enmascarado, no es el Merchant ID), \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", elegir \"¿A qué datáfono?\" al cobrar (son del comercio, no de un mesero), el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
     },
     {
       slug: "tablet-de-cocina-y-bar",

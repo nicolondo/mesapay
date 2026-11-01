@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { formatDate } from "@/lib/format";
 
 type Device = {
   id: string;
@@ -9,33 +12,34 @@ type Device = {
   kushkiDeviceId: string;
   serialNumber: string | null;
   active: boolean;
-  assignedUserId: string | null;
   lastSeenAt: string | null;
 };
 
-type UserOption = {
-  id: string;
-  label: string;
-  email: string;
-  role: string;
+/**
+ * Lo que la pantalla sabe del Business-Code: NUNCA el valor entero (es la
+ * clave con la que se firma cada cobro), sólo enmascarado.
+ */
+export type BusinessCodeView = {
+  /** El del comercio, enmascarado ("••••1a2b"), o null si no cargó uno. */
+  masked: string | null;
+  /** Sin código propio, el de la plataforma que se usa en su lugar, enmascarado. */
+  platformMasked: string | null;
+  /** El guardado es en realidad otra credencial de Kushki. */
+  problem: "business_code_is_merchant_id" | "business_code_is_public_key" | null;
 };
 
-// Maps a user role to its i18n key. Resolved via t() at render time so the
-// option label stays trilingual.
-const ROLE_LABEL_KEY: Record<string, string> = {
-  mesero: "datafonosRoleMesero",
-  operator: "datafonosRoleOperator",
-  terminal: "datafonosRoleTerminal",
-};
-
+/**
+ * Configuración → Datáfonos. Los datáfonos Kushki son del COMERCIO, no de
+ * un mesero: cualquiera del equipo cobra con cualquiera, y al cobrar elige a
+ * cuál mandar el cobro (ver lib/payments/terminalChoice.ts). Acá sólo se
+ * cargan el Business-Code y cada equipo (nombre, serial, activo).
+ */
 export function DatafonosClient({
   initial,
-  users,
   businessCode,
 }: {
   initial: Device[];
-  users: UserOption[];
-  businessCode: string | null;
+  businessCode: BusinessCodeView;
 }) {
   const [devices, setDevices] = useState<Device[]>(initial);
 
@@ -50,12 +54,7 @@ export function DatafonosClient({
       <BusinessCodeCard initial={businessCode} />
       <ul className="space-y-3">
         {devices.map((d) => (
-          <DeviceCard
-            key={d.id}
-            device={d}
-            users={users}
-            onPatch={(next) => patch(d.id, next)}
-          />
+          <DeviceCard key={d.id} device={d} onPatch={(next) => patch(d.id, next)} />
         ))}
       </ul>
       <AddDeviceForm onCreated={(d) => setDevices((prev) => [...prev, d])} />
@@ -63,32 +62,52 @@ export function DatafonosClient({
   );
 }
 
-// Business code del comercio para el Cloud Terminal. Es por-comercio (lo
-// emite el procesador) y se manda en cada cobro al datáfono. Guarda al
-// presionar el botón; "" lo borra.
-function BusinessCodeCard({ initial }: { initial: string | null }) {
+const CODE_ERROR_KEY: Record<string, string> = {
+  business_code_is_merchant_id: "datafonosBusinessCodeIsMerchantId",
+  business_code_is_public_key: "datafonosBusinessCodeIsPublicKey",
+};
+
+// Business-Code del Cloud Terminal del comercio. Lo entrega Kushki para el
+// datáfono y firma cada cobro. Se muestra enmascarado; para cambiarlo se
+// escribe uno nuevo encima. "Borrar" lo quita.
+function BusinessCodeCard({ initial }: { initial: BusinessCodeView }) {
   const t = useTranslations("opSettings");
-  const [code, setCode] = useState(initial ?? "");
+  const router = useRouter();
+  const [view, setView] = useState<BusinessCodeView>(initial);
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
-  const dirty = code.trim() !== (initial ?? "");
 
-  async function save() {
+  async function save(value: string) {
     setBusy(true);
     setMsg(null);
-    const res = await fetch("/api/operator/terminal-business-code", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ businessCode: code.trim() }),
-    });
-    setBusy(false);
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/operator/terminal-business-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ businessCode: value }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const key = typeof j.error === "string" ? CODE_ERROR_KEY[j.error] : undefined;
+        setMsg({ kind: "error", text: t(key ?? "datafonosSaveFailed") });
+        return;
+      }
+      setView({
+        masked: typeof j.masked === "string" ? j.masked : null,
+        platformMasked: value ? null : initial.platformMasked,
+        problem: null,
+      });
+      setCode("");
+      setMsg({ kind: "ok", text: t("datafonosSaved") });
+      router.refresh();
+    } catch {
       setMsg({ kind: "error", text: t("datafonosSaveFailed") });
-      return;
+    } finally {
+      setBusy(false);
     }
-    setMsg({ kind: "ok", text: t("datafonosSaved") });
   }
 
   return (
@@ -96,6 +115,24 @@ function BusinessCodeCard({ initial }: { initial: string | null }) {
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
         {t("datafonosBusinessCodeLabel")}
       </div>
+      <p className="text-sm mb-3" role="status">
+        {view.masked ? (
+          <>
+            {t("datafonosBusinessCodeSaved")}{" "}
+            <span className="font-mono tabular">{view.masked}</span>
+          </>
+        ) : view.platformMasked ? (
+          <>
+            {t("datafonosBusinessCodePlatform")}{" "}
+            <span className="font-mono tabular">{view.platformMasked}</span>
+          </>
+        ) : (
+          t("datafonosBusinessCodeNone")
+        )}
+      </p>
+      {view.problem && (
+        <p className="text-xs text-danger mb-3">{t(CODE_ERROR_KEY[view.problem])}</p>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
@@ -104,17 +141,33 @@ function BusinessCodeCard({ initial }: { initial: string | null }) {
             setCode(e.target.value);
             setMsg(null);
           }}
-          placeholder={t("datafonosBusinessCodePlaceholder")}
+          placeholder={
+            view.masked ? t("datafonosBusinessCodeReplacePlaceholder") : t("datafonosBusinessCodePlaceholder")
+          }
+          autoComplete="off"
+          spellCheck={false}
           className="flex-1 h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm font-mono focus:outline-none focus:border-terracotta"
         />
         <button
           type="button"
-          onClick={save}
-          disabled={busy || !dirty}
+          onClick={() => save(code.trim())}
+          disabled={busy || !code.trim()}
           className="mp-btn mp-btn--primary mp-btn--sm"
         >
           {busy ? t("datafonosBusinessCodeSaving") : t("datafonosBusinessCodeBtn")}
         </button>
+        {view.masked && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(t("datafonosBusinessCodeClearConfirm"))) void save("");
+            }}
+            disabled={busy}
+            className="mp-btn mp-btn--ghost mp-btn--sm"
+          >
+            {t("datafonosBusinessCodeClear")}
+          </button>
+        )}
       </div>
       <p className="text-[11px] text-op-muted mt-2">
         {t("datafonosBusinessCodeHint")}
@@ -198,14 +251,13 @@ function AddDeviceForm({ onCreated }: { onCreated: (d: Device) => void }) {
 
 function DeviceCard({
   device,
-  users,
   onPatch,
 }: {
   device: Device;
-  users: UserOption[];
   onPatch: (next: Partial<Device>) => void;
 }) {
   const t = useTranslations("opSettings");
+  const locale = useLocale() as Locale;
   const [busy, setBusy] = useState(false);
   const [serial, setSerial] = useState(device.serialNumber ?? "");
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
@@ -232,8 +284,6 @@ function DeviceCard({
     setMsg({ kind: "ok", text: t("datafonosSaved") });
   }
 
-  const assignedUser = users.find((u) => u.id === device.assignedUserId);
-
   return (
     <li className="rounded-2xl border border-op-border bg-op-surface p-5">
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
@@ -242,7 +292,7 @@ function DeviceCard({
           {device.lastSeenAt && (
             <div className="text-[11px] text-op-muted mt-0.5">
               {t("datafonosLastSeen", {
-                date: new Date(device.lastSeenAt).toLocaleString("es-CO"),
+                date: formatDate(device.lastSeenAt, { locale }),
               })}
             </div>
           )}
@@ -263,7 +313,7 @@ function DeviceCard({
       </div>
 
       {/* Serial físico del datáfono (Cloud Terminal API). */}
-      <div className="mb-4">
+      <div>
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
           {t("datafonosSerialLabel")}
         </div>
@@ -283,35 +333,6 @@ function DeviceCard({
         />
         <p className="text-[11px] text-op-muted mt-2">
           {t("datafonosSerialHint")}
-        </p>
-      </div>
-
-      <div>
-        <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-2">
-          {t("datafonosAssignedMesero")}
-        </div>
-        <select
-          value={device.assignedUserId ?? ""}
-          onChange={(e) =>
-            save({ assignedUserId: e.target.value === "" ? null : e.target.value })
-          }
-          disabled={busy}
-          className="w-full h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta"
-        >
-          <option value="">{t("datafonosUnassignedOption")}</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {t("datafonosOptionLabel", {
-                label: u.label,
-                role: ROLE_LABEL_KEY[u.role] ? t(ROLE_LABEL_KEY[u.role]) : u.role,
-              })}
-            </option>
-          ))}
-        </select>
-        <p className="text-[11px] text-op-muted mt-2">
-          {assignedUser
-            ? t("datafonosAssignedHint", { name: assignedUser.label })
-            : t("datafonosUnassignedHint")}
         </p>
       </div>
 

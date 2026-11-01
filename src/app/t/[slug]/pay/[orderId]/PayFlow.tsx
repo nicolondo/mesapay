@@ -8,7 +8,6 @@ import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { isModuleEnabled } from "@/lib/modules";
-import { getAssignedDevice } from "@/lib/meseroDevice";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import {
   isSimpleInvoiceRequested,
@@ -174,16 +173,13 @@ export async function PayFlow({
     !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
   // El botón del datáfono Kushki sólo sale si el comercio puede empujar el
   // cobro al equipo (mismas reglas que terminal/charge y terminal-request).
-  const kushkiTerminalAvailable = (await kushkiTerminalAvailability(tenant)).available;
-
-  // In operator mode, look up which Smart POS this user is logged into
-  // (set by the operator in /operator/settings/datafonos). When set,
-  // PayClient skips the Salón bounce and pushes the datáfono charge
-  // straight to the assigned device.
-  const assignedDevice =
-    operatorMode && session?.user?.id
-      ? await getAssignedDevice(session.user.id, tenant.id)
-      : null;
+  const terminalAvailability = await kushkiTerminalAvailability(tenant);
+  const kushkiTerminalAvailable = terminalAvailability.available;
+  // Los datáfonos son del comercio, no de un mesero: el staff elige al
+  // cobrar a cuál mandar el cobro (con uno solo, va directo a ése). El
+  // comensal no elige nada: su solicitud queda en Salón.
+  const terminalDevices =
+    operatorMode && terminalAvailability.available ? terminalAvailability.devices : [];
 
   // NO pre-fetcheamos los bancos PSE acá. Esa llamada a Kushki es lenta
   // (varios segundos) y bloqueaba el render de "Pagar" en CADA carga, para
@@ -290,8 +286,7 @@ export async function PayFlow({
       creditEnabled={creditCount > 0}
       linkedCustomer={linkedCustomer}
       pseBanks={pseBanks}
-      assignedDeviceId={assignedDevice?.kushkiDeviceId ?? null}
-      assignedDeviceLabel={assignedDevice?.label ?? null}
+      terminalDevices={terminalDevices}
       // Banner que se muestra al volver de un cobro rechazado por
       // datáfono o PSE — sirve para que el diner entienda por qué
       // volvió al checkout y elija otro método.

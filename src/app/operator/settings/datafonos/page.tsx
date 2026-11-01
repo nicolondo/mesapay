@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { DatafonosClient } from "./DatafonosClient";
+import { env } from "@/lib/env";
+import { businessCodeProblem, maskBusinessCode } from "@/lib/payments/businessCode";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +15,14 @@ export default async function DatafonosSettingsPage() {
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
-  const [restaurant, devices, users] = await Promise.all([
+  const [restaurant, devices] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
         cloudTerminalBusinessCode: true,
         enabledPaymentMethods: true,
+        kushkiMerchantId: true,
+        kushkiPublicKey: true,
       },
     }),
     db.terminalDevice.findMany({
@@ -30,18 +34,8 @@ export default async function DatafonosSettingsPage() {
         kushkiDeviceId: true,
         serialNumber: true,
         active: true,
-        assignedUserId: true,
         lastSeenAt: true,
       },
-    }),
-    db.user.findMany({
-      where: {
-        restaurantId,
-        // Only users that make sense as Smart POS owners.
-        role: { in: ["mesero", "operator", "terminal"] },
-      },
-      select: { id: true, name: true, email: true, role: true },
-      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -75,21 +69,30 @@ export default async function DatafonosSettingsPage() {
         </div>
       )}
       <DatafonosClient
-        businessCode={restaurant?.cloudTerminalBusinessCode ?? null}
+        // El Business-Code es la clave de cada cobro: al navegador va sólo
+        // enmascarado. Sin uno propio, el cobro usa el de la plataforma
+        // (`KUSHKI_BP_BUSINESS_CODE`, igual que terminal/charge), y la
+        // pantalla lo dice en vez de mostrar el campo vacío.
+        businessCode={{
+          masked: maskBusinessCode(restaurant.cloudTerminalBusinessCode),
+          platformMasked: restaurant.cloudTerminalBusinessCode
+            ? null
+            : maskBusinessCode(env.KUSHKI_BP_BUSINESS_CODE),
+          // El que de verdad firma los cobros (el propio o el de la
+          // plataforma): si es el Merchant ID o la llave pública, cada cobro
+          // rebota con CLOUDPAYMENT_VALIDATION_ERROR, y la pantalla lo dice.
+          problem: businessCodeProblem(
+            restaurant.cloudTerminalBusinessCode || env.KUSHKI_BP_BUSINESS_CODE,
+            restaurant,
+          ),
+        }}
         initial={devices.map((d) => ({
           id: d.id,
           label: d.label,
           kushkiDeviceId: d.kushkiDeviceId,
           serialNumber: d.serialNumber,
           active: d.active,
-          assignedUserId: d.assignedUserId,
           lastSeenAt: d.lastSeenAt ? d.lastSeenAt.toISOString() : null,
-        }))}
-        users={users.map((u) => ({
-          id: u.id,
-          label: u.name?.trim() || u.email,
-          email: u.email,
-          role: u.role,
         }))}
       />
     </div>

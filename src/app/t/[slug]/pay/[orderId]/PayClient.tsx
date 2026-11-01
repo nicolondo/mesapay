@@ -9,6 +9,8 @@ import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
+import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
+import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -113,8 +115,7 @@ export function PayClient({
   card3ds,
   enabledMethods,
   pseBanks,
-  assignedDeviceId,
-  assignedDeviceLabel,
+  terminalDevices = [],
   declinedFlag = false,
   operatorMode = false,
   staffHomeHref = "/operator/tables",
@@ -200,12 +201,11 @@ export function PayClient({
   // instantáneo. Si vino vacía (kushki_pse no habilitado, error, etc.)
   // el PseSheet hace fallback al endpoint /pse-banks como antes.
   pseBanks: Array<{ code: string; name: string }>;
-  // Operator's assigned Smart POS (set in /operator/settings/datafonos).
-  // When operatorMode is true and this is non-null, "Cobrar con
-  // datáfono" pushes the charge straight to this device instead of
-  // bouncing through Salón to pick one.
-  assignedDeviceId?: string | null;
-  assignedDeviceLabel?: string | null;
+  // Datáfonos Kushki del comercio a los que se puede mandar el cobro (sólo
+  // staff). Son del comercio, no de un mesero: con uno solo el cobro va
+  // directo a ése; con varios, "¿A qué datáfono?" (recuerda el último
+  // elegido en este aparato). Ver lib/payments/terminalChoice.ts.
+  terminalDevices?: TerminalDeviceOption[];
   /** Si true, mostramos banner "Pago rechazado, elegí otro método". */
   declinedFlag?: boolean;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
@@ -277,6 +277,8 @@ export function PayClient({
   const t = useTranslations("pay");
   const tCommon = useTranslations("common");
   const apiError = useApiError();
+  // A qué datáfono va el cobro del staff (ver lib/payments/terminalChoice.ts).
+  const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -555,6 +557,13 @@ export function PayClient({
 
   async function payWithTerminal() {
     if (chargeDisabled) return;
+    // Staff: el cobro va a un datáfono del comercio. Con varios, primero se
+    // elige a cuál ("¿A qué datáfono?").
+    const target = operatorMode ? terminalChoice.selected : null;
+    if (operatorMode && terminalDevices.length > 0 && !target) {
+      setErr(t("terminalPickFirst"));
+      return;
+    }
     setBusy("kushki_card_terminal");
     setErr(null);
     try {
@@ -581,13 +590,10 @@ export function PayClient({
         return;
       }
 
-      // Operator mode + tied to a specific Smart POS → fire the push
-      // straight to that device. The mesero is already standing at
-      // the table with the datáfono in hand; no reason to bounce them
-      // through Salón to pick a device manually. The push call below
-      // is async on the hardware side — the webhook flips the
-      // payment to approved when the customer taps their card.
-      if (operatorMode && assignedDeviceId) {
+      // Staff con el datáfono elegido (o el único del comercio): el cobro
+      // va directo a ese equipo, sin pasar por Salón. Quien cobra ya está
+      // en la mesa con el datáfono en la mano.
+      if (operatorMode && target) {
         const pushRes = await fetch(
           `/api/tenant/${tenantSlug}/terminal/charge`,
           {
@@ -595,7 +601,7 @@ export function PayClient({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               paymentId: j.paymentId,
-              deviceId: assignedDeviceId,
+              deviceId: target.id,
             }),
           },
         );
@@ -614,8 +620,8 @@ export function PayClient({
         return;
       }
 
-      // Diner-side flow OR operator without an assigned device:
-      // create the pending and let someone pick the device in Salón.
+      // El comensal (o, si no hubiera ningún datáfono disponible, el staff):
+      // la solicitud queda pendiente y se envía desde Salón.
       router.push(
         operatorMode
           ? staffServeHref
@@ -1375,14 +1381,25 @@ export function PayClient({
             </>
           )}
         {kushkiReady && enabledMethods.includes("kushki_card_terminal") && kushkiTerminalAvailable && (
-          <PayButton currency={currency}
-            kind="terminal"
-            disabled={chargeDisabled}
-            busy={busy === "kushki_card_terminal"}
-            onClick={payWithTerminal}
-            amountCents={amountCents}
-            operatorMode={operatorMode}
-          />
+          <div className="space-y-2">
+            <PayButton currency={currency}
+              kind="terminal"
+              disabled={chargeDisabled || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
+              busy={busy === "kushki_card_terminal"}
+              onClick={payWithTerminal}
+              amountCents={amountCents}
+              operatorMode={operatorMode}
+            />
+            {operatorMode && (
+              <TerminalPicker
+                variant="pay"
+                devices={terminalDevices}
+                selectedId={terminalChoice.selected?.id ?? null}
+                onChoose={terminalChoice.choose}
+                disabled={busy !== null}
+              />
+            )}
+          </div>
         )}
         {kushkiReady &&
           enabledMethods.includes("kushki_card") &&
@@ -1471,12 +1488,21 @@ export function PayClient({
                 without having to activate pagos para el restaurante. */}
             <PayButton currency={currency}
               kind="demo_terminal"
-              disabled={chargeDisabled}
+              disabled={chargeDisabled || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
               busy={busy === "kushki_card_terminal"}
               onClick={payWithTerminal}
               operatorMode={operatorMode}
               amountCents={amountCents}
             />
+            {operatorMode && (
+              <TerminalPicker
+                variant="pay"
+                devices={terminalDevices}
+                selectedId={terminalChoice.selected?.id ?? null}
+                onChoose={terminalChoice.choose}
+                disabled={busy !== null}
+              />
+            )}
             <p className="text-[11px] text-muted-2 text-center pt-1">
               {operatorMode ? t("demoHintOp") : t("demoHintDiner")}
             </p>

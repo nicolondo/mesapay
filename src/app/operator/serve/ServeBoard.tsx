@@ -15,6 +15,7 @@ import { PlacedByLine } from "@/components/PlacedByLine";
 import { CashSettleModal } from "@/components/payments/CashSettleModal";
 import { useApiError } from "@/lib/useApiError";
 import { TerminalResolveAction } from "@/components/payments/TerminalResolveAction";
+import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 
 type InvoiceAfterSettle = { orderId: string; paid: boolean; invoiceId: string | null };
 
@@ -127,7 +128,7 @@ export function ServeBoard({
   waiterCalls,
   cancelledPending,
   terminalPending,
-  device,
+  devices,
   chargeLocked,
   canResolveTerminal = false,
   staffPrint = null,
@@ -139,7 +140,9 @@ export function ServeBoard({
   waiterCalls: WaiterCall[];
   cancelledPending: CancelledPending[];
   terminalPending: TerminalPending[];
-  device: { id: string; label: string } | null;
+  // Datáfonos Kushki del comercio a los que se puede mandar un cobro (ver
+  // usableTerminalDevices). Con varios, quien cobra elige a cuál.
+  devices: { id: string; label: string }[];
   // "Solo el administrador cobra" activo y quien mira es un mesero:
   // escondemos TODAS las acciones de cobro del Salón (efectivo y
   // datáfono). El servidor las bloquea igual — esto evita que el mesero
@@ -153,6 +156,9 @@ export function ServeBoard({
   const tr = useTranslations("serve");
   const router = useRouter();
   const [, startTx] = useTransition();
+  // A qué datáfono va el cobro: el único, o el último elegido en este
+  // aparato (compartido por todas las tarjetas del Salón).
+  const terminalChoice = useTerminalChoice(devices, tenantSlug);
   const [pendingServed, setPendingServed] = useState<Set<string>>(new Set());
   const [settlingId, setSettlingId] = useState<string | null>(null);
   // Tras confirmar un cobro con datáfono del comercio en Salón, ofrecer la
@@ -411,7 +417,9 @@ export function ServeBoard({
                 pending={p}
                 serviceMode={serviceMode}
                 tenantSlug={tenantSlug}
-                device={device}
+                devices={devices}
+                chosenDevice={terminalChoice.selected}
+                onChooseDevice={terminalChoice.choose}
                 chargeLocked={chargeLocked}
                 canResolve={canResolveTerminal}
                 busy={chargingPaymentId === p.id}
@@ -667,7 +675,9 @@ function TerminalPendingCard({
   pending,
   serviceMode,
   tenantSlug,
-  device,
+  devices,
+  chosenDevice,
+  onChooseDevice,
   chargeLocked,
   canResolve,
   busy,
@@ -678,7 +688,10 @@ function TerminalPendingCard({
   pending: TerminalPending;
   serviceMode: "table" | "counter";
   tenantSlug: string;
-  device: { id: string; label: string } | null;
+  devices: { id: string; label: string }[];
+  // El datáfono elegido (el único, o el último elegido en este aparato).
+  chosenDevice: { id: string; label: string } | null;
+  onChooseDevice: (deviceId: string) => void;
   chargeLocked: boolean;
   canResolve: boolean;
   busy: boolean;
@@ -706,8 +719,9 @@ function TerminalPendingCard({
         });
 
   async function charge() {
+    const device = chosenDevice;
     if (!device) {
-      setErr(tr("terminalNoDevice"));
+      setErr(devices.length === 0 ? tr("terminalNoDevice") : tr("terminalPickFirst"));
       return;
     }
     onBusyChange(pending.id);
@@ -822,7 +836,7 @@ function TerminalPendingCard({
           ? tr("terminalSwipeExternal")
           : sentToDevice
             ? tr("terminalSentWaiting")
-            : device
+            : devices.length > 0
               ? tr("terminalBringDevice")
               : tr("terminalNoDeviceHint")}
       </div>
@@ -872,11 +886,17 @@ function TerminalPendingCard({
         </div>
       ) : sentToDevice ? null : (
         <div className="mt-3 flex flex-col gap-2">
-          {device && (
+          <TerminalPicker
+            devices={devices}
+            selectedId={chosenDevice?.id ?? null}
+            onChoose={onChooseDevice}
+            disabled={busy}
+          />
+          {devices.length > 0 && (
             <button
               type="button"
               onClick={charge}
-              disabled={busy}
+              disabled={busy || !chosenDevice}
               className="h-10 rounded-full bg-terracotta text-bone font-medium text-sm disabled:opacity-60"
             >
               {busy && !cancelling

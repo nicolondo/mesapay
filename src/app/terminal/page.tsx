@@ -5,6 +5,7 @@ import { getActiveContext } from "@/lib/activeRestaurant";
 import { computeOrderTotals } from "@/lib/orderTotals";
 import { isCashMethod } from "@/lib/payments/methods";
 import { TerminalGrid } from "./TerminalGrid";
+import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 
 export const dynamic = "force-dynamic";
 
@@ -55,14 +56,9 @@ export default async function TerminalPage() {
     },
   });
 
-  const devices = await db.terminalDevice.findMany({
-    where: { restaurantId: tenant.id, active: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  // Pick the device this session is bound to. For now we pick the first
-  // active one — in Phase 8 we'll let an admin pin a device per user.
-  const device = devices[0] ?? null;
+  // Los datáfonos del comercio a los que se puede mandar un cobro ahora.
+  // Antes se usaba siempre el primero; con varios, quien cobra elige.
+  const { devices } = await usableTerminalDevices(tenant);
 
   const cards = tables.map((t) => {
     const order = t.orders[0] ?? null;
@@ -211,7 +207,7 @@ export default async function TerminalPage() {
       tenantSlug={tenant.slug}
       tenantName={tenant.name}
       tables={cards}
-      device={device ? { id: device.kushkiDeviceId, label: device.label } : null}
+      devices={devices}
     />
   );
 }

@@ -55,13 +55,56 @@ export type KushkiTerminalUnavailableReason =
   | "mock_payments_disabled"
   | "no_device";
 
+/**
+ * Un datáfono al que se le puede mandar un cobro, como lo necesita la
+ * pantalla. Los datáfonos son del COMERCIO, no de un mesero: cualquiera del
+ * equipo cobra con cualquiera (el que tenga en la mano).
+ */
+export type TerminalDeviceOption = {
+  /** `TerminalDevice.kushkiDeviceId`: lo que `terminal/charge` espera en `deviceId`. */
+  id: string;
+  label: string;
+};
+
+/**
+ * Los datáfonos del comercio que `terminal/charge` aceptaría AHORA: activos
+ * y, con datáfono real, con serial; y sólo si la configuración deja cobrar
+ * (Business-Code con datáfono real, nunca el mock en producción). En el
+ * orden en que se registraron, para que la lista no baile.
+ *
+ * No mira si el método está habilitado: una solicitud que ya existe se puede
+ * seguir empujando desde Salón. Para ofrecer el método, `kushkiTerminalAvailability`.
+ */
+export async function usableTerminalDevices(tenant: TerminalTenant): Promise<{
+  devices: TerminalDeviceOption[];
+  reason: Exclude<KushkiTerminalUnavailableReason, "method_disabled" | "no_device"> | null;
+}> {
+  const { businessCode, useRealTerminal } = await kushkiTerminalSetup(tenant);
+  if (useRealTerminal && !businessCode) return { devices: [], reason: "cloud_business_code_missing" };
+  if (!useRealTerminal && process.env.NODE_ENV === "production") {
+    return { devices: [], reason: "mock_payments_disabled" };
+  }
+  const rows = await db.terminalDevice.findMany({
+    where: { restaurantId: tenant.id, active: true },
+    orderBy: { createdAt: "asc" },
+    select: { kushkiDeviceId: true, label: true, active: true, serialNumber: true },
+  });
+  return {
+    devices: rows
+      .filter((d) => terminalDeviceUsable(d, useRealTerminal))
+      .map((d) => ({ id: d.kushkiDeviceId, label: d.label })),
+    reason: null,
+  };
+}
+
 export type KushkiTerminalAvailability =
-  | { available: true }
+  | { available: true; devices: TerminalDeviceOption[] }
   | { available: false; reason: KushkiTerminalUnavailableReason };
 
 /**
  * ¿Se puede ofrecer (y pedir) el datáfono Kushki? Además de lo que exige
  * `terminal/charge`, el método tiene que estar habilitado en el comercio.
+ * Si se puede, trae los datáfonos disponibles para elegir al cobrar.
  */
 export async function kushkiTerminalAvailability(
   tenant: TerminalTenant & { enabledPaymentMethods?: unknown },
@@ -69,17 +112,8 @@ export async function kushkiTerminalAvailability(
   if (!resolveEnabledPaymentMethods(tenant.enabledPaymentMethods).includes("kushki_card_terminal")) {
     return { available: false, reason: "method_disabled" };
   }
-  const { businessCode, useRealTerminal } = await kushkiTerminalSetup(tenant);
-  if (useRealTerminal && !businessCode) return { available: false, reason: "cloud_business_code_missing" };
-  if (!useRealTerminal && process.env.NODE_ENV === "production") {
-    return { available: false, reason: "mock_payments_disabled" };
-  }
-  const devices = await db.terminalDevice.findMany({
-    where: { restaurantId: tenant.id, active: true },
-    select: { active: true, serialNumber: true },
-  });
-  if (!devices.some((d) => terminalDeviceUsable(d, useRealTerminal))) {
-    return { available: false, reason: "no_device" };
-  }
-  return { available: true };
+  const { devices, reason } = await usableTerminalDevices(tenant);
+  if (reason) return { available: false, reason };
+  if (devices.length === 0) return { available: false, reason: "no_device" };
+  return { available: true, devices };
 }

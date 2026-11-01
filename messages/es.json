@@ -4936,7 +4936,8 @@
     "saving": "Guardando…",
     "errorSave": "No se pudo guardar.",
     "seededInfo": "{count} ciudades sembradas.",
-    "citiesCount": "{count} ciudades"
+    "citiesCount": "{count} ciudades",
+    "datasetAvailable": "{count} disponibles"
   },
   "crm": {
     "phonePrefixLabel": "Prefijo de país",

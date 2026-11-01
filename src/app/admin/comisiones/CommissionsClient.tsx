@@ -310,14 +310,14 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
     <div>
       {/* ── Comerciales management section ────────────────────────────────── */}
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
             {t("mgmtTitle")}
           </div>
           <button
             type="button"
             onClick={() => { setShowNewRep((v) => !v); setRepErr(null); setRepOk(false); }}
-            className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium"
+            className="h-7 px-3 rounded-full bg-ink text-bone text-[11px] font-medium shrink-0"
           >
             {showNewRep ? t("newRepClose") : t("newRepCreate")}
           </button>
@@ -357,7 +357,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
         {/* Edit form (inline, shown below table when editing) */}
         {editingRep && (
           <div className="pt-3 border-t border-op-border space-y-3 mb-4">
-            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted break-words">
               {t("mgmtEditTitle")} — {editingRep.email}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -449,15 +449,17 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
       </div>
 
       {/* ── Filters ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div>
+      {/* Móvil: filtros apilados a todo el ancho (controles de 40 px); en
+          sm+ la fila original con anchos automáticos y 36 px de alto. */}
+      <div className="grid grid-cols-1 gap-3 mb-4 sm:flex sm:flex-wrap">
+        <div className="min-w-0">
           <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("filterStatus")}
           </label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta"
+            className="h-10 sm:h-9 w-full sm:w-auto px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta"
           >
             <option value="">{t("filterAll")}</option>
             <option value="pending">{t("filterPending")}</option>
@@ -466,14 +468,14 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("filterRep")}
           </label>
           <select
             value={repId}
             onChange={(e) => setRepId(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta"
+            className="h-10 sm:h-9 w-full sm:w-auto px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta"
           >
             <option value="">{t("filterAllReps")}</option>
             {comercialesForFilter.map((rep) => (
@@ -484,7 +486,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label className="block font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("filterMonth")}
           </label>
@@ -492,7 +494,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta font-mono"
+            className="h-10 sm:h-9 w-full sm:w-auto px-3 rounded-lg border border-op-border bg-op-surface text-sm focus:outline-none focus:border-terracotta font-mono"
           />
         </div>
       </div>
@@ -511,7 +513,7 @@ export function CommissionsClient({ comerciales: initialComerciales }: { comerci
 
       {/* Action buttons */}
       {anySelected && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           {pendingSelected.length > 0 && (
             <button
               type="button"

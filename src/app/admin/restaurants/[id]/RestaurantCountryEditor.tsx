@@ -66,7 +66,7 @@ export function RestaurantCountryEditor({
           value={code}
           onChange={(e) => setCode(e.target.value)}
           disabled={busy}
-          className="h-9 rounded-lg border border-op-border bg-op-bg px-2 text-sm focus:outline-none focus:border-terracotta"
+          className="h-9 max-w-full min-w-0 rounded-lg border border-op-border bg-op-bg px-2 text-sm focus:outline-none focus:border-terracotta"
         >
           <option value="">{t("countryNone")}</option>
           {options.map((o) => (

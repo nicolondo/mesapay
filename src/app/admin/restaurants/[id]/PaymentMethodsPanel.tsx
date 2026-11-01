@@ -120,11 +120,13 @@ export function PaymentMethodsPanel({
         })}
       </ul>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      {/* Móvil: la nota de ayuda arriba y el botón debajo; en una fila la
+          nota de tres líneas apretaba el botón contra el borde. */}
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[11px] text-op-muted">
           {t("paymentMethodsHint")}
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 sm:shrink-0">
           {msg && (
             <span
               className={

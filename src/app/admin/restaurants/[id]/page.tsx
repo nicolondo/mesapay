@@ -182,7 +182,10 @@ export default async function RestaurantDetail({
         {t("detailBack")}
       </Link>
 
-      <div className="flex items-start justify-between mt-4 mb-6 gap-3">
+      {/* Móvil: cabecera apilada (nombre + país arriba, botón "Entrar como
+          operador" debajo a todo el ancho). Al lado del botón el nombre a
+          3xl quedaba en ~170 px y se partía en 2-3 líneas. */}
+      <div className="flex flex-col gap-4 mt-4 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
           <RestaurantNameEditor
             restaurantId={rest.id}
@@ -200,17 +203,19 @@ export default async function RestaurantDetail({
             options={enabledCountries}
           />
         </div>
-        <form action={impersonate}>
+        <form action={impersonate} className="sm:shrink-0">
           <button
             type="submit"
-            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium"
+            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium w-full sm:w-auto"
           >
             {t("enterAsOperator")}
           </button>
         </form>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      {/* 5 tarjetas en 2 columnas dejan una huérfana: la última ocupa las
+          dos columnas en móvil para que la grilla cierre pareja. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
         <Stat label={t("colOperators")} value={operators.length} />
         <Stat label={t("statCategories")} value={counts?._count.categories ?? 0} />
         <Stat label={t("statDishes")} value={counts?._count.menuItems ?? 0} />
@@ -221,8 +226,11 @@ export default async function RestaurantDetail({
       <div className="rounded-2xl border border-op-border bg-op-surface mb-4 overflow-hidden">
         {/* Section 1 — plan + estado del periodo */}
         <div className="p-5">
-          <div className="flex items-start justify-between mb-5">
-            <div>
+          {/* Plan + precio a la izquierda, pastilla de estado + Suspender a
+              la derecha. Sin gap ni wrap, en 390 px el título a 2xl y los
+              dos controles competían por el ancho; ahora se apilan. */}
+          <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
                 {t("planAndBilling")}
               </div>
@@ -236,7 +244,7 @@ export default async function RestaurantDetail({
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:shrink-0">
               <StatusPill status={status} t={t} />
               <SuspendButton restaurantId={id} suspended={rest.suspended} />
             </div>
@@ -374,7 +382,7 @@ export default async function RestaurantDetail({
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
               {t("paymentsCardTitle")}
             </div>
@@ -388,7 +396,7 @@ export default async function RestaurantDetail({
           </div>
           <Link
             href={`/admin/restaurants/${id}/pagos`}
-            className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center"
+            className="h-9 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
           >
             {t("viewDetails")}
           </Link>
@@ -412,7 +420,7 @@ export default async function RestaurantDetail({
 
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 mb-4">
         <div className="flex items-start justify-between gap-4 mb-2">
-          <div>
+          <div className="min-w-0">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
               {t("pickupTitle")}
             </div>
@@ -529,9 +537,9 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between py-1.5 text-sm border-t border-op-border first:border-t-0">
+    <div className="flex justify-between gap-3 py-1.5 text-sm border-t border-op-border first:border-t-0">
       <div className="text-op-muted">{label}</div>
-      <div>{children}</div>
+      <div className="text-right">{children}</div>
     </div>
   );
 }

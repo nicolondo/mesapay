@@ -167,7 +167,11 @@ export function DangerZonePanel({
           {msg && msg.kind === "error" && (
             <div className="text-xs text-danger">{msg.text}</div>
           )}
-          <div className="flex items-center justify-end gap-3">
+          {/* Móvil: botones apilados a todo el ancho con la acción
+              destructiva arriba (flex-col-reverse conserva el orden DOM
+              Cancelar → Borrar para el teclado). En fila no cabían en los
+              ~286 px de la caja. */}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
             <button
               type="button"
               onClick={() => {
@@ -176,7 +180,7 @@ export function DangerZonePanel({
                 setMsg(null);
               }}
               disabled={busy}
-              className="mp-btn mp-btn--secondary mp-btn--sm"
+              className="mp-btn mp-btn--secondary mp-btn--sm w-full sm:w-auto"
             >
               {t("resetCancel")}
             </button>
@@ -184,7 +188,7 @@ export function DangerZonePanel({
               type="button"
               onClick={run}
               disabled={busy || slugInput.trim() !== slug}
-              className="mp-btn mp-btn--danger-solid mp-btn--sm"
+              className="mp-btn mp-btn--danger-solid mp-btn--sm w-full sm:w-auto"
             >
               {busy ? t("resetBusy") : t("resetConfirmCta")}
             </button>

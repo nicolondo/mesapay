@@ -85,7 +85,7 @@ export default async function NewRestaurantPage({
   const countryCodes = enabledCountries.map((c) => c.code);
 
   return (
-    <div className="flex-1 p-6 max-w-2xl mx-auto w-full">
+    <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full">
       <Link
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
@@ -103,7 +103,7 @@ export default async function NewRestaurantPage({
 
       <form
         action={submit}
-        className="bg-op-surface border border-op-border rounded-2xl p-6 space-y-4"
+        className="bg-op-surface border border-op-border rounded-2xl p-4 sm:p-6 space-y-4"
       >
         <Field
           label={t("fieldRestaurantName")}

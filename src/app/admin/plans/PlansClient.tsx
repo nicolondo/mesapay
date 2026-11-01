@@ -166,7 +166,9 @@ function PlanCard({
           label={t("fieldPrice")}
           hint={t("priceHint")}
         >
-          <div className="flex items-center gap-2">
+          {/* Móvil: el "≈ $… / mes" baja a su propia línea (basis-full);
+              junto al input de 160 px y los sufijos no cabía en 318 px. */}
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-op-muted text-sm">{"$"}</span>
             <MoneyInput
               value={priceCop}
@@ -174,7 +176,7 @@ function PlanCard({
               className="h-10 w-40 px-3 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular focus:outline-none focus:border-terracotta"
             />
             <span className="text-op-muted text-xs">{t("perMonthSuffix")}</span>
-            <span className="text-op-muted text-xs ml-auto">
+            <span className="text-op-muted text-xs basis-full sm:basis-auto sm:ml-auto">
               {t("perMonthApprox", {
                 price: fmtCOP(Math.round(Number(priceCop) * 100) || 0),
               })}
@@ -221,7 +223,7 @@ function PlanCard({
           </ul>
         </Field>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
           {msg && (
             <span
               className={

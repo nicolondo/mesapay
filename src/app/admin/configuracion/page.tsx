@@ -49,7 +49,7 @@ export default async function AdminConfiguracionPage() {
   }));
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("configTitle")}</div>
       <p className="text-sm text-op-muted mb-6">
         {t("configIntro")}

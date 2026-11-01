@@ -116,14 +116,17 @@ export default async function RestaurantsAdmin({
 
   return (
     <div className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
-      <div className="flex items-baseline justify-between gap-3 mb-6 flex-wrap">
+      {/* Móvil: título arriba y la fila de acciones debajo a todo el ancho
+          (enlace a la izquierda, botón a la derecha). En sm+ vuelve a la
+          fila única con baseline compartida. */}
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <div className="font-display text-2xl md:text-3xl">{t("restaurantsTitle")}</div>
           <div className="text-sm text-op-muted mt-1">
             {t("accountsInPlatform", { count: restaurants.length })}
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center justify-between gap-3 sm:justify-end sm:shrink-0">
           <Link
             href="/admin/restaurants/eliminados"
             className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
@@ -149,19 +152,24 @@ export default async function RestaurantsAdmin({
         </div>
       )}
 
+      {/* Cada filtro es un <label> en columna (etiqueta ARRIBA del
+          control). Antes era label.block + select inline-block y en el
+          celular la etiqueta "Filtrar por país" quedaba pegada al lado
+          del selector. En móvil los filtros se apilan a todo el ancho y
+          los dos botones comparten una fila; en md+ todo en una fila. */}
       {(countryOptions.length > 0 || cityOptions.length > 0) && (
         <form
           method="GET"
-          className="mb-4 flex flex-wrap items-end gap-3 rounded-2xl border border-op-border bg-op-surface p-3"
+          className="mb-4 flex flex-col gap-3 rounded-2xl border border-op-border bg-op-surface p-3 md:flex-row md:flex-wrap md:items-end"
         >
-          <label className="block">
+          <label className="flex flex-col gap-1 w-full md:w-auto">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
               {tl("filterCountry")}
             </span>
             <select
               name="country"
               defaultValue={country ?? ""}
-              className="mt-1 h-10 rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+              className="h-10 w-full md:w-auto rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
             >
               <option value="">{tl("allCountries")}</option>
               {countryOptions.map((c) => (
@@ -171,14 +179,14 @@ export default async function RestaurantsAdmin({
               ))}
             </select>
           </label>
-          <label className="block">
+          <label className="flex flex-col gap-1 w-full md:w-auto">
             <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
               {tl("filterCity")}
             </span>
             <select
               name="city"
               defaultValue={city ?? ""}
-              className="mt-1 h-10 rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+              className="h-10 w-full md:w-auto rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
             >
               <option value="">{tl("allCities")}</option>
               {cityOptions.map((c) => (
@@ -188,20 +196,22 @@ export default async function RestaurantsAdmin({
               ))}
             </select>
           </label>
-          <button
-            type="submit"
-            className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium"
-          >
-            {t("filters")}
-          </button>
-          {(country || city) && (
-            <Link
-              href="/admin/restaurants"
-              className="h-10 px-4 rounded-lg border border-op-border text-sm inline-flex items-center"
+          <div className="flex gap-2 w-full md:w-auto md:gap-3">
+            <button
+              type="submit"
+              className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium flex-1 md:flex-none"
             >
-              {t("clearFilters")}
-            </Link>
-          )}
+              {t("filters")}
+            </button>
+            {(country || city) && (
+              <Link
+                href="/admin/restaurants"
+                className="h-10 px-4 rounded-lg border border-op-border text-sm inline-flex items-center justify-center flex-1 md:flex-none"
+              >
+                {t("clearFilters")}
+              </Link>
+            )}
+          </div>
         </form>
       )}
 
@@ -245,17 +255,19 @@ export default async function RestaurantsAdmin({
                   href={`/admin/restaurants/${r.id}`}
                   className="block rounded-2xl border border-op-border bg-op-surface p-4 active:scale-[0.99] transition-transform"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="min-w-0">
-                      <div className="font-display text-lg leading-tight truncate">
-                        {r.name}
-                      </div>
-                      <div className="font-mono text-[11px] text-op-muted">
-                        /{r.slug}
-                      </div>
+                  {/* Nombre a todo el ancho y los badges (plan · estado de
+                      membresía · estado de uso) en una fila con wrap debajo.
+                      Antes iban en una columna a la derecha que le robaba
+                      ancho al nombre y se apilaba de forma torpe. */}
+                  <div className="mb-3">
+                    <div className="font-display text-lg leading-tight truncate">
+                      {r.name}
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <MembershipPill status={membership} plan={r.plan} t={t} />
+                    <div className="font-mono text-[11px] text-op-muted truncate">
+                      /{r.slug}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <MembershipPill status={membership} plan={r.plan} t={t} inline />
                       <StatePill state={state} t={t} />
                     </div>
                   </div>
@@ -460,10 +472,13 @@ function MembershipPill({
   status,
   plan,
   t,
+  inline,
 }: {
   status: MembershipStatus;
   plan: "trial" | "basic" | "pro";
   t: Translate;
+  /** Tarjeta móvil: plan y estado en fila (la tabla los apila). */
+  inline?: boolean;
 }) {
   const planLabel: Record<"trial" | "basic" | "pro", string> = {
     trial: t("planTrial"),
@@ -478,7 +493,11 @@ function MembershipPill({
     suspendido: "bg-ink/80 text-bone border-ink",
   };
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className={
+        inline ? "flex flex-wrap items-center gap-1.5" : "flex flex-col gap-1"
+      }
+    >
       <span className="font-mono text-[11px]">{planLabel[plan]}</span>
       <span
         className={

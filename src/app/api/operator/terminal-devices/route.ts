@@ -53,7 +53,6 @@ async function POSTHandler(req: Request) {
       kushkiDeviceId: true,
       serialNumber: true,
       active: true,
-      assignedUserId: true,
       lastSeenAt: true,
     },
   });

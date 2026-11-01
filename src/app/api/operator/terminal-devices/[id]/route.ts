@@ -16,9 +16,9 @@ const patchSchema = z.object({
     .nullable()
     .optional()
     .transform((v) => (v ? v : v === "" ? null : v)),
-  // null = unassign (the device becomes shared / available for anyone
-  // to push from Salón). string = assigned to that mesero.
-  assignedUserId: z.string().min(1).nullable().optional(),
+  // (Ya no hay "mesero asignado": los datáfonos son del comercio y quien
+  // cobra elige a cuál mandar el cobro. Un `assignedUserId` en el body se
+  // ignora; la columna queda sin uso.)
 });
 
 function guard(role?: string) {
@@ -26,10 +26,9 @@ function guard(role?: string) {
 }
 
 /**
- * Operator-managed config for a TerminalDevice. Lets the restaurant
- * tie a Smart POS to a specific mesero so that when the mesero hits
- * "Cobrar con datáfono" the system already knows which device to push
- * to — no Salón roundtrip needed.
+ * Configuración de un datáfono del comercio (Configuración → Datáfonos):
+ * nombre, activo y serial. El datáfono es del COMERCIO: cualquiera del
+ * equipo cobra con él y elige a cuál mandar el cobro al cobrar.
  */
 async function PATCHHandler(
   req: Request,
@@ -56,25 +55,6 @@ async function PATCHHandler(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  // If reassigning to a user, validate that user belongs to this
-  // restaurant AND has a role that can actually use a datáfono.
-  if (parsed.data.assignedUserId) {
-    const user = await db.user.findUnique({
-      where: { id: parsed.data.assignedUserId },
-      select: { id: true, role: true, restaurantId: true },
-    });
-    if (
-      !user ||
-      user.restaurantId !== restaurantId ||
-      !["mesero", "operator", "terminal"].includes(user.role)
-    ) {
-      return NextResponse.json(
-        { error: "invalid_user" },
-        { status: 400 },
-      );
-    }
-  }
-
   const updated = await db.terminalDevice.update({
     where: { id },
     data: {
@@ -83,16 +63,12 @@ async function PATCHHandler(
       ...(parsed.data.serialNumber !== undefined && {
         serialNumber: parsed.data.serialNumber,
       }),
-      ...(parsed.data.assignedUserId !== undefined && {
-        assignedUserId: parsed.data.assignedUserId,
-      }),
     },
     select: {
       id: true,
       label: true,
       active: true,
       serialNumber: true,
-      assignedUserId: true,
     },
   });
 

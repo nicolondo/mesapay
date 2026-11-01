@@ -148,27 +148,30 @@
     },
     {
       "slug": "datafonos",
-      "title": "Configure as maquininhas e atribua aos garçons",
-      "summary": "Cadastre suas maquininhas Kushki, atribua cada uma ao garçom que a leva para a cobrança chegar direto nele e conheça a tela do usuário Maquininha.",
+      "title": "Configure as maquininhas do estabelecimento",
+      "summary": "Cadastre suas maquininhas Kushki com o número de série e o Business-Code. Elas são do estabelecimento: ao cobrar, quem cobra escolhe para qual enviar a cobrança. E a tela do usuário Maquininha.",
       "keywords": [
         "maquininha",
         "datáfono",
         "Kushki",
         "Smart POS",
         "terminal",
-        "código do comércio",
         "serial",
-        "atribuir maquininha",
-        "garçom atribuído",
         "mesas ao vivo",
         "usuário maquininha",
         "maquininha própria",
-        "cobrar no cartão"
+        "cobrar no cartão",
+        "business code",
+        "business-code",
+        "escolher maquininha",
+        "qual maquininha",
+        "várias maquininhas",
+        "merchant id"
       ],
       "audience": [
         "operator"
       ],
-      "body": "Se o seu restaurante cobra com maquininhas Kushki, em Maquininhas você as cadastra e atribui cada uma ao garçom que a leva. Assim, quando esse garçom cobra na maquininha pelo app, o valor vai direto para o aparelho dele.\n\nO cartão **Maquininhas** aparece em Configurações só quando seu comércio tem ativa a cobrança com maquininha Kushki. Esse meio de pagamento é ativado pelo MESAPAY.\n\n## Configurar as maquininhas\n\n1. Entre em [Configurações › Maquininhas](/operator/settings/datafonos).\n2. Em **Código do comércio**, escreva o código que o fornecedor da maquininha entregou ao ativá-la e toque em **Salvar**.\n3. Em **Adicionar datáfono**, escreva um nome (por exemplo, «Caixa 1») e o serial do aparelho, e toque em **Adicionar**.\n4. Em cada maquininha, escolha o **Garçom atribuído**.\n\nO serial pode ser corrigido depois em **Serial do datáfono**; é salvo ao sair do campo.\n\n## Atribuída ou sem atribuição\n\n- **Com garçom atribuído**: quando esse garçom cobra na maquininha, o valor vai direto para o aparelho dele, sem passar pelo Salão.\n- **Sem atribuição (qualquer um pode usar)**: a cobrança fica no [Salão](/operator/serve), em **Pediu maquininha**. Quem leva a maquininha à mesa toca no botão **Cobrar** com o valor, e a cobrança vai para a primeira maquininha ativa da lista.\n\nToque em **Ativo** ou **Inativo** para tirar uma maquininha de uso sem apagá-la.\n\n## O usuário Maquininha\n\nSe uma pessoa cuida de cobrar na maquininha (no caixa, por exemplo), crie para ela um usuário com perfil **Maquininha** em [Usuários](/operator/settings/usuarios). Ao entrar, ela vê **Mesas ao vivo**: todas as mesas com o estado e as que pediram maquininha (**📱 Pediu maquininha**) ou dinheiro (**💵 Pediu dinheiro**). Dali ela cobra na maquininha ou confirma o dinheiro recebido.\n\n## Maquininha própria do estabelecimento\n\nSe você cobra com a maquininha de outro fornecedor, não há nada para configurar aqui: você passa o cartão na sua maquininha e depois marca o resultado, **Aprovado** ou **Recusado**, no Salão. Esse meio de pagamento também é ativado pelo MESAPAY.\n\n## Casos frequentes\n\n- **Não vejo o cartão Maquininhas**: seu comércio não tem ativa a cobrança com maquininha Kushki. Escreva para o suporte.\n- **\"Não há maquininha ativa registrada\"**: nenhuma maquininha está marcada como **Ativo**. Adicione uma ou ative.\n- **\"Ainda não há maquininhas vinculadas ao comércio\"**: adicione a primeira com **Adicionar datáfono**.",
+      "body": "As maquininhas Kushki são do estabelecimento, não de um garçom: qualquer pessoa da equipe cobra com qualquer uma. Em Maquininhas você as cadastra com o número de série e salva o Business-Code que a Kushki entrega para elas. Ao cobrar, se houver mais de uma disponível, quem cobra escolhe para qual enviar a cobrança.\n\nO cartão **Maquininhas** aparece em Configurações só quando seu comércio tem ativa a cobrança com maquininha Kushki. Esse meio de pagamento é ativado pelo MESAPAY.\n\n## Configurar as maquininhas\n\n1. Entre em [Configurações › Maquininhas](/operator/settings/datafonos).\n2. Em **Business-Code do Cloud Terminal**, cole o Business-Code que a Kushki entrega para a maquininha e toque em **Salvar**. Ele fica salvo e aparece só com os últimos 4 caracteres (**Salvo: ••••…**).\n3. Em **Adicionar datáfono**, escreva um nome (por exemplo, «Caixa 1») e o serial do aparelho, e toque em **Adicionar**.\n\nO serial pode ser corrigido depois em **Serial do datáfono**; é salvo ao sair do campo. Toque em **Ativo** ou **Inativo** para tirar uma maquininha de uso sem apagá-la.\n\n> ⚠ O Business-Code NÃO é o Merchant ID nem a chave pública da Kushki. Se você colar um desses, o MESAPAY não o salva e avisa: com eles, a Kushki recusa todas as cobranças na validação.\n\nPara trocar o Business-Code, escreva um novo por cima e toque em **Salvar**. **Apagar** o remove, e a maquininha deixa de cobrar até você salvar outro.\n\n## Escolher a maquininha ao cobrar\n\nUma maquininha está disponível quando está **Ativo**, tem o número de série e o estabelecimento tem Business-Code.\n\n- **Com uma só maquininha disponível**, a cobrança vai direto para ela, sem passar pelo Salão.\n- **Com duas ou mais**, aparece **Para qual maquininha?** com os nomes. Toque na que está na sua mão. Cada celular ou tablet lembra a última escolhida e a deixa marcada para a próxima cobrança; troca-se com um toque.\n\nIsso vale na tela de cobrança, nos cartões do [Salão](/operator/serve) (**Pediu maquininha**) e em **Mesas ao vivo**. Se a cobrança estiver reservada ao administrador, o garçom não pode enviar cobranças à maquininha.\n\n## O usuário Maquininha\n\nSe uma pessoa cuida de cobrar na maquininha (no caixa, por exemplo), crie para ela um usuário com perfil **Maquininha** em [Usuários](/operator/settings/usuarios). Ao entrar, ela vê **Mesas ao vivo**: todas as mesas com o estado e as que pediram maquininha (**📱 Pediu maquininha**) ou dinheiro (**💵 Pediu dinheiro**). Dali ela cobra na maquininha ou confirma o dinheiro recebido.\n\n## Maquininha própria do estabelecimento\n\nSe você cobra com a maquininha de outro fornecedor, não há nada para configurar aqui: você passa o cartão na sua maquininha e depois marca o resultado, **Aprovado** ou **Recusado**, no Salão. Esse meio de pagamento também é ativado pelo MESAPAY.\n\n## Casos frequentes\n\n- **Não vejo o cartão Maquininhas**: seu comércio não tem ativa a cobrança com maquininha Kushki. Escreva para o suporte.\n- **\"Não há maquininha ativa registrada\"**: nenhuma maquininha está **Ativo** com número de série. Adicione uma ou ative.\n- **\"Ainda não há maquininhas\"**: adicione a primeira com **Adicionar datáfono**.\n- **\"Esse é o Merchant ID da Kushki, não o Business-Code da maquininha\"**: você colou outra credencial da Kushki. Peça à Kushki o Business-Code do Cloud Terminal.\n- **\"Sem código próprio: as cobranças usam o da plataforma\"**: seu estabelecimento não tem Business-Code próprio e as cobranças usam o do MESAPAY. Se a Kushki entregou um para a sua maquininha, salve-o.\n- **\"A Kushki recusou a solicitação na validação…\"** ao cobrar: confira o Business-Code e o número de série do equipamento. Veja [Cobre na maquininha](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).",
       "links": [
         {
           "label": "Ir para Maquininhas",

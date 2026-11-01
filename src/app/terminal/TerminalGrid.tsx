@@ -10,6 +10,7 @@ import { fmtCOP } from "@/lib/format";
 import { isCashMethod } from "@/lib/payments/methods";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useApiError } from "@/lib/useApiError";
+import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 
 export type TableState =
   | "free"
@@ -74,17 +75,20 @@ export function TerminalGrid({
   tenantSlug,
   tenantName,
   tables,
-  device,
+  devices,
 }: {
   tenantSlug: string;
   tenantName: string;
   tables: TableCard[];
-  device: { id: string; label: string } | null;
+  // Datáfonos del comercio disponibles; con varios, se elige al cobrar.
+  devices: { id: string; label: string }[];
 }) {
   const tr = useTranslations("opTerminal");
   const router = useRouter();
   const [, startTx] = useTransition();
   const [openTable, setOpenTable] = useState<TableCard | null>(null);
+  // A qué datáfono va el cobro: el único, o el último elegido en este aparato.
+  const terminalChoice = useTerminalChoice(devices, tenantSlug);
 
   // Live-refresh via SSE. The grid lives or dies on this — once a payment
   // settles via webhook, we want the colour + amount to change without the
@@ -180,7 +184,9 @@ export function TerminalGrid({
         <DetailSheet
           tenantSlug={tenantSlug}
           table={openTable}
-          device={device}
+          devices={devices}
+          chosenDevice={terminalChoice.selected}
+          onChooseDevice={terminalChoice.choose}
           onClose={() => setOpenTable(null)}
           onChargedQueued={() => {
             setOpenTable(null);
@@ -338,13 +344,17 @@ function timeAgo(iso: string, tr: Translator): string {
 function DetailSheet({
   tenantSlug,
   table,
-  device,
+  devices,
+  chosenDevice,
+  onChooseDevice,
   onClose,
   onChargedQueued,
 }: {
   tenantSlug: string;
   table: TableCard;
-  device: { id: string; label: string } | null;
+  devices: { id: string; label: string }[];
+  chosenDevice: { id: string; label: string } | null;
+  onChooseDevice: (deviceId: string) => void;
   onClose: () => void;
   onChargedQueued: () => void;
 }) {
@@ -358,8 +368,9 @@ function DetailSheet({
   const [cashFormFor, setCashFormFor] = useState<string | null>(null);
 
   async function chargeTerminal(paymentId: string) {
+    const device = chosenDevice;
     if (!device) {
-      setErr(tr("noTerminalRegistered"));
+      setErr(devices.length === 0 ? tr("noTerminalRegistered") : tr("pickTerminalFirst"));
       return;
     }
     setBusyPaymentId(paymentId);
@@ -515,10 +526,21 @@ function DetailSheet({
                           )}
 
                         {isTerminal && (
+                          <div className="mt-3">
+                            <TerminalPicker
+                              variant="pay"
+                              devices={devices}
+                              selectedId={chosenDevice?.id ?? null}
+                              onChoose={onChooseDevice}
+                              disabled={!!busyPaymentId}
+                            />
+                          </div>
+                        )}
+                        {isTerminal && (
                           <button
                             type="button"
                             onClick={() => chargeTerminal(p.id)}
-                            disabled={!!busyPaymentId}
+                            disabled={!!busyPaymentId || (devices.length > 1 && !chosenDevice)}
                             className="mt-3 w-full h-11 rounded-full bg-terracotta text-bone font-medium disabled:opacity-60"
                           >
                             {busyPaymentId === p.id

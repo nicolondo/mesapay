@@ -1,4 +1,5 @@
 import { SettingsDirectory, type SettingsItem } from "./SettingsDirectory";
+import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
 import { formatDate } from "@/lib/format";
@@ -38,6 +39,9 @@ export default async function SettingsPage() {
       name: true,
       kushkiMerchantId: true,
       kushkiOnboardingStatus: true,
+      // Para el badge de Datáfonos (mismas reglas que terminal/charge).
+      kushkiMode: true,
+      cloudTerminalBusinessCode: true,
       hasBar: true,
       menuTags: true,
       tipPolicy: true,
@@ -120,11 +124,11 @@ export default async function SettingsPage() {
     where: { restaurantId, prepStation: { not: "kitchen" } },
   });
   const tagCount = resolveMenuTags(tenant.menuTags).length;
-  const [deviceCount, deviceAssigned] = await Promise.all([
+  // Datáfonos del comercio: cuántos hay y cuántos pueden recibir un cobro
+  // ya (activos, con serial y Business-Code). Ya no se asignan a meseros.
+  const [deviceCount, deviceReady] = await Promise.all([
     db.terminalDevice.count({ where: { restaurantId } }),
-    db.terminalDevice.count({
-      where: { restaurantId, assignedUserId: { not: null } },
-    }),
+    usableTerminalDevices({ id: restaurantId, ...tenant }).then((r) => r.devices.length),
   ]);
   const [meseroCount, meserosWithRange, staffCount] = await Promise.all([
     db.user.count({ where: { restaurantId, role: "mesero" } }),
@@ -313,13 +317,8 @@ export default async function SettingsPage() {
       badge:
         deviceCount === 0
           ? t("badgeDevicesEmpty")
-          : deviceAssigned === 0
-            ? t("badgeDevicesUnassigned", { count: deviceCount })
-            : t("badgeDevicesAssigned", {
-                assigned: deviceAssigned,
-                total: deviceCount,
-              }),
-      tint: deviceAssigned > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
+          : t("badgeDevicesReady", { ready: deviceReady, total: deviceCount }),
+      tint: deviceReady > 0 ? "bg-ok/15 text-ok" : "bg-paper text-op-muted",
     },
     {
       href: "/operator/settings/staff-policies",

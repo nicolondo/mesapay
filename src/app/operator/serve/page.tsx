@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { CASH_METHODS, isReplaceablePending } from "@/lib/payments/methods";
 import { terminalClaims } from "@/lib/payments/pendingRequests";
+import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { ServeBoard } from "./ServeBoard";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
@@ -158,13 +159,13 @@ export default async function ServePage() {
       },
       orderBy: { cancelledAt: "asc" },
     }),
-    db.terminalDevice.findMany({
-      where: { restaurantId, active: true },
-      orderBy: { createdAt: "asc" },
-    }),
+    // Los datáfonos del comercio a los que se puede mandar un cobro ahora
+    // (activos y, si son reales, con serial y Business-Code). Antes se usaba
+    // siempre el primero: con dos equipos el cobro podía ir al equivocado.
+    // Ahora quien cobra elige (con uno solo, va a ése).
+    tenant ? usableTerminalDevices(tenant).then((r) => r.devices) : Promise.resolve([]),
   ]);
 
-  const device = devices[0] ?? null;
   // Datáfono Kushki pendiente: ¿ya se envió al equipo (reclamo
   // `terminal:<id>`) o es sólo la solicitud? La tarjeta cambia: "Cobrar" /
   // "Cancelar solicitud" vs. "esperando resultado".
@@ -283,9 +284,7 @@ export default async function ServePage() {
           tableNumber: p.order.table.number,
         },
       }))}
-      device={
-        device ? { id: device.kushkiDeviceId, label: device.label } : null
-      }
+      devices={devices}
       chargeLocked={chargeLocked}
       canResolveTerminal={canResolveTerminalCharge(session?.user?.role)}
       staffPrint={staffPrintAccessFor(session?.user?.role)}

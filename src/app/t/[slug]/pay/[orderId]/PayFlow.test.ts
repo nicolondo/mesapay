@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string; restaurantId?: string } },
-  activeId: "r1", tenant: vi.fn(), order: vi.fn(), invoiceRequest: vi.fn(), customers: vi.fn(), device: vi.fn(), sync: vi.fn(),
+  activeId: "r1", tenant: vi.fn(), order: vi.fn(), invoiceRequest: vi.fn(), customers: vi.fn(), sync: vi.fn(),
   claims: vi.fn(), terminalAvailable: true,
+  devices: [{ id: "kd-1", label: "Caja" }] as Array<{ id: string; label: string }>,
 }));
 vi.mock("@/auth", () => ({ auth: async () => m.session }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: async () => m.session ? { restaurantId: m.activeId, session: m.session } : null }));
@@ -13,9 +14,9 @@ vi.mock("@/lib/db", () => ({ db: {
   financialOperation: { findMany: m.claims },
 } }));
 vi.mock("@/lib/payments/terminalAvailability", () => ({
-  kushkiTerminalAvailability: async () => (m.terminalAvailable ? { available: true } : { available: false, reason: "no_device" }),
+  kushkiTerminalAvailability: async () =>
+    m.terminalAvailable ? { available: true, devices: m.devices } : { available: false, reason: "no_device" },
 }));
-vi.mock("@/lib/meseroDevice", () => ({ getAssignedDevice: m.device }));
 vi.mock("@/lib/orderTotals", () => ({ syncOrderSubtotalFromLiveItems: m.sync }));
 vi.mock("@/lib/platformConfig", () => ({ getRestaurantKushkiMode: async () => "mock" }));
 vi.mock("@/lib/billing/countries", () => ({ getCurrencyForCountry: async () => "COP" }));
@@ -35,8 +36,8 @@ beforeEach(() => {
     id: "o1", restaurantId: "r1", shortCode: "TEST", subtotalCents: 10000, taxCents: 1900, discountCents: 1000, discountPct: 10,
     status: "paying", table: { id: "t1", number: 1, kind: "table" }, items: [], payments: [approved, pending], simpleInvoiceEmail: null,
   });
-  m.invoiceRequest.mockResolvedValue(null); m.customers.mockResolvedValue(0); m.device.mockResolvedValue(null);
-  m.claims.mockResolvedValue([]); m.terminalAvailable = true;
+  m.invoiceRequest.mockResolvedValue(null); m.customers.mockResolvedValue(0);
+  m.claims.mockResolvedValue([]); m.terminalAvailable = true; m.devices = [{ id: "kd-1", label: "Caja" }];
 });
 const flow = (op = "1") => PayFlow({ slug: "sample", orderId: "o1", op });
 
@@ -49,7 +50,9 @@ describe("shared checkout staff scope", () => {
       approvedPayments: [{ id: "cash-part", method: "cash", amountCents: 3300, tipCents: 300 }],
       pendingPayments: [{ id: "card-part" }],
     });
-    expect(m.device).toHaveBeenCalledWith("u1", "r1");
+    // Los datáfonos son del comercio: el staff recibe la lista para elegir,
+    // sin depender de a quién estuviera "asignado".
+    expect(page.props.terminalDevices).toEqual([{ id: "kd-1", label: "Caja" }]);
   });
 
   it("does not expose staff data to another restaurant's operator visiting with a guest QR", async () => {
@@ -57,7 +60,7 @@ describe("shared checkout staff scope", () => {
     const page = await flow();
     expect(page.props).toMatchObject({ operatorMode: false, approvedPayments: [], pendingPayments: [], customerStepEnabled: false, creditEnabled: false });
     expect(m.customers).not.toHaveBeenCalled();
-    expect(m.device).not.toHaveBeenCalled();
+    expect(page.props.terminalDevices).toEqual([]);
   });
 
   it.each([null, "kitchen", "bar", "terminal"])("does not turn op=1 into collector UI for %s", async (role) => {
@@ -108,5 +111,21 @@ describe("datáfono Kushki en el cobro del staff", () => {
     expect((await flow()).props.kushkiTerminalAvailable).toBe(true);
     m.terminalAvailable = false;
     expect((await flow()).props.kushkiTerminalAvailable).toBe(false);
+  });
+});
+
+describe("a qué datáfono va el cobro del staff", () => {
+  it("con varios datáfonos disponibles, el staff recibe todos (para elegir), no el primero", async () => {
+    m.devices = [{ id: "kd-caja", label: "Caja" }, { id: "kd-terraza", label: "Terraza" }];
+    expect((await flow()).props.terminalDevices).toEqual(m.devices);
+  });
+
+  it("el comensal no elige datáfono: su solicitud queda en Salón", async () => {
+    expect((await flow("0")).props.terminalDevices).toEqual([]);
+  });
+
+  it("si el datáfono no está disponible, no hay lista (y el botón no sale)", async () => {
+    m.terminalAvailable = false;
+    expect((await flow()).props).toMatchObject({ terminalDevices: [], kushkiTerminalAvailable: false });
   });
 });

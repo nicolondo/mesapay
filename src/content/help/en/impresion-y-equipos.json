@@ -150,8 +150,8 @@
     },
     {
       "slug": "datafonos",
-      "title": "Set up card readers and assign them to waiters",
-      "summary": "Register your Kushki card readers, assign each one to the waiter who carries it so the charge goes straight to them, and get to know the Card reader user's screen.",
+      "title": "Set up the business's card readers",
+      "summary": "Register your Kushki card readers with their serial number and Business-Code. They belong to the business: when charging, whoever charges picks which one to send it to. Plus, the Card reader user's screen.",
       "keywords": [
         "card reader",
         "card terminal",
@@ -159,19 +159,21 @@
         "Kushki",
         "Smart POS",
         "terminal",
-        "business code",
         "serial",
-        "assign card reader",
-        "assigned waiter",
         "live tables",
         "card reader user",
         "own card terminal",
-        "charge by card"
+        "charge by card",
+        "business-code",
+        "choose card reader",
+        "which card terminal",
+        "several card readers",
+        "merchant id"
       ],
       "audience": [
         "operator"
       ],
-      "body": "If your restaurant charges with Kushki card readers, in Card readers you register them and assign each one to the waiter who carries it. That way, when that waiter charges by card reader from their app, the amount goes straight to their device.\n\nThe **Card readers** card appears in Settings only when your business has Kushki card-reader payments turned on. MESAPAY turns that payment method on.\n\n## Set up the card readers\n\n1. Go to [Settings › Card readers](/operator/settings/datafonos).\n2. In **Business code**, enter the code the card-reader provider gave you when it was activated, and tap **Save**.\n3. Under **Add terminal**, type a name (for example, \"Register 1\") and the device's serial number, and tap **Add**.\n4. On each card reader, choose the **Assigned waiter**.\n\nYou can fix the serial later in **Terminal serial**; it saves when you leave the field.\n\n## Assigned or unassigned\n\n- **With an assigned waiter**: when that waiter charges by card reader, the amount goes straight to their device, without going through Floor.\n- **Unassigned (anyone can use it)**: the charge waits on [Floor](/operator/serve), under **Requested card terminal**. Whoever brings the card reader to the table taps the **Charge** button with the amount, and the charge goes to the first active card reader on the list.\n\nTap **Active** or **Inactive** to take a card reader out of use without deleting it.\n\n## The Card reader user\n\nIf one person is in charge of charging with the card reader (at the register, for example), create a user with the **Card reader** role for them in [Users](/operator/settings/usuarios). When they sign in they see **Live tables**: every table with its status and the ones that asked for a card reader (**📱 Requested terminal**) or cash (**💵 Requested cash**). From there they charge with the card reader or confirm the cash received.\n\n## Your own card terminal\n\nIf you charge with another provider's card terminal, there's nothing to set up here: you run the card on your terminal and then mark the result, **Approved** or **Declined**, on Floor. MESAPAY also turns that payment method on.\n\n## Common cases\n\n- **I don't see the Card readers card**: your business doesn't have Kushki card-reader payments turned on. Write to support.\n- **\"No active card terminal registered\"**: no card reader is marked **Active**. Add one or turn one on.\n- **\"No card readers linked to the business yet\"**: add the first one with **Add terminal**.",
+      "body": "Kushki card readers belong to the business, not to a waiter: anyone on the team can charge with any of them. In Card readers you register them with their serial number and save the Business-Code Kushki provides for them. When charging, if more than one is available, whoever charges picks which one to send it to.\n\nThe **Card readers** card appears in Settings only when your business has Kushki card-reader payments turned on. MESAPAY turns that payment method on.\n\n## Set up the card readers\n\n1. Go to [Settings › Card readers](/operator/settings/datafonos).\n2. In **Cloud Terminal Business-Code**, paste the Business-Code Kushki provides for the card reader and tap **Save**. It stays saved and only its last 4 characters are shown (**Saved: ••••…**).\n3. Under **Add terminal**, type a name (for example, \"Register 1\") and the device's serial number, and tap **Add**.\n\nYou can fix the serial later in **Terminal serial**; it saves when you leave the field. Tap **Active** or **Inactive** to take a card reader out of use without deleting it.\n\n> ⚠ The Business-Code is NOT the Kushki Merchant ID or public key. If you paste one of those, MESAPAY doesn't save it and tells you: with them, Kushki rejects every charge during validation.\n\nTo change the Business-Code, type a new one over it and tap **Save**. **Delete** removes it, and the card reader can't charge until you save another one.\n\n## Choose the card reader when charging\n\nA card reader is available when it's **Active**, has its serial number and the business has a Business-Code.\n\n- **With only one card reader available**, the charge goes straight to it, without going through Floor.\n- **With two or more**, **Which card terminal?** appears with their names. Tap the one you have in hand. Each phone or tablet remembers the last one it picked and keeps it selected for the next charge; you change it with one tap.\n\nThis works on the checkout screen, on the [Floor](/operator/serve) cards (**Requested card terminal**) and in **Live tables**. If charging is reserved for the administrator, waiters can't send charges to the card reader.\n\n## The Card reader user\n\nIf one person is in charge of charging with the card reader (at the register, for example), create a user with the **Card reader** role for them in [Users](/operator/settings/usuarios). When they sign in they see **Live tables**: every table with its status and the ones that asked for a card reader (**📱 Requested terminal**) or cash (**💵 Requested cash**). From there they charge with the card reader or confirm the cash received.\n\n## Your own card terminal\n\nIf you charge with another provider's card terminal, there's nothing to set up here: you run the card on your terminal and then mark the result, **Approved** or **Declined**, on Floor. MESAPAY also turns that payment method on.\n\n## Common cases\n\n- **I don't see the Card readers card**: your business doesn't have Kushki card-reader payments turned on. Write to support.\n- **\"No active card terminal registered\"**: no card reader is **Active** with a serial number. Add one or turn one on.\n- **\"No card readers yet\"**: add the first one with **Add terminal**.\n- **\"That's the Kushki Merchant ID, not the card reader's Business-Code\"**: you pasted another Kushki credential. Ask Kushki for the Cloud Terminal Business-Code.\n- **\"No code of your own: charges use the platform's\"**: your business has no Business-Code of its own and charges use MESAPAY's. If Kushki gave you one for your card reader, save it.\n- **\"Kushki rejected the request during validation…\"** when charging: check the Business-Code and the device's serial number. See [Charge with a card reader](/operator/ayuda/cobro-y-caja/cobrar-con-datafono).",
       "links": [
         {
           "label": "Go to Card readers",

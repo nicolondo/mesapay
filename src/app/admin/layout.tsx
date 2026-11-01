@@ -46,7 +46,19 @@ export default async function AdminLayout({
 
   return (
     <div className="op-admin flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
-      <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">
+      {/* Instalado como app en iOS (status bar black-translucent, viewport-fit
+          cover) el contenido corre debajo de la barra de estado: sin esta
+          reserva, la cabecera y el botón del menú quedaban tapados por el
+          reloj. El padding pinta la franja con el fondo de la cabecera y baja
+          la fila de controles (0 en navegador y escritorio). */}
+      <header
+        className="border-b border-op-border bg-op-surface sticky top-0 z-10"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+        }}
+      >
         <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">
           <div className="flex items-center gap-4 md:gap-6 min-w-0">
             <div className="shrink-0">

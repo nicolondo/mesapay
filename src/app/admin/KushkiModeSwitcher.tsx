@@ -51,7 +51,7 @@ export function KushkiModeSwitcher({
 
   return (
     <div className="rounded-2xl border border-op-border bg-op-surface p-5">
-      <div className="flex items-baseline justify-between mb-2">
+      <div className="flex items-baseline justify-between gap-3 mb-2">
         <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
           {t("kushkiTitle")}
         </div>
@@ -61,7 +61,9 @@ export function KushkiModeSwitcher({
         {t("kushkiIntro")}
       </p>
 
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      {/* Móvil: las tres opciones apiladas. En tres columnas de ~100 px el
+          nombre ("Producción") y la descripción quedaban ilegibles. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
         <ModeOption
           value="mock"
           label={t("kushkiModeMock")}

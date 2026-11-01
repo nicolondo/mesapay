@@ -4936,7 +4936,8 @@
     "saving": "Salvando…",
     "errorSave": "Não foi possível salvar.",
     "seededInfo": "{count} cidades carregadas.",
-    "citiesCount": "{count} cidades"
+    "citiesCount": "{count} cidades",
+    "datasetAvailable": "{count} disponíveis"
   },
   "crm": {
     "phonePrefixLabel": "Código de discagem",

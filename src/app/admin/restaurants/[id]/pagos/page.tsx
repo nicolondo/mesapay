@@ -80,8 +80,8 @@ export default async function AdminPagosPage({
   const bank = rest.bankInfo as Record<string, unknown> | null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="flex items-center gap-2 text-sm text-op-muted mb-2">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto w-full">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-op-muted mb-2">
         <Link href={`/admin/restaurants/${id}`} className="hover:underline">
           {"← "}
           {rest.name}
@@ -89,7 +89,7 @@ export default async function AdminPagosPage({
         <span aria-hidden>{"/"}</span>
         <span>{tr("pagosBreadcrumb")}</span>
       </div>
-      <div className="font-display text-3xl mb-1">
+      <div className="font-display text-2xl md:text-3xl mb-1 break-words">
         {tr("pagosTitle", { name: rest.name })}
       </div>
       <p className="text-sm text-op-muted mb-6">
@@ -203,7 +203,7 @@ export default async function AdminPagosPage({
                 className="py-3 flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <div className="text-sm">
+                  <div className="text-sm break-words">
                     {KIND_TKEY[d.kind] ? tr(KIND_TKEY[d.kind]) : d.kind}{" "}
                     <span className="text-op-muted" aria-hidden>
                       {"· "}
@@ -241,20 +241,24 @@ export default async function AdminPagosPage({
             {transactions.map((t) => (
               <li
                 key={t.id}
-                className="py-2 grid grid-cols-[140px_1fr_120px_80px] gap-3 items-center"
+                // Móvil: 2×2 (fecha | id de Kushki / tipo | estado). Las
+                // columnas fijas 140+120+80 px más gaps sumaban ~376 px y
+                // la lista desbordaba la pantalla. En md+ vuelve a 4 cols.
+                className="py-2 grid grid-cols-2 gap-x-3 gap-y-0.5 items-center md:grid-cols-[140px_1fr_120px_80px] md:gap-3"
               >
                 <span className="text-op-muted text-[11px]">
                   {fmtFull(t.createdAt)}
                 </span>
-                <span className="truncate">{t.kushkiTxId}</span>
+                <span className="truncate min-w-0">{t.kushkiTxId}</span>
                 <span>{t.kind}</span>
                 <span
                   className={
-                    t.status === "approved"
+                    "text-right md:text-left " +
+                    (t.status === "approved"
                       ? "text-ok"
                       : t.status === "declined"
                         ? "text-danger"
-                        : "text-op-muted"
+                        : "text-op-muted")
                   }
                 >
                   {t.status}
@@ -307,12 +311,14 @@ export default async function AdminPagosPage({
             {webhookEvents.map((e) => (
               <li
                 key={e.id}
-                className="py-2 grid grid-cols-[140px_1fr_80px] gap-3 items-center"
+                // Móvil: fecha y estado al ancho de su contenido, el tipo
+                // ocupa el resto y se trunca; en md+ las columnas fijas.
+                className="py-2 grid grid-cols-[auto_1fr_auto] gap-3 items-center md:grid-cols-[140px_1fr_80px]"
               >
                 <span className="text-op-muted text-[11px]">
                   {fmtFull(e.createdAt)}
                 </span>
-                <span className="truncate">{e.type}</span>
+                <span className="truncate min-w-0">{e.type}</span>
                 <span
                   className={
                     e.processedAt

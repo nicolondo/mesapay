@@ -124,7 +124,9 @@ export default async function GroupDetailPage({
         {t("backToGroups")}
       </Link>
 
-      <div className="mt-4 mb-6 flex items-start justify-between gap-3 flex-wrap">
+      {/* Móvil: nombre del grupo arriba y "Entrar como grupo" debajo a todo
+          el ancho; en sm+ la fila original. */}
+      <div className="mt-4 mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
             {t("platformGroup")}
@@ -142,17 +144,20 @@ export default async function GroupDetailPage({
         {/* Impersonar el grupo entero — entra a /group como si fuera
             el group_admin. Banner naranja en /group avisa al admin
             que está impersonando y le da un botón para salir. */}
-        <form action={impersonateGroup}>
+        <form action={impersonateGroup} className="sm:shrink-0">
           <button
             type="submit"
-            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium"
+            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium w-full sm:w-auto"
           >
             {t("enterAsGroup")}
           </button>
         </form>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      {/* A 390 px, tres columnas dejan ~80 px por tarjeta y "RESTAURANTES"
+          (una sola palabra en mono mayúsculas) no cabe. Dos columnas y la
+          tercera tarjeta a todo el ancho. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1">
         <Stat label={t("statRestaurants")} value={group.restaurants.length} />
         <Stat label={t("statMembers")} value={group.members.length} />
         <Stat label={t("statLegalEntities")} value={group.legalEntities.length} />

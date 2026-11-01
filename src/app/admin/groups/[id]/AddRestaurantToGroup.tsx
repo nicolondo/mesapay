@@ -58,7 +58,7 @@ export function AddRestaurantToGroup({
       <select
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-        className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta min-w-[14rem]"
+        className="h-10 px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-terracotta w-full sm:w-auto sm:min-w-[14rem]"
       >
         <option value="">{t("chooseUngrouped")}</option>
         {candidates.map((c) => (

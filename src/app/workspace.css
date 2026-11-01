@@ -604,6 +604,54 @@
 .mp-table-filters button {
   min-height: 42px;
 }
+/* Fila de filtros de Mesas en dos grupos: chips (izquierda) y acciones
+   (derecha). En escritorio comparten la fila; en móvil cada grupo ocupa la
+   suya para que "Libres" no caiga mezclado con "Factura manual". */
+.mp-table-filters__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.mp-table-filters__chips > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.mp-table-filters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+@media (max-width: 767px) {
+  /* Chips en una sola línea deslizable, sin barra de scroll visible. */
+  .mp-table-filters__chips {
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .mp-table-filters__chips::-webkit-scrollbar {
+    display: none;
+  }
+  /* Acciones en su propia fila, alineadas a la derecha. */
+  .mp-table-filters__actions {
+    flex: 1 0 100%;
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 639px) {
+  /* Sangra hasta el borde de la pantalla (16px = padding lateral de
+     .mp-page en móvil): el chip recortado en el borde avisa que se puede
+     deslizar y el padding devuelve la alineación con el contenido, así el
+     primer chip arranca con el título y el último no queda pegado al borde
+     al llegar al final. */
+  .mp-table-filters__chips {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
 .mp-menu .mp-menu-item-name {
   font-family: var(--font-sans);
   font-weight: 550;

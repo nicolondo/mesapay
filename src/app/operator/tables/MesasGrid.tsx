@@ -268,68 +268,79 @@ export function MesasGrid({
 
   return (
     <>
-      {/* Filter chips — sticky abajo del header de la página.
-          Los counts ayudan a ver "tengo 3 cuentas pendientes" sin
-          tener que contar. */}
+      {/* Filter chips debajo de la cabecera de la página. Los counts
+          ayudan a ver "tengo 3 cuentas pendientes" sin tener que contar.
+          Dos grupos (ver .mp-table-filters__* en workspace.css): los
+          chips de filtro y las acciones ("Factura manual", "Editar
+          mesas"). En md+ comparten la fila (chips a la izquierda,
+          acciones a la derecha); en móvil cada grupo tiene su fila —
+          los chips se deslizan en horizontal sin partirse y las
+          acciones quedan alineadas a la derecha debajo — así no se
+          mezclan filtros con acciones al envolver. */}
       <div className="mp-table-filters">
-        <Chip
-          active={filter === "all"}
-          onClick={() => setFilter("all")}
-          label={tr("filterAll")}
-          count={counts.all}
-        />
-        <Chip
-          active={filter === "by_pay"}
-          onClick={() => setFilter("by_pay")}
-          label={tr("filterByPay")}
-          count={counts.by_pay}
-          tone="danger"
-        />
-        <Chip
-          active={filter === "recent"}
-          onClick={() => setFilter("recent")}
-          label={tr("filterRecent")}
-          count={counts.recent}
-          tone="ok"
-        />
-        <Chip
-          active={filter === "free"}
-          onClick={() => setFilter("free")}
-          label={tr("filterFree")}
-          count={counts.free}
-        />
-        {canOpenManual && (
-          <button
-            type="button"
-            onClick={openManualInvoice}
-            disabled={openingManual}
-            className="ml-auto h-8 px-3 inline-flex items-center gap-1 rounded-full text-xs font-medium border border-terracotta/50 text-terracotta bg-op-surface hover:bg-terracotta/10 transition-colors disabled:opacity-60"
-          >
-            <span aria-hidden>{"+"}</span>
-            <span>
-              {openingManual
-                ? tr("manualInvoiceOpening")
-                : tr("manualInvoiceButton")}
-            </span>
-          </button>
-        )}
-        {!isMeseroView && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditMode((v) => !v);
-              setOpenTileId(null);
-            }}
-            className={
-              (canOpenManual ? "" : "ml-auto ") +
-              "h-8 px-3 inline-flex items-center rounded-full text-xs font-medium border transition-colors " +
-              (editMode
-                ? "bg-ink text-bone border-ink"
-                : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
-            }
-          >
-            {editMode ? tr("editDone") : tr("editTables")}
-          </button>
+        <div className="mp-table-filters__chips">
+          <Chip
+            active={filter === "all"}
+            onClick={() => setFilter("all")}
+            label={tr("filterAll")}
+            count={counts.all}
+          />
+          <Chip
+            active={filter === "by_pay"}
+            onClick={() => setFilter("by_pay")}
+            label={tr("filterByPay")}
+            count={counts.by_pay}
+            tone="danger"
+          />
+          <Chip
+            active={filter === "recent"}
+            onClick={() => setFilter("recent")}
+            label={tr("filterRecent")}
+            count={counts.recent}
+            tone="ok"
+          />
+          <Chip
+            active={filter === "free"}
+            onClick={() => setFilter("free")}
+            label={tr("filterFree")}
+            count={counts.free}
+          />
+        </div>
+        {(canOpenManual || !isMeseroView) && (
+          <div className="mp-table-filters__actions">
+            {canOpenManual && (
+              <button
+                type="button"
+                onClick={openManualInvoice}
+                disabled={openingManual}
+                className="h-8 px-3 inline-flex items-center gap-1 rounded-full text-xs font-medium border border-terracotta/50 text-terracotta bg-op-surface hover:bg-terracotta/10 transition-colors disabled:opacity-60"
+              >
+                <span aria-hidden>{"+"}</span>
+                <span>
+                  {openingManual
+                    ? tr("manualInvoiceOpening")
+                    : tr("manualInvoiceButton")}
+                </span>
+              </button>
+            )}
+            {!isMeseroView && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditMode((v) => !v);
+                  setOpenTileId(null);
+                }}
+                className={
+                  "h-8 px-3 inline-flex items-center rounded-full text-xs font-medium border transition-colors " +
+                  (editMode
+                    ? "bg-ink text-bone border-ink"
+                    : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
+                }
+              >
+                {editMode ? tr("editDone") : tr("editTables")}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

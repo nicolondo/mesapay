@@ -7237,6 +7237,8 @@
     "already_settled": "Este pago ya se resolvió. Actualiza para ver cómo quedó la cuenta.",
     "terminal_not_sent": "Este cobro nunca se envió al datáfono: cancela la solicitud en lugar de resolverlo.",
     "terminal_result_pending": "El datáfono todavía puede responder. Espera unos minutos antes de resolver el cobro a mano.",
+    "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa el Business-Code y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
+    "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa el Business-Code y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó."
   },
   "pendingPayment": {

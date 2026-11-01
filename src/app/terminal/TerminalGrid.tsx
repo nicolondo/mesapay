@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { isCashMethod } from "@/lib/payments/methods";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
+import { useApiError } from "@/lib/useApiError";
 
 export type TableState =
   | "free"
@@ -348,6 +349,7 @@ function DetailSheet({
   onChargedQueued: () => void;
 }) {
   const tr = useTranslations("opTerminal");
+  const apiError = useApiError();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // Per-payment "settling cash" inline form state. Cash payments don't have
@@ -370,7 +372,9 @@ function DetailSheet({
     setBusyPaymentId(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? tr("sendToTerminalFailed"));
+      // Códigos conocidos (p. ej. Kushki rechazó la solicitud por validación)
+      // van traducidos, con el detalle de Kushki.
+      setErr(apiError(j, j.error ?? tr("sendToTerminalFailed")));
       return;
     }
     onChargedQueued();

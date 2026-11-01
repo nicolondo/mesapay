@@ -7237,6 +7237,8 @@
     "already_settled": "Este pagamento já foi resolvido. Atualize para ver como ficou a conta.",
     "terminal_not_sent": "Esta cobrança nunca foi enviada à maquininha: cancele a solicitação em vez de resolvê-la.",
     "terminal_result_pending": "A maquininha ainda pode responder. Aguarde alguns minutos antes de resolver a cobrança manualmente.",
+    "terminal_request_rejected": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha ({detail}). Nada foi cobrado. Confira o Business-Code e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
+    "terminal_request_rejected_generic": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha. Nada foi cobrado. Confira o Business-Code e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
     "cancellation_admin_required": "Somente o administrador pode cancelar ou deixar de cobrar pratos cujo preparo já começou."
   },
   "pendingPayment": {

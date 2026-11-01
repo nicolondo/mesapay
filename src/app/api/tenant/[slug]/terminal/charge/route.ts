@@ -218,6 +218,47 @@ async function POSTHandler(
       );
     }
 
+    if (result.status === "rejected") {
+      // Kushki NO validó la solicitud (4xx: Business-Code, serial, firma) y
+      // nunca la mandó al equipo: no hubo cobro. Se declina por el mismo
+      // camino que un rechazo del datáfono (el reclamo `terminal:<id>` queda
+      // `failed` y la cuenta libre), en vez de dejarla incierta y trabada
+      // (Son y Melona, 2026-10-31: 400 CLOUDPAYMENT_VALIDATION_ERROR).
+      const processed = await processKushkiWebhook({
+        eventId: `cloudterm:${payment.id}:rejected:${Date.now()}`,
+        type: "terminal.declined",
+        restaurantId: tenant.id,
+        paymentId: payment.id,
+        providerRef: result.providerRef,
+        message: result.message,
+        raw: result.raw,
+      });
+      if (processed.status === "error") {
+        await markPaymentUncertain(payment.id);
+        return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      }
+      console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
+        paymentId: payment.id,
+        httpStatus: result.httpStatus,
+        code: result.failure?.code,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "rejected",
+          error: "terminal_request_rejected",
+          // Lo que dijo Kushki, legible para quien revisa la configuración.
+          kushki: {
+            httpStatus: result.httpStatus ?? null,
+            type: result.failure?.type ?? null,
+            code: result.failure?.code ?? null,
+            message: result.failure?.message ?? result.message ?? null,
+          },
+        },
+        { status: 422 },
+      );
+    }
+
     // Transport failure does not establish whether the terminal charged.
     await markPaymentUncertain(payment.id);
     return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });

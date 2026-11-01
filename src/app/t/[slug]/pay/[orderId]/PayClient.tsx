@@ -601,7 +601,7 @@ export function PayClient({
         );
         if (!pushRes.ok) {
           const pj = await pushRes.json().catch(() => ({}));
-          setErr(pj.message ?? pj.error ?? t("errPushTerminal"));
+          setErr(apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
           refreshBalance();
           return;
         }

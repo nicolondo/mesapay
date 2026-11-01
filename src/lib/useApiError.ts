@@ -4,7 +4,14 @@ import { fmtCOP } from "@/lib/format";
 import { PENDING_PAYMENT_IN_FLIGHT } from "@/lib/payments/paymentInFlight";
 import { usePaymentMethodLabel } from "@/lib/usePaymentMethodLabel";
 
-/** Never expose a provider's raw response or a server's hardcoded language. */
+/** Código del 422 de terminal/charge cuando Kushki no validó la solicitud. */
+const TERMINAL_REQUEST_REJECTED = "terminal_request_rejected";
+
+/**
+ * Never expose a provider's raw response or a server's hardcoded language.
+ * (Única excepción: el código y el mensaje de Kushki cuando rechaza la
+ * solicitud del datáfono por validación, que es lo que hay que revisar.)
+ */
 export function useApiError() {
   const t = useTranslations("apiErrors");
   const methodLabel = usePaymentMethodLabel();
@@ -22,6 +29,20 @@ export function useApiError() {
       return pending.method === "kushki_card_terminal"
         ? t("pending_payment_in_flight_terminal", values)
         : t("pending_payment_in_flight", values);
+    }
+    // Kushki no validó la solicitud del datáfono (4xx): no se cobró. El
+    // mensaje dice qué revisar y lleva el código y el texto de Kushki, que es
+    // lo que necesita quien revisa el Business-Code y el serial.
+    if (code === TERMINAL_REQUEST_REJECTED) {
+      const k = (body as { kushki?: { code?: unknown; message?: unknown; httpStatus?: unknown } }).kushki;
+      const parts = [
+        typeof k?.httpStatus === "number" ? `HTTP ${k.httpStatus}` : null,
+        typeof k?.code === "string" ? k.code : null,
+        typeof k?.message === "string" ? k.message.slice(0, 160) : null,
+      ].filter(Boolean);
+      return parts.length
+        ? t("terminal_request_rejected", { detail: parts.join(" · ") })
+        : t("terminal_request_rejected_generic");
     }
     return code && t.has(code) ? t(code) : fallback ?? t("generic");
   };

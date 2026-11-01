@@ -7237,6 +7237,8 @@
     "already_settled": "This payment was already resolved. Refresh to see the bill's status.",
     "terminal_not_sent": "This charge was never sent to the card terminal: cancel the request instead of resolving it.",
     "terminal_result_pending": "The card terminal may still respond. Wait a few minutes before resolving the charge manually.",
+    "terminal_request_rejected": "Kushki rejected the request during validation before sending it to the card terminal ({detail}). Nothing was charged. Check the Business-Code and the device's serial number in Settings → Card readers and try again, or charge another way.",
+    "terminal_request_rejected_generic": "Kushki rejected the request during validation before sending it to the card terminal. Nothing was charged. Check the Business-Code and the device's serial number in Settings → Card readers and try again, or charge another way.",
     "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started."
   },
   "pendingPayment": {

@@ -32,6 +32,9 @@ export function BancosTab({ currency }: { currency: string }) {
   const [lineAccount, setLineAccount] = useState<Record<string, string>>({});
   const [rulePattern, setRulePattern] = useState("");
   const [ruleAccount, setRuleAccount] = useState("");
+  /** Cuenta del banco del extracto (auxiliar por banco); "" = la por defecto. */
+  const [bankAccount, setBankAccount] = useState("");
+  const [defaultBank, setDefaultBank] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -44,6 +47,7 @@ export function BancosTab({ currency }: { currency: string }) {
       const jc = await c.json();
       setLines(jb.lines as BankLine[]);
       setRules(jb.rules as Rule[]);
+      setDefaultBank((jb.defaultBankAccountCode as string | null) ?? null);
       setAccounts(jc.accounts as Account[]);
     } catch {
       setErr(true);
@@ -62,6 +66,7 @@ export function BancosTab({ currency }: { currency: string }) {
         if (!alive) return;
         setLines(jb.lines as BankLine[]);
         setRules(jb.rules as Rule[]);
+        setDefaultBank((jb.defaultBankAccountCode as string | null) ?? null);
         setAccounts(jc.accounts as Account[]);
       })
       .catch(() => {
@@ -82,6 +87,14 @@ export function BancosTab({ currency }: { currency: string }) {
     [accounts],
   );
 
+  // Cuentas de banco: las imputables del disponible (11xx). Con auxiliares
+  // por banco (11100501 Bancolombia…) se elige a cuál pertenece el extracto.
+  const bankOptions = useMemo(
+    () => accounts.filter((a) => a.postable && a.code.startsWith("11")),
+    [accounts],
+  );
+  const bankCode = bankAccount || defaultBank || "";
+
   const money = (c: number) => formatMoney(c, { currency, locale });
 
   async function doImport() {
@@ -100,7 +113,12 @@ export function BancosTab({ currency }: { currency: string }) {
     }
     const j = await r.json();
     setImportMsg(
-      t("bankImported", { imported: j.imported, skipped: j.skipped }),
+      [
+        t("bankImported", { imported: j.imported, skipped: j.skipped }),
+        (j.duplicates ?? 0) > 0 ? t("bankDuplicates", { count: j.duplicates }) : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     );
     setCsv("");
     await load();
@@ -117,17 +135,28 @@ export function BancosTab({ currency }: { currency: string }) {
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
       setImportMsg(
-        j.error === "month_closed" ? t("bankMonthClosed") : t("errSaveFailed"),
+        j.error === "month_closed"
+          ? t("bankMonthClosed")
+          : j.error === "account_not_postable"
+            ? t("bankAccountNotPostable")
+            : j.error === "bank_account_invalid"
+              ? t("bankAccountInvalid")
+              : t("errSaveFailed"),
       );
       return;
     }
     const j = await r.json().catch(() => ({}));
     if (typeof j.applied === "number") {
       setImportMsg(
-        t("bankRulesApplied", {
-          applied: j.applied,
-          skipped: j.skippedClosed ?? 0,
-        }),
+        [
+          t("bankRulesApplied", {
+            applied: j.applied,
+            skipped: j.skippedClosed ?? 0,
+          }),
+          (j.skippedInvalid ?? 0) > 0 ? t("bankRulesInvalid", { count: j.skippedInvalid }) : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       );
     }
     await load();
@@ -147,12 +176,39 @@ export function BancosTab({ currency }: { currency: string }) {
     if (r.ok) {
       setRulePattern("");
       await load();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      setImportMsg(
+        j.error === "account_not_postable" ? t("bankAccountNotPostable") : t("errSaveFailed"),
+      );
     }
   }
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-op-muted">{t("bankIntro")}</p>
+
+      {/* Cuenta del banco del extracto: los movimientos se asientan contra
+          ella (antes, siempre contra 111005). */}
+      {bankOptions.length > 0 && (
+        <label className="block rounded-2xl border border-op-border bg-op-surface p-4 space-y-1">
+          <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+            {t("bankAccountLabel")}
+          </span>
+          <select
+            value={bankCode}
+            onChange={(e) => setBankAccount(e.target.value)}
+            className="w-full min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+          >
+            {bankOptions.map((a) => (
+              <option key={a.code} value={a.code}>
+                {`${a.code} ${a.name}`}
+              </option>
+            ))}
+          </select>
+          <span className="block text-[11px] text-op-muted">{t("bankAccountHint")}</span>
+        </label>
+      )}
 
       {/* Importar extracto */}
       <div className="rounded-2xl border border-op-border bg-op-surface p-4 space-y-2">
@@ -185,7 +241,9 @@ export function BancosTab({ currency }: { currency: string }) {
           </div>
           <button
             type="button"
-            onClick={() => patch({ action: "applyRules" }, "apply")}
+            onClick={() =>
+              patch({ action: "applyRules", ...(bankCode ? { bankAccountCode: bankCode } : {}) }, "apply")
+            }
             disabled={busyId === "apply" || rules.length === 0}
             className="text-[11px] text-terracotta hover:underline disabled:opacity-40"
           >
@@ -303,6 +361,7 @@ export function BancosTab({ currency }: { currency: string }) {
                         action: "journalize",
                         lineId: l.id,
                         accountCode: lineAccount[l.id],
+                        ...(bankCode ? { bankAccountCode: bankCode } : {}),
                       },
                       l.id,
                     )

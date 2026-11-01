@@ -39,7 +39,12 @@ export type ParsedChart = {
   issues: ChartImportIssue[];
 };
 
-/** Clase PUC (primer dígito) → tipo de cuenta. 7/8/9 no se soportan. */
+/**
+ * Clase PUC (primer dígito) → tipo de cuenta. La 7 (costos de producción o
+ * de operación) es costo, igual que en el alta manual (`chart.typeForCode`)
+ * y en el aviso «de 1 a 7»; antes el importador la rechazaba. 8/9 (cuentas
+ * de orden) no se soportan.
+ */
 const CLASS_TYPE: Record<string, PucType> = {
   "1": "activo",
   "2": "pasivo",
@@ -47,6 +52,7 @@ const CLASS_TYPE: Record<string, PucType> = {
   "4": "ingreso",
   "5": "gasto",
   "6": "costo",
+  "7": "costo",
 };
 
 /** Naturaleza por defecto cuando el archivo no la trae. */

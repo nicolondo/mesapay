@@ -12,6 +12,7 @@ import {
   DEFAULT_CONTABILIDAD_TAB,
   parseContabilidadTab,
 } from "@/lib/erp/contabilidadTabs";
+import { expenseOutstandingCents } from "@/lib/erp/accounting";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { PresupuestoTab } from "./PresupuestoTab";
@@ -67,8 +68,18 @@ type ExpensesPayload = {
 // Espejo de GET /api/operator/accounting/pnl (B2 · D3). Los % vienen con
 // 1 decimal; null = sin ventas en el mes (no inventar 0%).
 type PnlDto = {
+  /** Ingresos: sin impuesto ni propina, netos de descuentos, notas crédito y devoluciones. */
   salesCents: number;
+  /** De dónde salen los ingresos (ver `SalesDetail` en erp/accounting). */
+  salesDetail: {
+    listCents: number;
+    discountCents: number;
+    includedTaxCents: number;
+    creditNotesCents: number;
+    refundsCents: number;
+  } | null;
   tipsCents: number;
+  /** Impuesto que las líneas libres suman encima (informativo, no es ingreso). */
   taxesCents: number;
   consumptionCents: number;
   wasteCents: number;
@@ -120,10 +131,25 @@ type SalesTaxSliceDto = {
   taxCents: number;
   baseCents: number;
 };
+type SalesAdjustmentDto = { grossCents: number; baseCents: number; taxCents: number };
+type NetSalesTaxSliceDto = {
+  kind: SalesTaxKind;
+  pct: number;
+  grossTaxCents: number;
+  creditNoteTaxCents: number;
+  refundTaxCents: number;
+  taxCents: number;
+};
 type TaxSummaryDto = {
   sales: SalesTaxSliceDto & {
     /** Tramos por tarifa: lo que cada factura congeló. Vacío = sin impuesto causado. */
     byRate: SalesTaxSliceDto[];
+    /** Notas crédito aceptadas con fecha fiscal en el mes (restan). */
+    creditNotes: SalesAdjustmentDto & { count: number };
+    /** Reembolsos del mes sin nota crédito (restan). */
+    refunds: SalesAdjustmentDto;
+    /** Bruto − notas − devoluciones. */
+    net: { baseCents: number; taxCents: number; byRate: NetSalesTaxSliceDto[] };
   };
   purchases: {
     ivaCents: number;
@@ -252,6 +278,9 @@ const API_ERROR_KEYS: Record<string, string> = {
   recurring_day_forbidden: "errRecurringDayForbidden",
   supplier_not_found: "errSupplierNotFound",
   not_found: "errExpenseNotFound",
+  exceeds_balance: "errExpensePayExceeds",
+  account_not_found: "errExpensePayAccount",
+  wrong_status: "errExpenseInvalid",
 };
 
 // PaymentMethod (prisma) → clave i18n del label (convención m* de
@@ -570,6 +599,13 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                           <div className="text-sm font-medium tabular-nums">
                             {formatMoney(e.amountCents, { currency, locale })}
                           </div>
+                          {expenseOutstandingCents(e) > 0 && (
+                            <div className="text-[11px] font-medium text-[#7F5A1F] mt-0.5 tabular-nums">
+                              {t("expenseOutstandingBadge", {
+                                amount: formatMoney(expenseOutstandingCents(e), { currency, locale }),
+                              })}
+                            </div>
+                          )}
                           <div className="text-[11px] text-op-muted mt-0.5">
                             {formatDate(e.date, {
                               locale,
@@ -602,6 +638,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
       {open !== null && (
         <ExpenseSheet
           expense={open === "new" ? null : open}
+          currency={currency}
           suppliers={suppliers}
           suppliersEnabled={suppliersEnabled}
           categories={data?.categories ?? []}
@@ -688,7 +725,8 @@ function PnlTab({
   return (
     <div className="space-y-4">
       <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-        {/* Ingresos por ventas + líneas informativas (no son ingreso) */}
+        {/* Ingresos por ventas (netos) + de dónde salen + líneas
+            informativas (no son ingreso) */}
         <div className="px-4 py-3 border-b border-op-border">
           <div className="flex items-center justify-between gap-3">
             <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
@@ -698,15 +736,21 @@ function PnlTab({
               {money(pnl.salesCents)}
             </span>
           </div>
+          <div className="text-[11px] text-op-muted">{t("pnlSalesNetNote")}</div>
           <div className="mt-1.5 space-y-0.5">
+            {pnl.salesDetail && (
+              <PnlSalesDetail detail={pnl.salesDetail} money={money} />
+            )}
             <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
               <span>{t("pnlTips")}</span>
               <span className="tabular-nums">{money(pnl.tipsCents)}</span>
             </div>
-            <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
-              <span>{t("pnlTaxes")}</span>
-              <span className="tabular-nums">{money(pnl.taxesCents)}</span>
-            </div>
+            {pnl.taxesCents > 0 && (
+              <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
+                <span>{t("pnlTaxes")}</span>
+                <span className="tabular-nums">{money(pnl.taxesCents)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -743,8 +787,9 @@ function PnlTab({
         <PnlTaxes tax={tax} currency={currency} />
       )}
 
-      {/* Ventas (y CMV, cuando hay inventory+recipes) por categoría del
-          menú: cuadra con las líneas de Ingresos y CMV del P&L. */}
+      {/* Ventas netas (y CMV, cuando hay inventory+recipes) por categoría
+          del menú: suman los ingresos ANTES de notas crédito y devoluciones
+          (que no tienen categoría) y el CMV del P&L. */}
       {pnl.categoryBreakdown.length > 0 && (
         <PnlCategoryBreakdown
           rows={pnl.categoryBreakdown}
@@ -789,8 +834,8 @@ function PnlTab({
 
 /**
  * Sección de impuestos (ERP A3): impuesto de ventas (INC/IVA) causado
- * embebido en los subtotales + impuestos pagados en compras (IVA, INC,
- * retenciones).
+ * embebido en los subtotales, NETO de notas crédito y devoluciones del mes,
+ * + impuestos pagados en compras (IVA, INC, retenciones).
  *
  * SÓLO LECTURA. El editor del impuesto de ventas vivió acá, dentro de una
  * tarjeta del estado de resultados, y el dueño lo buscó tres veces sin
@@ -806,6 +851,21 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
   const money = (c: number) => formatMoney(c, { currency, locale });
   const kindLabel = (k: SalesTaxKind) =>
     k === "inc" ? t("taxKindInc") : k === "iva" ? t("taxKindIva") : "";
+
+  const hasAdjustments =
+    tax.sales.creditNotes.grossCents !== 0 || tax.sales.refunds.grossCents !== 0;
+  const netRates: NetSalesTaxSliceDto[] = tax.sales.net.byRate.length
+    ? tax.sales.net.byRate
+    : [
+        {
+          kind: tax.sales.kind,
+          pct: tax.sales.pct,
+          grossTaxCents: 0,
+          creditNoteTaxCents: 0,
+          refundTaxCents: 0,
+          taxCents: 0,
+        },
+      ];
 
   const p = tax.purchases;
   // IVA siempre visible (es lo más común); los demás solo si tienen valor.
@@ -845,20 +905,45 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
           <div className="text-sm text-danger">{t("taxSalesNone")}</div>
         ) : (
           <div className="space-y-0.5">
+            {/* Base e impuesto NETOS de las notas crédito aceptadas del mes
+                y de las devoluciones sin nota (misma regla que Impuestos
+                del período); el bruto queda a la vista cuando algo restó. */}
             <div className="flex items-center justify-between gap-3 text-[11px] text-op-muted">
               <span>{t("taxSalesBase")}</span>
-              <span className="tabular-nums">{money(tax.sales.baseCents)}</span>
+              <span className="tabular-nums">{money(tax.sales.net.baseCents)}</span>
             </div>
+            {hasAdjustments && (
+              <div className="text-[11px] text-op-muted">{t("taxSalesNetHint")}</div>
+            )}
             {/* Una fila por tarifa: lo que cada factura congeló al emitirse.
                 Un mes en el que se cambió la tarifa muestra las dos; sin
                 impuesto causado, la tarifa configurada en $0. */}
-            {(tax.sales.byRate?.length ? tax.sales.byRate : [tax.sales]).map((r) => (
-              <div
-                key={`${r.kind}-${r.pct}`}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span>{`${kindLabel(r.kind)} ${r.pct}%`}</span>
-                <span className="tabular-nums">{money(r.taxCents)}</span>
+            {netRates.map((r) => (
+              <div key={`${r.kind}-${r.pct}`}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>{`${kindLabel(r.kind)} ${r.pct}%`}</span>
+                  <span className="tabular-nums">{money(r.taxCents)}</span>
+                </div>
+                {(r.creditNoteTaxCents !== 0 || r.refundTaxCents !== 0) && (
+                  <div className="pl-3 space-y-0.5 text-[11px] text-op-muted">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{t("taxSalesGross")}</span>
+                      <span className="tabular-nums">{money(r.grossTaxCents)}</span>
+                    </div>
+                    {r.creditNoteTaxCents !== 0 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{t("taxSalesCreditNotes")}</span>
+                        <span className="tabular-nums">{"− " + money(r.creditNoteTaxCents)}</span>
+                      </div>
+                    )}
+                    {r.refundTaxCents !== 0 && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{t("taxSalesRefunds")}</span>
+                        <span className="tabular-nums">{"− " + money(r.refundTaxCents)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -885,6 +970,43 @@ function PnlTaxes({ tax, currency }: { tax: TaxSummaryDto; currency: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Cómo se llega a los ingresos por ventas: precio de carta − descuentos −
+ * impuesto incluido − notas crédito − devoluciones. Las restas que valen
+ * cero no se muestran (salvo el impuesto, que siempre está en juego).
+ */
+function PnlSalesDetail({
+  detail,
+  money,
+}: {
+  detail: NonNullable<PnlDto["salesDetail"]>;
+  money: (cents: number) => string;
+}) {
+  const t = useTranslations("opErp");
+  const rows: Array<{ key: string; label: string; cents: number; minus: boolean }> = [
+    { key: "list", label: t("pnlSalesList"), cents: detail.listCents, minus: false },
+    { key: "discount", label: t("pnlSalesDiscounts"), cents: detail.discountCents, minus: true },
+    { key: "tax", label: t("pnlSalesIncludedTax"), cents: detail.includedTaxCents, minus: true },
+    { key: "notes", label: t("pnlSalesCreditNotes"), cents: detail.creditNotesCents, minus: true },
+    { key: "refunds", label: t("pnlSalesRefunds"), cents: detail.refundsCents, minus: true },
+  ].filter((r) => !r.minus || r.key === "tax" || r.cents !== 0);
+  return (
+    <>
+      {rows.map((r) => (
+        <div
+          key={r.key}
+          className="flex items-center justify-between gap-3 text-[11px] text-op-muted"
+        >
+          <span>{r.label}</span>
+          <span className="tabular-nums">
+            {(r.minus ? "− " : "") + money(r.cents)}
+          </span>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -1090,6 +1212,9 @@ function PnlCategoryBreakdown({
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {t("pnlSalesByCategory")}
         </span>
+        <div className="mt-0.5 text-[11px] text-op-muted">
+          {t("pnlSalesByCategoryNote")}
+        </div>
       </div>
 
       {/* Encabezado de columnas (solo con CMV; sin él la fila es simple
@@ -1660,6 +1785,7 @@ function TemplatesSection({
 
 function ExpenseSheet({
   expense,
+  currency,
   suppliers,
   suppliersEnabled,
   categories,
@@ -1669,6 +1795,7 @@ function ExpenseSheet({
 }: {
   /** null = crear. */
   expense: ExpenseDto | null;
+  currency: string;
   suppliers: SupplierRef[];
   /** Módulo purchasing activo: ofrecer el campo/alta aunque no haya proveedores. */
   suppliersEnabled?: boolean;
@@ -2044,6 +2171,18 @@ function ExpenseSheet({
             </div>
           )}
 
+          {/* Gasto que quedó debiéndose: el pago se registra acá (la ruta de
+              abonos existía, pero ninguna pantalla la usaba y el gasto
+              quedaba en cuentas por pagar para siempre). */}
+          {expense && !expense.recurring && (
+            <ExpensePaymentPanel
+              expense={expense}
+              currency={currency}
+              accounts={accounts}
+              onPaid={onChanged}
+            />
+          )}
+
           <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
             <input
               type="checkbox"
@@ -2105,6 +2244,121 @@ function ExpenseSheet({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────── Registrar el pago de un gasto por pagar ────────────── */
+
+/**
+ * Pago (total o abono) de un gasto que quedó debiéndose: POST
+ * /api/operator/expenses/[id]/payments con el monto, la fecha y la cuenta
+ * de donde salió la plata. Entra al asiento «Pagos de gastos» del mes de
+ * la fecha de pago. Sin saldo, muestra que está pagado.
+ */
+function ExpensePaymentPanel({
+  expense,
+  currency,
+  accounts,
+  onPaid,
+}: {
+  expense: ExpenseDto;
+  currency: string;
+  accounts: ChartAccountRef[];
+  onPaid: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+  const outstanding = expenseOutstandingCents(expense);
+  const cashAccounts = accounts.filter((a) => a.code.startsWith("11"));
+  const [amountRaw, setAmountRaw] = useState(String(outstanding / 100));
+  const [date, setDate] = useState(todayDateInput());
+  const [account, setAccount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const accountCode = account || cashAccounts[0]?.code || "";
+
+  if (outstanding <= 0) {
+    return expense.paidAt ? (
+      <div className="rounded-2xl border border-op-border bg-op-bg/50 px-3 py-2.5 text-sm text-op-muted">
+        {t("expensePaidFull", { date: formatDate(expense.paidAt, { locale, timeStyle: undefined }) })}
+      </div>
+    ) : null;
+  }
+
+  async function pay() {
+    setErr(null);
+    const pesos = Number(amountRaw.replace(",", "."));
+    const amountCents = isFinite(pesos) ? pesosToCents(pesos) : 0;
+    if (amountCents < 1) {
+      setErr(t("errAmountInvalid"));
+      return;
+    }
+    if (amountCents > outstanding) {
+      setErr(t("errExpensePayExceeds"));
+      return;
+    }
+    if (!date || !accountCode) {
+      setErr(t("errExpenseInvalid"));
+      return;
+    }
+    setBusy(true);
+    const r = await fetch(`/api/operator/expenses/${expense.id}/payments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amountCents, paidAt: dateInputToIso(date), accountCode }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
+      setErr(key ? t(key) : t("errSaveFailed"));
+      return;
+    }
+    onPaid();
+  }
+
+  return (
+    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{t("expensePayTitle")}</span>
+        <span className="text-[11px] text-op-muted tabular-nums">
+          {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale }) })}
+        </span>
+      </div>
+      <Field label={t("expensePayAmount")} required>
+        <MoneyInput value={amountRaw} onChange={setAmountRaw} className={inputCls} />
+      </Field>
+      <Field label={t("expensePayDate")} required>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={inputCls}
+        />
+      </Field>
+      <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
+        <select
+          value={accountCode}
+          onChange={(e) => setAccount(e.target.value)}
+          className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
+        >
+          {cashAccounts.map((a) => (
+            <option key={a.code} value={a.code}>
+              {`${a.code} · ${a.name}`}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {err && <div className="text-xs text-danger">{err}</div>}
+      <button
+        type="button"
+        onClick={pay}
+        disabled={busy || !accountCode}
+        className="mp-btn mp-btn--secondary mp-btn--block"
+      >
+        {busy ? t("expensePayBusy") : t("expensePayButton")}
+      </button>
     </div>
   );
 }

@@ -7,9 +7,10 @@
  * se revierte, el sello se revierte con él.
  *
  * Qué sella (`Order.commission*`): quién atendió la cuenta, su % vigente,
- * la base y la comisión ya calculada. Cambiar el % del mesero después no
- * toca cuentas cobradas (sólo futuras) — igual que zenith sella
- * `sales.commission_pct` al confirmar la venta.
+ * la base (subtotal neto de descuento, sin propina ni impuesto: tampoco el
+ * INC/IVA incluido en el precio de la carta) y la comisión ya calculada.
+ * Cambiar el % del mesero después no toca cuentas cobradas (sólo futuras)
+ * — igual que zenith sella `sales.commission_pct` al confirmar la venta.
  *
  * ── Quién es «el mesero de la cuenta» ────────────────────────────────────
  * `Order` no guarda mesero. Se resuelve en este orden:
@@ -33,7 +34,7 @@
  */
 
 import type { Prisma } from "@prisma/client";
-import { sealCommission } from "./waiterCommissions";
+import { includedMenuTaxCents, sealCommission } from "./waiterCommissions";
 
 /** Lo que el sellado necesita del cliente Prisma (vale `db` o una `tx`). */
 export type CommissionSealClient = Pick<Prisma.TransactionClient, "order" | "user">;
@@ -60,6 +61,17 @@ const ORDER_SELECT = {
   subtotalCents: true,
   discountCents: true,
   commissionSealedAt: true,
+  // La tarifa del comercio AL COBRAR (la misma que la factura congela
+  // segundos después) y los platos vivos: la base no lleva el impuesto
+  // incluido en el precio de la carta.
+  restaurant: { select: { salesTaxKind: true, salesTaxPct: true } },
+  items: {
+    where: {
+      cancelledAt: null,
+      OR: [{ roundId: null }, { round: { status: { not: "cancelled" as const } } }],
+    },
+    select: { qty: true, priceCentsSnapshot: true, taxKind: true },
+  },
   table: { select: { number: true } },
   payments: {
     where: { status: "approved" as const, collectedByUserId: { not: null } },
@@ -144,6 +156,10 @@ export async function sealOrderCommission(
       waiterBps: waiter.waiterCommissionBps,
       subtotalCents: order.subtotalCents,
       discountCents: order.discountCents,
+      includedTaxCents: includedMenuTaxCents(order.items ?? [], {
+        kind: order.restaurant?.salesTaxKind ?? "none",
+        pct: order.restaurant?.salesTaxPct ?? 0,
+      }),
     });
     if (!sealed) return { sealed: false, reason: "no_rate" };
     // Cortesías (comp) y cuentas en $0: no hay nada que liquidar y una

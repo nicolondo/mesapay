@@ -24,6 +24,7 @@ import type { BalanceInput } from "./balanceSheet";
 import type { DailyBookEntryInput } from "./dailyBook";
 import type { LedgerLineInput } from "./generalLedger";
 import type { ResultMovement } from "./incomeStatement";
+import { centsToNumber } from "../ledgerCents";
 import { isoDateUtc } from "./period";
 import type { TrialBalanceDbRow } from "./trialBalance";
 
@@ -59,8 +60,8 @@ type RawTrialRow = {
 /**
  * Una consulta agrupada por cuenta con saldos FIRMADOS (débito − crédito):
  * saldo inicial (fecha < from), débitos y créditos del rango, saldo final
- * (fecha < to). Postgres devuelve `bigint` en los SUM: se convierte a
- * Number (los centavos de un comercio caben de sobra en 2^53).
+ * (fecha < to). `SUM` de un BIGINT es NUMERIC: se castea `::bigint` y se
+ * convierte a Number (los centavos de un comercio caben de sobra en 2^53).
  *
  * Sin filtro por `status`: un asiento anulado por reversa conserva sus
  * líneas y la reversa las netea, así que ambos deben sumar (ver cabecera).
@@ -73,10 +74,10 @@ export async function loadTrialBalanceRows(
   const rows = await db.$queryRaw<RawTrialRow[]>(Prisma.sql`
     SELECT
       l."accountCode" AS "accountCode",
-      COALESCE(SUM(CASE WHEN e."date" < ${from} THEN l."debitCents" - l."creditCents" ELSE 0 END), 0) AS "initialCents",
-      COALESCE(SUM(CASE WHEN e."date" >= ${from} THEN l."debitCents" ELSE 0 END), 0) AS "debitCents",
-      COALESCE(SUM(CASE WHEN e."date" >= ${from} THEN l."creditCents" ELSE 0 END), 0) AS "creditCents",
-      COALESCE(SUM(l."debitCents" - l."creditCents"), 0) AS "finalCents"
+      COALESCE(SUM(CASE WHEN e."date" < ${from} THEN l."debitCents" - l."creditCents" ELSE 0 END), 0)::bigint AS "initialCents",
+      COALESCE(SUM(CASE WHEN e."date" >= ${from} THEN l."debitCents" ELSE 0 END), 0)::bigint AS "debitCents",
+      COALESCE(SUM(CASE WHEN e."date" >= ${from} THEN l."creditCents" ELSE 0 END), 0)::bigint AS "creditCents",
+      COALESCE(SUM(l."debitCents" - l."creditCents"), 0)::bigint AS "finalCents"
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e."id" = l."entryId"
     WHERE e."restaurantId" = ${restaurantId}
@@ -86,10 +87,10 @@ export async function loadTrialBalanceRows(
   `);
   return rows.map((r) => ({
     accountCode: r.accountCode,
-    initialCents: Number(r.initialCents),
-    debitCents: Number(r.debitCents),
-    creditCents: Number(r.creditCents),
-    finalCents: Number(r.finalCents),
+    initialCents: centsToNumber(r.initialCents),
+    debitCents: centsToNumber(r.debitCents),
+    creditCents: centsToNumber(r.creditCents),
+    finalCents: centsToNumber(r.finalCents),
   }));
 }
 
@@ -153,8 +154,8 @@ export async function loadLedgerLines(
         status: l.entry.status,
         createdAt: l.entry.createdAt,
         accountCode: l.accountCode,
-        debitCents: l.debitCents,
-        creditCents: l.creditCents,
+        debitCents: centsToNumber(l.debitCents),
+        creditCents: centsToNumber(l.creditCents),
         lineMemo: l.memo,
       });
     }
@@ -213,8 +214,8 @@ export async function loadEntriesWithLines(
         lines: e.lines.map((l) => ({
           accountCode: l.accountCode,
           accountName: l.account.name,
-          debitCents: l.debitCents,
-          creditCents: l.creditCents,
+          debitCents: centsToNumber(l.debitCents),
+          creditCents: centsToNumber(l.creditCents),
           memo: l.memo,
         })),
       });
@@ -241,7 +242,7 @@ export async function loadBalancesThrough(
   const rows = await db.$queryRaw<RawBalanceRow[]>(Prisma.sql`
     SELECT
       l."accountCode" AS "accountCode",
-      COALESCE(SUM(l."debitCents" - l."creditCents"), 0) AS "balanceCents"
+      COALESCE(SUM(l."debitCents" - l."creditCents"), 0)::bigint AS "balanceCents"
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e."id" = l."entryId"
     WHERE e."restaurantId" = ${restaurantId}
@@ -249,7 +250,7 @@ export async function loadBalancesThrough(
     GROUP BY l."accountCode"
     ORDER BY l."accountCode"
   `);
-  return rows.map((r) => ({ accountCode: r.accountCode, balanceCents: Number(r.balanceCents) }));
+  return rows.map((r) => ({ accountCode: r.accountCode, balanceCents: centsToNumber(r.balanceCents) }));
 }
 
 type RawMovementRow = { accountCode: string; month: string; movementCents: bigint | number };
@@ -274,7 +275,7 @@ export async function loadResultMovements(
     SELECT
       l."accountCode" AS "accountCode",
       to_char(e."date", 'YYYY-MM') AS "month",
-      COALESCE(SUM(l."debitCents" - l."creditCents"), 0) AS "movementCents"
+      COALESCE(SUM(l."debitCents" - l."creditCents"), 0)::bigint AS "movementCents"
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e."id" = l."entryId"
     JOIN "LedgerAccount" a ON a."id" = l."accountId"
@@ -296,7 +297,7 @@ export async function loadResultMovements(
   return rows.map((r) => ({
     accountCode: r.accountCode,
     month: r.month,
-    movementCents: Number(r.movementCents),
+    movementCents: centsToNumber(r.movementCents),
   }));
 }
 

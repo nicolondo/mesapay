@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { getAccountingConfig, isMonthClosed } from "@/lib/erp/cierre";
 import { loadAccountMap } from "@/lib/erp/ledger";
+import { centsToNumber } from "@/lib/erp/ledgerCents";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -40,13 +41,18 @@ async function GETHandler(req: Request) {
     },
     orderBy: [{ period: "desc" }, { form: "asc" }],
   });
-  return NextResponse.json({ year, filings });
+  return NextResponse.json({
+    year,
+    filings: filings.map((f) => ({ ...f, declaredCents: centsToNumber(f.declaredCents) })),
+  });
 }
 
 const createSchema = z.object({
   form: z.enum(["iva", "inc", "retefuente", "ica"]),
   period: z.string().regex(/^\d{4}-\d{2}$/),
-  declaredCents: z.number().int().min(0).max(2_000_000_000),
+  // BIGINT: un bimestre de INC/IVA de un comercio grande pasa los $21 M que
+  // cabían en INT4. Mismo tope que una línea de comprobante manual.
+  declaredCents: z.number().int().min(0).max(1_000_000_000_000),
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(500).optional(),
 });
@@ -137,7 +143,10 @@ async function POSTHandler(req: Request) {
     });
   });
 
-  return NextResponse.json({ ok: true, filing }, { status: 201 });
+  return NextResponse.json(
+    { ok: true, filing: { ...filing, declaredCents: centsToNumber(filing.declaredCents) } },
+    { status: 201 },
+  );
 }
 
 /** Borra un registro de declaración (y su asiento de pago si existe). */

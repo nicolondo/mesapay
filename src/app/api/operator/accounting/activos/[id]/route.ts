@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { loadAssetAccountIndex, validateAssetInput } from "@/lib/erp/activos";
 import { loadAssetDetail } from "@/lib/erp/activosQuery";
+import { centsToNumber } from "@/lib/erp/ledgerCents";
 import type { ModuleSlug } from "@/lib/modules";
 import { assetPatchSchema } from "../schema";
 
@@ -53,8 +54,8 @@ async function PATCHHandler(req: Request, { params }: Params) {
       name: b.name ?? current.name,
       code: b.code === undefined ? current.code : b.code,
       purchaseDate: b.purchaseDate ?? current.purchaseDate.toISOString().slice(0, 10),
-      purchaseCents: b.purchaseCents ?? current.purchaseCents,
-      salvageCents: b.salvageCents ?? current.salvageCents,
+      purchaseCents: b.purchaseCents ?? centsToNumber(current.purchaseCents),
+      salvageCents: b.salvageCents ?? centsToNumber(current.salvageCents),
       usefulLifeMonths: b.usefulLifeMonths ?? current.usefulLifeMonths,
       assetAccountCode: b.assetAccountCode ?? current.assetAccountCode,
       depreciationAccountCode: b.depreciationAccountCode ?? current.depreciationAccountCode,

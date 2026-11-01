@@ -15,6 +15,7 @@ import {
   type DeferredKind,
 } from "./deferred";
 import { loadChartOfAccounts } from "./ledger";
+import { centsToNumber } from "./ledgerCents";
 import { MONEY_ACCOUNT_PREFIX } from "./paymentAccounts";
 
 export type DeferredItemDto = {
@@ -78,7 +79,13 @@ export function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-type ItemWithCenter = DeferredItemRecord & { costCenter: { name: string } | null };
+type StoredItemWithCenter = DeferredItemRecord & { costCenter: { name: string } | null };
+type ItemWithCenter = Omit<StoredItemWithCenter, "totalCents"> & { totalCents: number };
+
+/** Monto BIGINT → number al leer (ver ledgerCents). */
+function numericItem(it: StoredItemWithCenter): ItemWithCenter {
+  return { ...it, totalCents: centsToNumber(it.totalCents) };
+}
 
 function toDto(
   it: ItemWithCenter,
@@ -136,7 +143,7 @@ export async function listDeferredItems(restaurantId: string): Promise<DeferredI
     items.flatMap((i) => [i.sourceAccountCode, i.deferralAccountCode, i.targetAccountCode]),
   );
   const month = currentMonth();
-  return items.map((it) => toDto(it, names, month));
+  return items.map((it) => toDto(numericItem(it), names, month));
 }
 
 /**
@@ -149,11 +156,12 @@ export async function loadDeferredDetail(
   restaurantId: string,
   id: string,
 ): Promise<DeferredDetail | null> {
-  const it = await db.deferredItem.findFirst({
+  const stored = await db.deferredItem.findFirst({
     where: { id, restaurantId },
     include: ITEM_INCLUDE,
   });
-  if (!it) return null;
+  if (!stored) return null;
+  const it = numericItem(stored);
   const schedule = deferredSchedule(it);
   const months = schedule.map((r) => r.month);
   const [names, cfg, initial, posted] = await Promise.all([

@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import type { MonthRange } from "./accountingData";
 import { loadChartOfAccounts } from "./ledger";
+import { centsToNumber } from "./ledgerCents";
 
 type Sums = Map<string, { debit: number; credit: number }>;
 
@@ -37,7 +38,10 @@ async function accountSums(
   return new Map(
     rows.map((r) => [
       r.accountCode,
-      { debit: r._sum.debitCents ?? 0, credit: r._sum.creditCents ?? 0 },
+      {
+        debit: centsToNumber(r._sum.debitCents ?? 0),
+        credit: centsToNumber(r._sum.creditCents ?? 0),
+      },
     ]),
   );
 }

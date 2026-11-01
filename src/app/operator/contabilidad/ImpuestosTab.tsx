@@ -11,7 +11,14 @@ type Tax = {
   salesKind: string;
   salesPct: number;
   salesBaseCents: number;
+  ivaGeneradoBrutoCents: number;
+  ivaNotasCreditoCents: number;
+  ivaDevolucionesCents: number;
+  /** Neto = bruto − notas − devoluciones. */
   ivaGeneradoCents: number;
+  incGeneradoBrutoCents: number;
+  incNotasCreditoCents: number;
+  incDevolucionesCents: number;
   incGeneradoCents: number;
   ivaDescontableCents: number;
   ivaAPagarCents: number;
@@ -50,6 +57,8 @@ export function ImpuestosTab({
   } | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** El cierre ya está numerado y diciembre cerrado: no se puede regenerar. */
+  const [closingLocked, setClosingLocked] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -72,11 +81,22 @@ export function ImpuestosTab({
     if (!data) return;
     setBusy(true);
     setErr(false);
+    setClosingLocked(null);
     try {
       const r = await fetch(
         `/api/operator/accounting/fiscal?year=${data.year}`,
         { method: "POST" },
       );
+      if (r.status === 409) {
+        const j = (await r.json().catch(() => null)) as
+          | { error?: string; voucherNumber?: number }
+          | null;
+        if (j?.error === "closing_locked") {
+          setClosingLocked(j.voucherNumber ?? 0);
+          setBusy(false);
+          return;
+        }
+      }
       if (!r.ok) throw new Error("gen");
       const j = await r.json();
       setData((d) => (d ? { ...d, closing: j.closing } : d));
@@ -90,6 +110,8 @@ export function ImpuestosTab({
   if (!data) return <div className="text-sm text-op-muted">{t("loadingEllipsis")}</div>;
 
   const { tax, closing } = data;
+  const ivaAdjusted = tax.ivaNotasCreditoCents !== 0 || tax.ivaDevolucionesCents !== 0;
+  const incAdjusted = tax.incNotasCreditoCents !== 0 || tax.incDevolucionesCents !== 0;
 
   return (
     <div className="space-y-4">
@@ -129,9 +151,25 @@ export function ImpuestosTab({
       </div>
 
       <Section title={t("fiscalTaxTitle")}>
+        {/* Generado NETO: las notas crédito aceptadas del mes y las
+            devoluciones sin nota restan (misma regla que Impuestos del
+            período). Si algo restó, se ve el bruto y cada resta. */}
         {tax.salesKind === "iva" ? (
           <>
-            <Row label={t("fiscalIvaGen")} value={money(tax.ivaGeneradoCents)} />
+            {ivaAdjusted ? (
+              <>
+                <Row label={t("fiscalIvaGenGross")} value={money(tax.ivaGeneradoBrutoCents)} />
+                {tax.ivaNotasCreditoCents !== 0 && (
+                  <Row label={t("fiscalIvaCreditNotes")} value={money(-tax.ivaNotasCreditoCents)} />
+                )}
+                {tax.ivaDevolucionesCents !== 0 && (
+                  <Row label={t("fiscalIvaRefunds")} value={money(-tax.ivaDevolucionesCents)} />
+                )}
+                <Row label={t("fiscalIvaGenNet")} value={money(tax.ivaGeneradoCents)} />
+              </>
+            ) : (
+              <Row label={t("fiscalIvaGen")} value={money(tax.ivaGeneradoCents)} />
+            )}
             <Row
               label={t("fiscalIvaDesc")}
               value={money(-tax.ivaDescontableCents)}
@@ -143,15 +181,31 @@ export function ImpuestosTab({
             />
           </>
         ) : tax.salesKind === "inc" ? (
-          <Row
-            label={t("fiscalIncPagar")}
-            value={money(tax.incAPagarCents)}
-            strong
-          />
+          <>
+            {incAdjusted && (
+              <>
+                <Row label={t("fiscalIncGenGross")} value={money(tax.incGeneradoBrutoCents)} />
+                {tax.incNotasCreditoCents !== 0 && (
+                  <Row label={t("fiscalIncCreditNotes")} value={money(-tax.incNotasCreditoCents)} />
+                )}
+                {tax.incDevolucionesCents !== 0 && (
+                  <Row label={t("fiscalIncRefunds")} value={money(-tax.incDevolucionesCents)} />
+                )}
+              </>
+            )}
+            <Row
+              label={t("fiscalIncPagar")}
+              value={money(tax.incAPagarCents)}
+              strong
+            />
+          </>
         ) : (
           <div className="px-4 py-2 text-sm text-op-muted">
             {t("fiscalNoTax")}
           </div>
+        )}
+        {((tax.salesKind === "iva" && ivaAdjusted) || (tax.salesKind === "inc" && incAdjusted)) && (
+          <p className="px-4 pt-1 text-[11px] text-op-muted">{t("fiscalNetHint")}</p>
         )}
         <div className="px-4 pb-1 pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-op-muted">
           {t("fiscalRet")}
@@ -191,6 +245,11 @@ export function ImpuestosTab({
                 ? t("fiscalClosingRegen")
                 : t("fiscalClosingGen")}
           </button>
+          {closingLocked !== null && (
+            <p role="alert" className="mt-2 text-xs text-danger">
+              {t("fiscalClosingLocked", { n: closingLocked })}
+            </p>
+          )}
         </div>
       </Section>
 

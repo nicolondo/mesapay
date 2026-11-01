@@ -13,6 +13,7 @@ import {
 } from "./activos";
 import { getAccountingConfig } from "./cierre";
 import { loadChartOfAccounts } from "./ledger";
+import { centsToNumber } from "./ledgerCents";
 
 export type AssetDto = {
   id: string;
@@ -68,7 +69,20 @@ export type AssetFormOptions = {
   };
 };
 
-type AssetRecord = NonNullable<Awaited<ReturnType<typeof db.fixedAsset.findFirst>>>;
+type StoredAsset = NonNullable<Awaited<ReturnType<typeof db.fixedAsset.findFirst>>>;
+type AssetRecord = Omit<StoredAsset, "purchaseCents" | "salvageCents"> & {
+  purchaseCents: number;
+  salvageCents: number;
+};
+
+/** Montos BIGINT → number al leer (ver ledgerCents). */
+function numericAsset(a: StoredAsset): AssetRecord {
+  return {
+    ...a,
+    purchaseCents: centsToNumber(a.purchaseCents),
+    salvageCents: centsToNumber(a.salvageCents),
+  };
+}
 
 /** Asientos `depreciation` del comercio: mes → id del comprobante. */
 async function depreciationEntries(restaurantId: string): Promise<Map<string, string>> {
@@ -120,7 +134,9 @@ function toDto(
   };
 }
 
-function codesOf(a: AssetRecord): string[] {
+function codesOf(
+  a: Pick<StoredAsset, "assetAccountCode" | "depreciationAccountCode" | "expenseAccountCode">,
+): string[] {
   return [a.assetAccountCode, a.depreciationAccountCode, a.expenseAccountCode];
 }
 
@@ -136,7 +152,7 @@ export async function listAssets(restaurantId: string): Promise<AssetDto[]> {
   ]);
   const names = await accountNames(restaurantId, assets.flatMap(codesOf));
   const isPosted = postedMonthChecker(cfg.closedThrough, new Set(entries.keys()));
-  return assets.map((a) => toDto(a, names, isPosted));
+  return assets.map((a) => toDto(numericAsset(a), names, isPosted));
 }
 
 /**
@@ -145,8 +161,9 @@ export async function listAssets(restaurantId: string): Promise<AssetDto[]> {
  * proyección restante.
  */
 export async function loadAssetDetail(restaurantId: string, id: string): Promise<AssetDetail | null> {
-  const a = await db.fixedAsset.findFirst({ where: { id, restaurantId } });
-  if (!a) return null;
+  const stored = await db.fixedAsset.findFirst({ where: { id, restaurantId } });
+  if (!stored) return null;
+  const a = numericAsset(stored);
   const [names, cfg, entries] = await Promise.all([
     accountNames(restaurantId, codesOf(a)),
     getAccountingConfig(restaurantId),

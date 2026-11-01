@@ -288,6 +288,71 @@ export type CreditNoteExogenaInput = {
 
 export type ReceivableInput = { customer: Tercero; saldoCents: number };
 
+/** Un cobro a crédito a un cliente de facturación (`Payment.method = customer_credit`). */
+export type CreditChargeInput = {
+  id: string;
+  customerId: string;
+  orderId: string;
+  /** Fecha del cobro (settledAt). */
+  date: Date;
+  /** Monto con propina: lo que quedó debiendo. */
+  amountCents: number;
+  refundedCents: number;
+  /** Lo que las notas crédito le bajaron HASTA HOY (`Payment.creditNoteCents`). */
+  creditNoteCents: number;
+};
+
+/** Una nota crédito aceptada que bajó cartera (`CreditNote.receivableCents`). */
+export type CreditReceivableNoteInput = {
+  orderId: string;
+  receivableCents: number;
+  /** Fecha fiscal "YYYY-MM-DD" (día colombiano de emisión). */
+  fiscalDate: string;
+};
+
+/**
+ * Saldo por cobrar de cada cliente de facturación a la fecha de corte
+ * (`hasta`, "YYYY-MM-DD"), desde las ventas a crédito: Σ cargos − lo
+ * devuelto − lo que bajaron las notas crédito emitidas HASTA el corte −
+ * Σ abonos hasta el corte. Es lo que queda en Clientes (130505).
+ *
+ * `creditNoteCents` del cargo es el acumulado de HOY; una nota emitida
+ * después del corte no puede bajar el saldo al 31/12. Por eso se rehace al
+ * corte: lo que las notas de la cuenta (hasta el corte) bajaron se reparte
+ * entre sus cargos en orden de cobro, con tope en lo que cada cargo tiene
+ * hoy (la misma regla FIFO con la que la nota se fijó). Los reembolsos se
+ * descuentan con el valor de hoy, como la cartera.
+ *
+ * Saldo ≤ 0 (pagó de más) no es una cuenta por cobrar: no se reporta acá.
+ */
+export function creditReceivablesAtCutoff(
+  charges: readonly CreditChargeInput[],
+  abonos: readonly { customerId: string; amountCents: number }[],
+  notes: readonly CreditReceivableNoteInput[],
+  hasta: string,
+): Map<string, number> {
+  const noteByOrder = new Map<string, number>();
+  for (const n of notes) {
+    if (n.fiscalDate > hasta || n.receivableCents <= 0) continue;
+    noteByOrder.set(n.orderId, (noteByOrder.get(n.orderId) ?? 0) + n.receivableCents);
+  }
+  const byOrder = new Map<string, CreditChargeInput[]>();
+  for (const c of charges) byOrder.set(c.orderId, [...(byOrder.get(c.orderId) ?? []), c]);
+  const saldo = new Map<string, number>();
+  for (const [orderId, list] of byOrder) {
+    let notesLeft = noteByOrder.get(orderId) ?? 0;
+    const sorted = [...list].sort((a, b) => a.date.getTime() - b.date.getTime() || a.id.localeCompare(b.id));
+    for (const c of sorted) {
+      const noted = Math.min(notesLeft, Math.max(0, c.creditNoteCents));
+      notesLeft -= noted;
+      const debt = Math.max(0, c.amountCents - c.refundedCents - noted);
+      saldo.set(c.customerId, (saldo.get(c.customerId) ?? 0) + debt);
+    }
+  }
+  for (const a of abonos) saldo.set(a.customerId, (saldo.get(a.customerId) ?? 0) - a.amountCents);
+  return saldo;
+}
+
 export type PayableInput = {
   supplier: SupplierInput;
   /** Total bruto del documento (OC: neto + IVA; gasto: su valor). */
@@ -521,7 +586,10 @@ export function aggregate1007(
 
 /* ───────────────────────────── 1008 / 1009 ────────────────────────────── */
 
-/** Saldos CxC al 31/12 por cliente (cortes de bonos a crédito abiertos). */
+/**
+ * Saldos CxC al 31/12 por cliente: cortes de bonos a crédito abiertos y
+ * ventas a crédito a clientes de facturación (`creditReceivablesAtCutoff`).
+ */
 export function aggregate1008(receivables: ReceivableInput[]): RowSaldo[] {
   const rows = new Map<string, RowSaldo>();
   for (const r of receivables) {

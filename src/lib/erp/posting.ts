@@ -20,13 +20,15 @@ import { ensureChartOfAccounts, loadAccountIndex } from "./ledger";
 import { depreciationLinesForMonth } from "./activos";
 import { deferredAmortizationLinesForMonth } from "./deferred";
 import { resolvePostableCode } from "./chart";
-import { ENGINE } from "./engineCodes";
+import { ENGINE, ENGINE_SOURCES } from "./engineCodes";
+import { lineCentsToNumbers } from "./ledgerCents";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNoteAccounting";
 import { sumSlices } from "./creditNoteLedger";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 import { isCashMethod } from "@/lib/payments/methods";
+import { bogotaBusinessDateIso } from "@/lib/bogota";
 
 type Line = {
   code: string;
@@ -84,6 +86,17 @@ export function expenseAccountFor(category: string): string {
 }
 
 /**
+ * ¿Se asienta la nómina ESTIMADA (salarios de hoy) de `month`? Sólo en el
+ * mes en curso o uno futuro (hora de Colombia). Un mes que ya terminó no se
+ * estima con la planta de hoy: la corrida diaria lo regeneraría con gente
+ * que no trabajaba ese mes, o sin la que ya se fue. Su nómina entra al
+ * liquidar la corrida de ese mes.
+ */
+export function payrollEstimateApplies(month: string, now: Date): boolean {
+  return month >= bogotaBusinessDateIso(now).slice(0, 7);
+}
+
+/**
  * Arma (sin persistir) los asientos-resumen del mes. Cada uno cuadra por
  * construcción: la cuenta "plug" (ingreso 4135 en ventas, proveedores 2205 en
  * compras) absorbe la diferencia.
@@ -92,6 +105,7 @@ async function buildMonthEntries(
   restaurantId: string,
   month: string,
   range: MonthRange,
+  now: Date,
 ): Promise<DraftEntry[]> {
   // Primero las notas crédito: además de leerlas, fija las aceptadas que
   // quedaron sin fijar, y el cruce de los reembolsos de abajo las necesita.
@@ -308,24 +322,30 @@ async function buildMonthEntries(
         recurring: false, // las plantillas no son gasto (igual que el P&L)
         date: { gte: range.from, lt: range.to },
       },
-      select: { amountCents: true, category: true, accountCode: true },
+      select: { amountCents: true, category: true, accountCode: true, costCenterId: true },
     });
-    const byAccount = new Map<string, { amount: number; memo: string }>();
+    // Por cuenta Y centro de costos: agrupar sólo por cuenta perdía el
+    // centro y el presupuesto por centro no veía los gastos.
+    const byAccount = new Map<string, { code: string; costCenterId: string | null; amount: number; memo: string }>();
     for (const e of rows) {
       if (e.amountCents <= 0) continue;
       const code = e.accountCode ?? expenseAccountFor(e.category);
-      const cur = byAccount.get(code);
-      byAccount.set(code, {
+      const key = `${code}|${e.costCenterId ?? ""}`;
+      const cur = byAccount.get(key);
+      byAccount.set(key, {
+        code,
+        costCenterId: e.costCenterId ?? null,
         amount: (cur?.amount ?? 0) + e.amountCents,
         memo: cur?.memo ?? e.category,
       });
     }
     const total = [...byAccount.values()].reduce((s, v) => s + v.amount, 0);
     if (total > 0) {
-      const lines: Line[] = [...byAccount].map(([code, v]) => ({
-        code,
+      const lines: Line[] = [...byAccount.values()].map((v) => ({
+        code: v.code,
         debit: v.amount,
         memo: v.memo,
+        costCenterId: v.costCenterId,
       }));
       lines.push({ code: EXPENSE_PAYABLE_CODE, credit: total });
       entries.push({ source: "expense", memo: "Gastos del mes", lines });
@@ -423,8 +443,10 @@ async function buildMonthEntries(
         lines: lines.filter((l) => (l.debit ?? 0) > 0 || (l.credit ?? 0) > 0),
       });
     } else {
+      // Sin corrida: estimado con los salarios de hoy, sólo en el mes en
+      // curso (ver `payrollEstimateApplies`).
       const labor = pnl.labor?.totalCents ?? 0;
-      if (labor > 0) {
+      if (labor > 0 && payrollEstimateApplies(month, now)) {
         entries.push({
           source: "payroll",
           memo: "Nómina del mes",
@@ -497,15 +519,36 @@ async function buildMonthEntries(
 /**
  * Genera (o refresca) los asientos-resumen del mes `month` (YYYY-MM). Borra los
  * existentes de ese mes por fuente y los recrea. Sólo persiste los que cuadran.
+ *
+ * Una fuente del motor que este mes ya no produce asiento (se anuló el único
+ * gasto, se dieron de baja todos los activos…) pierde el asiento viejo: antes
+ * quedaba huérfano. Nunca toca comprobantes manuales (no son fuentes del
+ * motor) ni numerados o anulados.
  */
 export async function generateJournalForMonth(
   restaurantId: string,
   month: string,
   range: MonthRange,
+  opts: { now?: Date } = {},
 ): Promise<GenResult[]> {
   await ensureChartOfAccounts(restaurantId);
   const index = await loadAccountIndex(restaurantId);
-  const drafts = await buildMonthEntries(restaurantId, month, range);
+  const drafts = await buildMonthEntries(restaurantId, month, range, opts.now ?? new Date());
+  const produced = new Set(drafts.map((d) => d.source));
+  const orphans = ENGINE_SOURCES.filter((source) => !produced.has(source));
+  if (orphans.length > 0) {
+    await db.$transaction(async (tx) => {
+      await tx.journalEntry.deleteMany({
+        where: {
+          restaurantId,
+          sourceRef: month,
+          source: { in: orphans },
+          voucherNumber: null,
+          annulledAt: null,
+        },
+      });
+    });
+  }
   // Fecha del asiento = último instante del mes.
   const date = new Date(range.to.getTime() - 1);
 
@@ -650,7 +693,7 @@ export async function loadJournalForMonth(
     memo: e.memo,
     voucherNumber: e.voucherNumber,
     lines: e.lines
-      .slice()
+      .map(lineCentsToNumbers)
       .sort((a, b) => b.debitCents - a.debitCents)
       .map((l) => ({
         accountCode: l.accountCode,

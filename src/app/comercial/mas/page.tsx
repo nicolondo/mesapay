@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { MasImportSection } from "./MasImportSection";
+import { InstallCrmApp } from "../InstallCrmApp";
 
 const CRM_ROLES = new Set(["comercial", "gerente_comercial", "platform_admin"]);
 
@@ -27,6 +28,9 @@ export default async function MasPage() {
       <div className="font-display text-2xl tracking-[-0.015em] mb-6">
         {t("masTitle")}
       </div>
+
+      {/* Instalar la app "MP CRM" (ancla #instalar; no se ve en standalone) */}
+      <InstallCrmApp mode="card" />
 
       {/* Links list */}
       <div className="rounded-2xl border border-op-border bg-op-surface divide-y divide-op-border mb-6">

@@ -5271,7 +5271,22 @@
     "navNextLead": "Next lead (→)",
     "clearSearch": "Clear search",
     "deleteLeadConfirmTitle": "Delete lead",
-    "cancelBtn": "Cancel"
+    "cancelBtn": "Cancel",
+    "installCardTitle": "Install MP CRM on your phone",
+    "installCardBody": "It works like any other app: its own icon on your home screen, full screen, and it opens straight into the pipeline.",
+    "installInstalledTitle": "MP CRM is already installed",
+    "installInstalledBody": "Open it from the icon on your phone's home screen.",
+    "installButton": "Install",
+    "installIosIntro": "In Safari, on your iPhone or iPad:",
+    "installIosStep1": "Tap Share (the square with the arrow pointing up).",
+    "installIosStep2": "Choose “Add to Home Screen”.",
+    "installIosStep3": "Tap “Add”.",
+    "installOtherBody": "In this browser you install it from the browser menu: look for “Install app” or “Add to Home screen”.",
+    "installManualHint": "If the install prompt didn't appear, use the browser menu: “Install app”.",
+    "installBannerTitle": "Install MP CRM",
+    "installBannerBody": "Keep it as an app on your phone.",
+    "installBannerHow": "How to install",
+    "installDismiss": "Don't show again"
   },
   "card": {
     "role": "General Manager",

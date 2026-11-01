@@ -5271,7 +5271,22 @@
     "navNextLead": "Próximo lead (→)",
     "clearSearch": "Limpar busca",
     "deleteLeadConfirmTitle": "Excluir lead",
-    "cancelBtn": "Cancelar"
+    "cancelBtn": "Cancelar",
+    "installCardTitle": "Instale o MP CRM no seu celular",
+    "installCardBody": "Fica como um app a mais: com ícone próprio na tela inicial, em tela cheia e abrindo direto no pipeline.",
+    "installInstalledTitle": "O MP CRM já está instalado",
+    "installInstalledBody": "Abra pelo ícone na tela inicial do seu celular.",
+    "installButton": "Instalar",
+    "installIosIntro": "No Safari, no seu iPhone ou iPad:",
+    "installIosStep1": "Toque em Compartilhar (o quadrado com a seta para cima).",
+    "installIosStep2": "Escolha “Adicionar à Tela de Início”.",
+    "installIosStep3": "Toque em “Adicionar”.",
+    "installOtherBody": "Neste navegador, a instalação é feita pelo menu do navegador: procure a opção “Instalar app” ou “Adicionar à tela inicial”.",
+    "installManualHint": "Se o aviso de instalação não apareceu, use o menu do navegador: “Instalar app”.",
+    "installBannerTitle": "Instale o MP CRM",
+    "installBannerBody": "Tenha o CRM como app no seu celular.",
+    "installBannerHow": "Como instalar",
+    "installDismiss": "Não mostrar de novo"
   },
   "card": {
     "role": "Gerente Geral",

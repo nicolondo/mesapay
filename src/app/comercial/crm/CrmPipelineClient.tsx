@@ -10,6 +10,7 @@ import { useTranslations, useFormatter } from "next-intl";
 import { openWhatsApp } from "@/lib/crm/openWhatsApp";
 import { applyDrop, applyDropCounts } from "@/lib/crm/kanbanDnd";
 import { CrmNewLeadSheet } from "./CrmNewLeadSheet";
+import { InstallCrmApp } from "../InstallCrmApp";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1051,6 +1052,10 @@ export function CrmPipelineClient({
           {configHintText}
         </div>
       )}
+
+      {/* Invitación a instalar la app "MP CRM": sólo móvil, descartable
+          (localStorage) y nunca en standalone. */}
+      <InstallCrmApp mode="banner" />
 
       {/* Título — NO sticky: en móvil se va con el scroll, solo el buscador
           queda fijo arriba. */}

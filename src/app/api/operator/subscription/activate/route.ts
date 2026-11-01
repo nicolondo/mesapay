@@ -14,6 +14,10 @@ import {
 } from "@/lib/billing/subscription";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { recordAuditEvent } from "@/lib/auditLog";
+import {
+  classifySubscriptionError,
+  subscriptionErrorHttpStatus,
+} from "@/lib/billing/subscriptionErrors";
 import type { Plan } from "@prisma/client";
 
 function guard(role?: string | null) {
@@ -128,15 +132,25 @@ async function POSTHandler(req: Request) {
       metadata: { restaurantId, platform: "mesapay" },
     });
   } catch (err) {
-    console.error("[billing] activate: createCardSubscription failed", err);
+    const { reason, providerCode } = classifySubscriptionError(err);
+    console.error("[billing] activate: createCardSubscription failed", { reason, providerCode }, err);
+    if (reason === "not_configured") {
+      // No es la tarjeta del cliente: es config nuestra en Kushki. Ruido fuerte.
+      console.error(
+        "[billing][NOT_CONFIGURED] activate: createCardSubscription falló por NUESTRO lado (credenciales/habilitación en Kushki), no por la tarjeta",
+        { restaurantId, providerCode, mode },
+      );
+    }
     // En sandbox/mock exponemos el detalle para depurar contra Kushki; en
-    // producción NO (evita filtrar internals).
+    // producción NO (evita filtrar internals) — ahí sólo va el `code`.
     return NextResponse.json(
       {
         error: "create_failed",
+        reason,
+        providerCode,
         detail: mode !== "production" ? String(err) : undefined,
       },
-      { status: 502 },
+      { status: subscriptionErrorHttpStatus(reason) },
     );
   }
 
@@ -164,13 +178,22 @@ async function POSTHandler(req: Request) {
       } catch (cancelErr) {
         console.error("[billing] activate: failed to cancel orphan subscription", cancelErr);
       }
-      console.error("[billing] activate: chargeSubscriptionNow threw", err);
+      const { reason, providerCode } = classifySubscriptionError(err);
+      console.error("[billing] activate: chargeSubscriptionNow threw", { reason, providerCode }, err);
+      if (reason === "not_configured") {
+        console.error(
+          "[billing][NOT_CONFIGURED] activate: el cobro inicial falló por NUESTRO lado (credenciales/habilitación en Kushki), no por la tarjeta",
+          { restaurantId, providerCode, mode },
+        );
+      }
       return NextResponse.json(
         {
           error: "charge_failed",
+          reason,
+          providerCode,
           detail: mode !== "production" ? String(err) : undefined,
         },
-        { status: 502 },
+        { status: subscriptionErrorHttpStatus(reason) },
       );
     }
 
@@ -186,8 +209,10 @@ async function POSTHandler(req: Request) {
       } catch (cancelErr) {
         console.error("[billing] activate: failed to cancel after declined charge", cancelErr);
       }
+      // El texto de Kushki queda en el log; el cliente traduce por código.
+      console.error("[billing] activate: initial charge declined", { message: chargeResult.message });
       return NextResponse.json(
-        { error: "charge_declined", message: chargeResult.message ?? "Tarjeta rechazada" },
+        { error: "charge_declined", reason: "card_declined", providerCode: null },
         { status: 402 },
       );
     }

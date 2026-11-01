@@ -195,3 +195,71 @@ describe("cobro del staff con una solicitud del comensal pendiente", () => {
     expect(h.fake.payment("req-datafono")?.status).toBe("pending");
   });
 });
+
+/**
+ * El incidente de Son y Melona del 2026-10-31: un `kushki_card_terminal`
+ * PENDIENTE por $174.570 (propina $15.870) que nunca se envió al datáfono
+ * (sin `FinancialOperation` `terminal:<id>`, sin providerRef; el comercio no
+ * tenía equipos). La regla vieja lo trataba como "en vuelo" por su método y
+ * el cobro del staff respondía 409 pending_payment_in_flight para siempre.
+ */
+describe("datáfono Kushki pendiente y el staff cobra en efectivo", () => {
+  const KUSHKI_TOTAL = 17_457_000;
+  const KUSHKI_TIP = 1_587_000;
+  const KUSHKI_SUBTOTAL = KUSHKI_TOTAL - KUSHKI_TIP;
+  const KUSHKI_ID = "pay-kushki-sin-enviar";
+
+  function seedKushki(pushed: boolean) {
+    h.fake = createFakePaymentsDb({
+      order: { id: ORDER_ID, status: "paying", subtotalCents: KUSHKI_SUBTOTAL, tableId: "table-7" },
+      payments: [
+        {
+          id: KUSHKI_ID,
+          method: "kushki_card_terminal",
+          status: "pending",
+          amountCents: KUSHKI_TOTAL,
+          tipCents: KUSHKI_TIP,
+          collectedByUserId: "operator-1",
+        },
+      ],
+      financialOperations: pushed ? [{ key: `terminal:${KUSHKI_ID}`, paymentId: KUSHKI_ID, amountCents: KUSHKI_TOTAL }] : [],
+    });
+  }
+
+  it("reproduce el incidente: con la solicitud pendiente, el INSERT del efectivo rebota en el trigger", async () => {
+    seedKushki(false);
+    await expect(
+      h.fake.tx.payment.create({ data: { orderId: ORDER_ID, method: "cash", status: "approved", amountCents: KUSHKI_TOTAL, tipCents: KUSHKI_TIP } }),
+    ).rejects.toThrow(/amount_exceeds_outstanding/);
+  });
+
+  it("nunca se envió al equipo: la solicitud se declina sola, el efectivo entra y la orden queda paid", async () => {
+    seedKushki(false);
+    h.session = ADMIN;
+
+    const { status, json } = await pay({ method: "cash", amountCents: KUSHKI_TOTAL, tipCents: KUSHKI_TIP, settleNow: true });
+
+    expect(status).toBe(200);
+    expect(json).toMatchObject({ paid: true, pending: false });
+    expect(h.fake.payment(KUSHKI_ID)?.status).toBe("declined");
+    expect(h.fake.state.payments.find((p) => p.method === "cash")).toMatchObject({ status: "approved", amountCents: KUSHKI_TOTAL });
+    expect(h.fake.order()).toMatchObject({ status: "paid", totalCents: KUSHKI_TOTAL });
+    expect(h.publish).toHaveBeenCalledWith("rest-1", { type: "order.paid", orderId: ORDER_ID });
+  });
+
+  it("ya se envió al datáfono (reclamo terminal:<id>): 409 pending_payment_in_flight y no se toca nada", async () => {
+    seedKushki(true);
+    h.session = ADMIN;
+
+    const { status, json } = await pay({ method: "cash", amountCents: KUSHKI_TOTAL, tipCents: KUSHKI_TIP, settleNow: true });
+
+    expect(status).toBe(409);
+    expect(json).toMatchObject({
+      error: "pending_payment_in_flight",
+      pending: { paymentId: KUSHKI_ID, method: "kushki_card_terminal", amountCents: KUSHKI_TOTAL, tipCents: KUSHKI_TIP },
+    });
+    expect(h.fake.payment(KUSHKI_ID)?.status).toBe("pending");
+    expect(h.fake.state.payments).toHaveLength(1);
+    expect(h.fake.order().status).toBe("paying");
+  });
+});

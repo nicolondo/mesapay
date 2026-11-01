@@ -13,6 +13,7 @@ import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { prepareStaffCharge } from "@/lib/payments/staffCharge";
+import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -20,7 +21,14 @@ import { prepareStaffCharge } from "@/lib/payments/staffCharge";
  * it and a server can push the amount to the actual terminal.
  *
  * No call to Kushki here. That happens when the terminal operator clicks
- * "Cobrar" on the table — see /api/tenant/[slug]/terminal/charge.
+ * "Cobrar" on the table — see /api/tenant/[slug]/terminal/charge. Until
+ * then the pending row is only a REQUEST (no money in flight): a staff
+ * charge by other means replaces it, and "Cancelar solicitud" declines it
+ * (see isReplaceablePending in lib/payments/methods.ts).
+ *
+ * 409 `terminal_unavailable` when the restaurant could not push it anyway
+ * (method disabled, no Business-Code, no active device): see
+ * lib/payments/terminalAvailability.ts.
  */
 
 const schema = z.object({
@@ -49,6 +57,19 @@ async function POSTHandler(
   const role = session?.user?.role;
   if (tenant.adminOnlyCharge && isChargeBlockedForRole(role, true)) {
     return chargeBlockedResponse();
+  }
+
+  // Nunca crear una solicitud que nadie va a poder empujar: el método tiene
+  // que estar habilitado y el comercio tiene que cumplir lo mismo que exige
+  // `terminal/charge` (modo, Business-Code y un datáfono activo con serial
+  // cuando es real). Son y Melona, 2026-10-31: sin datáfonos ni método
+  // habilitado, la solicitud quedó pendiente y trabó la cuenta.
+  const availability = await kushkiTerminalAvailability(tenant);
+  if (!availability.available) {
+    return NextResponse.json(
+      { error: "terminal_unavailable", reason: availability.reason },
+      { status: 409 },
+    );
   }
 
   const body = await req.json().catch(() => null);
@@ -107,8 +128,8 @@ async function POSTHandler(
     if (existing) return existing;
     // El comensal: sus otros pendientes conservan la reserva hasta que se
     // confirme su resultado. El staff: reemplaza las solicitudes (efectivo,
-    // datáfono propio) y choca con 409 accionable si un pago en línea en
-    // curso no deja espacio.
+    // datáfono propio, Smart POS sin empujar) y choca con 409 accionable si
+    // un pago en línea en curso no deja espacio.
     if (staff) await prepareStaffCharge(tx, order.id, foodPortion);
     const p = await tx.payment.create({
       data: {

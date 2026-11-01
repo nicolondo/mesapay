@@ -9,7 +9,7 @@ import { computeOrderTotals, recomputeOrderTotalsInTx } from "@/lib/orderTotals"
 import { activateOpenRounds } from "@/lib/prepaidRounds";
 import {
   assertNoPaymentInFlightHolding,
-  releasePaymentRequests,
+  releaseStaffPaymentRequests,
   staffOutstanding,
 } from "@/lib/payments/staffCharge";
 import { formatVoucherCode, looksLikeVoucherCode, normalizeVoucherCode } from "./code";
@@ -257,7 +257,7 @@ export async function redeemVoucher(args: {
 
     // El staff aplicó el bono: las solicitudes del comensal quedan
     // reemplazadas (y su reserva, liberada antes del INSERT).
-    if (staff) await releasePaymentRequests(tx, order.id);
+    if (staff) await releaseStaffPaymentRequests(tx, order.id);
     const payment = await tx.payment.create({
       data: {
         orderId: order.id,

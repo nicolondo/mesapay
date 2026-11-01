@@ -142,13 +142,34 @@ export type CloudTerminalPushArgs = {
 };
 
 export type CloudTerminalChargeResult = {
-  status: "approved" | "declined" | "error";
+  /**
+   * - `approved`: el datáfono aprobó (señal explícita).
+   * - `declined`: el banco rechazó la tarjeta. No se cobró.
+   * - `rejected`: Kushki rechazó la SOLICITUD por validación (HTTP 4xx de
+   *   `CLOUD_TERMINAL_VALIDATION_STATUSES`) ANTES de mandarla al equipo:
+   *   Business-Code, serial o firma que no valida. No se cobró.
+   * - `error`: transporte (timeout, red, 5xx) o cuerpo sin señal clara: no se
+   *   sabe si el equipo cobró; el pago queda incierto para conciliar.
+   */
+  status: "approved" | "declined" | "rejected" | "error";
   /** transaction_reference (para void/refund) o el client_transaction_id. */
   providerRef: string;
   message?: string;
   httpStatus?: number;
+  /** Detalle de Kushki ({type, code, message}) cuando lo mandó. */
+  failure?: { type?: string; code?: string; message?: string };
   raw?: unknown;
 };
+
+/**
+ * Respuestas HTTP con las que Kushki dice que NO aceptó la solicitud: no la
+ * validó (firma, Business-Code, serial, payload) y por lo tanto nunca llegó
+ * al datáfono. Caso real (Son y Melona, 2026-10-31): `400
+ * {"type":"INTERNAL","code":"CLOUDPAYMENT_VALIDATION_ERROR","message":"Unable
+ * to validate the CloudPayment request."}`. 5xx, 408/429, timeout y errores
+ * de red NO están: ahí no se sabe si el equipo cobró.
+ */
+export const CLOUD_TERMINAL_VALIDATION_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404, 409, 422]);
 
 function asObj(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
@@ -300,14 +321,17 @@ export async function pushPaymentToCloudTerminal(
   const label =
     [type, code].filter(Boolean).join("/") +
     (fmsg ? `${type || code ? ": " : ""}${fmsg}` : "");
-  // Rechazo de tarjeta (banco) → "declined". Cancelación / equipo / error
-  // operacional → "error" (deja el Payment pendiente para reintentar).
+  // Rechazo de tarjeta (banco) → "declined". Solicitud que Kushki no validó
+  // (4xx) → "rejected": nunca llegó al equipo. Cancelación / equipo / error
+  // operacional / 5xx → "error" (no se sabe si cobró: queda incierto).
   const isDecline = txStatus === "DECLINED" || obj.approved === false;
+  const rejected = !isDecline && CLOUD_TERMINAL_VALIDATION_STATUSES.has(res.status);
   return {
-    status: isDecline ? "declined" : "error",
+    status: isDecline ? "declined" : rejected ? "rejected" : "error",
     providerRef,
     message: label || pick(obj, ["message"]) || `http_${res.status}`,
     httpStatus: res.status,
+    ...(type || code || fmsg ? { failure: { type, code, message: fmsg } } : {}),
     raw: json,
   };
 }

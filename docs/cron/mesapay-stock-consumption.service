@@ -1,0 +1,34 @@
+[Unit]
+# Barrido de respaldo de pagos e inventario. La ruta hace, en una corrida:
+#   - consumo de inventario de las órdenes pagadas que el hook de order.paid
+#     no alcanzó a descontar (proceso muerto, deploy a mitad de pago);
+#   - limpieza de rate limits vencidos y eventos de plataforma de más de 7 días;
+#   - cobros con proveedor (tarjeta, Apple Pay, PSE, datáfono Kushki YA
+#     enviado al equipo) pendientes hace más de 30 minutos → marcados
+#     `reconciliationRequired` para que Cobros ofrezca conciliarlos. Una
+#     solicitud de datáfono Kushki que nunca se envió NO se marca: se cancela
+#     o la reemplaza el cobro.
+#
+# Instalación (una vez, como root):
+#   cp docs/cron/mesapay-stock-consumption.service /etc/systemd/system/
+#   cp docs/cron/mesapay-stock-consumption.timer   /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now mesapay-stock-consumption.timer
+#
+# CRON_SECRET sale del mismo .env.production que usa la app (se lee con
+# EnvironmentFile; NUNCA se sourcea el archivo). La URL apunta a nginx,
+# que enruta al color activo (blue/green); no a un puerto fijo.
+Description=MESAPAY · barrido de consumo de inventario y cobros sin respuesta
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+EnvironmentFile=/opt/mesapay/shared/.env.production
+ExecStart=/usr/bin/curl -sS -m 120 -X POST \
+  -H "x-cron-secret: ${CRON_SECRET}" \
+  https://mesapay.co/api/cron/stock-consumption
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-stock-consumption

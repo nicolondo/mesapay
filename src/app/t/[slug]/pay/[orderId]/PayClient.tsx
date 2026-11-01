@@ -14,7 +14,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import Link from "next/link";
 import { fmtCOP, formatMoney } from "@/lib/format";
-import { isCashMethod, isReplaceablePendingMethod } from "@/lib/payments/methods";
+import { isCashMethod } from "@/lib/payments/methods";
 import { ApplePayButton } from "./ApplePayButton";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
@@ -132,6 +132,8 @@ export function PayClient({
   creditEnabled = false,
   linkedCustomer = null,
   pendingPayments = [],
+  kushkiTerminalAvailable = false,
+  canResolveTerminal = false,
   approvedPayments = [],
   tableNumber = 0,
 }: {
@@ -247,10 +249,18 @@ export function PayClient({
   creditEnabled?: boolean;
   // Cliente ya ligado a la cuenta por la solicitud de factura nominativa.
   linkedCustomer?: PayCustomer | null;
-  // Pagos `pending` de la cuenta (sólo staff): la solicitud del comensal
-  // ("pidió pagar con datáfono/efectivo por $X") va arriba con "Confirmar
-  // pago recibido"; un pago en línea en curso, sin acción.
+  // Pagos `pending` de la cuenta (sólo staff): la solicitud ("pidió pagar
+  // con datáfono/efectivo por $X", o el datáfono Kushki sin enviar) va
+  // arriba con "Confirmar pago recibido" / "Cancelar solicitud"; un pago en
+  // línea en curso, sin acción.
   pendingPayments?: PendingPaymentView[];
+  // El comercio puede empujar un cobro al datáfono Kushki (método
+  // habilitado, Business-Code y un equipo activo): sin esto no se ofrece,
+  // para no crear una solicitud que nadie va a poder enviar.
+  kushkiTerminalAvailable?: boolean;
+  // Quien cobra es administrador (nunca el mesero): puede "Resolver cobro"
+  // de un datáfono Kushki enviado que no devolvió resultado.
+  canResolveTerminal?: boolean;
   approvedPayments?: ApprovedPaymentView[];
   // Número de la mesa, para el título del cobro en efectivo del aviso.
   tableNumber?: number;
@@ -591,7 +601,7 @@ export function PayClient({
         );
         if (!pushRes.ok) {
           const pj = await pushRes.json().catch(() => ({}));
-          setErr(pj.message ?? pj.error ?? t("errPushTerminal"));
+          setErr(apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
           refreshBalance();
           return;
         }
@@ -975,6 +985,8 @@ export function PayClient({
             onConfirmed={({ paid }) => paymentConfirmed(paid)}
             onRefresh={refreshBalance}
             onDeclined={mixed ? () => { setFocusPayment("summary"); refreshBalance(); } : undefined}
+            onCancelled={refreshBalance}
+            canResolveTerminal={canResolveTerminal}
             disabled={interactionLocked}
           />
         </div>
@@ -1109,7 +1121,7 @@ export function PayClient({
       {mixed && <div ref={summaryRef} tabIndex={-1} className="focus:outline-none"><MixedPaymentPanel budget={mixedBudget} allocation={mixedAllocation} value={mixedValue}
         onChange={value => { setMixedInput({ balance: balanceKey, value }); setErr(null); }}
         onRemaining={() => { setMixedInput(null); setUseRemainder(true); }}
-        payments={approvedPayments} disabled={interactionLocked} pending={pendingBlocksMixed} inFlight={pendingPayments.some(p => !isReplaceablePendingMethod(p.method))} currency={currency} /></div>}
+        payments={approvedPayments} disabled={interactionLocked} pending={pendingBlocksMixed} inFlight={pendingPayments.some(p => !p.replaceable)} currency={currency} /></div>}
 
       {mode === "equal" && (
         <div className="mt-4 flex items-center justify-between bg-paper border border-hairline rounded-xl px-4 py-3">
@@ -1362,7 +1374,7 @@ export function PayClient({
               )}
             </>
           )}
-        {kushkiReady && enabledMethods.includes("kushki_card_terminal") && (
+        {kushkiReady && enabledMethods.includes("kushki_card_terminal") && kushkiTerminalAvailable && (
           <PayButton currency={currency}
             kind="terminal"
             disabled={chargeDisabled}
@@ -1452,7 +1464,7 @@ export function PayClient({
             {compLabel?.trim() || t("representacion")}
           </button>
         )}
-        {showDemoFallback && enabledMethods.includes("kushki_card_terminal") && (
+        {showDemoFallback && enabledMethods.includes("kushki_card_terminal") && kushkiTerminalAvailable && (
           <>
             {/* Same flow as the real "Tarjeta con datáfono" button — useful
                 for previewing the customer's "esperando datáfono" screen

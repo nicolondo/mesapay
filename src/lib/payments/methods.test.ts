@@ -6,10 +6,13 @@ import { PaymentMethod } from "@prisma/client";
 import {
   CASH_METHOD,
   CASH_METHODS,
+  PUSHABLE_REQUEST_METHODS,
   REPLACEABLE_PENDING_METHODS,
   isCashMethod,
+  isReplaceablePending,
   isReplaceablePendingMethod,
   reportingPaymentMethod,
+  terminalClaimKey,
 } from "./methods";
 
 describe("isCashMethod", () => {
@@ -100,3 +103,50 @@ describe("isReplaceablePendingMethod / REPLACEABLE_PENDING_METHODS", () => {
   });
 });
 
+
+// La regla por ESTADO real (Son y Melona, 2026-10-31): el datáfono Kushki es
+// una solicitud mientras nadie lo envió al equipo; con el reclamo
+// `terminal:<id>` (o providerRef) es plata en vuelo.
+describe("isReplaceablePending", () => {
+  it("efectivo y datáfono propio pendientes: siempre solicitudes, con o sin reclamo", () => {
+    for (const method of ["cash", "demo_cash", "external_terminal"]) {
+      expect(isReplaceablePending({ method, status: "pending" }, false), method).toBe(true);
+      expect(isReplaceablePending({ method, status: "pending" }, true), method).toBe(true);
+    }
+  });
+
+  it("datáfono Kushki SIN reclamo ni providerRef: solicitud (nunca se envió al equipo)", () => {
+    expect(isReplaceablePending({ method: "kushki_card_terminal", status: "pending", providerRef: null }, false)).toBe(true);
+    expect(isReplaceablePending({ method: "kushki_card_terminal" }, false)).toBe(true);
+  });
+
+  it("datáfono Kushki con reclamo o con providerRef: en vuelo, nunca se reemplaza", () => {
+    expect(isReplaceablePending({ method: "kushki_card_terminal", status: "pending", providerRef: null }, true)).toBe(false);
+    expect(isReplaceablePending({ method: "kushki_card_terminal", status: "pending", providerRef: "mock-ref" }, false)).toBe(false);
+  });
+
+  it("pagos en línea (PSE, tarjeta, billeteras, Wompi) y lo que nace aprobado: nunca, aunque no tengan reclamo", () => {
+    for (const m of Object.values(PaymentMethod)) {
+      if (["cash", "demo_cash", "external_terminal", "kushki_card_terminal"].includes(m)) continue;
+      expect(isReplaceablePending({ method: m, status: "pending" }, false), m).toBe(false);
+    }
+  });
+
+  it("un pago que ya no está pendiente no es solicitud de nada", () => {
+    for (const status of ["approved", "declined", "refunded"]) {
+      expect(isReplaceablePending({ method: "cash", status }, false), status).toBe(false);
+      expect(isReplaceablePending({ method: "kushki_card_terminal", status }, false), status).toBe(false);
+    }
+  });
+
+  it("lo desconocido se respeta", () => {
+    for (const m of [null, undefined, "", "toString", "__proto__", "bitcoin"]) {
+      expect(isReplaceablePending({ method: m, status: "pending" }, false), String(m)).toBe(false);
+    }
+  });
+
+  it("el único método «solicitud hasta que se envía» es el Smart POS de Kushki, y su reclamo es terminal:<id>", () => {
+    expect([...PUSHABLE_REQUEST_METHODS]).toEqual(["kushki_card_terminal"]);
+    expect(terminalClaimKey("cmvwqgmes000mg2zh7dwc0bix")).toBe("terminal:cmvwqgmes000mg2zh7dwc0bix");
+  });
+});

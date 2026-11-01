@@ -8,6 +8,7 @@ import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import type { AutoFiredRound } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { settlePaymentLinkInTx } from "@/lib/paymentLinks";
+import { releaseOrderFromPaying } from "./orderStatusAfterDecline";
 
 export type KushkiWebhookKind =
   | "charge.approved"
@@ -121,10 +122,6 @@ export async function settleKushkiEventInTx(tx: Prisma.TransactionClient, payloa
     paid = totals.fullyPaid;
     if (paid) fired = await activateOpenRounds(tx, payment.orderId);
   }
-  if (!approved && payment.order.status === "paying" && !await tx.payment.count({ where: { orderId: payment.orderId, status: { in: ["pending", "approved"] } } })) {
-    const rounds = await tx.round.findMany({ where: { orderId: payment.orderId, status: { not: "cancelled" } }, select: { status: true } });
-    const status = !rounds.length ? "open" : rounds.every(r => r.status === "served") ? "served" : rounds.every(r => r.status === "ready") ? "ready" : rounds.some(r => r.status === "in_kitchen") ? "in_kitchen" : "placed";
-    await tx.order.update({ where: { id: payment.orderId }, data: { status } });
-  }
+  if (!approved) await releaseOrderFromPaying(tx, payment.orderId, payment.order.status);
   return { id: payment.orderId, restaurantId: payment.order.restaurantId, paid, approved, paymentId: payment.id, fired };
 }

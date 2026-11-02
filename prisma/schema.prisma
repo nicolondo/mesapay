@@ -1556,6 +1556,8 @@ model Order {
   stockMovements  StockMovement[]
   dianDocuments   DianDocument[]
   voucherRedemptions VoucherRedemption[]
+  /// Link de pago de una factura manual (`PaymentLink.kind = order`).
+  payLink         PaymentLink?
 
   @@index([restaurantId, status])
   // Ventas por fecha de pago (análisis de ventas, Resumen, libros): cuentas
@@ -4372,6 +4374,10 @@ model VoucherStatement {
 enum PaymentLinkKind {
   voucher_batch
   voucher_statement
+  /// Cuenta de una FACTURA MANUAL (mesa `kind = manual`): el link no cobra un
+  /// monto fijo, sino que abre el checkout del comensal de esa orden
+  /// (ver src/lib/manualInvoicePayLink.ts).
+  order
 }
 
 enum PaymentLinkStatus {
@@ -4406,6 +4412,15 @@ model PaymentLink {
   voucherBatch   VoucherBatch? @relation(fields: [voucherBatchId], references: [id], onDelete: Cascade)
   voucherStatementId String?           @unique
   voucherStatement   VoucherStatement? @relation(fields: [voucherStatementId], references: [id], onDelete: Cascade)
+  /// `kind = order`: la cuenta (factura manual) a la que da entrada. Uno por
+  /// orden: reenviar reutiliza el mismo link; vencido, se rota el token.
+  /// `amountCents` es el saldo al crearlo, sólo informativo — la página
+  /// cobra el saldo VIVO de la orden y `status` queda en `pending`: el
+  /// estado real (pagado / anulado / vencido) se deriva de la orden
+  /// (`payLinkState`). `emailSentAt` / `payerEmail`: último envío por correo.
+  orderId     String? @unique
+  order       Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  emailSentAt DateTime?
 
   @@index([restaurantId, status])
   @@index([providerRef])

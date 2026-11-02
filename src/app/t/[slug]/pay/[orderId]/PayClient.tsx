@@ -6,6 +6,7 @@ import { startTransition, useTransition } from "react";
 import { MixedPaymentPanel, type ApprovedPaymentView } from "@/components/payments/MixedPaymentPanel";
 import { mixedPaymentBudget, allocateMixedPayment } from "@/lib/payments/mixedAmount";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
+import { onlineMethodsInOrder } from "@/lib/payments/defaultOnlineMethod";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
@@ -137,6 +138,7 @@ export function PayClient({
   canResolveTerminal = false,
   approvedPayments = [],
   tableNumber = 0,
+  payLinkMode = false,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -264,6 +266,13 @@ export function PayClient({
   approvedPayments?: ApprovedPaymentView[];
   // Número de la mesa, para el título del cobro en efectivo del aviso.
   tableNumber?: number;
+  // Pagador REMOTO de una factura manual, que entró por el link de pago
+  // (/r/[slug]/cuenta/[token]). Paga el total en línea: sin dividir la
+  // cuenta, sin efectivo ni datáfono (nadie va a venir a cobrarle), sin
+  // "volver al pedido" (no hay mesa). Apple Pay queda preseleccionado
+  // cuando el aparato lo admite; si no, tarjeta y después PSE
+  // (lib/payments/defaultOnlineMethod.ts).
+  payLinkMode?: boolean;
 }) {
   // Diner counter orders require prepayment; staff may combine methods.
   // The server activates preparation only after the whole balance is paid.
@@ -301,6 +310,22 @@ export function PayClient({
   }, [refreshing, focusPayment, pendingPayments.length]);
   const [splitCount, setSplitCount] = useState<number>(2);
   const hasApplePay = useApplePaySupport();
+  // Link de pago: el botón de Apple Pay del SDK avisa cuando quedó visible
+  // (dominio validado en Kushki). Hasta entonces, o si no, el default es
+  // tarjeta. En mock no hay SDK: basta con que el navegador lo admita.
+  const [applePayReady, setApplePayReady] = useState(false);
+  const linkMethods = payLinkMode
+    ? onlineMethodsInOrder({
+        applePayAvailable: hasApplePay && (isMockMode || !kushkiPublicKey || applePayReady),
+        enabledMethods,
+        kushkiReady,
+      })
+    : [];
+  const linkPrimary = linkMethods[0] ?? null;
+  // Énfasis de cada botón en el link: el preseleccionado va lleno; el resto,
+  // como alternativas. Fuera del link no cambia nada (undefined = el de siempre).
+  const linkEmphasis = (method: (typeof linkMethods)[number]) =>
+    payLinkMode ? (linkPrimary === method ? "primary" : "secondary") : undefined;
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
@@ -963,7 +988,7 @@ export function PayClient({
       {/* En modo mesero el banner negro ya tiene "Volver a mesas".
           El cliente que paga desde su QR sí necesita un link de
           volver al pedido — lo mostramos solo para ese caso. */}
-      {!operatorMode && (
+      {!operatorMode && !payLinkMode && (
         <Link
           href={`/t/${tenantSlug}/order/${orderId}`}
           className="inline-flex items-center gap-1.5 text-sm text-ink-3 hover:text-ink mb-5 -ml-1"
@@ -1088,7 +1113,7 @@ export function PayClient({
       )}
 
       {paymentNotice && <p role="status" className="mt-4 rounded-xl bg-ok/10 p-3 text-sm text-ok">{t("mixed.receivedNotice")}</p>}
-      {(!isCounter || operatorMode) && (
+      {(!isCounter || operatorMode) && !payLinkMode && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
             {operatorMode ? t("howToCharge") : t("howToPay")}
@@ -1345,6 +1370,13 @@ export function PayClient({
       />
 
       <div className="mt-6 space-y-2">
+        {/* Link de pago: un solo rótulo arriba; el preseleccionado va primero
+            y lleno, y debajo de él "Otras formas de pago" separa el resto. */}
+        {payLinkMode && linkMethods.length > 0 && (
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
+            {t("linkPayWith")}
+          </div>
+        )}
         {/* Apple Pay requires the diner's own iPhone — the waiter can't
             tap their own watch / Touch ID for someone else's card. So
             in waiter mode we hide it entirely; the operator collects
@@ -1366,6 +1398,7 @@ export function PayClient({
                   displayName={tenantName}
                   busy={busy === "kushki_apple_pay"}
                   onTokenized={payWithApplePayToken}
+                  onReadyChange={payLinkMode ? setApplePayReady : undefined}
                 />
               )}
               {(isMockMode || !kushkiPublicKey) && hasApplePay && (
@@ -1376,11 +1409,15 @@ export function PayClient({
                   onClick={payWithApplePayMock}
                   amountCents={amountCents}
                   operatorMode={operatorMode}
+                  emphasis={linkEmphasis("kushki_apple_pay")}
                 />
+              )}
+              {payLinkMode && linkPrimary === "kushki_apple_pay" && linkMethods.length > 1 && (
+                <AltMethodsLabel />
               )}
             </>
           )}
-        {kushkiReady && enabledMethods.includes("kushki_card_terminal") && kushkiTerminalAvailable && (
+        {kushkiReady && !payLinkMode && enabledMethods.includes("kushki_card_terminal") && kushkiTerminalAvailable && (
           <div className="space-y-2">
             <PayButton currency={currency}
               kind="terminal"
@@ -1404,16 +1441,22 @@ export function PayClient({
         {kushkiReady &&
           enabledMethods.includes("kushki_card") &&
           !operatorMode && (
-            <PayButton currency={currency}
-              kind="card"
-              disabled={chargeDisabled}
-              busy={busy === "kushki_card"}
-              onClick={() => setCardSheetOpen(true)}
-              amountCents={amountCents}
-              operatorMode={operatorMode}
-            />
+            <>
+              <PayButton currency={currency}
+                kind="card"
+                disabled={chargeDisabled}
+                busy={busy === "kushki_card"}
+                onClick={() => setCardSheetOpen(true)}
+                amountCents={amountCents}
+                operatorMode={operatorMode}
+                emphasis={linkEmphasis("kushki_card")}
+              />
+              {payLinkMode && linkPrimary === "kushki_card" && linkMethods.length > 1 && (
+                <AltMethodsLabel />
+              )}
+            </>
           )}
-        {enabledMethods.includes("external_terminal") && (
+        {enabledMethods.includes("external_terminal") && !payLinkMode && (
           <PayButton currency={currency}
             kind="external_terminal"
             disabled={chargeDisabled}
@@ -1433,9 +1476,10 @@ export function PayClient({
               onClick={() => setPseSheetOpen(true)}
               amountCents={amountCents}
               operatorMode={operatorMode}
+              emphasis={linkEmphasis("kushki_pse")}
             />
           )}
-        {enabledMethods.includes("cash") && (
+        {enabledMethods.includes("cash") && !payLinkMode && (
           <PayButton currency={currency}
             kind="cash"
             disabled={chargeDisabled}
@@ -2956,6 +3000,16 @@ function CardSheet({
   );
 }
 
+/** Rótulo que separa el medio preseleccionado de las alternativas (link de pago). */
+function AltMethodsLabel() {
+  const t = useTranslations("pay");
+  return (
+    <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted pt-3 pb-1">
+      {t("linkOtherMethods")}
+    </div>
+  );
+}
+
 function PayButton({
   currency,
   kind,
@@ -2964,6 +3018,7 @@ function PayButton({
   onClick,
   amountCents,
   operatorMode,
+  emphasis,
 }: {
   currency: string;
   kind:
@@ -2980,15 +3035,23 @@ function PayButton({
   onClick: () => void;
   amountCents: number;
   operatorMode: boolean;
+  /**
+   * Pisa el estilo propio del medio: "primary" (lleno) para el
+   * preseleccionado del link de pago, "secondary" (contorno) para las
+   * alternativas. Sin él, cada medio conserva su estilo de siempre.
+   */
+  emphasis?: "primary" | "secondary";
 }) {
   const t = useTranslations("pay");
   const locale = useLocale() as Locale;
   const meta = (operatorMode ? BUTTON_META_OP : BUTTON_META_DINER)[kind];
+  const className =
+    emphasis === "primary" ? "mp-pay--ink" : emphasis === "secondary" ? "mp-pay--outline" : meta.className;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={"mp-pay text-sm " + meta.className}
+      className={"mp-pay text-sm " + className}
     >
       <span className="text-base leading-none" aria-hidden>
         {meta.icon}

@@ -23,6 +23,7 @@ import { cancellationRequiresAdmin } from "@/lib/orders/cancellationPolicy";
 import { withReplaceable } from "@/lib/payments/pendingRequests";
 import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
+import { onlinePaymentsReady } from "@/lib/payments/onlinePayments";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -169,8 +170,14 @@ export async function PayFlow({
     : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
   const paidTipCents = approved.reduce((s, p) => s + p.tipCents, 0);
-  const kushkiReady =
-    !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
+  const kushkiReady = onlinePaymentsReady(tenant);
+  // Factura manual pagada por un LINK: nadie escanea una mesa `manual`, así
+  // que si quien llega no es staff entró por /r/[slug]/cuenta/[token] (la
+  // cookie de invitado es sólo de esta orden). Es un pagador remoto: paga
+  // en línea el total, sin dividir la cuenta, sin efectivo ni datáfono, y
+  // sin propina sugerida (no hubo servicio en mesa; puede agregarla).
+  const manualInvoice = order.table.kind === "manual";
+  const payLinkMode = manualInvoice && !operatorMode;
   // El botón del datáfono Kushki sólo sale si el comercio puede empujar el
   // cobro al equipo (mismas reglas que terminal/charge y terminal-request).
   const terminalAvailability = await kushkiTerminalAvailability(tenant);
@@ -304,7 +311,8 @@ export async function PayFlow({
         kind: asSalesTaxKind(tenant.salesTaxKind),
         pct: tenant.salesTaxPct,
       }}
-      initialTipPct={parseTipPct(tip)}
+      initialTipPct={payLinkMode ? 0 : parseTipPct(tip)}
+      payLinkMode={payLinkMode}
       pendingPayments={pendingPayments}
       kushkiTerminalAvailable={kushkiTerminalAvailable}
       // "Resolver cobro" de un datáfono Kushki sin respuesta: sólo el

@@ -482,7 +482,9 @@
       "retryHint": "A resposta do pagamento não chegou. Este botão verifica ou tenta novamente apenas o mesmo pagamento, sem criar outro.",
       "inFlight": "Há um pagamento eletrônico em andamento. Aguarde o resultado antes de cobrar outra parte.",
       "viewReceipt": "Ver comprovante e fatura"
-    }
+    },
+    "linkPayWith": "Pague com",
+    "linkOtherMethods": "Outras formas de pagamento"
   },
   "done": {
     "methodCard": "Cartão",
@@ -1536,7 +1538,36 @@
     "resendSentNoAttachment": "Enviada para {email}, mas sem o arquivo XML anexo.",
     "resendNoRecipient": "Ninguém pediu fatura nesta conta: não há e-mail para onde enviá-la.",
     "resendError": "Não foi possível enviar o e-mail. Tente novamente.",
-    "mCustomerCredit": "Crédito a cliente"
+    "mCustomerCredit": "Crédito a cliente",
+    "payLinkSection": "Link de pagamento",
+    "payLinkIntro": "Envie ao cliente um link para pagar esta conta on-line com cartão, PSE ou Apple Pay.",
+    "payLinkButton": "Enviar link de pagamento",
+    "payLinkTitle": "Link de pagamento",
+    "payLinkDialogIntro": "O cliente paga {amount} pelo celular ou computador. Ao pagar, a conta fica cobrada aqui.",
+    "payLinkClose": "Fechar",
+    "payLinkEmailLabel": "E-mail do cliente",
+    "payLinkEmailPlaceholder": "cliente@empresa.com",
+    "payLinkSendEmail": "Enviar por e-mail",
+    "payLinkSending": "Enviando…",
+    "payLinkCopy": "Copiar link",
+    "payLinkWhatsApp": "Compartilhar no WhatsApp",
+    "payLinkWorking": "Um momento…",
+    "payLinkCopied": "Link copiado.",
+    "payLinkCopyFailed": "Não foi possível copiar. Selecione o link e copie manualmente.",
+    "payLinkSentTo": "Link enviado para {email}.",
+    "payLinkWhatsAppText": "Olá, aqui está o link para pagar a conta {code} de {restaurant} no valor de {amount}: {url}",
+    "payLinkExpires": "Vence em {date}.",
+    "payLinkStateOpen": "Link válido até {date}.",
+    "payLinkStateSent": "Link enviado para {email} em {date}.",
+    "payLinkStatePaid": "Pago pelo link.",
+    "payLinkStateCancelled": "O link não serve mais: a conta foi anulada.",
+    "payLinkStateExpired": "O link venceu em {date}. Envie de novo para gerar um novo.",
+    "payLinkErrClosed": "A conta já está cobrada ou anulada.",
+    "payLinkErrNothingToPay": "A conta não tem saldo a cobrar.",
+    "payLinkErrOnlineUnavailable": "O estabelecimento não tem pagamentos on-line ativos.",
+    "payLinkErrEmail": "Não foi possível enviar o e-mail. Copie o link e compartilhe por outro meio.",
+    "payLinkErrInvalidEmail": "Confira o e-mail.",
+    "payLinkErrGeneric": "Não foi possível gerar o link. Tente de novo."
   },
   "opCustomers": {
     "title": "Clientes",
@@ -8641,5 +8672,32 @@
     "sizeKb": "{n} KB",
     "sizeMb": "{n} MB",
     "checksum": "SHA-256 {hash}"
+  },
+  "orderPayLink": {
+    "eyebrow": "{name} · Conta {code}",
+    "titlePaid": "Esta conta já está paga",
+    "paidBody": "Não há mais nada a pagar. Obrigado!",
+    "titleCancelled": "Esta conta foi anulada",
+    "cancelledBody": "O estabelecimento anulou a conta, então o link não cobra mais. Se acha que é um erro, entre em contato.",
+    "titleExpired": "Este link venceu",
+    "expiredBody": "Deixou de funcionar em {date}. Peça ao estabelecimento que envie um novo.",
+    "titleOpen": "Conta a pagar",
+    "openBody": "Você pode pagar on-line com cartão, PSE ou Apple Pay.",
+    "amountLabel": "Total a pagar",
+    "payCta": "Pagar {amount}"
+  },
+  "emailOrderPayLink": {
+    "subject": "{restaurant}: link para pagar a conta {code} no valor de {total}",
+    "title": "Conta a pagar",
+    "greeting": "Olá.",
+    "greetingNamed": "Olá, {name}.",
+    "intro": "{restaurant} envia o link para pagar a conta {code} no valor de {total}.",
+    "payCta": "Pagar {total}",
+    "payFallback": "Se o botão não funcionar, copie este link no seu navegador:",
+    "methods": "Você pode pagar com cartão de crédito ou débito, PSE ou Apple Pay.",
+    "expires": "O link funciona até {date}.",
+    "detailTitle": "Detalhe da conta",
+    "totalLabel": "Total",
+    "footer": "Enviado por MESAPAY em nome de {restaurant}"
   }
 }

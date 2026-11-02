@@ -14,6 +14,11 @@ import { TableActions } from "../../tables/TableActions";
 import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
+import { PayLinkPanel, type PayLinkView } from "./PayLinkPanel";
+import { manualInvoicePayLinkAvailability, manualInvoicePayLinkPath, payLinkState } from "@/lib/manualInvoicePayLink";
+import { appOrigin } from "@/lib/http/publicOrigin";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
+import { headers } from "next/headers";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
@@ -60,12 +65,30 @@ export default async function OperatorOrderDetail({
           dianDocument: { select: { id: true, state: true } },
         },
       },
+      // Link de pago de la factura manual (si alguna vez se generó) y la
+      // factura pedida, cuyo correo prellena el envío del link.
+      payLink: { select: { token: true, status: true, expiresAt: true, payerEmail: true, emailSentAt: true } },
+      invoiceRequests: {
+        where: { status: "pending" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { email: true },
+      },
     },
   });
   if (!order || order.restaurantId !== restaurantId) return notFound();
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { serviceMode: true, slug: true, enabledModules: true },
+    select: {
+      serviceMode: true,
+      slug: true,
+      name: true,
+      country: true,
+      enabledModules: true,
+      kushkiMerchantId: true,
+      kushkiOnboardingStatus: true,
+      enabledPaymentMethods: true,
+    },
   });
   const counterMode = tenant?.serviceMode === "counter";
   // La factura de la cuenta, si ya se cobró. El número sale del snapshot
@@ -121,6 +144,33 @@ export default async function OperatorOrderDetail({
     order.subtotalCents - order.discountCents,
   );
   const outstandingCents = Math.max(0, chargeableCents - paidFood);
+
+  // Link de pago (sólo factura manual): el botón existe si la cuenta está
+  // abierta con saldo y el comercio tiene Kushki activo; un link ya creado se
+  // muestra con su estado (enviado / pagado / anulado / vencido) aunque la
+  // acción ya no aplique. Mismo gate que la API.
+  const manualInvoice = order.table.kind === "manual";
+  const payLinkAvailability = tenant
+    ? manualInvoicePayLinkAvailability({
+        tableKind: order.table.kind,
+        orderStatus: order.status,
+        // Lo cobrable del checkout incluye el impuesto por línea.
+        outstandingCents: Math.max(0, order.subtotalCents + order.taxCents - order.discountCents - paidFood),
+        tenant,
+      })
+    : null;
+  const payLinkView: PayLinkView | null =
+    manualInvoice && order.payLink && tenant
+      ? {
+          url: `${appOrigin(await headers())}${manualInvoicePayLinkPath(tenant.slug, order.payLink.token)}`,
+          expiresAt: (order.payLink.expiresAt ?? new Date()).toISOString(),
+          sentTo: order.payLink.payerEmail,
+          sentAt: order.payLink.emailSentAt?.toISOString() ?? null,
+          state: payLinkState(order.payLink, order),
+        }
+      : null;
+  const showPayLink = manualInvoice && tenant && (payLinkAvailability?.ok === true || payLinkView !== null);
+  const payLinkCurrency = showPayLink && tenant ? await getCurrencyForCountry(tenant.country) : "COP";
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
@@ -190,6 +240,19 @@ export default async function OperatorOrderDetail({
               .every((item) => !hasPreparationStarted(item, order.table.kind))}
           />
         </div>
+      )}
+
+      {showPayLink && tenant && (
+        <PayLinkPanel
+          orderId={order.id}
+          initial={payLinkView}
+          canSend={payLinkAvailability?.ok === true}
+          suggestedEmail={order.invoiceRequests[0]?.email ?? order.payLink?.payerEmail ?? null}
+          outstandingCents={Math.max(0, order.subtotalCents + order.taxCents - order.discountCents - paidFood)}
+          currency={payLinkCurrency}
+          tenantName={tenant.name}
+          orderCode={displayOrderCode(order.shortCode)}
+        />
       )}
 
       {invoice && (

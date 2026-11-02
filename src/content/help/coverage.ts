@@ -139,6 +139,8 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     internal: "Retorno técnico de PSE del depósito de una reserva: redirige.",
   },
   "/r/[slug]/pago/[token]": ["links-de-pago"],
+  // Estado del link de pago de una factura manual (pagado / anulado / vencido).
+  "/r/[slug]/cuenta/[token]/estado": ["factura-manual"],
   "/r/[slug]/pago/[token]/return": {
     internal: "Retorno técnico de PSE de un link de pago: redirige.",
   },

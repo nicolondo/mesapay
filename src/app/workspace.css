@@ -221,6 +221,23 @@
 .mp-navigation-drawer .mp-rail > div:first-child {
   padding-right: 60px;
 }
+/* PWA instalada (iOS): 100dvh se queda corto —el viewport dinámico no
+   cubre la pantalla entera— y el cajón, anclado arriba, dejaba una franja
+   del fondo asomando abajo (misma causa que .op-app-shell y .crm-app-shell,
+   que ya miden 100vh en standalone). Las hojas pegadas abajo (.mp-sheet)
+   tienen el problema espejo: el borde inferior del viewport fijo queda por
+   encima del borde de la pantalla; se bajan exactamente esa diferencia
+   (cero en un navegador normal, donde dvh = vh). */
+@media all and (display-mode: standalone) {
+  .mp-navigation-drawer {
+    height: 100vh;
+    max-height: 100vh;
+  }
+  .mp-sheet {
+    bottom: calc(100dvh - 100vh);
+  }
+}
+
 .mp-command {
   width: min(560px, calc(100vw - 32px));
   margin: 12dvh auto auto;

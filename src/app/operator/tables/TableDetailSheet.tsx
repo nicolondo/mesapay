@@ -1226,10 +1226,17 @@ export function TableDetailSheet({
               </div>
             )}
 
+            {/* Una tarjeta por RONDA y los platos como filas separadas por
+                una línea fina. Antes cada plato era su propia tarjeta con
+                borde y padding: en el celular una ronda de seis platos
+                ocupaba casi tres pantallas (reporte del dueño). */}
             {visibleRounds.map((round) => (
-              <section key={round.id} className="space-y-2">
+              <section
+                key={round.id}
+                className="overflow-hidden rounded-xl border border-hairline bg-op-surface"
+              >
                 {(visibleRounds.length > 1 || round.placedByName) && (
-                  <div className="flex flex-wrap items-baseline gap-x-3 font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+                  <div className="flex flex-wrap items-baseline gap-x-3 border-b border-hairline bg-op-bg/60 px-3 py-1.5 font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
                     {visibleRounds.length > 1 && (
                       <span>{tr("round", { seq: round.seq })}</span>
                     )}
@@ -1242,7 +1249,7 @@ export function TableDetailSheet({
                     />
                   </div>
                 )}
-                <ul className="space-y-2">
+                <ul className="divide-y divide-hairline">
                   {round.items.map((it) => {
                     const elapsed = it.preparationStartedAt
                       ? minutesSince(it.preparationStartedAt)
@@ -1257,10 +1264,7 @@ export function TableDetailSheet({
                       it.kitchenStatus !== "ready" &&
                       !it.expediteRequestedAt;
                     return (
-                      <li
-                        key={it.id}
-                        className="rounded-xl border border-hairline bg-op-surface p-3"
-                      >
+                      <li key={it.id} className="px-3 py-2.5">
                         <div className="flex items-baseline gap-2">
                           <span className="font-mono tabular text-muted shrink-0">
                             {it.qty}
@@ -1487,11 +1491,11 @@ export function TableDetailSheet({
                 cada una porque se SUMA al precio, y sin verlo el total de la
                 cuenta no cuadra con lo que el mesero digitó. */}
             {freeLines.length > 0 && (
-              <section className="space-y-2">
-                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
+              <section className="overflow-hidden rounded-xl border border-hairline bg-op-surface">
+                <div className="border-b border-hairline bg-op-bg/60 px-3 py-1.5 font-mono text-[10px] tracking-[0.15em] uppercase text-muted">
                   {tr("freeLinesTitle")}
                 </div>
-                <ul className="space-y-2">
+                <ul className="divide-y divide-hairline">
                   {freeLines.map((l) => {
                     const lineCents = l.priceCents * l.qty;
                     // Misma función que usa el backend para cobrar: si el
@@ -1511,7 +1515,7 @@ export function TableDetailSheet({
                     return (
                       <li
                         key={l.id}
-                        className="rounded-xl border border-hairline bg-op-surface p-3"
+                        className="px-3 py-2.5"
                       >
                         <div className="flex items-baseline gap-2">
                           <span className="font-mono tabular text-muted shrink-0">

@@ -7,6 +7,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import type { Locale } from "@/i18n/config";
 import type { BudgetExecutionRow, BudgetStatus } from "@/lib/erp/budgets";
 import { fractionDigitsFor, majorToCents } from "./comprobantes/shared";
+import { CardFact, pillCls } from "./CardFact";
 
 type Center = { id: string; name: string; active: boolean };
 type AccountOption = { code: string; name: string };
@@ -42,6 +43,34 @@ const STATUS_TEXT: Record<BudgetStatus, string> = {
   warn: "text-warn",
   over: "text-danger",
 };
+
+/** «68,2% en rango» + barra de ejecución (tabla y tarjeta del celular). */
+function PctBar({
+  pct,
+  status,
+  label,
+  statusLabel,
+}: {
+  pct: number;
+  status: BudgetStatus;
+  label: string;
+  statusLabel: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className={"text-xs font-medium " + STATUS_TEXT[status]}>
+        {label}
+        <span className="ml-1 font-normal text-op-muted">{statusLabel}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-op-bg overflow-hidden">
+        <div
+          className={"h-full rounded-full " + STATUS_BAR[status]}
+          style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 /**
  * Combobox de cuenta: input con búsqueda por código o nombre sobre los
@@ -372,7 +401,9 @@ export function PresupuestoTab({ month, currency }: { month: string; currency: s
         {exec.rows.length === 0 ? (
           <div className="p-6 text-center text-sm text-op-muted">{t("budgetEmpty")}</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+          <div className="report-table">
             <table className="w-full text-sm">
               <thead>
                 <tr>
@@ -414,20 +445,12 @@ export function PresupuestoTab({ month, currency }: { month: string; currency: s
                       {r.pct === null || r.status === null ? (
                         <span className="text-op-muted">{"—"}</span>
                       ) : (
-                        <div className="space-y-1">
-                          <div className={"text-xs font-medium " + STATUS_TEXT[r.status]}>
-                            {t("budgetPct", { pct: pctFmt.format(r.pct) })}
-                            <span className="ml-1 font-normal text-op-muted">
-                              {t(`budgetStatus_${r.status}`)}
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-op-bg overflow-hidden">
-                            <div
-                              className={"h-full rounded-full " + STATUS_BAR[r.status]}
-                              style={{ width: `${Math.min(100, Math.max(2, r.pct))}%` }}
-                            />
-                          </div>
-                        </div>
+                        <PctBar
+                          pct={r.pct}
+                          status={r.status}
+                          label={t("budgetPct", { pct: pctFmt.format(r.pct) })}
+                          statusLabel={t(`budgetStatus_${r.status}`)}
+                        />
                       )}
                     </td>
                     <td className="px-3 py-2 pr-4 text-right">
@@ -445,6 +468,55 @@ export function PresupuestoTab({ month, currency }: { month: string; currency: s
               </tbody>
             </table>
           </div>
+          {/* Celular: una tarjeta por presupuesto con los mismos datos. */}
+          <div className="report-cards divide-y divide-op-border/50">
+            {exec.rows.map((r) => (
+              <div key={r.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 text-sm">
+                    <span className="font-mono text-xs text-op-muted mr-1.5">{r.accountCode}</span>
+                    {r.accountName}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {r.month === null && (
+                        <span className={pillCls + " bg-paper text-op-muted"}>{t("budgetAnnualBadge")}</span>
+                      )}
+                      <span className={pillCls + " bg-paper text-op-muted"}>
+                        {r.costCenterName ?? t("budgetCenterGeneral")}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeBudget(r)}
+                    disabled={busy}
+                    className="mp-btn mp-btn--ghost mp-btn--sm shrink-0"
+                  >
+                    {t("delete")}
+                  </button>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-x-3">
+                  <CardFact label={t("budgetColBudget")} value={money(r.budgetCents)} />
+                  <CardFact label={t("budgetColActual")} value={money(r.actualCents)} />
+                  <CardFact
+                    label={t("budgetColVariance")}
+                    value={money(r.varianceCents)}
+                    tone={r.varianceCents >= 0 ? "ok" : "danger"}
+                  />
+                </div>
+                {r.pct !== null && r.status !== null && (
+                  <div className="mt-2">
+                    <PctBar
+                      pct={r.pct}
+                      status={r.status}
+                      label={t("budgetPct", { pct: pctFmt.format(r.pct) })}
+                      statusLabel={t(`budgetStatus_${r.status}`)}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 

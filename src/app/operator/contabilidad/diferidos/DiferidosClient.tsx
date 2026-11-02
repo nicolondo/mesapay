@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { fractionDigitsFor, majorToCents, todayYmd } from "../comprobantes/shared";
 import { LIST_PATH, type DeferredItemDto, type DeferredListResponse } from "./shared";
+import { CardFact } from "../CardFact";
 
 type Kind = "expense" | "income";
 
@@ -148,7 +149,7 @@ export function DiferidosClient({ currency }: { currency: string }) {
         <button
           type="button"
           onClick={() => setFormOpen(true)}
-          className="mp-btn mp-btn--primary px-4"
+          className="mp-btn mp-btn--primary w-full px-4 sm:w-auto"
         >
           {t("newItem")}
         </button>
@@ -292,7 +293,8 @@ export function DiferidosClient({ currency }: { currency: string }) {
         </div>
       ) : (
         <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+          <div className="report-table">
             <table className="w-full text-sm">
               <thead>
                 <tr>
@@ -311,6 +313,36 @@ export function DiferidosClient({ currency }: { currency: string }) {
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Celular: una tarjeta por diferido con los mismos datos. */}
+          <div className="report-cards divide-y divide-op-border/50">
+            {data.items.map((it) => (
+              <Link
+                key={it.id}
+                href={`${LIST_PATH}/${it.id}`}
+                className="block px-4 py-3 hover:bg-op-bg/60"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span className={"min-w-0 text-sm font-medium" + (it.status === "closed" ? " text-op-muted" : "")}>
+                    {it.name}
+                  </span>
+                  <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                    <KindBadge kind={it.kind} />
+                    <StatusBadge status={it.status} />
+                  </span>
+                </span>
+                <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <CardFact label={t("colTotal")} value={money(it.totalCents)} />
+                  <CardFact label={t("colAmortized")} value={money(it.amortizedCents)} tone="muted" />
+                  <CardFact label={t("colBalance")} value={money(it.balanceCents)} strong />
+                  <CardFact
+                    label={t("colMonths")}
+                    value={t("monthsOf", { posted: it.postedMonths, total: it.months })}
+                    tone="muted"
+                  />
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       )}

@@ -272,6 +272,10 @@ type Filing = {
   paidAt: string;
 };
 
+const labelCls = "font-mono text-[10px] tracking-wider uppercase text-op-muted";
+const filingInputCls =
+  "mt-1 w-full min-h-[44px] px-2 rounded-lg border border-op-border bg-op-bg text-sm";
+
 const FORM_KEYS: Record<string, string> = {
   iva: "filingFormIva",
   inc: "filingFormInc",
@@ -349,33 +353,42 @@ function DeclaracionesCard({
     <Section title={t("filingsTitle")}>
       <div className="p-4 space-y-3">
         <p className="text-xs text-op-muted">{t("filingsIntro")}</p>
-        <div className="grid grid-cols-3 gap-2">
-          <select
-            value={form}
-            onChange={(e) => setForm(e.target.value)}
-            aria-label={t("filingForm")}
-            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
-          >
-            {Object.entries(FORM_KEYS).map(([v, k]) => (
-              <option key={v} value={v}>
-                {t(k)}
-              </option>
-            ))}
-          </select>
-          <MoneyInput
-            value={amountPesos}
-            onChange={setAmountPesos}
-            ariaLabel={t("filingAmount")}
-            placeholder={t("filingAmount")}
-            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm text-right"
-          />
-          <input
-            type="date"
-            value={paidDate}
-            onChange={(e) => setPaidDate(e.target.value)}
-            aria-label={t("filingPaidDate")}
-            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
-          />
+        {/* Celular: un campo por fila con su rótulo (tres a 95px no se
+            leían y la fecha quedaba cortada); en sm+ los tres en una fila. */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <label className="block">
+            <span className={labelCls}>{t("filingForm")}</span>
+            <select
+              value={form}
+              onChange={(e) => setForm(e.target.value)}
+              className={filingInputCls}
+            >
+              {Object.entries(FORM_KEYS).map(([v, k]) => (
+                <option key={v} value={v}>
+                  {t(k)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>{t("filingAmount")}</span>
+            <MoneyInput
+              value={amountPesos}
+              onChange={setAmountPesos}
+              ariaLabel={t("filingAmount")}
+              placeholder={t("filingAmount")}
+              className={filingInputCls + " text-right"}
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>{t("filingPaidDate")}</span>
+            <input
+              type="date"
+              value={paidDate}
+              onChange={(e) => setPaidDate(e.target.value)}
+              className={filingInputCls}
+            />
+          </label>
         </div>
         <button
           type="button"

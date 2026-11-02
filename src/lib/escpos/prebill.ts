@@ -187,30 +187,39 @@ export function buildPrebillTicket(args: {
   if (d.taxOnTop.iva > 0) {
     totals.push({ label: t("taxIva"), amount: money(d.taxOnTop.iva) });
   }
-  totals.push({ label: t("total"), amount: money(d.totalCents), strong: true });
+  // Con propina sugerida, la fila FUERTE (negrita, doble alto, mayúsculas)
+  // es el TOTAL CON PROPINA, que es lo que el comensal paga; el total sin
+  // propina y lo pendiente bajan a filas normales («Total»). Sin propina
+  // (política apagada o cuenta cubierta) el TOTAL sigue siendo el fuerte.
+  const withTip = d.outstandingCents > 0 && d.suggestedTipCents > 0;
+  totals.push({
+    label: withTip ? t("prebillTotal") : t("total"),
+    amount: money(d.totalCents),
+    ...(withTip ? {} : { strong: true }),
+  });
   // Con pagos parciales ya aprobados, lo que importa es lo que FALTA.
   if (d.paidCents > 0) {
     totals.push({ label: t("prebillPaid"), amount: "-" + money(d.paidCents) });
     totals.push({
       label: t("prebillOutstanding"),
       amount: money(d.outstandingCents),
-      strong: true,
+      ...(withTip ? {} : { strong: true }),
     });
   }
 
-  const tipRows: ThermalPrebillRow[] =
-    d.outstandingCents > 0 && d.suggestedTipCents > 0
-      ? [
-          {
-            label: t("prebillSuggestedTip", { pct: d.suggestedTipPct }),
-            amount: money(d.suggestedTipCents),
-          },
-          {
-            label: t("prebillTotalWithTip"),
-            amount: money(d.totalWithTipCents),
-          },
-        ]
-      : [];
+  const tipRows: ThermalPrebillRow[] = withTip
+    ? [
+        {
+          label: t("prebillSuggestedTip", { pct: d.suggestedTipPct }),
+          amount: money(d.suggestedTipCents),
+        },
+        {
+          label: t("prebillTotalWithTip"),
+          amount: money(d.totalWithTipCents),
+          strong: true,
+        },
+      ]
+    : [];
 
   return {
     paperWidthMm: args.paperWidthMm,
@@ -398,7 +407,10 @@ export function renderPrebill(doc: ThermalPrebill): Buffer {
   if (doc.tipRows.length > 0) {
     chunks.push(separator(cols));
     for (const row of doc.tipRows) {
-      for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
+      // La fila fuerte (TOTAL CON PROPINA) sale como el TOTAL: negrita a
+      // doble alto; las demás, normales.
+      if (row.strong) chunks.push(...totalRowChunks(row, cols));
+      else for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
     }
     if (doc.tipNotice) {
       chunks.push(selectFont("B"));

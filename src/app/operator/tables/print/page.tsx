@@ -225,6 +225,23 @@ export default async function PrintTablesPage({
           gap: 0;
           justify-content: flex-start;
         }
+        /* En el celular (sólo pantalla, nunca al imprimir) una fila de
+           5 tarjetas de 30mm mide ~570px y desbordaba la página a lo
+           ancho (reporte del dueño). Las filas envuelven y cada tarjeta
+           lleva sus cuatro bordes, porque el truco del borde compartido
+           sólo cuadra cuando la fila está entera. */
+        @media screen and (max-width: 767px) {
+          .print-sheet {
+            overflow-x: hidden;
+          }
+          .qr-row {
+            flex-wrap: wrap;
+          }
+          .qr-card {
+            border-left: 0.1mm solid #999;
+            border-top: 0.1mm solid #999;
+          }
+        }
       `}</style>
 
       <div className="print-sheet p-6 bg-white text-ink">

@@ -47,6 +47,25 @@ function domainOf(values: number[]): { min: number; max: number } {
   return { min: min - span * 0.06, max: max + span * 0.06 };
 }
 
+/**
+ * Dominio de la cascada: el cero va pegado al borde izquierdo salvo que
+ * haya cifras negativas (pérdida). Antes se acolchaba un 6 % a cada lado
+ * sin importar los datos, y en el celular eso dejaba un hueco a la
+ * izquierda con un rótulo de eje inventado («−13,0 M» que no era ninguna
+ * cifra del estado) chocando con la línea del cero.
+ */
+function waterfallDomain(values: number[]): { min: number; max: number; dataMin: number; dataMax: number } {
+  const dataMin = Math.min(0, ...values);
+  const dataMax = Math.max(0, ...values);
+  const span = dataMax - dataMin || 1;
+  return {
+    min: dataMin < 0 ? dataMin - span * 0.02 : 0,
+    max: dataMax + span * 0.02,
+    dataMin,
+    dataMax,
+  };
+}
+
 type Step = { key: string; label: string; value: number; start: number; end: number; total: boolean };
 
 function waterfallSteps(
@@ -94,7 +113,7 @@ function Waterfall({
   money: (c: number) => string;
   axis: (c: number) => string;
 }) {
-  const domain = domainOf(steps.flatMap((s) => [s.start, s.end]));
+  const domain = waterfallDomain(steps.flatMap((s) => [s.start, s.end]));
   const W = stacked ? 360 : 640;
   const ROW_H = stacked ? 46 : 34;
   const BAR_X0 = stacked ? 4 : 200;
@@ -104,6 +123,13 @@ function Waterfall({
   const BAR_H = stacked ? 14 : ROW_H - 16;
   const wx = (v: number) => BAR_X0 + ((v - domain.min) / (domain.max - domain.min)) * (BAR_X1 - BAR_X0);
   const height = steps.length * ROW_H + 24;
+  const zeroX = wx(0);
+  // Eje: sólo cifras reales. El mínimo únicamente si hay pérdida (si no,
+  // el cero ya es el borde); el «0» se omite cuando quedaría encima del
+  // mínimo; el máximo va alineado al final de su barra.
+  const showMin = domain.dataMin < 0;
+  const showZero = !showMin || zeroX - wx(domain.dataMin) > 44;
+  const zeroAnchor = zeroX - BAR_X0 < 12 ? "start" : "middle";
   return (
     <svg
       viewBox={`0 0 ${W} ${height}`}
@@ -112,7 +138,25 @@ function Waterfall({
       aria-labelledby={titleId}
     >
       <title id={titleId}>{title}</title>
-      <line x1={wx(0)} y1={4} x2={wx(0)} y2={steps.length * ROW_H} stroke={COLOR.grid} strokeDasharray="3 4" />
+      {/* Línea del cero. En escritorio recorre toda la zona de barras (los
+          rótulos van a la izquierda, fuera de ella). En el celular el
+          rótulo va ENCIMA de la barra y una línea continua lo atravesaba:
+          sólo se pinta un tramo por cada banda de barra. */}
+      {stacked ? (
+        steps.map((s, i) => (
+          <line
+            key={s.key}
+            x1={zeroX}
+            y1={i * ROW_H + BAR_Y - 4}
+            x2={zeroX}
+            y2={i * ROW_H + BAR_Y + BAR_H + 4}
+            stroke={COLOR.grid}
+            strokeDasharray="3 4"
+          />
+        ))
+      ) : (
+        <line x1={zeroX} y1={4} x2={zeroX} y2={steps.length * ROW_H} stroke={COLOR.grid} strokeDasharray="3 4" />
+      )}
       {steps.map((s, i) => {
         const y = i * ROW_H;
         const x0 = wx(Math.min(s.start, s.end));
@@ -136,9 +180,13 @@ function Waterfall({
             >
               {s.label}
             </text>
-            <rect x={x0} y={y + BAR_Y} width={Math.max(1, x1 - x0)} height={BAR_H} rx="2" fill={fill}>
-              <title>{`${s.label}: ${money(s.value)}`}</title>
-            </rect>
+            {/* Un tramo en $0 (p. ej. impuesto a las ganancias sin causar)
+                no pinta barra: la rayita de 1px parecía un dato. */}
+            {(s.total || s.value !== 0) && (
+              <rect x={x0} y={y + BAR_Y} width={Math.max(1, x1 - x0)} height={BAR_H} rx="2" fill={fill}>
+                <title>{`${s.label}: ${money(s.value)}`}</title>
+              </rect>
+            )}
             <text
               x={W - 4}
               y={y + TEXT_Y}
@@ -154,9 +202,19 @@ function Waterfall({
         );
       })}
       <g fontSize="10" fill={COLOR.text}>
-        <text x={BAR_X0} y={height - 6}>{axis(domain.min)}</text>
-        <text x={wx(0)} y={height - 6} textAnchor="middle">0</text>
-        <text x={BAR_X1} y={height - 6} textAnchor="end">{axis(domain.max)}</text>
+        {showMin && (
+          <text x={wx(domain.dataMin)} y={height - 6}>
+            {axis(domain.dataMin)}
+          </text>
+        )}
+        {showZero && (
+          <text x={zeroX} y={height - 6} textAnchor={zeroAnchor}>
+            0
+          </text>
+        )}
+        <text x={wx(domain.dataMax)} y={height - 6} textAnchor="end">
+          {axis(domain.dataMax)}
+        </text>
       </g>
     </svg>
   );

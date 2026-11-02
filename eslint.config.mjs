@@ -46,6 +46,9 @@ const MIGRATED = [
   "src/app/privacidad/**/*.{ts,tsx}",
   "src/app/terminos/**/*.{ts,tsx}",
   "src/components/legal/**/*.{ts,tsx}",
+  // Landing pública (mesapay.co): migrada entera al namespace `landing`.
+  "src/app/page.tsx",
+  "src/components/landing/**/*.{ts,tsx}",
   "src/app/cuenta/**/*.{ts,tsx}",
   "src/app/me/**/*.{ts,tsx}",
   // Cuenta del comensal DENTRO del comercio (login, registro, enlace

@@ -139,6 +139,9 @@ const MIGRATED = [
   "src/app/operator/menu/MenuEditor.tsx",
   "src/app/operator/menu/import/**/*.{ts,tsx}",
   "src/app/operator/menus/**/*.{ts,tsx}",
+  // Pulso (asistente de BI) con su historial de conversaciones. Nació
+  // trilingüe, queda blindado.
+  "src/app/operator/insights/**/*.{ts,tsx}",
   "src/app/operator/reports/**/*.{ts,tsx}",
   "src/app/operator/shifts/page.tsx",
   "src/app/operator/shifts/\\[id\\]/**/*.{ts,tsx}",

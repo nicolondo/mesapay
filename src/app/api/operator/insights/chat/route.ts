@@ -48,9 +48,13 @@ async function POSTHandler(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  // Conversación (crear o continuar) — sólo crear si no existe aún
+  // Conversación (crear o continuar) — sólo crear si no existe aún. Se
+  // filtra también por usuario, igual que el historial (GET): una
+  // conversación es de quien la abrió, no de todo el comercio.
   const existingConv = parsed.data.conversationId
-    ? await db.aiConversation.findFirst({ where: { id: parsed.data.conversationId, restaurantId: scope.restaurantId } })
+    ? await db.aiConversation.findFirst({
+        where: { id: parsed.data.conversationId, restaurantId: scope.restaurantId, userId: session.user.id },
+      })
     : null;
   const isNewConv = !existingConv;
   const conv = existingConv ?? await db.aiConversation.create({
@@ -99,12 +103,16 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ error: t("error") }, { status: 500 });
   }
 
-  // Éxito: persistir usuario + asistente en una transacción atómica
+  // Éxito: persistir usuario + asistente en una transacción atómica. En la
+  // misma transacción se toca `updatedAt` de la conversación: `@updatedAt`
+  // sólo cambia al actualizar esa fila, no al crearle mensajes, y la lista
+  // del historial (GET /conversations) ordena por esa fecha.
   await db.$transaction([
     db.aiMessage.create({ data: { conversationId: conv.id, role: "user", content: parsed.data.message } }),
     db.aiMessage.create({
       data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as Prisma.InputJsonValue },
     }),
+    db.aiConversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }),
   ]);
 
   return NextResponse.json({ conversationId: conv.id, text: result.text, toolCalls: result.toolCalls });

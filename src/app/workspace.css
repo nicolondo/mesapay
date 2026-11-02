@@ -170,6 +170,19 @@
 .mp-dialog::backdrop {
   background: rgba(20, 18, 15, 0.5);
 }
+/* Hoja inferior (celular): el <dialog> pegado al borde de abajo, a todo lo
+   ancho. El contenido que desborda hace scroll dentro de la hoja. */
+.mp-sheet {
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 85dvh;
+  overflow: hidden;
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 .mp-navigation-drawer {
   inset: 0 auto 0 0;
   margin: 0;

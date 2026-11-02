@@ -18,8 +18,11 @@ export default async function InsightsPage() {
   if (!r || !resolveAiEnabled(r)) {
     return <div className="p-6 max-w-2xl mx-auto text-op-muted">{t("disabled")}</div>;
   }
+  // Más ancho que antes: en escritorio el chat lleva al lado la columna con
+  // el historial. `InsightsChat` usa `useSearchParams` sin Suspense: la
+  // página es `force-dynamic`, nunca se prerenderiza.
   return (
-    <div className="p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full">
       <h1 className="font-display text-3xl mb-1">{t("title")}</h1>
       <p className="text-op-muted text-sm mb-4">{t("subtitle")}</p>
       <InsightsChat />

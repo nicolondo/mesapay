@@ -482,7 +482,9 @@
       "retryHint": "The payment response did not arrive. This button checks or retries only that same payment without creating another one.",
       "inFlight": "An electronic payment is in progress. Wait for its outcome before collecting another part.",
       "viewReceipt": "View receipt and invoice"
-    }
+    },
+    "linkPayWith": "Pay with",
+    "linkOtherMethods": "Other ways to pay"
   },
   "done": {
     "methodCard": "Card",
@@ -1536,7 +1538,36 @@
     "resendSentNoAttachment": "Sent to {email}, but without the XML attachment.",
     "resendNoRecipient": "No one requested an invoice on this bill: there is no email to send it to.",
     "resendError": "The email could not be sent. Please try again.",
-    "mCustomerCredit": "Customer credit"
+    "mCustomerCredit": "Customer credit",
+    "payLinkSection": "Payment link",
+    "payLinkIntro": "Send the customer a link to pay this bill online by card, PSE or Apple Pay.",
+    "payLinkButton": "Send payment link",
+    "payLinkTitle": "Payment link",
+    "payLinkDialogIntro": "The customer pays {amount} from their phone or computer. Once paid, the bill is settled here.",
+    "payLinkClose": "Close",
+    "payLinkEmailLabel": "Customer email",
+    "payLinkEmailPlaceholder": "customer@company.com",
+    "payLinkSendEmail": "Send by email",
+    "payLinkSending": "Sending…",
+    "payLinkCopy": "Copy link",
+    "payLinkWhatsApp": "Share on WhatsApp",
+    "payLinkWorking": "One moment…",
+    "payLinkCopied": "Link copied.",
+    "payLinkCopyFailed": "Couldn't copy. Select the link and copy it by hand.",
+    "payLinkSentTo": "Link sent to {email}.",
+    "payLinkWhatsAppText": "Hi, here's the link to pay bill {code} from {restaurant} for {amount}: {url}",
+    "payLinkExpires": "Expires on {date}.",
+    "payLinkStateOpen": "Link valid until {date}.",
+    "payLinkStateSent": "Link sent to {email} on {date}.",
+    "payLinkStatePaid": "Paid through the link.",
+    "payLinkStateCancelled": "The link no longer works: the bill was cancelled.",
+    "payLinkStateExpired": "The link expired on {date}. Send it again to generate a new one.",
+    "payLinkErrClosed": "The bill is already paid or cancelled.",
+    "payLinkErrNothingToPay": "There's nothing left to pay on this bill.",
+    "payLinkErrOnlineUnavailable": "This business doesn't have online payments active.",
+    "payLinkErrEmail": "The email couldn't be sent. Copy the link and share it another way.",
+    "payLinkErrInvalidEmail": "Check the email address.",
+    "payLinkErrGeneric": "The link couldn't be generated. Try again."
   },
   "opCustomers": {
     "title": "Customers",
@@ -8640,5 +8671,32 @@
     "sizeKb": "{n} KB",
     "sizeMb": "{n} MB",
     "checksum": "SHA-256 {hash}"
+  },
+  "orderPayLink": {
+    "eyebrow": "{name} · Bill {code}",
+    "titlePaid": "This bill is already paid",
+    "paidBody": "There's nothing left to pay. Thank you!",
+    "titleCancelled": "This bill was cancelled",
+    "cancelledBody": "The business cancelled the bill, so this link no longer charges. If you think that's a mistake, contact them.",
+    "titleExpired": "This link has expired",
+    "expiredBody": "It stopped working on {date}. Ask the business to send you a new one.",
+    "titleOpen": "Bill to pay",
+    "openBody": "You can pay it online by card, PSE or Apple Pay.",
+    "amountLabel": "Total to pay",
+    "payCta": "Pay {amount}"
+  },
+  "emailOrderPayLink": {
+    "subject": "{restaurant}: link to pay bill {code} for {total}",
+    "title": "Bill to pay",
+    "greeting": "Hello.",
+    "greetingNamed": "Hello, {name}.",
+    "intro": "{restaurant} is sending you the link to pay bill {code} for {total}.",
+    "payCta": "Pay {total}",
+    "payFallback": "If the button doesn't work, copy this link into your browser:",
+    "methods": "You can pay by credit or debit card, PSE or Apple Pay.",
+    "expires": "The link works until {date}.",
+    "detailTitle": "Bill details",
+    "totalLabel": "Total",
+    "footer": "Sent by MESAPAY on behalf of {restaurant}"
   }
 }

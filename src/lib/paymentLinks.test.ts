@@ -192,4 +192,11 @@ describe("helpers", () => {
     expect(paymentLinkIsOpen({ status: "paid", expiresAt: null })).toBe(false);
     expect(paymentLinkIsOpen({ status: "pending", expiresAt: new Date(Date.now() - 1000) })).toBe(false);
   });
+
+  it("un link de factura manual (kind=order) nunca está abierto para el cobro de monto fijo", () => {
+    // Entra por /r/[slug]/cuenta/[token] y se cobra en el checkout de la
+    // orden; la página y las rutas de bonos no deben cobrar su amountCents.
+    expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "order" })).toBe(false);
+    expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "voucher_batch" })).toBe(true);
+  });
 });

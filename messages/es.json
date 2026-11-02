@@ -482,7 +482,9 @@
       "retryHint": "La respuesta del cobro no llegó. Este botón verifica o reintenta únicamente el mismo pago, sin crear otro.",
       "inFlight": "Hay un pago electrónico en proceso. Espera su resultado antes de cobrar otra parte.",
       "viewReceipt": "Ver comprobante y factura"
-    }
+    },
+    "linkPayWith": "Paga con",
+    "linkOtherMethods": "Otras formas de pago"
   },
   "done": {
     "methodCard": "Tarjeta",
@@ -1536,7 +1538,36 @@
     "resendSentNoAttachment": "Enviada a {email}, pero sin el archivo XML adjunto.",
     "resendNoRecipient": "Nadie pidió factura en esta cuenta: no hay correo al cual enviarla.",
     "resendError": "No se pudo enviar el correo. Inténtalo de nuevo.",
-    "mCustomerCredit": "Crédito a cliente"
+    "mCustomerCredit": "Crédito a cliente",
+    "payLinkSection": "Link de pago",
+    "payLinkIntro": "Envíale al cliente un enlace para pagar esta cuenta en línea con tarjeta, PSE o Apple Pay.",
+    "payLinkButton": "Enviar link de pago",
+    "payLinkTitle": "Link de pago",
+    "payLinkDialogIntro": "El cliente paga {amount} desde su celular o computador. Al pagar, la cuenta queda cobrada aquí.",
+    "payLinkClose": "Cerrar",
+    "payLinkEmailLabel": "Correo del cliente",
+    "payLinkEmailPlaceholder": "cliente@empresa.com",
+    "payLinkSendEmail": "Enviar por correo",
+    "payLinkSending": "Enviando…",
+    "payLinkCopy": "Copiar link",
+    "payLinkWhatsApp": "Compartir por WhatsApp",
+    "payLinkWorking": "Un momento…",
+    "payLinkCopied": "Link copiado.",
+    "payLinkCopyFailed": "No se pudo copiar. Selecciona el link y cópialo a mano.",
+    "payLinkSentTo": "Link enviado a {email}.",
+    "payLinkWhatsAppText": "Hola, te comparto el link para pagar la cuenta {code} de {restaurant} por {amount}: {url}",
+    "payLinkExpires": "Vence el {date}.",
+    "payLinkStateOpen": "Link vigente hasta el {date}.",
+    "payLinkStateSent": "Link enviado a {email} el {date}.",
+    "payLinkStatePaid": "Pagado por link.",
+    "payLinkStateCancelled": "El link ya no sirve: la cuenta se anuló.",
+    "payLinkStateExpired": "El link venció el {date}. Vuelve a enviarlo para generar uno nuevo.",
+    "payLinkErrClosed": "La cuenta ya está cobrada o anulada.",
+    "payLinkErrNothingToPay": "La cuenta no tiene saldo por cobrar.",
+    "payLinkErrOnlineUnavailable": "El comercio no tiene pagos en línea activos.",
+    "payLinkErrEmail": "No se pudo enviar el correo. Copia el link y compártelo por otro medio.",
+    "payLinkErrInvalidEmail": "Revisa el correo.",
+    "payLinkErrGeneric": "No se pudo generar el link. Intenta de nuevo."
   },
   "opCustomers": {
     "title": "Clientes",
@@ -8640,5 +8671,32 @@
     "sizeKb": "{n} KB",
     "sizeMb": "{n} MB",
     "checksum": "SHA-256 {hash}"
+  },
+  "orderPayLink": {
+    "eyebrow": "{name} · Cuenta {code}",
+    "titlePaid": "Esta cuenta ya está pagada",
+    "paidBody": "No hay nada más que pagar. ¡Gracias!",
+    "titleCancelled": "Esta cuenta fue anulada",
+    "cancelledBody": "El comercio anuló la cuenta, así que el link ya no cobra. Si crees que es un error, contáctalo.",
+    "titleExpired": "Este link venció",
+    "expiredBody": "Dejó de servir el {date}. Pídele al comercio que te envíe uno nuevo.",
+    "titleOpen": "Cuenta por pagar",
+    "openBody": "Puedes pagarla en línea con tarjeta, PSE o Apple Pay.",
+    "amountLabel": "Total a pagar",
+    "payCta": "Pagar {amount}"
+  },
+  "emailOrderPayLink": {
+    "subject": "{restaurant}: link para pagar la cuenta {code} por {total}",
+    "title": "Cuenta por pagar",
+    "greeting": "Hola.",
+    "greetingNamed": "Hola, {name}.",
+    "intro": "{restaurant} te envía el enlace para pagar la cuenta {code} por {total}.",
+    "payCta": "Pagar {total}",
+    "payFallback": "Si el botón no funciona, copia este enlace en tu navegador:",
+    "methods": "Puedes pagar con tarjeta de crédito o débito, PSE o Apple Pay.",
+    "expires": "El enlace sirve hasta el {date}.",
+    "detailTitle": "Detalle de la cuenta",
+    "totalLabel": "Total",
+    "footer": "Enviado por MESAPAY en nombre de {restaurant}"
   }
 }

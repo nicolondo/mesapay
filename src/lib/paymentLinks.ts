@@ -14,6 +14,13 @@ import { db } from "@/lib/db";
  *   voucher_batch     → el lote de bonos pasa a `paid` (los bonos se
  *                       vuelven redimibles en prepago).
  *   voucher_statement → el corte de bonos a crédito queda pagado (PR B).
+ *   order             → NO es un cobro de monto fijo: es la puerta de
+ *                       entrada al checkout del comensal de una factura
+ *                       manual (src/lib/manualInvoicePayLink.ts). Nunca se
+ *                       cobra ni se liquida por acá — `paymentLinkIsOpen`
+ *                       lo rechaza para que la página y las rutas de bonos
+ *                       no cobren su `amountCents` (que es sólo el saldo
+ *                       informativo al crearlo).
  *
  * Idempotente: un link pagado no se vuelve a liquidar (el webhook y la
  * página de retorno pueden llegar los dos).
@@ -191,7 +198,12 @@ export async function markPaymentLinkPending(
 export function paymentLinkIsOpen(link: {
   status: string;
   expiresAt: Date | null;
+  kind?: string;
 }): boolean {
+  // El link de una factura manual entra por /r/[slug]/cuenta/[token] y se
+  // cobra en el checkout de la orden; para la página y las rutas de monto
+  // fijo (bonos) está siempre cerrado, aunque su fila diga `pending`.
+  if (link.kind === "order") return false;
   if (link.status !== "pending") return false;
   if (link.expiresAt && link.expiresAt.getTime() < Date.now()) return false;
   return true;

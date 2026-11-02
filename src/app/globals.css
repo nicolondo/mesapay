@@ -406,8 +406,17 @@ input[type="time"] {
   height: 100dvh;
   padding-top: env(safe-area-inset-top, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
+  /* La franja del indicador de inicio (abajo) NO se reserva acá sino
+     DENTRO del scroller (`.op-app-shell main`, abajo): como padding del
+     shell quedaba por fuera del área que scrollea y, en la PWA de iOS,
+     el final del contenido (la caja de pregunta de Pulso, la última fila
+     de cualquier pantalla) quedaba recortado e inalcanzable, con una
+     banda del color del body asomando debajo. Mismo patrón que el CRM y
+     la app del mesero. */
+}
+.op-app-shell main {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 @media all and (display-mode: standalone) {
   .op-app-shell {

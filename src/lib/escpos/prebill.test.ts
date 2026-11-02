@@ -163,13 +163,19 @@ describe("buildPrebillTicket — ítems", () => {
 });
 
 describe("buildPrebillTicket — totales", () => {
-  it("subtotal, base + impuesto incluido y TOTAL, en ese orden y con el mismo texto que la factura", () => {
+  it("subtotal, base + impuesto incluido y total, en ese orden; con propina sugerida el total NO es la fila fuerte", () => {
     expect(build().totals).toEqual([
       { label: "subtotal", amount: "$61000" },
       { label: "taxBase", amount: "$56481" },
       { label: "taxIncIncluded(8)", amount: "$4519" },
-      { label: "total", amount: "$61000", strong: true },
+      { label: "prebillTotal", amount: "$61000" },
     ]);
+  });
+
+  it("sin propina sugerida, el TOTAL vuelve a ser la fila fuerte con el mismo texto que la factura", () => {
+    const doc = build({ suggestedTipCents: 0, totalWithTipCents: 0 });
+    expect(doc.totals[doc.totals.length - 1]).toEqual({ label: "total", amount: "$61000", strong: true });
+    expect(doc.tipRows).toEqual([]);
   });
 
   it("IVA embebido usa su propia etiqueta", () => {
@@ -179,8 +185,8 @@ describe("buildPrebillTicket — totales", () => {
     expect(doc.totals.map((r) => r.label)).toContain("taxIvaIncluded(19)");
   });
 
-  it("sin impuesto embebido: subtotal y TOTAL nada más", () => {
-    expect(build({ embeddedTax: null }).totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
+  it("sin impuesto embebido: subtotal y total nada más", () => {
+    expect(build({ embeddedTax: null }).totals.map((r) => r.label)).toEqual(["subtotal", "prebillTotal"]);
   });
 
   it("el descuento va con signo menos, con % si lo hay", () => {
@@ -196,16 +202,24 @@ describe("buildPrebillTicket — totales", () => {
     expect(doc.totals.map((r) => r.label)).not.toContain("taxInc");
   });
 
-  it("con pagos parciales: pagado con menos y PENDIENTE en grande, después del TOTAL", () => {
+  it("con pagos parciales: pagado con menos y pendiente después del total; en grande sólo si no hay propina", () => {
     const doc = build({ paidCents: 2_000_000, outstandingCents: 4_100_000 });
     const labels = doc.totals.map((r) => r.label);
-    expect(labels.slice(-3)).toEqual(["total", "prebillPaid", "prebillOutstanding"]);
+    expect(labels.slice(-3)).toEqual(["prebillTotal", "prebillPaid", "prebillOutstanding"]);
     expect(doc.totals).toContainEqual({ label: "prebillPaid", amount: "-$20000" });
-    expect(doc.totals[doc.totals.length - 1]).toMatchObject({ amount: "$41000", strong: true });
+    expect(doc.totals[doc.totals.length - 1]).toEqual({ label: "prebillOutstanding", amount: "$41000" });
+    const sinPropina = build({ paidCents: 2_000_000, outstandingCents: 4_100_000, suggestedTipCents: 0, totalWithTipCents: 0 });
+    expect(sinPropina.totals[sinPropina.totals.length - 1]).toMatchObject({ amount: "$41000", strong: true });
   });
 
-  it("sin pagos, el TOTAL es la única fila fuerte", () => {
-    expect(build().totals.filter((r) => r.strong)).toHaveLength(1);
+  it("hay UNA sola fila fuerte: el total con propina si la hay, el TOTAL si no", () => {
+    const con = build();
+    expect(con.totals.filter((r) => r.strong)).toHaveLength(0);
+    expect(con.tipRows.filter((r) => r.strong)).toEqual([
+      { label: "prebillTotalWithTip", amount: "$67100", strong: true },
+    ]);
+    const sin = build({ suggestedTipCents: 0, totalWithTipCents: 0 });
+    expect(sin.totals.filter((r) => r.strong)).toHaveLength(1);
   });
 });
 
@@ -214,7 +228,7 @@ describe("buildPrebillTicket — propina sugerida", () => {
     const doc = build();
     expect(doc.tipRows).toEqual([
       { label: "prebillSuggestedTip(10)", amount: "$6100" },
-      { label: "prebillTotalWithTip", amount: "$67100" },
+      { label: "prebillTotalWithTip", amount: "$67100", strong: true },
     ]);
     expect(doc.tipNotice).toBe("prebillTipVoluntary");
   });
@@ -258,13 +272,13 @@ const base: ThermalPrebill = {
     { label: "Subtotal", amount: "$ 61.000" },
     { label: "Base gravable", amount: "$ 56.481" },
     { label: "Incl. impoconsumo 8%", amount: "$ 4.519" },
-    { label: "TOTAL", amount: "$ 61.000", strong: true },
+    { label: "Total", amount: "$ 61.000" },
   ],
   tipRows: [
     { label: "Propina sugerida 10%", amount: "$ 6.100" },
-    { label: "Total con propina", amount: "$ 67.100" },
+    { label: "TOTAL CON PROPINA", amount: "$ 67.100", strong: true },
   ],
-  tipNotice: "La propina es voluntaria: podés aceptarla, rechazarla o cambiarla.",
+  tipNotice: "La propina es voluntaria: puedes aceptarla, rechazarla o cambiarla.",
   footerLines: ["¡Gracias por tu visita!"],
 };
 
@@ -311,15 +325,19 @@ describe("renderPrebill — lo que se lee en el papel", () => {
   it("totales y propina sugerida, separados", () => {
     const paper = readable(base);
     expect(paper).toContain("Incl. impoconsumo 8%");
-    expect(paper).toContain("TOTAL");
+    // Con propina sugerida el total sin propina va en normal («Total») y
+    // el fuerte es el TOTAL CON PROPINA, al final del bloque de propina.
+    expect(paper).toContain("Total ");
     expect(paper).toContain("Propina sugerida 10%");
-    expect(paper).toContain("Total con propina");
+    expect(paper).toContain("TOTAL CON PROPINA");
     expect(paper).toContain("voluntaria");
     expect(paper).toContain("¡Gracias por tu visita!");
-    // Un separador entre el TOTAL y la propina: no están sumados.
-    const i = paper.indexOf("TOTAL");
+    // Un separador entre el total y la propina: no están sumados.
+    const i = paper.indexOf("Total ");
     const j = paper.indexOf("Propina sugerida");
+    expect(i).toBeGreaterThan(-1);
     expect(paper.slice(i, j)).toContain("-".repeat(48));
+    expect(paper.indexOf("TOTAL CON PROPINA")).toBeGreaterThan(j);
   });
 
   it("los montos quedan pegados al borde derecho (el TOTAL también: a doble alto son las mismas 48)", () => {

@@ -1,8 +1,9 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatDate } from "@/lib/format";
 import { addDaysIso, bogotaDayRange, bogotaBusinessTodayIso, fmtBogotaDateTime, shiftBusinessDateIso } from "@/lib/bogota";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
@@ -29,6 +30,14 @@ const METHOD_KEY: Record<string, string> = {
   wompi_nequi: "methodWompiNequi",
   kushki_apple_pay: "methodKushkiApplePay",
   kushki_card_terminal: "methodKushkiCardTerminal",
+  kushki_card: "methodKushkiCard",
+  kushki_pse: "methodKushkiPse",
+  kushki_google_pay: "methodKushkiGooglePay",
+  // Datáfono propio del comercio: salía el código crudo «external_terminal»
+  // en «Por método» (reporte del dueño).
+  external_terminal: "methodExternalTerminal",
+  voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
 };
 
 export default async function ReportsPage({
@@ -38,6 +47,7 @@ export default async function ReportsPage({
 }) {
   const t = await getTranslations("opReports");
   const taxT = await getTranslations("opShifts");
+  const locale = (await getLocale()) as Locale;
   const methodLabel = (method: string) =>
     METHOD_KEY[method] ? t(METHOD_KEY[method]) : method;
   const restaurantId = await getActiveRestaurantId();
@@ -63,6 +73,22 @@ export default async function ReportsPage({
   const prevDay = addDaysIso(dateIso, -1);
   const nextDay = addDaysIso(dateIso, 1);
   const isToday = dateIso === todayIso;
+  // Rótulo del día que se ve: «Hoy», «Ayer» o la fecha corta con día de
+  // la semana («sáb, 1 nov»). La fecha de negocio es un día calendario,
+  // se formatea en UTC para que no retroceda al día anterior.
+  const dayLabel = isToday
+    ? t("today")
+    : dateIso === addDaysIso(todayIso, -1)
+      ? t("yesterday")
+      : formatDate(new Date(`${dateIso}T00:00:00Z`), {
+          locale,
+          timeZone: "UTC",
+          dateStyle: undefined,
+          timeStyle: undefined,
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+        });
   // Snapshot inicial de caja — el CashBox refresca en vivo por SSE.
   const cashSnap = await buildCashSnapshot(
     restaurantId,
@@ -247,7 +273,15 @@ export default async function ReportsPage({
               {t("viewCta")}
             </button>
           </form>
-          <div className="inline-flex border border-op-border rounded-full bg-op-surface">
+          {/* Flechas con el DÍA QUE SE ESTÁ VIENDO en el medio («Hoy»,
+              «Ayer» o la fecha corta): antes decía siempre «Hoy» y al
+              retroceder no se sabía en qué día estaba uno (reporte del
+              dueño). Volver a hoy es un botón aparte, que sólo aparece
+              cuando hace falta. */}
+          <div
+            className="inline-flex border border-op-border bg-op-surface"
+            style={{ borderRadius: "var(--radius-btn)" }}
+          >
             <Link
               href={`/operator/reports?date=${prevDay}`}
               className="px-3 h-9 inline-flex items-center text-sm text-op-text/80"
@@ -255,15 +289,15 @@ export default async function ReportsPage({
             >
               {"←"}
             </Link>
-            <Link
-              href={`/operator/reports?date=${todayIso}`}
+            <span
+              aria-live="polite"
               className={
-                "px-3 h-9 inline-flex items-center text-xs " +
-                (isToday ? "text-op-muted" : "text-op-text/80")
+                "px-2 h-9 inline-flex items-center text-xs font-medium whitespace-nowrap " +
+                (isToday ? "text-op-muted" : "text-op-text")
               }
             >
-              {t("today")}
-            </Link>
+              {dayLabel}
+            </span>
             <Link
               href={`/operator/reports?date=${nextDay}`}
               aria-disabled={isToday}
@@ -276,6 +310,11 @@ export default async function ReportsPage({
               {"→"}
             </Link>
           </div>
+          {!isToday && (
+            <Link href={`/operator/reports?date=${todayIso}`} className="mp-btn mp-btn--secondary mp-btn--sm">
+              {t("backToToday")}
+            </Link>
+          )}
         </div>
       </div>
 

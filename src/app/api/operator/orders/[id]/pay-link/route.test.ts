@@ -142,7 +142,12 @@ describe("link", () => {
     });
     const token = m.linkCreate.mock.calls[0][0].data.token as string;
     expect(j.url).toBe(`https://mesapay.co/r/son-y-melona/cuenta/${token}`);
-    expect(j.url).not.toContain("o1");
+    // El id de la orden no viaja en la URL: ningún segmento del path es
+    // "o1". (Antes se comprobaba con `not.toContain("o1")` sobre la URL
+    // entera y el token aleatorio en base64url podía contener «o1» por
+    // azar: el test fallaba en main una de cada ~150 corridas.)
+    expect(new URL(j.url).pathname.split("/")).not.toContain("o1");
+    expect(token).toHaveLength(24);
     expect(j).toMatchObject({ expiresAt: EXPIRES.toISOString(), sentTo: null, sentAt: null, rotated: true });
     expect(m.sendEmail).not.toHaveBeenCalled();
     expect(m.audit).toHaveBeenCalledTimes(1);

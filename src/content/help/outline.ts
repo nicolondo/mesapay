@@ -581,7 +581,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "pulso",
       title: "Pregúntale a Pulso sobre tu negocio",
       covers:
-        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está y el límite diario de preguntas.",
+        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está, el límite diario de preguntas y el historial de conversaciones (reabrir y borrar).",
     },
   ],
 

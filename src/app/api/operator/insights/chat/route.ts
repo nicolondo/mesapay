@@ -99,12 +99,16 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ error: t("error") }, { status: 500 });
   }
 
-  // Éxito: persistir usuario + asistente en una transacción atómica
+  // Éxito: persistir usuario + asistente en una transacción atómica. En la
+  // misma transacción se toca `updatedAt` de la conversación: `@updatedAt`
+  // sólo cambia al actualizar esa fila, no al crearle mensajes, y la lista
+  // del historial (GET /conversations) ordena por esa fecha.
   await db.$transaction([
     db.aiMessage.create({ data: { conversationId: conv.id, role: "user", content: parsed.data.message } }),
     db.aiMessage.create({
       data: { conversationId: conv.id, role: "assistant", content: result.text, toolCalls: result.toolCalls as Prisma.InputJsonValue },
     }),
+    db.aiConversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } }),
   ]);
 
   return NextResponse.json({ conversationId: conv.id, text: result.text, toolCalls: result.toolCalls });

@@ -23,6 +23,7 @@ export default function RestaurantSignUp() {
   const tw = useTranslations("restaurantWelcome");
   const [created, setCreated] = useState<boolean | null>(null);
   const tl = useTranslations("location");
+  const tLegal = useTranslations("legal");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantSlug, setRestaurantSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -263,6 +264,21 @@ export default function RestaurantSignUp() {
         >
           {busy ? "Creando…" : "Crear restaurante"}
         </button>
+        {/* Aviso de aceptación: sin casilla obligatoria, sólo el texto con los enlaces. */}
+        <p className="mt-3 text-xs text-muted-2 text-center leading-snug">
+          {tLegal.rich("acceptNotice", {
+            terms: (chunks) => (
+              <Link href="/terminos" target="_blank" rel="noopener" className="underline">
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link href="/privacidad" target="_blank" rel="noopener" className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
 
         <div className="mt-5 text-sm text-muted text-center">
           ¿Ya tienes cuenta?{" "}

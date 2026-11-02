@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { LEGAL_DOCUMENTS, LEGAL_PATHS, type LegalDocumentId } from "@/content/legal";
 
 // Sitemap para Google (https://mesapay.co/sitemap.xml). Superficies públicas
 // indexables: la landing + la página pública de reservas de cada comercio
@@ -31,6 +32,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 1,
     },
+    // Documentos legales públicos (indexables; la fecha es la de su última versión).
+    ...(Object.keys(LEGAL_PATHS) as LegalDocumentId[]).map((id) => ({
+      url: `${BASE}${LEGAL_PATHS[id]}`,
+      lastModified: new Date(`${LEGAL_DOCUMENTS[id].updatedAt}T12:00:00Z`),
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
     ...restaurants.map((r) => ({
       url: `${BASE}/r/${r.slug}`,
       lastModified: r.updatedAt,

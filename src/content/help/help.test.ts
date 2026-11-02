@@ -23,6 +23,7 @@ import {
   parseHelpMarkdown,
   validateHelpMarkdown,
 } from "@/lib/help/markdown";
+import { findVoseo } from "@/lib/help/voseo";
 
 const HERE = import.meta.dirname ?? __dirname;
 const APP_DIR = join(HERE, "../../app");
@@ -233,19 +234,10 @@ describe("contenido trilingüe", () => {
   });
 
   it("el español es neutro: sin voseo (salvo en los textos de la interfaz, en negrita)", () => {
-    // Formas de vos que no existen con tú/usted. Se revisa el texto fuera de
-    // **negritas** y `código`, que es donde van las etiquetas exactas de la
-    // interfaz (algunas todavía están con vos).
-    const VOSEO =
-      /\b(tocá|tocás|elegí|escribí|abrí|entrá|andá|mirá|revisá|pegá|copiá|guardá|poné|hacé|tené|podés|tenés|querés|sabés|necesitás|usá|probá|fijate|apretá|activá|cerrá|cargá|subí|creá|dejá|pedile|decile|escribinos|mandanos|avisanos|vos)\b/i;
+    // El chequeo vive en @/lib/help/voseo y lo comparten los documentos legales.
     for (const { cat, a } of allArticles("es")) {
-      const text = [a.title, a.summary, ...a.links.map((l) => l.label), a.body]
-        .join("\n")
-        .replace(/```[\s\S]*?```/g, "")
-        .replace(/\*\*[^*]+\*\*/g, "")
-        .replace(/`[^`]*`/g, "");
-      const m = VOSEO.exec(text);
-      expect(m?.[0] ?? null, `es/${cat}/${a.slug}`).toBeNull();
+      const text = [a.title, a.summary, ...a.links.map((l) => l.label), a.body].join("\n");
+      expect(findVoseo(text), `es/${cat}/${a.slug}`).toBeNull();
     }
   });
 });

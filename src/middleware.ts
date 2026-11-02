@@ -16,6 +16,9 @@ const PLATFORM_HOSTS = new Set<string>([
   "127.0.0.1:3300",
 ]);
 
+/** Rutas públicas que no se reescriben al tenant (ver abajo). */
+const PLATFORM_PATHS = new Set<string>(["/privacidad", "/terminos"]);
+
 export function middleware(req: NextRequest) {
   const host = (req.headers.get("host") ?? "").toLowerCase();
   const url = req.nextUrl;
@@ -29,6 +32,14 @@ export function middleware(req: NextRequest) {
   }
 
   if (PLATFORM_HOSTS.has(host)) {
+    return NextResponse.next();
+  }
+
+  // Documentos legales: se sirven iguales en cualquier host, también en el
+  // subdominio de un comercio, para que los enlaces desde la carta y el
+  // registro del comensal funcionen sin salir del dominio. No necesitan
+  // tenant ni sesión.
+  if (PLATFORM_PATHS.has(url.pathname)) {
     return NextResponse.next();
   }
 

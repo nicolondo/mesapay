@@ -220,9 +220,11 @@ describe("enqueuePrebillTicket — el trabajo", () => {
       "Subtotal",
       "Base gravable",
       "Incl. impoconsumo 8%",
-      "TOTAL",
+      "Total",
     ]);
-    expect(doc!.tipRows.map((r) => r.label)).toEqual(["Propina sugerida 10%", "Total con propina"]);
+    // Con propina sugerida, la fila fuerte es el TOTAL CON PROPINA.
+    expect(doc!.tipRows.map((r) => r.label)).toEqual(["Propina sugerida 10%", "TOTAL CON PROPINA"]);
+    expect(doc!.tipRows[1]).toMatchObject({ strong: true });
     expect(doc!.tipNotice).toContain("voluntaria");
     // Ninguna clave sin traducir.
     for (const s of JSON.stringify(doc).split('"')) expect(s).not.toMatch(/^prebill[A-Z]/);
@@ -233,7 +235,8 @@ describe("enqueuePrebillTicket — el trabajo", () => {
     await enqueuePrebillTicket(args);
     const doc = parsePrebillPayload(h.createMany.mock.calls[0][0].data[0].payload)!;
     expect(doc.title).toBe("PRE-BILL");
-    expect(doc.totals[doc.totals.length - 1]).toMatchObject({ label: "TOTAL", amount: "$49,000" });
+    expect(doc.totals[doc.totals.length - 1]).toMatchObject({ label: "Total", amount: "$49,000" });
+    expect(doc.tipRows[doc.tipRows.length - 1]).toMatchObject({ label: "TOTAL WITH TIP", strong: true });
   });
 
   it("una impresora de 58mm y otra de 80mm reciben documentos con su ancho", async () => {

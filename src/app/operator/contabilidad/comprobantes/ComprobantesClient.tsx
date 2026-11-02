@@ -100,10 +100,12 @@ export function ComprobantesClient({
 
   return (
     <div className="space-y-4">
+      {/* Filtros: en el celular, buscador a todo el ancho y debajo dos
+          columnas (desde | hasta, Filtrar | Limpiar); en sm+ una fila. */}
       <form
         method="get"
         action={LIST_PATH}
-        className="rounded-2xl border border-op-border bg-op-surface p-3 flex flex-wrap items-end gap-2"
+        className="rounded-2xl border border-op-border bg-op-surface p-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end"
       >
         <input
           type="search"
@@ -111,15 +113,15 @@ export function ComprobantesClient({
           defaultValue={q}
           placeholder={t("searchPlaceholder")}
           maxLength={80}
-          className={`${inputCls} flex-1 min-w-[12rem]`}
+          className={`${inputCls} col-span-2 min-w-0 sm:col-span-1 sm:flex-1 sm:min-w-[12rem]`}
         />
-        <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-op-muted">
+        <label className="flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wider text-op-muted">
           {t("from")}
-          <input type="date" name="desde" defaultValue={desde} className={inputCls} />
+          <input type="date" name="desde" defaultValue={desde} className={`${inputCls} w-full min-w-0`} />
         </label>
-        <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wider text-op-muted">
+        <label className="flex min-w-0 flex-col gap-1 text-[10px] uppercase tracking-wider text-op-muted">
           {t("to")}
-          <input type="date" name="hasta" defaultValue={hasta} className={inputCls} />
+          <input type="date" name="hasta" defaultValue={hasta} className={`${inputCls} w-full min-w-0`} />
         </label>
         <button type="submit" className="mp-btn mp-btn--secondary px-4">
           {t("filter")}
@@ -139,7 +141,8 @@ export function ComprobantesClient({
         </div>
       ) : (
         <div className="rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+          <div className="report-table">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-op-muted bg-op-bg border-b border-op-border">
@@ -222,6 +225,59 @@ export function ComprobantesClient({
                 })}
               </tbody>
             </table>
+          </div>
+          {/* Celular: una tarjeta por comprobante (número · fecha, glosa,
+              tercero, origen) con el total a la derecha. */}
+          <div className="report-cards divide-y divide-op-border/50">
+            {rows.map((e) => {
+              const annulled = e.status === "annulled" || e.annulledAt != null;
+              return (
+                <Link
+                  key={e.id}
+                  href={`${LIST_PATH}/${e.id}`}
+                  className={"block px-4 py-3 hover:bg-op-bg/60" + (annulled ? " text-op-muted" : "")}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-mono tabular-nums text-xs font-medium">
+                          {e.voucherNumber != null ? (
+                            voucherLabel(e.voucherNumber)
+                          ) : (
+                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium">
+                              {t("unnumbered")}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-xs tabular-nums text-op-muted">{day(e.date)}</span>
+                      </span>
+                      <span className={"mt-0.5 block text-sm" + (annulled ? " line-through" : "")}>
+                        {e.memo ?? ""}
+                      </span>
+                      {e.thirdPartyName && (
+                        <span className="block truncate text-xs text-op-muted">{e.thirdPartyName}</span>
+                      )}
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium">
+                          {sourceLabel(e.source)}
+                        </span>
+                        {e.reversalOfId && (
+                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/10 text-[#7F5A1F] text-[10px] font-medium">
+                            {t("reversalBadge")}
+                          </span>
+                        )}
+                        {annulled && (
+                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-danger/10 text-danger text-[10px] font-medium">
+                            {t("annulled")}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono tabular-nums text-sm">{money(e.totalCents)}</span>
+                  </span>
+                </Link>
+              );
+            })}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-op-border bg-op-bg px-4 py-2 text-xs text-op-muted">
             <span className="tabular-nums">

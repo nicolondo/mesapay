@@ -22,6 +22,43 @@ type Entry = {
   lines: Line[];
 };
 
+/**
+ * Línea de asiento en la vista apilada del celular (`.report-cards`):
+ * cuenta a la izquierda y, a la derecha, cada lado con saldo rotulado
+ * (normalmente sólo uno de los dos).
+ */
+export function JournalLineCard({
+  line,
+  money,
+}: {
+  line: Pick<Line, "accountCode" | "accountName" | "debitCents" | "creditCents">;
+  money: (cents: number) => string;
+}) {
+  const t = useTranslations("opErp");
+  const sides = [
+    { label: t("jDebit"), cents: line.debitCents },
+    { label: t("jCredit"), cents: line.creditCents },
+  ].filter((s) => s.cents !== 0);
+  return (
+    <div className="flex items-start justify-between gap-3 px-4 py-2">
+      <span className="min-w-0 text-sm">
+        <span className="font-mono text-xs text-op-muted tabular mr-1.5">{line.accountCode}</span>
+        {line.accountName}
+      </span>
+      <span className="shrink-0 text-right space-y-1">
+        {sides.map((s) => (
+          <span key={s.label} className="block">
+            <span className="block font-mono text-[9px] uppercase tracking-wider text-op-muted">
+              {s.label}
+            </span>
+            <span className="font-mono tabular text-sm">{money(s.cents)}</span>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 /** Asientos de un día (fecha UTC "YYYY-MM-DD"), con su total debitado. */
 type DayGroup = { day: string; entries: Entry[]; totalDebit: number };
 
@@ -195,7 +232,7 @@ export function DiarioTab({
         </span>
       </div>
       {monthClosed ? (
-        <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm">
             {t("monthClosedBadge", { month: closedThrough ?? month })}
           </span>
@@ -209,12 +246,14 @@ export function DiarioTab({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
+        // Celular: los dos botones apilados a todo el ancho («Generar /
+        // actualizar asientos» no cabe al lado de «Cerrar mes»).
+        <div className="grid grid-cols-1 gap-2 sm:flex">
           <button
             type="button"
             onClick={generate}
             disabled={busy}
-            className="mp-btn mp-btn--primary flex-1"
+            className="mp-btn mp-btn--primary sm:flex-1"
           >
             {busy ? t("journalGenerating") : t("journalGenerate")}
           </button>
@@ -222,7 +261,7 @@ export function DiarioTab({
             type="button"
             onClick={() => doClose("close")}
             disabled={closeBusy || busy || entries === null || entries.length === 0}
-            className="mp-btn mp-btn--ghost px-4 shrink-0"
+            className="mp-btn mp-btn--ghost sm:px-4 sm:shrink-0"
           >
             {closeBusy ? t("closeWorking") : t("closeMonth")}
           </button>
@@ -275,38 +314,50 @@ export function DiarioTab({
                           {money(totalDebit)}
                         </span>
                       </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-op-muted">
-                            <th className="px-4 py-1.5 text-left font-mono text-[9px] uppercase tracking-wider" />
-                            <th className="px-2 py-1.5 text-left font-mono text-[9px] uppercase tracking-wider font-normal">
-                              {t("jAccount")}
-                            </th>
-                            <th className="px-4 py-1.5 text-right font-mono text-[9px] uppercase tracking-wider font-normal">
-                              {t("jDebit")}
-                            </th>
-                            <th className="px-4 py-1.5 text-right font-mono text-[9px] uppercase tracking-wider font-normal">
-                              {t("jCredit")}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-op-border/50">
-                          {e.lines.map((l, i) => (
-                            <tr key={i}>
-                              <td className="px-4 py-1.5 font-mono text-xs text-op-muted tabular w-16">
-                                {l.accountCode}
-                              </td>
-                              <td className="px-2 py-1.5 min-w-0">{l.accountName}</td>
-                              <td className="px-4 py-1.5 text-right font-mono tabular">
-                                {l.debitCents ? money(l.debitCents) : ""}
-                              </td>
-                              <td className="px-4 py-1.5 text-right font-mono tabular">
-                                {l.creditCents ? money(l.creditCents) : ""}
-                              </td>
+                      {/* Tabla oficial (escritorio e impresión): el scroll,
+                          si hiciera falta, queda dentro de la tarjeta. */}
+                      <div className="report-table">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-op-muted">
+                              <th className="px-4 py-1.5 text-left font-mono text-[9px] uppercase tracking-wider" />
+                              <th className="px-2 py-1.5 text-left font-mono text-[9px] uppercase tracking-wider font-normal">
+                                {t("jAccount")}
+                              </th>
+                              <th className="px-4 py-1.5 text-right font-mono text-[9px] uppercase tracking-wider font-normal">
+                                {t("jDebit")}
+                              </th>
+                              <th className="px-4 py-1.5 text-right font-mono text-[9px] uppercase tracking-wider font-normal">
+                                {t("jCredit")}
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-op-border/50">
+                            {e.lines.map((l, i) => (
+                              <tr key={i}>
+                                <td className="px-4 py-1.5 font-mono text-xs text-op-muted tabular w-16">
+                                  {l.accountCode}
+                                </td>
+                                <td className="px-2 py-1.5 min-w-0">{l.accountName}</td>
+                                <td className="px-4 py-1.5 text-right font-mono tabular">
+                                  {l.debitCents ? money(l.debitCents) : ""}
+                                </td>
+                                <td className="px-4 py-1.5 text-right font-mono tabular">
+                                  {l.creditCents ? money(l.creditCents) : ""}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* Celular: una tarjeta por línea — cuenta a la
+                          izquierda (hasta dos renglones) y el monto con su
+                          rótulo Débito/Crédito a la derecha. */}
+                      <div className="report-cards divide-y divide-op-border/50">
+                        {e.lines.map((l, i) => (
+                          <JournalLineCard key={i} line={l} money={money} />
+                        ))}
+                      </div>
                     </div>
                   );
                 })}

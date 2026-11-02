@@ -198,7 +198,7 @@ export function BancosTab({ currency }: { currency: string }) {
           <select
             value={bankCode}
             onChange={(e) => setBankAccount(e.target.value)}
-            className="w-full min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
+            className="w-full min-h-[44px] px-2 rounded-lg border border-op-border bg-op-bg text-sm"
           >
             {bankOptions.map((a) => (
               <option key={a.code} value={a.code}>
@@ -273,17 +273,20 @@ export function BancosTab({ currency }: { currency: string }) {
             </button>
           </div>
         ))}
-        <div className="flex gap-2">
+        {/* Nueva regla: en el celular el patrón ocupa su propia fila y la
+            cuenta + «Agregar» van debajo; en sm+ los tres en una fila. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto]">
           <input
             value={rulePattern}
             onChange={(e) => setRulePattern(e.target.value)}
             placeholder={t("bankRulePattern")}
-            className="flex-1 min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm min-w-0"
+            className="col-span-2 sm:col-span-1 min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm min-w-0"
           />
           <select
             value={ruleAccount}
             onChange={(e) => setRuleAccount(e.target.value)}
-            className="min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-xs max-w-[160px]"
+            aria-label={t("bankChooseAccount")}
+            className="min-h-[44px] px-2 rounded-lg border border-op-border bg-op-bg text-sm min-w-0"
           >
             <option value="">{t("bankChooseAccount")}</option>
             {options.map((a) => (
@@ -296,7 +299,7 @@ export function BancosTab({ currency }: { currency: string }) {
             type="button"
             onClick={addRule}
             disabled={busyId === "rule"}
-            className="mp-btn mp-btn--secondary mp-btn--sm px-3 shrink-0"
+            className="mp-btn mp-btn--secondary px-3"
           >
             {t("add")}
           </button>
@@ -338,13 +341,16 @@ export function BancosTab({ currency }: { currency: string }) {
                   {money(l.amountCents)}
                 </div>
               </div>
-              <div className="flex gap-2">
+              {/* Celular: la cuenta a todo el ancho y los dos botones en
+                  una fila de dos; en sm+ todo en una fila. */}
+              <div className="grid grid-cols-2 gap-2 sm:flex">
                 <select
                   value={lineAccount[l.id] ?? ""}
                   onChange={(e) =>
                     setLineAccount((p) => ({ ...p, [l.id]: e.target.value }))
                   }
-                  className="flex-1 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs min-w-0"
+                  aria-label={t("bankChooseAccount")}
+                  className="col-span-2 sm:col-span-1 sm:flex-1 min-h-[44px] px-2 rounded-lg border border-op-border bg-op-bg text-sm min-w-0"
                 >
                   <option value="">{t("bankChooseAccount")}</option>
                   {options.map((a) => (
@@ -367,7 +373,7 @@ export function BancosTab({ currency }: { currency: string }) {
                     )
                   }
                   disabled={busyId === l.id || !lineAccount[l.id]}
-                  className="mp-btn mp-btn--secondary mp-btn--sm px-3 shrink-0"
+                  className="mp-btn mp-btn--secondary mp-btn--sm sm:px-3 sm:shrink-0"
                 >
                   {t("bankJournalize")}
                 </button>
@@ -375,7 +381,7 @@ export function BancosTab({ currency }: { currency: string }) {
                   type="button"
                   onClick={() => patch({ action: "ignore", lineId: l.id }, l.id)}
                   disabled={busyId === l.id}
-                  className="mp-chip shrink-0"
+                  className="mp-btn mp-btn--ghost mp-btn--sm sm:px-3 sm:shrink-0"
                 >
                   {t("bankIgnore")}
                 </button>

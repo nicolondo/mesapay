@@ -18,7 +18,7 @@ export default async function DiferidosPage() {
     return <div className="p-6">{tSettings("noRestaurant")}</div>;
   }
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
+    <div className="op-contabilidad p-4 sm:p-6 max-w-5xl mx-auto w-full">
       <div className="mb-1">
         <div className="font-display text-3xl">{t("title")}</div>
         <Link

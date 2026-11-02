@@ -591,7 +591,9 @@ export function PlanCuentasTab() {
                 }
                 style={{ paddingLeft: 12 + (a.level - 1) * 14 }}
               >
-                <div className="flex items-center gap-2.5">
+                {/* flex-wrap: en el celular las acciones bajan a un segundo
+                    renglón (basis-full); en sm+ siguen al final de la fila. */}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   {/* Sin ancho fijo: los códigos de un mismo nivel miden igual,
                       así que el nombre queda pegado al código y alineado. */}
                   <span
@@ -644,12 +646,12 @@ export function PlanCuentasTab() {
                     </span>
                   )}
                   {!isEditing && (
-                    <span className="shrink-0 flex items-center gap-2">
+                    <span className="flex basis-full items-center justify-end gap-3 sm:basis-auto sm:shrink-0 sm:gap-2">
                       {canHaveChild && (
                         <button
                           type="button"
                           onClick={() => openNewForm(a)}
-                          className="text-[11px] text-terracotta hover:underline"
+                          className="py-1 text-[11px] text-terracotta hover:underline"
                         >
                           {t("chartAddChild")}
                         </button>
@@ -657,7 +659,7 @@ export function PlanCuentasTab() {
                       <button
                         type="button"
                         onClick={() => startEdit(a)}
-                        className="text-[11px] text-op-muted hover:underline"
+                        className="py-1 text-[11px] text-op-muted hover:underline"
                       >
                         {t("chartEdit")}
                       </button>

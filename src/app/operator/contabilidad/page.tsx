@@ -47,7 +47,7 @@ export default async function ContabilidadPage() {
   const currency = await getCurrencyForCountry(tenant.country);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full">
+    <div className="op-contabilidad p-4 sm:p-6 max-w-3xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("accountingTitle")}</div>
       <p className="text-sm text-op-muted mb-6">{t("accountingIntro")}</p>
 

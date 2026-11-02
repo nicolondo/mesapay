@@ -3,7 +3,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
@@ -451,9 +451,10 @@ export function ContabilidadClient({ currency }: { currency: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Gastos / P&L / Libros */}
-      <div className="mp-seg" role="tablist">
-        {(
+      {/* Segmentos Gastos / P&L / Libros… — una sola fila que se desplaza
+          de lado (en el celular no caben las diez pestañas). */}
+      <TabStrip
+        tabs={
           [
             ["expenses", t("tabExpenses")],
             ["pnl", t("tabPnl")],
@@ -466,19 +467,10 @@ export function ContabilidadClient({ currency }: { currency: string }) {
             ["activos", t("tabActivos")],
             ["presupuesto", t("tabPresupuesto")],
           ] as [Tab, string][]
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => selectTab(value)}
-            className="mp-seg__i"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+        }
+        active={tab}
+        onSelect={selectTab}
+      />
 
       {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por gastos/P&L/libros.
           El Plan de cuentas no es mensual, así que ahí se oculta. */}
@@ -594,6 +586,17 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                               {e.description}
                             </div>
                           )}
+                          {/* Fecha · proveedor · centro van en la columna
+                              ancha: truncan sin empujar el monto fuera de
+                              la tarjeta en el celular. */}
+                          <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                            {formatDate(e.date, {
+                              locale,
+                              timeStyle: undefined,
+                            }) +
+                              (e.supplier ? ` · ${e.supplier.name}` : "") +
+                              (e.costCenter ? ` · ${e.costCenter.name}` : "")}
+                          </div>
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-sm font-medium tabular-nums">
@@ -606,14 +609,6 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                               })}
                             </div>
                           )}
-                          <div className="text-[11px] text-op-muted mt-0.5">
-                            {formatDate(e.date, {
-                              locale,
-                              timeStyle: undefined,
-                            }) +
-                              (e.supplier ? ` · ${e.supplier.name}` : "") +
-                              (e.costCenter ? ` · ${e.costCenter.name}` : "")}
-                          </div>
                         </div>
                       </div>
                     </button>
@@ -653,6 +648,90 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           }
         />
       )}
+    </div>
+  );
+}
+
+/* ───────────────────────── Fila de pestañas ────────────────────────── */
+
+/**
+ * Tira de pestañas en UNA sola fila que se desplaza de lado sin barra
+ * visible (en el celular no caben las diez). Al cambiar de pestaña se trae
+ * la activa a la vista moviendo SOLO esta tira (`scrollTo` sobre el
+ * contenedor; nunca `scrollIntoView`, que también arrastra el scroll
+ * vertical del panel). El envoltorio `.mp-conta-tabs` pinta un degradado al
+ * borde derecho mientras queden pestañas hacia ese lado: `data-end` se
+ * actualiza al desplazar y al cambiar el ancho (ver workspace.css,
+ * «Contabilidad (móvil)»). Se escribe directo en el DOM — es sólo
+ * presentación y así no hay re-render por cada evento de scroll.
+ */
+function TabStrip<T extends string>({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: ReadonlyArray<readonly [T, string]>;
+  active: T;
+  onSelect: (value: T) => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  // El primer posicionamiento es instantáneo (la pestaña que llega por la
+  // URL debe verse ya al abrir); los siguientes, suaves.
+  const firstScroll = useRef(true);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const strip = stripRef.current;
+    if (!wrap || !strip) return;
+    const update = () => {
+      const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+      wrap.dataset.end = atEnd ? "true" : "false";
+    };
+    update();
+    strip.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(strip);
+    return () => {
+      strip.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+
+  // Layout effect: la pestaña que llega por la URL queda a la vista antes
+  // del primer pintado, sin el salto de un useEffect.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const btn = strip.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!btn) return;
+    // Centrar la activa, acotado a los extremos de la tira.
+    const wanted = btn.offsetLeft + btn.offsetWidth / 2 - strip.clientWidth / 2;
+    const left = Math.max(0, Math.min(wanted, strip.scrollWidth - strip.clientWidth));
+    strip.scrollTo({ left, behavior: firstScroll.current ? "auto" : "smooth" });
+    firstScroll.current = false;
+  }, [active]);
+
+  return (
+    <div ref={wrapRef} className="mp-conta-tabs" data-end="false">
+      <div
+        ref={stripRef}
+        role="tablist"
+        className="mp-seg relative w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {tabs.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={active === value}
+            onClick={() => onSelect(value)}
+            className="mp-seg__i shrink-0"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1217,10 +1296,11 @@ function PnlCategoryBreakdown({
         </div>
       </div>
 
-      {/* Encabezado de columnas (solo con CMV; sin él la fila es simple
-          label/valor como los demás desgloses del P&L). */}
+      {/* Encabezado de columnas (solo con CMV y sólo en pantallas anchas;
+          en el celular cada fila lleva sus propios rótulos. Sin CMV la fila
+          es simple label/valor como los demás desgloses del P&L). */}
       {showCmv && (
-        <div className="px-4 py-2 border-b border-op-border flex items-center gap-3 text-[10px] font-mono tracking-[0.1em] uppercase text-op-muted">
+        <div className="px-4 py-2 border-b border-op-border hidden sm:flex items-center gap-3 text-[10px] font-mono tracking-[0.1em] uppercase text-op-muted">
           <span className="flex-1 min-w-0">{t("catColCategory")}</span>
           <span className="w-20 text-right shrink-0 tabular-nums">
             {t("catColSales")}
@@ -1241,28 +1321,28 @@ function PnlCategoryBreakdown({
         return (
           <div
             key={r.category}
-            className="px-4 py-2.5 border-b border-op-border last:border-b-0 flex items-center gap-3"
+            className="px-4 py-2.5 border-b border-op-border last:border-b-0 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3"
           >
-            <span className="flex-1 min-w-0 text-sm truncate">
+            <span className="min-w-0 text-sm truncate sm:flex-1">
               {r.category}
             </span>
             {showCmv ? (
-              <>
-                <span className="w-20 text-right shrink-0 text-sm tabular-nums">
-                  {money(r.salesCents)}
-                </span>
-                <span className="w-20 text-right shrink-0 text-sm tabular-nums text-op-muted">
-                  {money(r.cmvCents)}
-                </span>
-                <div className="w-24 text-right shrink-0">
-                  <div className="text-sm tabular-nums">
-                    {money(marginCents)}
-                  </div>
-                  <div className="text-[10px] text-op-muted tabular-nums">
+              // En el celular, tres celdas rotuladas bajo el nombre; en sm+
+              // `contents` las suelta en la fila y toman las columnas fijas.
+              <div className="grid grid-cols-3 gap-x-3 sm:contents">
+                <CatCell label={t("catColSales")}>
+                  <span className="text-sm tabular-nums">{money(r.salesCents)}</span>
+                </CatCell>
+                <CatCell label={t("catColCmv")}>
+                  <span className="text-sm tabular-nums text-op-muted">{money(r.cmvCents)}</span>
+                </CatCell>
+                <CatCell label={t("catColMargin")} wide>
+                  <span className="block text-sm tabular-nums">{money(marginCents)}</span>
+                  <span className="block text-[10px] text-op-muted tabular-nums">
                     {fmtPct(marginPct, locale)}
-                  </div>
-                </div>
-              </>
+                  </span>
+                </CatCell>
+              </div>
             ) : (
               <span className="text-sm tabular-nums shrink-0">
                 {money(r.salesCents)}
@@ -1273,20 +1353,20 @@ function PnlCategoryBreakdown({
       })}
 
       {/* Total al pie: Σ ventas (y Σ CMV / Σ margen) para cuadrar con el P&L. */}
-      <div className="px-4 py-2.5 bg-op-bg/50 flex items-center gap-3 font-medium">
-        <span className="flex-1 min-w-0 text-sm">{t("catTotal")}</span>
+      <div className="px-4 py-2.5 bg-op-bg/50 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 font-medium">
+        <span className="min-w-0 text-sm sm:flex-1">{t("catTotal")}</span>
         {showCmv ? (
-          <>
-            <span className="w-20 text-right shrink-0 text-sm tabular-nums">
-              {money(totals.salesCents)}
-            </span>
-            <span className="w-20 text-right shrink-0 text-sm tabular-nums text-op-muted">
-              {money(totals.cmvCents)}
-            </span>
-            <span className="w-24 text-right shrink-0 text-sm tabular-nums">
-              {money(totalMarginCents)}
-            </span>
-          </>
+          <div className="grid grid-cols-3 gap-x-3 sm:contents">
+            <CatCell label={t("catColSales")}>
+              <span className="text-sm tabular-nums">{money(totals.salesCents)}</span>
+            </CatCell>
+            <CatCell label={t("catColCmv")}>
+              <span className="text-sm tabular-nums text-op-muted">{money(totals.cmvCents)}</span>
+            </CatCell>
+            <CatCell label={t("catColMargin")} wide>
+              <span className="text-sm tabular-nums">{money(totalMarginCents)}</span>
+            </CatCell>
+          </div>
         ) : (
           <span className="text-sm tabular-nums shrink-0">
             {money(totals.salesCents)}
@@ -1294,6 +1374,30 @@ function PnlCategoryBreakdown({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Celda del desglose por categoría: en el celular lleva su rótulo encima
+ * (la cabecera de columnas está oculta); en sm+ es la columna fija de
+ * siempre (w-20 / w-24, alineada a la derecha) y el rótulo desaparece.
+ */
+function CatCell({
+  label,
+  wide,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={"min-w-0 sm:shrink-0 sm:text-right " + (wide ? "sm:w-24" : "sm:w-20")}>
+      <span className="block sm:hidden font-mono text-[9px] uppercase tracking-wider text-op-muted">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 
@@ -1372,7 +1476,7 @@ function BooksTab({
         </div>
         <a
           href={`/api/operator/accounting/export?book=${book}&month=${month}`}
-          className="min-h-[36px] px-4 inline-flex items-center rounded-full border border-op-border bg-op-surface text-xs font-medium hover:bg-op-bg"
+          className="mp-btn mp-btn--secondary mp-btn--sm"
         >
           {t("exportCsv")}
         </a>
@@ -1407,7 +1511,7 @@ function BooksTab({
           Retenciones, Costos de ventas e Inventarios. */}
       <a
         href={`/api/operator/accounting/report?month=${month}`}
-        className="w-full min-h-[44px] inline-flex items-center justify-center rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+        className="mp-btn mp-btn--primary mp-btn--block"
       >
         {t("repDownloadExcel")}
       </a>
@@ -1994,6 +2098,9 @@ function ExpenseSheet({
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        // Hoja pegada al borde inferior: el padding reserva la franja del
+        // indicador de inicio en la PWA de iOS (env() = 0 en escritorio).
+        style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -2214,33 +2321,38 @@ function ExpenseSheet({
 
           {err && <div className="text-xs text-danger">{err}</div>}
 
-          <div className="flex items-center gap-3 pt-1">
+          {/* Acciones: en el celular, Cancelar | Guardar en una fila de dos
+              a todo el ancho y Eliminar debajo; en escritorio, una sola
+              fila con Eliminar a la izquierda. */}
+          <div className="pt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
             {expense && (
               <button
                 type="button"
                 onClick={remove}
                 disabled={anyBusy}
-                className="min-h-[44px] px-3 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
+                className="mp-btn mp-btn--danger order-last sm:order-none"
               >
                 {deletingBusy ? t("deleting") : t("deleteItem")}
               </button>
             )}
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="mp-btn mp-btn--secondary"
-            >
-              {t("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={anyBusy || category.trim() === "" || amountRaw.trim() === ""}
-              className="mp-btn mp-btn--primary"
-            >
-              {busy ? t("saving") : t("save")}
-            </button>
+            <div className="hidden sm:block sm:flex-1" />
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <button
+                type="button"
+                onClick={onClose}
+                className="mp-btn mp-btn--secondary"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                disabled={anyBusy || category.trim() === "" || amountRaw.trim() === ""}
+                className="mp-btn mp-btn--primary"
+              >
+                {busy ? t("saving") : t("save")}
+              </button>
+            </div>
           </div>
         </div>
       </div>

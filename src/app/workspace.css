@@ -1894,3 +1894,48 @@ a.mp-viz-heat-cell:focus-visible {
     white-space: nowrap;
   }
 }
+
+/* ─── Contabilidad (móvil) — /operator/contabilidad y sus subpáginas ─────
+ *
+ *  .op-contabilidad  Raíz de la pantalla (y de comprobantes, diferidos y
+ *                    cierre de período). Misma receta que .op-menu-editor y
+ *                    .op-admin (globals.css): touch-action: manipulation en
+ *                    los controles y, en pantallas chicas, campos a 16px para
+ *                    que iOS Safari no haga zoom al enfocar. Las hojas (nuevo
+ *                    gasto, detalle de activo) se renderizan adentro del
+ *                    árbol, así que el selector descendiente las cubre.
+ *  .mp-conta-tabs    Envoltorio de la fila de pestañas. La tira en sí es el
+ *                    .mp-seg con overflow-x (ContabilidadClient.tsx); acá
+ *                    sólo se pinta el degradado al borde derecho que avisa
+ *                    que hay más pestañas hacia ese lado. data-end="true"
+ *                    (la tira llegó al final) lo apaga.
+ */
+.op-contabilidad :is(button, a, [role="button"], input, select, textarea) {
+  touch-action: manipulation;
+}
+@media (max-width: 640px) {
+  .op-contabilidad :is(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+.mp-conta-tabs {
+  /* flex: la tira (.mp-seg, inline-flex) pasa a ser ítem flex y no deja el
+     hueco de línea que deja un inline-flex al 100% de ancho. */
+  display: flex;
+  position: relative;
+  min-width: 0;
+}
+.mp-conta-tabs::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--op-bg) 85%);
+  transition: opacity 0.15s ease;
+}
+.mp-conta-tabs[data-end="true"]::after {
+  opacity: 0;
+}

@@ -34,7 +34,7 @@ export default async function ComprobantesPage({
   const exportHref = `/api/operator/accounting/entries/export?desde=${desde}&hasta=${hasta}`;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
+    <div className="op-contabilidad p-4 sm:p-6 max-w-5xl mx-auto w-full">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
         <div className="min-w-0">
           <div className="font-display text-3xl">{t("title")}</div>

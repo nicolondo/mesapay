@@ -140,17 +140,86 @@ export function currentMonthPeriod(today: string): ReportPeriod {
 }
 
 /**
- * Mueve el período un mes o un año completo hacia atrás/adelante. El salto
- * parte del `desde` (como en zenith): con `step: "mes"` el resultado es el
- * mes completo anterior/siguiente; con `"año"`, el año completo.
+ * Unidad del selector de período: semana (lunes a domingo), mes o año
+ * naturales completos, o un rango libre de fechas.
+ */
+export type PeriodKind = "semana" | "mes" | "año" | "rango";
+/** Las unidades completas: lo que pueden saltar las flechas. */
+export type PeriodStep = Exclude<PeriodKind, "rango">;
+
+/**
+ * Lunes a domingo (ISO 8601) de la semana que contiene `dateIso`, en UTC.
+ * La semana empieza en lunes como en Colombia y en el resto de LATAM; el
+ * domingo de inicio es convención de EE. UU.
+ */
+export function weekRangeUtc(dateIso: string): ReportPeriod {
+  const d = new Date(`${dateIso}T00:00:00Z`);
+  const sinceMonday = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - sinceMonday);
+  const desde = isoDateUtc(d);
+  d.setUTCDate(d.getUTCDate() + 6);
+  return { desde, hasta: isoDateUtc(d) };
+}
+
+/** La semana, el mes o el año completo que contiene `dateIso`. */
+export function unitRange(dateIso: string, step: PeriodStep): ReportPeriod {
+  if (step === "año") return fiscalYearRange(Number(dateIso.slice(0, 4)));
+  if (step === "mes") {
+    return monthRangeUtc(dateIso.slice(0, 7)) ?? { desde: dateIso, hasta: dateIso };
+  }
+  return weekRangeUtc(dateIso);
+}
+
+/**
+ * Qué es el período: un año completo, un mes completo, una semana completa
+ * (lunes a domingo) o un rango libre. Se deduce del propio par de fechas,
+ * así la URL no necesita un parámetro extra y un enlace compartido abre
+ * con el mismo modo. No hay ambigüedad: una semana son 7 días, un mes
+ * 28–31 y un año 365–366.
+ */
+export function periodKind(period: ReportPeriod): PeriodKind {
+  if (fiscalYearOf(period.desde, period.hasta) != null) return "año";
+  const month = monthRangeUtc(period.desde.slice(0, 7));
+  if (month && month.desde === period.desde && month.hasta === period.hasta) return "mes";
+  const week = weekRangeUtc(period.desde);
+  if (week.desde === period.desde && week.hasta === period.hasta) return "semana";
+  return "rango";
+}
+
+/**
+ * Pasa el período a una unidad completa al cambiar de modo. Ancla en HOY
+ * si hoy cae dentro del rango actual (de «1 de enero → hoy» a Mes se va
+ * al mes en curso, que es lo que uno espera), y si no en `hasta` (desde
+ * octubre completo a Semana se va a la última semana de octubre, no a la
+ * de hoy).
+ */
+export function snapPeriod(
+  period: ReportPeriod,
+  step: PeriodStep,
+  today: string,
+): ReportPeriod {
+  const anchor = period.desde <= today && today <= period.hasta ? today : period.hasta;
+  return unitRange(anchor, step);
+}
+
+/**
+ * Mueve el período una semana, un mes o un año completo hacia atrás o
+ * adelante. El salto parte del `desde` (como en zenith): con `step: "mes"`
+ * el resultado es el mes completo anterior/siguiente aunque el rango de
+ * partida fuera libre; igual con la semana (lunes a domingo) y el año.
  */
 export function shiftPeriod(
   period: ReportPeriod,
-  step: "mes" | "año",
+  step: PeriodStep,
   dir: -1 | 1,
 ): ReportPeriod {
   if (step === "año") {
     return fiscalYearRange(Number(period.desde.slice(0, 4)) + dir);
+  }
+  if (step === "semana") {
+    const monday = new Date(`${weekRangeUtc(period.desde).desde}T00:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() + 7 * dir);
+    return weekRangeUtc(isoDateUtc(monday));
   }
   const base = new Date(`${period.desde.slice(0, 7)}-01T00:00:00Z`);
   base.setUTCMonth(base.getUTCMonth() + dir);

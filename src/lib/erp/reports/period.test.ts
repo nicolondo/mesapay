@@ -3,10 +3,13 @@ import {
   currentMonthPeriod,
   isIsoDate,
   monthRangeUtc,
+  periodKind,
   periodToUtcRange,
   resolveReportPeriod,
   shiftPeriod,
+  snapPeriod,
   todayIso,
+  weekRangeUtc,
 } from "./period";
 
 const today = "2026-09-21";
@@ -85,6 +88,60 @@ describe("shiftPeriod", () => {
     expect(shiftPeriod({ desde: "2026-03-01", hasta: "2026-09-21" }, "año", 1)).toEqual({
       desde: "2027-01-01",
       hasta: "2027-12-31",
+    });
+  });
+
+  it("salta de semana completa (lunes a domingo) desde un rango libre", () => {
+    // 2026-11-02 es lunes; el rango libre arranca un miércoles.
+    expect(shiftPeriod({ desde: "2026-11-04", hasta: "2026-11-20" }, "semana", -1)).toEqual({
+      desde: "2026-10-26",
+      hasta: "2026-11-01",
+    });
+    expect(shiftPeriod({ desde: "2026-11-02", hasta: "2026-11-08" }, "semana", 1)).toEqual({
+      desde: "2026-11-09",
+      hasta: "2026-11-15",
+    });
+  });
+});
+
+describe("weekRangeUtc", () => {
+  it("lunes a domingo de la semana del día, cruzando mes y año", () => {
+    expect(weekRangeUtc("2026-11-02")).toEqual({ desde: "2026-11-02", hasta: "2026-11-08" });
+    expect(weekRangeUtc("2026-11-08")).toEqual({ desde: "2026-11-02", hasta: "2026-11-08" });
+    expect(weekRangeUtc("2026-11-01")).toEqual({ desde: "2026-10-26", hasta: "2026-11-01" });
+    expect(weekRangeUtc("2027-01-01")).toEqual({ desde: "2026-12-28", hasta: "2027-01-03" });
+  });
+});
+
+describe("periodKind", () => {
+  it("reconoce año, mes y semana completos; lo demás es rango", () => {
+    expect(periodKind({ desde: "2026-01-01", hasta: "2026-12-31" })).toBe("año");
+    expect(periodKind({ desde: "2026-02-01", hasta: "2026-02-28" })).toBe("mes");
+    expect(periodKind({ desde: "2026-11-02", hasta: "2026-11-08" })).toBe("semana");
+    expect(periodKind({ desde: "2026-01-01", hasta: "2026-11-02" })).toBe("rango");
+    // Siete días que no empiezan en lunes no son una «semana».
+    expect(periodKind({ desde: "2026-11-03", hasta: "2026-11-09" })).toBe("rango");
+    // Un mes recortado tampoco es «mes».
+    expect(periodKind({ desde: "2026-02-01", hasta: "2026-02-27" })).toBe("rango");
+  });
+});
+
+describe("snapPeriod", () => {
+  const hoy = "2026-11-02";
+
+  it("si hoy cae en el rango, va a la unidad que contiene hoy", () => {
+    const ytd = { desde: "2026-01-01", hasta: "2026-11-02" };
+    expect(snapPeriod(ytd, "mes", hoy)).toEqual({ desde: "2026-11-01", hasta: "2026-11-30" });
+    expect(snapPeriod(ytd, "semana", hoy)).toEqual({ desde: "2026-11-02", hasta: "2026-11-08" });
+    expect(snapPeriod(ytd, "año", hoy)).toEqual({ desde: "2026-01-01", hasta: "2026-12-31" });
+  });
+
+  it("si hoy queda fuera, ancla en el final del rango", () => {
+    const octubre = { desde: "2026-10-01", hasta: "2026-10-31" };
+    expect(snapPeriod(octubre, "semana", hoy)).toEqual({ desde: "2026-10-26", hasta: "2026-11-01" });
+    expect(snapPeriod({ desde: "2025-01-01", hasta: "2025-12-31" }, "mes", hoy)).toEqual({
+      desde: "2025-12-01",
+      hasta: "2025-12-31",
     });
   });
 });

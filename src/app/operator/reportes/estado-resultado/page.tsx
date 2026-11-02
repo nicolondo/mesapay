@@ -5,13 +5,11 @@ import { buildIncomeStatement } from "@/lib/erp/reports/incomeStatement";
 import { incomeStatementQuery, periodFromQuery } from "@/lib/erp/reports/params";
 import { periodToUtcRange, resolveReportPeriod, todayIso } from "@/lib/erp/reports/period";
 import {
-  loadEntryYears,
   loadReportAccounts,
   loadResultMovements,
 } from "@/lib/erp/reports/queries";
 import { labelText, type StatementLabel } from "@/lib/erp/reports/statementLabel";
 import { drilldownHref } from "../_components/drilldown";
-import { FiscalYearPicker } from "../_components/FiscalYearPicker";
 import { fmtIsoDate, fmtMonth } from "../_components/fmt";
 import { firstParam, reportGate } from "../_components/gate";
 import { PrintButton } from "../_components/PrintButton";
@@ -65,10 +63,9 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
   const period = periodFromQuery(q, today) ?? resolveReportPeriod({ today });
   const { from, to } = periodToUtcRange(period);
 
-  const [movements, accounts, years] = await Promise.all([
+  const [movements, accounts] = await Promise.all([
     loadResultMovements(gate.restaurantId, from, to),
     loadReportAccounts(gate.restaurantId),
-    loadEntryYears(gate.restaurantId),
   ]);
   const stmt = buildIncomeStatement({
     movements,
@@ -88,7 +85,6 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
   });
   const title = period.year != null ? `${t("isYearLabel", { year: period.year })} · ${periodLabel}` : periodLabel;
   const co = stmt.classification === "co";
-  const yearOptions = [...new Set([Number(today.slice(0, 4)), ...years])].sort((a, b) => b - a);
   const postable = new Set(accounts.filter((a) => a.postable).map((a) => a.code));
 
   const rows: TreeRow[] = stmt.rows.map((r) => ({
@@ -138,7 +134,6 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
       }}
       filters={
         <ReportFilterForm keep={{ abrir: firstParam(sp.abrir) }}>
-          <FiscalYearPicker years={yearOptions} year={period.year} />
           <ReportPeriod
             key={`${period.desde}-${period.hasta}`}
             desde={period.desde}

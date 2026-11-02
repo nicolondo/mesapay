@@ -61,7 +61,13 @@ export function TrendPanel({
 
   const labelOf = (key: string) => {
     const l = bucketLabel(key, granularity, locale);
-    return { short: l.short, long: l.weekOf ? t("weekOf", { date: l.weekOf }) : l.long };
+    return {
+      short: l.short,
+      long:
+        l.weekOf && l.weekNumber != null
+          ? t("weekOfNumbered", { n: l.weekNumber, date: l.weekOf })
+          : l.long,
+    };
   };
   /** El balde de hoy no está cerrado: se avisa para que una caída no asuste. */
   const inProgress = (key: string) => {

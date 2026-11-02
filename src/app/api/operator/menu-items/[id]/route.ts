@@ -10,6 +10,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { MAX_TAGS_PER_ITEM, SLUG_REGEX } from "@/lib/menuTags";
 import { isAllowedMenuPhotoUrl } from "@/lib/menuPhotoUrl";
 import { dedupeModifierIds } from "@/lib/modifiers";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 // Accept both shapes for the option list:
 //   "Pollo"                            (legacy, no price delta)
@@ -163,6 +164,22 @@ async function PATCHHandler(
     await lockStock(tx, g.item.restaurantId);
     await tx.menuItem.update({ where: { id, restaurantId: g.item.restaurantId }, data });
   });
+
+  // Sólo el cambio de disponibilidad queda en la bitácora: es lo que saca un
+  // plato de la carta o lo devuelve (fila del editor, Archivar y el aviso de
+  // agotados al abrir el turno). Las demás ediciones siguen sin auditar.
+  const available = parsed.data.available;
+  if (available !== undefined && available !== g.item.available) {
+    await recordAuditEvent({
+      kind: "menu_item.availability.update",
+      restaurantId: g.item.restaurantId,
+      target: { type: "menu_item", id },
+      summary: available
+        ? `Volvió a ofrecer el plato ${g.item.name}`
+        : `Marcó agotado el plato ${g.item.name}`,
+      diff: { before: { available: g.item.available }, after: { available } },
+    });
+  }
   return NextResponse.json({ ok: true });
 }
 

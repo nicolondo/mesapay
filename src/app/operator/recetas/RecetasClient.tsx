@@ -15,6 +15,8 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
+import { parseReferencePriceInput, referencePriceUnit } from "@/lib/erp/ingredientPrice";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
@@ -125,6 +127,48 @@ type PriceAlertDto = {
   /** Nombres de platos afectados (máx. 6); dishCount es el total real. */
   dishes: string[];
   dishCount: number;
+};
+
+// Costos incompletos (GET /api/operator/recipes/cost-gaps): platos con algún
+// insumo sin fuente de costo ("none") o que resuelve a cero ("zero"), directo
+// o dentro de una sub-receta que el costeo usa. Derivado en vivo, nada
+// persistido.
+type CostGapReason = "none" | "zero";
+
+type CostGapMissingDto = {
+  /** Insumo hoja (donde se corrige). */
+  ingredientId: string;
+  name: string;
+  measureKind: MeasureKind;
+  /** Cantidad neta efectiva por plato, en unidad base. */
+  qtyBase: number;
+  reason: CostGapReason;
+  /** Nombres de las sub-recetas por las que llega al plato ([] = directo). */
+  via: string[];
+};
+
+type CostGapDishDto = {
+  menuItemId: string;
+  name: string;
+  categoryName: string;
+  /** Mismo costo que el resto de la app (subestimado mientras falte costo). */
+  costCents: number;
+  complete: boolean;
+  missing: CostGapMissingDto[];
+};
+
+type CostGapIngredientDto = {
+  id: string;
+  name: string;
+  measureKind: MeasureKind;
+  reason: CostGapReason;
+  usedInCount: number;
+  referencePriceCents: number | null;
+};
+
+type CostGapsDto = {
+  items: CostGapDishDto[];
+  ingredientsWithoutCost: CostGapIngredientDto[];
 };
 
 type EngineeringQuadrantId = "star" | "plowhorse" | "puzzle" | "dog";
@@ -279,6 +323,12 @@ export function RecetasClient({ currency }: { currency: string }) {
   const [cat, setCat] = useState<string>("all");
   // Filtro "food cost alto" (A4·D5): solo platos en el rojo del semáforo.
   const [fcHighOnly, setFcHighOnly] = useState(false);
+  // Costos incompletos: platos con algún insumo sin costo o en cero (GET
+  // /recipes/cost-gaps). null = aún sin cargar; se refresca junto con las
+  // recetas (reloadSeq) y al guardar una receta o un costo (gapsSeq).
+  const [gaps, setGaps] = useState<CostGapsDto | null>(null);
+  const [gapsSeq, setGapsSeq] = useState(0);
+  const [gapsOnly, setGapsOnly] = useState(false);
   const [openDish, setOpenDish] = useState<DishRow | null>(null);
   // Se incrementa para re-fetchear GET /recipes completo (guardar/borrar una
   // sub-receta puede mover costos en cascada: platos y otras sub-recetas).
@@ -312,6 +362,36 @@ export function RecetasClient({ currency }: { currency: string }) {
     };
   }, [reloadSeq]);
 
+  // Costos incompletos: fetch aparte (más liviano que GET /recipes) que se
+  // repite con cada recarga de recetas y con cada corrección en línea. Si
+  // falla se conserva lo último cargado (null al inicio → chip oculto).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/operator/recipes/cost-gaps");
+        if (!r.ok) throw new Error("load_failed");
+        const j = (await r.json()) as Partial<CostGapsDto>;
+        if (cancelled) return;
+        setGaps({
+          items: j.items ?? [],
+          ingredientsWithoutCost: j.ingredientsWithoutCost ?? [],
+        });
+      } catch {
+        /* se conserva el estado anterior */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadSeq, gapsSeq]);
+
+  // Platos con costo incompleto (badge en la lista + filtro).
+  const gapDishIds = useMemo(
+    () => new Set((gaps?.items ?? []).map((g) => g.menuItemId)),
+    [gaps],
+  );
+
   // Categorías en el orden del server (sortOrder de la carta).
   const categories = useMemo(() => {
     const map = new Map<string, string>();
@@ -329,13 +409,22 @@ export function RecetasClient({ currency }: { currency: string }) {
         const fc = dishFoodCostPct(d);
         if (fc == null || !isHighFoodCost(fc)) return false;
       }
+      if (gapsOnly && !gapDishIds.has(d.menuItemId)) return false;
       if (needle) {
         const hay = fold(`${d.name} ${d.category.label}`);
         if (!hay.includes(needle)) return false;
       }
       return true;
     });
-  }, [dishes, q, cat, fcHighOnly]);
+  }, [dishes, q, cat, fcHighOnly, gapsOnly, gapDishIds]);
+
+  // Ids visibles tras búsqueda/categoría: el panel de costos incompletos
+  // respeta los mismos filtros que la lista.
+  const visibleDishIds = useMemo(
+    () => new Set(filtered.map((d) => d.menuItemId)),
+    [filtered],
+  );
+  const filtering = q.trim() !== "" || cat !== "all" || fcHighOnly;
 
   // Platos en el rojo del semáforo (>40%) — alimenta el banner contador.
   const fcHighCount = useMemo(() => {
@@ -364,11 +453,21 @@ export function RecetasClient({ currency }: { currency: string }) {
     setOpenDish(null);
     // Los márgenes de ingeniería dependen del costo → caché fuera.
     setEngCache({});
+    // La receta cambió de insumos → los costos incompletos pueden cambiar.
+    setGapsSeq((s) => s + 1);
   }
 
   // Sub-receta guardada/borrada: re-fetch completo — su costo derivado
   // alimenta la cascada D3 de platos y de otras sub-recetas.
   function handleSubsChanged() {
+    setEngCache({});
+    setReloadSeq((s) => s + 1);
+  }
+
+  // Costo de un insumo corregido en línea: mueve el costo de TODOS los platos
+  // y sub-recetas que lo usan → re-fetch completo (recetas + costos
+  // incompletos, que depende de reloadSeq).
+  function handleFixedCost() {
     setEngCache({});
     setReloadSeq((s) => s + 1);
   }
@@ -447,7 +546,24 @@ export function RecetasClient({ currency }: { currency: string }) {
             </button>
           )}
 
-          {/* Búsqueda + filtros (categoría · food cost alto) */}
+          {/* Aviso costos incompletos: contador que aplica el filtro */}
+          {gaps !== null && gaps.items.length > 0 && !gapsOnly && (
+            <button
+              type="button"
+              onClick={() => setGapsOnly(true)}
+              className="w-full text-left rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3 text-sm font-medium text-[#7F5A1F] hover:bg-[#C98A2E]/15 flex items-center gap-2"
+            >
+              <WarningIcon className="shrink-0" />
+              <span>
+                {t("costGapsSummary", {
+                  dishes: gaps.items.length,
+                  ingredients: gaps.ingredientsWithoutCost.length,
+                })}
+              </span>
+            </button>
+          )}
+
+          {/* Búsqueda + filtros (categoría · food cost alto · costos incompletos) */}
           <div className="space-y-2">
             <input
               type="search"
@@ -479,6 +595,16 @@ export function RecetasClient({ currency }: { currency: string }) {
               >
                 {t("fcAlertFilterChip")}
               </button>
+              {gaps !== null && (
+                <button
+                  type="button"
+                  onClick={() => setGapsOnly((v) => !v)}
+                  aria-pressed={gapsOnly}
+                  className="mp-chip"
+                >
+                  {t("costGapsChip", { count: gaps.items.length })}
+                </button>
+              )}
             </div>
           </div>
 
@@ -487,7 +613,27 @@ export function RecetasClient({ currency }: { currency: string }) {
             <PriceAlertsSection alerts={priceAlerts} currency={currency} />
           )}
 
-          {filtered.length === 0 ? (
+          {gapsOnly ? (
+            // Vista de costos incompletos: platos afectados + insumos a
+            // corregir en línea. Respeta búsqueda/categoría de arriba.
+            gaps === null ? (
+              <div className="py-6 text-center text-sm text-op-muted">
+                {t("loading")}
+              </div>
+            ) : (
+              <CostGapsPanel
+                gaps={gaps}
+                visibleDishIds={visibleDishIds}
+                filtering={filtering}
+                currency={currency}
+                onOpenDish={(menuItemId) => {
+                  const d = dishes.find((x) => x.menuItemId === menuItemId);
+                  if (d) setOpenDish(d);
+                }}
+                onFixed={handleFixedCost}
+              />
+            )
+          ) : filtered.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
               {t("emptyFilteredDishes")}
             </div>
@@ -528,10 +674,10 @@ export function RecetasClient({ currency }: { currency: string }) {
                             <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
                               {t("noRecipeBadge")}
                             </span>
-                          ) : !complete ? (
-                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                              {t("incompleteCostBadge")}
-                            </span>
+                          ) : !complete || gapDishIds.has(d.menuItemId) ? (
+                            // Incompleto por la cascada (sin fuente) o por un
+                            // insumo en cero (GET /cost-gaps): texto + icono.
+                            <IncompleteCostBadge />
                           ) : null}
                         </div>
                         <div className="text-[11px] text-op-muted mt-0.5 truncate">
@@ -687,6 +833,316 @@ function PriceAlertsSection({
           </div>
         ))}
     </section>
+  );
+}
+
+/* ──────────────── Costos incompletos (insumos sin costo) ───────────── */
+
+/** Triángulo de aviso — icono inline (sin emojis) para el distintivo. */
+function WarningIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 3 2.5 20h19L12 3Z" />
+      <path d="M12 9v5m0 3h.01" />
+    </svg>
+  );
+}
+
+/** Distintivo "Costo incompleto": texto + icono, no sólo color. */
+function IncompleteCostBadge() {
+  const t = useTranslations("opErp");
+  return (
+    <span className="px-2 h-5 inline-flex items-center gap-1 rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
+      <WarningIcon />
+      {t("incompleteCostBadge")}
+    </span>
+  );
+}
+
+function costGapEditorId(ingredientId: string): string {
+  return `cost-gap-ing-${ingredientId}`;
+}
+
+/** Lleva al editor en línea del insumo y enfoca su campo de precio. */
+function focusCostGapEditor(ingredientId: string) {
+  const el = document.getElementById(costGapEditorId(ingredientId));
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.querySelector("input")?.focus({ preventScroll: true });
+}
+
+/**
+ * Vista de costos incompletos: resumen, platos afectados con sus insumos
+ * sin costo (y por qué sub-receta llegan) y, debajo, un editor en línea
+ * por insumo para ponerle precio de referencia — corregir uno recalcula
+ * todos los platos que lo usan.
+ */
+function CostGapsPanel({
+  gaps,
+  visibleDishIds,
+  filtering,
+  currency,
+  onOpenDish,
+  onFixed,
+}: {
+  gaps: CostGapsDto;
+  /** Platos que pasan búsqueda/categoría de la lista. */
+  visibleDishIds: Set<string>;
+  /** true si hay algún filtro activo (los insumos se acotan a lo visible). */
+  filtering: boolean;
+  currency: string;
+  onOpenDish: (menuItemId: string) => void;
+  onFixed: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const locale = useLocale() as Locale;
+
+  if (gaps.items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
+        <div className="font-display text-lg mb-1">{t("costGapsEmptyTitle")}</div>
+        <p className="text-sm text-op-muted">{t("costGapsEmptyBody")}</p>
+      </div>
+    );
+  }
+
+  const dishes = gaps.items.filter((d) => visibleDishIds.has(d.menuItemId));
+  // Con filtros activos sólo se listan los insumos de los platos visibles.
+  const visibleIngredientIds = filtering
+    ? new Set(dishes.flatMap((d) => d.missing.map((m) => m.ingredientId)))
+    : null;
+  const ingredients = visibleIngredientIds
+    ? gaps.ingredientsWithoutCost.filter((i) => visibleIngredientIds.has(i.id))
+    : gaps.ingredientsWithoutCost;
+
+  const reasonLabel = (reason: CostGapReason) =>
+    reason === "none" ? t("noCostBadge") : t("costGapReasonZero");
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#7F5A1F]">
+          <WarningIcon className="shrink-0" />
+          <span>
+            {t("costGapsSummary", {
+              dishes: gaps.items.length,
+              ingredients: gaps.ingredientsWithoutCost.length,
+            })}
+          </span>
+        </div>
+        <p className="text-xs text-op-muted mt-1">{t("costGapsIntro")}</p>
+      </div>
+
+      {dishes.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
+          {t("emptyFilteredDishes")}
+        </div>
+      ) : (
+        <>
+          <section className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-op-border text-sm font-medium">
+              {t("costGapsDishesTitle", { count: dishes.length })}
+            </div>
+            <div className="divide-y divide-op-border">
+              {dishes.map((d) => (
+                <div key={d.menuItemId} className="px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <span className="text-sm font-medium truncate">{d.name}</span>
+                        <IncompleteCostBadge />
+                      </div>
+                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
+                        {d.categoryName}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[10px] text-op-muted">
+                        {t("costGapComputedCost")}
+                      </div>
+                      <div className="text-sm tabular-nums">
+                        {formatMoney(d.costCents, { currency, locale })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Insumos culpables: cantidad por plato, ruta y motivo */}
+                  <ul className="mt-2 space-y-1">
+                    {d.missing.map((m) => (
+                      <li
+                        key={m.ingredientId}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="min-w-0">
+                          <span className="font-medium">{m.name}</span>
+                          <span className="text-op-muted tabular-nums">
+                            {` · ${formatBaseQty(m.qtyBase, m.measureKind, locale)}`}
+                          </span>
+                          {m.via.length > 0 && (
+                            <span className="text-op-muted">
+                              {` · ${t("costGapVia", { path: m.via.join(" › ") })}`}
+                            </span>
+                          )}
+                          <span className="text-[#7F5A1F]">
+                            {` · ${reasonLabel(m.reason)}`}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => focusCostGapEditor(m.ingredientId)}
+                          className="mp-btn mp-btn--ghost mp-btn--sm shrink-0"
+                        >
+                          {t("costGapSetCost")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenDish(d.menuItemId)}
+                    className="mt-2 text-xs text-op-muted underline underline-offset-2 min-h-[32px]"
+                  >
+                    {t("costGapOpenRecipe")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-op-border text-sm font-medium">
+              {t("costGapsIngredientsTitle", { count: ingredients.length })}
+            </div>
+            <div className="divide-y divide-op-border">
+              {ingredients.map((i) => (
+                <IngredientCostFixRow
+                  key={i.id}
+                  ingredient={i}
+                  currency={currency}
+                  reasonLabel={reasonLabel(i.reason)}
+                  onFixed={onFixed}
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Editor en línea del precio de referencia de un insumo sin costo. Reusa
+ * el PATCH de insumos (misma validación y auditoría que la ficha); al
+ * guardar, el padre recarga recetas y costos incompletos.
+ */
+function IngredientCostFixRow({
+  ingredient,
+  currency,
+  reasonLabel,
+  onFixed,
+}: {
+  ingredient: CostGapIngredientDto;
+  currency: string;
+  reasonLabel: string;
+  onFixed: () => void;
+}) {
+  const t = useTranslations("opErp");
+  const unit = referencePriceUnit(ingredient.measureKind);
+  // Un 0 explícito es justo lo que hay que corregir: el campo arranca vacío.
+  const [raw, setRaw] = useState(
+    ingredient.referencePriceCents != null && ingredient.referencePriceCents > 0
+      ? String(ingredient.referencePriceCents / 100)
+      : "",
+  );
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    if (busy) return;
+    setErr(null);
+    const cents = parseReferencePriceInput(raw);
+    if (cents === "invalid") {
+      setErr(t("errCostInvalid"));
+      return;
+    }
+    if (cents == null || cents <= 0) {
+      setErr(t("costGapErrNeedsPrice"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/operator/ingredients/${ingredient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referencePriceCents: cents }),
+      });
+      if (!r.ok) throw new Error("save_failed");
+      onFixed();
+    } catch {
+      setErr(t("errSaveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const label = t("ingredientReferenceLabel", { currency, unit });
+
+  return (
+    <div id={costGapEditorId(ingredient.id)} className="px-4 py-3">
+      <div className="text-sm font-medium truncate">{ingredient.name}</div>
+      <div className="text-[11px] text-op-muted mt-0.5">
+        <span className="text-[#7F5A1F]">{reasonLabel}</span>
+        {` · ${t("costGapUsedIn", { count: ingredient.usedInCount })}`}
+      </div>
+      <form
+        className="mt-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {label}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <MoneyInput
+              value={raw}
+              onChange={setRaw}
+              fractionDigits={2}
+              ariaLabel={label}
+              placeholder={t("ingredientReferenceUnset")}
+              className={inputCls}
+              disabled={busy}
+            />
+          </div>
+          <button
+            type="submit"
+            className="mp-btn mp-btn--primary shrink-0"
+            disabled={busy}
+          >
+            {t("save")}
+          </button>
+        </div>
+        <div className="text-[10px] text-op-muted mt-1">
+          {t("costGapPriceHint", { unit })}
+        </div>
+        {err && <div className="text-xs text-danger mt-1">{err}</div>}
+      </form>
+    </div>
   );
 }
 

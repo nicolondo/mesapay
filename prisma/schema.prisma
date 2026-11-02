@@ -3529,7 +3529,10 @@ model LedgerAccount {
 }
 
 /// Comprobante contable (asiento). Sus líneas suman débito == crédito.
-/// `source`+`sourceRef` dan idempotencia: un solo asiento por hecho económico.
+/// `source`+`sourceRef`+`date` dan idempotencia: el motor (posting.ts) asienta
+/// las fuentes transaccionales por fuente, mes (`sourceRef = "YYYY-MM"`) y día
+/// de negocio (`date`), y las mensuales una vez al mes; regenerar un mes borra
+/// y recrea por `(source, sourceRef)`.
 model JournalEntry {
   id            String     @id @default(cuid())
   restaurantId  String
@@ -3563,7 +3566,7 @@ model JournalEntry {
 
   lines JournalLine[]
 
-  @@unique([restaurantId, source, sourceRef])
+  @@unique([restaurantId, source, sourceRef, date])
   @@index([restaurantId, date])
   @@index([reversalOfId])
 }

@@ -218,3 +218,52 @@ export function totalsMatch(
   const diff = Math.abs(computedTotalCents - printedTotalCents);
   return diff <= 100 || diff <= printedTotalCents * 0.01;
 }
+
+// ── Libro de compras: totales de un conjunto de filas ─────────────────────
+
+/** Montos por factura del libro de compras (`accountingData.loadPurchasesBook`). */
+export type PurchaseBookRowAmounts = {
+  receivedCents: number;
+  nonInventoryReceivedCents: number;
+  nonInventoryNonDeductibleTaxCents: number;
+  nonInventoryIncCents: number;
+  ivaCents: number;
+  incCents: number;
+  retefuenteCents: number;
+  reteIvaCents: number;
+  reteIcaCents: number;
+};
+
+export type PurchaseBookTotals = PurchaseBookRowAmounts & { count: number };
+
+/**
+ * Suma las filas del libro de compras. La usan el libro (todas las del mes)
+ * y el asiento «Compras del día» (las recibidas ese día): la misma cuenta
+ * sobre cualquier subconjunto, así Σ días == mes al centavo.
+ */
+export function sumPurchaseBookRows(rows: readonly PurchaseBookRowAmounts[]): PurchaseBookTotals {
+  const totals: PurchaseBookTotals = {
+    count: rows.length,
+    receivedCents: 0,
+    nonInventoryReceivedCents: 0,
+    nonInventoryNonDeductibleTaxCents: 0,
+    nonInventoryIncCents: 0,
+    ivaCents: 0,
+    incCents: 0,
+    retefuenteCents: 0,
+    reteIvaCents: 0,
+    reteIcaCents: 0,
+  };
+  for (const r of rows) {
+    totals.receivedCents += r.receivedCents;
+    totals.nonInventoryReceivedCents += r.nonInventoryReceivedCents;
+    totals.nonInventoryNonDeductibleTaxCents += r.nonInventoryNonDeductibleTaxCents;
+    totals.nonInventoryIncCents += r.nonInventoryIncCents;
+    totals.ivaCents += r.ivaCents;
+    totals.incCents += r.incCents;
+    totals.retefuenteCents += r.retefuenteCents;
+    totals.reteIvaCents += r.reteIvaCents;
+    totals.reteIcaCents += r.reteIcaCents;
+  }
+  return totals;
+}

@@ -76,6 +76,9 @@ vi.mock("@/lib/db", () => {
       accountingConfig: {
         upsert: async () => ({ uvtCents: 5_237_400, closedThrough: m.closedThrough, nextVoucherNumber: 3 }),
       },
+      restaurant: {
+        findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }),
+      },
       // Primera actividad: el cobro más antiguo.
       order: {
         aggregate: async () => {
@@ -88,32 +91,33 @@ vi.mock("@/lib/db", () => {
       expense: { ...none, findMany: async () => [] },
       expensePayment: { ...none, findMany: async () => [] },
       customerCreditPayment: { ...none, findMany: async () => [] },
-      stockMovement: none,
+      stockMovement: { ...none, findMany: async () => [] },
       payrollRun: none,
       fixedAsset: none,
       deferredItem: { ...none, findMany: async () => [] },
-      kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-      payment: {
-        groupBy: async ({ where }: { where: { order: { paidAt: { gte: Date } } } }) => {
-          const month = where.order.paidAt.gte.toISOString().slice(0, 7);
-          const cents = m.cashByMonth[month] ?? 0;
-          return cents ? [{ method: "cash", _sum: { amountCents: cents } }] : [];
-        },
-      },
       $transaction: async (fn: (t: unknown) => unknown) => fn(tx),
     },
   };
 });
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }),
-  loadPurchasesBook: async () => ({
-    totals: {
-      receivedCents: 0, incCents: 0, nonInventoryReceivedCents: 0, nonInventoryIncCents: 0,
-      nonInventoryNonDeductibleTaxCents: 0, ivaCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0,
-    },
-  }),
-  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
-  computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
+  // Un pedido en efectivo el día 15 del mes de negocio pedido.
+  loadSalesPostingOrders: async (_r: string, range: { from: Date }) => {
+    const month = range.from.toISOString().slice(0, 7);
+    const cents = m.cashByMonth[month] ?? 0;
+    if (!cents) return [];
+    return [
+      {
+        paidAt: new Date(`${month}-15T18:00:00Z`),
+        status: "paid",
+        subtotalCents: cents,
+        tipCents: 0,
+        invoiceSnapshot: null,
+        payments: [{ method: "cash", amountCents: cents }],
+      },
+    ];
+  },
+  loadPurchasesBook: async () => ({ rows: [], totals: {} }),
+  computeMonthLabor: async () => null,
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
@@ -127,7 +131,7 @@ vi.mock("./activos", async (importOriginal) => ({
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 
 import { regenerateOpenMonths } from "./autoJournal";
@@ -180,6 +184,8 @@ describe("regenerateOpenMonths contra el motor real", () => {
     expect(aug.voucherNumber).toBe(1);
     const sep = m.entries.find((e) => e.id === "new-1")!;
     expect(sep).toMatchObject({ source: "sale", sourceRef: "2026-09", restaurantId: "r1" });
+    // Asiento del DÍA de negocio del cobro, fechado a la medianoche de Bogotá.
+    expect(sep.date).toEqual(new Date("2026-09-15T05:00:00.000Z"));
     expect(sep.lines).toEqual(
       expect.arrayContaining([expect.objectContaining({ accountCode: "110505", debitCents: 200_000 })]),
     );
@@ -187,7 +193,7 @@ describe("regenerateOpenMonths contra el motor real", () => {
     expect(oct).toMatchObject({ source: "sale", sourceRef: "2026-10" });
   });
 
-  it("idempotente: correrla dos veces deja un solo asiento por mes y fuente", async () => {
+  it("idempotente: correrla dos veces deja un solo asiento por mes, fuente y día", async () => {
     await regenerateOpenMonths("r1", NOW);
     await regenerateOpenMonths("r1", NOW);
     const engineR1 = m.entries.filter((e) => e.restaurantId === "r1" && e.source === "sale");

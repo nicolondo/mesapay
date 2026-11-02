@@ -5,16 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   restaurant: vi.fn(),
-  orderAggregate: vi.fn(),
-  invoices: vi.fn(),
+  orders: vi.fn(),
   creditNotes: vi.fn(),
   refunds: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.restaurant },
-    order: { aggregate: m.orderAggregate },
-    simpleInvoice: { findMany: m.invoices },
+    order: { findMany: m.orders },
     purchaseOrder: { findMany: async () => [] },
     // Notas del mes (y la búsqueda de notas sin fijar, que acá no hay).
     creditNote: {
@@ -62,20 +60,21 @@ const NONE = {
   },
 };
 
-/** Bruto del mes: `all` = todas las pagadas; `uninvoiced` = las sin factura. */
-function sales(all: number, uninvoiced: number) {
-  m.orderAggregate.mockImplementation(async (args: { where: { simpleInvoice?: unknown } }) => ({
-    _sum: { subtotalCents: "simpleInvoice" in args.where ? uninvoiced : all },
-  }));
+type Snap = { snapshot: Record<string, unknown> & { subtotalCents: number } };
+/** Pedidos pagados del mes: facturados (con su snapshot) y sin factura (sólo el subtotal). */
+function sales(invoiced: Snap[], uninvoicedCents: number[] = []) {
+  m.orders.mockResolvedValue([
+    ...invoiced.map((i) => ({ subtotalCents: i.snapshot.subtotalCents, simpleInvoice: { snapshot: i.snapshot } })),
+    ...uninvoicedCents.map((subtotalCents) => ({ subtotalCents, simpleInvoice: null })),
+  ]);
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
   m.restaurant.mockResolvedValue({ salesTaxKind: "inc", salesTaxPct: 8 });
-  m.invoices.mockResolvedValue([]);
   m.creditNotes.mockResolvedValue([]);
   m.refunds.mockResolvedValue([]);
-  sales(0, 0);
+  sales([]);
 });
 
 /** Nota crédito aceptada de $10.800 (INC 8 %) emitida el 15-sep en Bogotá. */
@@ -100,8 +99,7 @@ function note(id: string, over: { issuedAt?: string; base?: number; tax?: number
 
 describe("computeTaxSummary — ventas", () => {
   it("un mes que mezcla tarifas lleva un tramo por cada una, más lo viejo en cero", async () => {
-    m.invoices.mockResolvedValue([INC_8, IVA_19, OLD, NONE]);
-    sales(3_000_000 + 1_000_000 + 500_000 + 700_000, 0);
+    sales([INC_8, IVA_19, OLD, NONE]);
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
     expect(s.byRate).toEqual([
       { kind: "inc", pct: 8, grossCents: 3_000_000, taxCents: 222_222, baseCents: 2_777_778 },
@@ -119,8 +117,7 @@ describe("computeTaxSummary — ventas", () => {
     // Comercio en INC 8% desde hoy; las facturas del mes salieron sin
     // impuesto y así las aceptó la DIAN. Antes esto daba 8% × todo el mes.
     m.restaurant.mockResolvedValue({ salesTaxKind: "inc", salesTaxPct: 8 });
-    m.invoices.mockResolvedValue([NONE, OLD]);
-    sales(1_200_000, 0);
+    sales([NONE, OLD]);
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
     expect(s.byRate).toEqual([]);
     expect(s.taxCents).toBe(0);
@@ -133,8 +130,7 @@ describe("computeTaxSummary — ventas", () => {
 
   it("apagar el impuesto tampoco: la factura que se emitió con 8% lo conserva", async () => {
     m.restaurant.mockResolvedValue({ salesTaxKind: "none", salesTaxPct: 0 });
-    m.invoices.mockResolvedValue([INC_8]);
-    sales(3_000_000, 0);
+    sales([INC_8]);
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
     expect(s.byRate).toEqual([
       { kind: "inc", pct: 8, grossCents: 3_000_000, taxCents: 222_222, baseCents: 2_777_778 },
@@ -144,8 +140,7 @@ describe("computeTaxSummary — ventas", () => {
   });
 
   it("las ventas SIN factura siguen con la tarifa actual del comercio (no hay documento que las congele)", async () => {
-    m.invoices.mockResolvedValue([INC_8]);
-    sales(3_000_000 + 250_000, 250_000);
+    sales([INC_8], [250_000]);
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
     // 250.000 × 8/108 = 18.519, sumado al tramo INC 8% de las facturas.
     expect(s.byRate).toEqual([
@@ -171,21 +166,27 @@ describe("computeTaxSummary — ventas", () => {
 
   it("corta el mes por la fecha de pago de la orden, como el libro de ventas", async () => {
     await computeTaxSummary("rest-1", RANGE);
-    const paid = { status: "paid", paidAt: { gte: RANGE.from, lt: RANGE.to } };
-    expect(m.invoices).toHaveBeenCalledWith({
-      where: { restaurantId: "rest-1", order: paid },
-      select: { snapshot: true },
-    });
-    expect(m.orderAggregate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { restaurantId: "rest-1", ...paid, simpleInvoice: null } }),
+    expect(m.orders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { restaurantId: "rest-1", status: "paid", paidAt: { gte: RANGE.from, lt: RANGE.to } },
+      }),
     );
+  });
+
+  it("el impuesto de las ventas sin factura se redondea por pedido: la suma no depende de cómo se agrupen", async () => {
+    // Tres cuentas sin factura: 8/108 de cada una, redondeado pedido a pedido
+    // (18.519 + 7.316 + 823 = 26.658; sobre la suma daría 26.657).
+    sales([], [250_000, 98_765, 11_111]);
+    const { sales: s } = await computeTaxSummary("rest-1", RANGE);
+    expect(s.byRate).toEqual([
+      { kind: "inc", pct: 8, grossCents: 359_876, taxCents: 26_658, baseCents: 333_218 },
+    ]);
   });
 });
 
 describe("computeTaxSummary — notas crédito y devoluciones", () => {
   it("el bruto no cambia (lo asienta «Ventas del mes»); el neto resta las notas aceptadas del mes en su tarifa", async () => {
-    m.invoices.mockResolvedValue([INC_8]);
-    sales(3_000_000, 0);
+    sales([INC_8]);
     m.creditNotes.mockResolvedValue([
       note("1"),
       // 1-sep a las 2 a. m. UTC son las 9 p. m. del 31-ago en Bogotá: agosto, fuera.
@@ -207,8 +208,7 @@ describe("computeTaxSummary — notas crédito y devoluciones", () => {
   });
 
   it("los reembolsos sin nota restan con el impuesto embebido del tramo del mes", async () => {
-    m.invoices.mockResolvedValue([INC_8]);
-    sales(3_000_000, 0);
+    sales([INC_8]);
     m.refunds.mockResolvedValue([{ id: "k1", amountCents: 108_000, payment: null }]);
     const { sales: s } = await computeTaxSummary("rest-1", RANGE);
     expect(s.refunds).toEqual({ grossCents: 108_000, baseCents: 100_000, taxCents: 8_000 });

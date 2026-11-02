@@ -1,8 +1,9 @@
 // Códigos PUC contra los que escribe el motor contable: los asientos-resumen
-// del mes (posting.ts), el cierre del ejercicio (fiscal.ts), la conciliación
-// bancaria y el registro de declaraciones. Viven acá, compartidos, para que
-// el plan de cuentas (chart.ts) sepa cuáles NO se pueden desactivar: si una
-// de estas falta o queda inactiva, el asiento del mes se omite entero.
+// por día y por mes (posting.ts), el cierre del ejercicio (fiscal.ts), la
+// conciliación bancaria y el registro de declaraciones. Viven acá,
+// compartidos, para que el plan de cuentas (chart.ts) sepa cuáles NO se
+// pueden desactivar: si una de estas falta o queda inactiva, el asiento que
+// la necesita se omite entero.
 //
 // Si el motor empieza a usar un código nuevo, agregalo ACÁ y usalo como
 // `ENGINE.X` — nunca un literal suelto en posting.ts.

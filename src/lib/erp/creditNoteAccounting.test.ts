@@ -174,8 +174,12 @@ describe("loadCreditNoteMonthPosting — mes contable", () => {
       ],
       receivableCents: 0,
       liabilityCents: 173_000,
+      // Día fiscal (colombiano): el motor asienta la nota ese día.
+      fiscalDate: "2026-09-30",
     });
-    expect((await loadCreditNoteMonthPosting("r1", "2026-10")).noteIds).toEqual(["oct"]);
+    const oct = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(oct.noteIds).toEqual(["oct"]);
+    expect(oct.notes[0]!.fiscalDate).toBe("2026-10-05");
   });
 
   it("mes fiscal CERRADO: la nota entra en el primer mes abierto; ya asentada, se queda en su mes", async () => {
@@ -184,7 +188,10 @@ describe("loadCreditNoteMonthPosting — mes contable", () => {
       fixture({ id: "late", lines: [lineIva(10_000)], issuedAt: "2026-09-20T15:00:00Z" }),
       fixture({ id: "posted", lines: [lineIva(10_000)], issuedAt: "2026-09-02T15:00:00Z", postedMonth: "2026-09" }),
     ];
-    expect((await loadCreditNoteMonthPosting("r1", "2026-10")).noteIds).toEqual(["late"]);
+    const r = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(r.noteIds).toEqual(["late"]);
+    // Conserva su día fiscal (septiembre): el motor la lleva al último día de octubre.
+    expect(r.notes[0]!.fiscalDate).toBe("2026-09-20");
   });
 
   it("una nota que no cuadra al centavo se excluye y queda en el log", async () => {
@@ -211,7 +218,10 @@ describe("loadCreditNoteMonthPosting — mes contable", () => {
     m.notes = [fixture({ id: "n", lines: [lineIva(100_000)], issuedAt: "2026-10-05T15:00:00Z", orderId: "o1" })];
     m.refunds = [{ id: "r1", amountCents: 119_000, createdAt: new Date("2026-10-02T15:00:00Z"), payment: { orderId: "o1" } }];
     const r = await loadCreditNoteMonthPosting("r1", "2026-10");
-    expect(r).toEqual({ noteIds: ["n"], notes: [{ id: "n", slices: [], receivableCents: 0, liabilityCents: 0 }] });
+    expect(r).toEqual({
+      noteIds: ["n"],
+      notes: [{ id: "n", slices: [], receivableCents: 0, liabilityCents: 0, fiscalDate: "2026-10-05" }],
+    });
   });
 });
 
@@ -228,7 +238,15 @@ describe("reembolsos y notas del mismo pedido", () => {
   const october = { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z") };
 
   it("asiento refund: la parte cubierta por la nota anterior cancela el pasivo, no debita devoluciones", async () => {
-    expect(await loadRefundMonthPosting("r1", october)).toEqual({ totalCents: 170_000, liabilityCents: 119_000 });
+    // Reembolso por reembolso (el motor los agrupa por día) y los totales del mes.
+    expect(await loadRefundMonthPosting("r1", october)).toEqual({
+      refunds: [
+        { id: "after", createdAt: new Date("2026-10-03T15:00:00Z"), amountCents: 120_000, liabilityCents: 119_000 },
+        { id: "other", createdAt: new Date("2026-10-04T15:00:00Z"), amountCents: 50_000, liabilityCents: 0 },
+      ],
+      totalCents: 170_000,
+      liabilityCents: 119_000,
+    });
   });
 
   it("reportes de impuestos: sólo restan los reembolsos SIN nota ligada", async () => {

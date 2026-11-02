@@ -3,11 +3,13 @@
 // línea; lo que entró por pasarela sigue yendo a 112005.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ grossPays: vi.fn(), createEntry: vi.fn() }));
+const m = vi.hoisted(() => ({ orders: vi.fn(), createEntry: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
-    kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-    payment: { groupBy: m.grossPays },
+    restaurant: {
+      findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }),
+    },
+    stockMovement: { findMany: async () => [] },
     expense: { findMany: async () => [] },
     expensePayment: { findMany: async () => [] },
     purchasePayment: { findMany: async () => [] },
@@ -18,15 +20,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }),
-  loadPurchasesBook: async () => ({
-    totals: {
-      receivedCents: 0, incCents: 0, nonInventoryReceivedCents: 0, nonInventoryIncCents: 0,
-      nonInventoryNonDeductibleTaxCents: 0, ivaCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0,
-    },
-  }),
-  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
-  computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
+  loadSalesPostingOrders: m.orders,
+  loadPurchasesBook: async () => ({ rows: [], totals: {} }),
+  computeMonthLabor: async () => null,
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
@@ -42,12 +38,22 @@ vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 
 import { generateJournalForMonth } from "./posting";
 
 type Line = { accountCode: string; debitCents: number; creditCents: number };
+
+/** Un pedido pagado el 10-sep con los cobros dados. */
+const order = (payments: Array<[string, number]>) => ({
+  paidAt: new Date("2026-09-10T18:00:00Z"),
+  status: "paid",
+  subtotalCents: payments.reduce((s, [, c]) => s + c, 0),
+  tipCents: 0,
+  invoiceSnapshot: null,
+  payments: payments.map(([method, amountCents]) => ({ method, amountCents })),
+});
 
 async function saleLines(): Promise<Line[]> {
   await generateJournalForMonth("r", "2026-09", { from: new Date("2026-09-01"), to: new Date("2026-10-01") });
@@ -62,7 +68,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("efectivo en el asiento de ventas", () => {
   it("cash debita Caja (110505)", async () => {
-    m.grossPays.mockResolvedValue([{ method: "cash", _sum: { amountCents: 300_000 } }]);
+    m.orders.mockResolvedValue([order([["cash", 300_000]])]);
     const lines = await saleLines();
     expect(lines).toEqual(
       expect.arrayContaining([
@@ -74,10 +80,9 @@ describe("efectivo en el asiento de ventas", () => {
   });
 
   it("cash y el histórico demo_cash van a una sola línea de Caja; la pasarela aparte", async () => {
-    m.grossPays.mockResolvedValue([
-      { method: "cash", _sum: { amountCents: 300_000 } },
-      { method: "demo_cash", _sum: { amountCents: 200_000 } },
-      { method: "kushki_card", _sum: { amountCents: 100_000 } },
+    m.orders.mockResolvedValue([
+      order([["cash", 300_000]]),
+      order([["demo_cash", 200_000], ["kushki_card", 100_000]]),
     ]);
     const lines = await saleLines();
     const caja = lines.filter((l) => l.accountCode === "110505");

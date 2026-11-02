@@ -1,7 +1,21 @@
-// Motor de asientos (Fase 2). Genera comprobantes de doble partida a partir de
-// los agregados mensuales que ya calcula accountingData.ts. Un asiento-resumen
-// por fuente y por mes (source + sourceRef=mes), idempotente: re-generar borra
-// y recrea el del mes, así se refresca cuando entra más data.
+// Motor de asientos (Fase 2). Genera comprobantes de doble partida a partir
+// de la operación. Dos ritmos:
+//
+//  · Fuentes TRANSACCIONALES (ventas, abonos de clientes, compras, pagos a
+//    proveedores, costo de ventas, mermas, gastos, pagos de gastos,
+//    devoluciones, notas crédito): un asiento-resumen por fuente y por DÍA
+//    DE NEGOCIO del comercio (Bogotá con `Restaurant.businessDayCutoffHour`,
+//    el mismo criterio del cierre de día), fechado a la medianoche de Bogotá
+//    de ese día (`YYYY-MM-DDT05:00:00.000Z`, ver businessDays.ts). Así el
+//    libro refleja los movimientos el día en que ocurren y un estado de
+//    resultado semanal corta bien.
+//  · Fuentes MENSUALES (nómina, depreciación, diferidos): un asiento al mes,
+//    fechado el último instante UTC del mes, como siempre.
+//
+// Todos llevan `sourceRef = "YYYY-MM"`: regenerar un mes borra los asientos
+// del motor de esa fuente y ese mes y crea los N del día en la misma
+// transacción (idempotente), sin tocar manuales, numerados ni anulados.
+// Los hechos del mes se cargan UNA vez y se agrupan en memoria por día.
 //
 // Los códigos base viven en engineCodes.ts (ENGINE). Antes de asentar, cada
 // uno se resuelve a su cuenta IMPUTABLE (chart.ts resolvePostableCode): si
@@ -11,14 +25,15 @@ import { db } from "@/lib/db";
 import { embeddedTaxCents, monthRange } from "./accounting";
 import {
   type MonthRange,
-  computeMonthPnl,
-  computeTaxSummary,
+  type SalesPostingOrder,
+  computeMonthLabor,
   loadPurchasesBook,
-  loadSalesBook,
+  loadSalesPostingOrders,
 } from "./accountingData";
 import { ensureChartOfAccounts, loadAccountIndex } from "./ledger";
 import { depreciationLinesForMonth } from "./activos";
 import { deferredAmortizationLinesForMonth } from "./deferred";
+import { businessDaysOfMonth, calendarDayOf, dailyEntryDate } from "./businessDays";
 import { resolvePostableCode } from "./chart";
 import { ENGINE, ENGINE_SOURCES } from "./engineCodes";
 import { lineCentsToNumbers } from "./ledgerCents";
@@ -27,6 +42,14 @@ import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNote
 import { sumSlices } from "./creditNoteLedger";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
+import { type PurchaseBookRowAmounts, sumPurchaseBookRows } from "./purchaseTax";
+import {
+  type SalesTaxOrder,
+  currentSalesTaxOf,
+  salesTaxByRate,
+  salesTaxLabel,
+  salesTaxSlicesFor,
+} from "./salesTaxSlices";
 import { isCashMethod } from "@/lib/payments/methods";
 import { bogotaBusinessDateIso } from "@/lib/bogota";
 
@@ -41,14 +64,19 @@ type Line = {
 type DraftEntry = {
   source: string;
   memo: string;
+  /** Fecha del asiento (medianoche de Bogotá del día, o fin de mes UTC). */
+  date: Date;
+  /** Día de negocio ("YYYY-MM-DD") en los diarios; para el log. */
+  day?: string;
   lines: Line[];
   /**
-   * Sólo el asiento «Notas crédito del mes»: notas que incluye. Al
-   * persistirlo quedan marcadas con `postedMonth` (en la misma transacción).
+   * Sólo los asientos «Notas crédito»: notas que incluye. Al persistirlo
+   * quedan marcadas con `postedMonth` (en la misma transacción).
    */
   creditNoteIds?: string[];
 };
 
+/** Total asentado por fuente en el mes (Σ de sus asientos del día). */
 export type GenResult = { source: string; totalCents: number };
 
 /** Método de pago → cuenta de caja/banco/pasarela (débito de la venta). */
@@ -96,10 +124,39 @@ export function payrollEstimateApplies(month: string, now: Date): boolean {
   return month >= bogotaBusinessDateIso(now).slice(0, 7);
 }
 
+/** Agrupa filas por una clave de día, con los días en orden. */
+function groupByDay<T>(rows: readonly T[], dayOf: (row: T) => string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const day = dayOf(row);
+    const list = out.get(day);
+    if (list) list.push(row);
+    else out.set(day, [row]);
+  }
+  return new Map([...out.entries()].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** Suma por clave (cuenta) ignorando montos no positivos. */
+function sumByKey<T>(rows: readonly T[], key: (r: T) => string, amount: (r: T) => number): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const amt = amount(r);
+    if (amt <= 0) continue;
+    const k = key(r);
+    out.set(k, (out.get(k) ?? 0) + amt);
+  }
+  return out;
+}
+
+const sumValues = (m: Map<string, number>) => [...m.values()].reduce((s, v) => s + v, 0);
+
 /**
- * Arma (sin persistir) los asientos-resumen del mes. Cada uno cuadra por
- * construcción: la cuenta "plug" (ingreso 4135 en ventas, proveedores 2205 en
- * compras) absorbe la diferencia.
+ * Arma (sin persistir) los asientos del mes: los diarios de las fuentes
+ * transaccionales y los mensuales. Cada uno cuadra por construcción: la
+ * cuenta "plug" (ingreso 4135 en ventas, proveedores 2205 en compras)
+ * absorbe la diferencia. `range` es el mes UTC (`monthRange`): lo usan las
+ * fuentes que viven en un DATE o son mensuales; los hechos con timestamp se
+ * cargan con el mes de NEGOCIO (días de negocio 1..último).
  */
 async function buildMonthEntries(
   restaurantId: string,
@@ -107,31 +164,64 @@ async function buildMonthEntries(
   range: MonthRange,
   now: Date,
 ): Promise<DraftEntry[]> {
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { businessDayCutoffHour: true, salesTaxKind: true, salesTaxPct: true },
+  });
+  const cutoff = tenant?.businessDayCutoffHour ?? 0;
+  const days = businessDaysOfMonth(month, cutoff);
+  if (days.length === 0) return [];
+  const biz: MonthRange = { from: days[0]!.from, to: days[days.length - 1]!.to };
+  const lastDay = days[days.length - 1]!.day;
+  /** Día de negocio de un instante (cobros, recepciones, movimientos…). */
+  const dayOf = (at: Date) => bogotaBusinessDateIso(at, cutoff);
+  /** Fecha de un asiento diario. */
+  const dateOf = (day: string) => dailyEntryDate(day);
+  /** Fecha de los asientos mensuales = último instante del mes. */
+  const monthEnd = new Date(range.to.getTime() - 1);
+
   // Primero las notas crédito: además de leerlas, fija las aceptadas que
   // quedaron sin fijar, y el cruce de los reembolsos de abajo las necesita.
   const creditNotes = await loadCreditNoteMonthPosting(restaurantId, month);
-  const [salesBook, purchasesBook, tax, pnl, refunds, grossPays] =
+  const tsRange = { gte: biz.from, lt: biz.to };
+  const [orders, purchasesBook, labor, refunds, creditPays, purchasePays, stock, expenses, expensePays] =
     await Promise.all([
-      loadSalesBook(restaurantId, range),
-      loadPurchasesBook(restaurantId, range),
-      computeTaxSummary(restaurantId, range),
-      computeMonthPnl(restaurantId, range),
-      loadRefundMonthPosting(restaurantId, range),
-      // Cobros BRUTOS por método (approved + refunded): el asiento de ventas
-      // debita lo cobrado originalmente; las devoluciones tienen su propio
-      // asiento que acredita la pasarela. Si filtráramos sólo approved, un
-      // pago totalmente devuelto (status→refunded) desaparecería del débito
-      // pero la devolución igual acreditaría → doble descuento.
-      db.payment.groupBy({
-        by: ["method"],
+      loadSalesPostingOrders(restaurantId, biz),
+      loadPurchasesBook(restaurantId, biz),
+      // Nómina estimada: salario del mes + recargos de turnos (DATE) → mes calendario.
+      computeMonthLabor(restaurantId, range),
+      loadRefundMonthPosting(restaurantId, biz),
+      db.customerCreditPayment.findMany({
+        where: { restaurantId, paidAt: tsRange },
+        select: { amountCents: true, accountCode: true, paidAt: true },
+      }),
+      db.purchasePayment.findMany({
+        where: { restaurantId, paidAt: tsRange },
+        select: { amountCents: true, accountCode: true, method: true, paidAt: true },
+      }),
+      // sale_consumption/waste = CMV y mermas reales (ledger A4), una fila por
+      // movimiento: se agrupan por día en memoria.
+      db.stockMovement.findMany({
         where: {
-          status: { in: ["approved", "refunded"] },
-          order: {
-            restaurantId,
-            paidAt: { gte: range.from, lt: range.to },
-          },
+          restaurantId,
+          kind: { in: ["sale_consumption", "waste"] },
+          createdAt: tsRange,
         },
-        _sum: { amountCents: true },
+        select: { kind: true, valueCents: true, createdAt: true },
+      }),
+      // Gastos: `Expense.date` es una FECHA contable (la elige el operador),
+      // así que va por día calendario y mes calendario, no de negocio.
+      db.expense.findMany({
+        where: {
+          restaurantId,
+          recurring: false, // las plantillas no son gasto (igual que el P&L)
+          date: { gte: range.from, lt: range.to },
+        },
+        select: { amountCents: true, category: true, accountCode: true, costCenterId: true, date: true },
+      }),
+      db.expensePayment.findMany({
+        where: { restaurantId, paidAt: tsRange },
+        select: { amountCents: true, accountCode: true, paidAt: true },
       }),
     ]);
 
@@ -140,50 +230,59 @@ async function buildMonthEntries(
   // 300 directo del libro. INC (restaurantes) va a 241205.
   const salesTaxCodeFor = (kind: string, pct: number): string | null =>
     kind === "iva" ? ivaGeneradoCodeForPct(pct) : kind === "inc" ? ENGINE.INC_GENERADO : null;
-  // Para las devoluciones (que no tienen factura que las congele) se usa el
-  // régimen con el que quedó etiquetado el mes.
-  const salesTaxCode = salesTaxCodeFor(tax.sales.kind, tax.sales.pct);
+  const current = currentSalesTaxOf(tenant);
+  const toTaxOrder = (o: SalesPostingOrder): SalesTaxOrder => ({
+    subtotalCents: o.subtotalCents,
+    invoiceSnapshot: o.invoiceSnapshot,
+  });
+  // Sólo los pedidos en estado pagado causan impuesto (misma regla que la
+  // tarjeta de impuestos); los cobros y propinas cuentan por `paidAt`.
+  const taxable = (list: readonly SalesPostingOrder[]) =>
+    list.filter((o) => o.status === "paid").map(toTaxOrder);
+  // Régimen del MES (el tramo que más causó): las devoluciones sin nota no
+  // tienen factura que las congele y se estiman con él.
+  const monthLabel = salesTaxLabel(salesTaxByRate(salesTaxSlicesFor(taxable(orders), current)), current);
+  const refundTaxCode = salesTaxCodeFor(monthLabel.kind, monthLabel.pct);
 
   const entries: DraftEntry[] = [];
 
-  // 1) VENTAS — D caja/banco/pasarela (bruto) · C ingresos + impuesto + propinas.
-  {
+  // 1) VENTAS — por día de negocio del pago del pedido. D caja/banco/pasarela
+  // (bruto) · C ingresos + impuesto + propinas.
+  for (const [day, dayOrders] of groupByDay(orders, (o) => dayOf(o.paidAt))) {
     const lines: Line[] = [];
-    let totalCash = 0;
     // Consolidar por cuenta destino (varios métodos caen en la misma cuenta).
-    const byAccount = new Map<string, number>();
-    for (const m of grossPays) {
-      const amt = m._sum.amountCents ?? 0;
-      if (amt <= 0) continue;
-      const code = cashAccountForMethod(m.method);
-      byAccount.set(code, (byAccount.get(code) ?? 0) + amt);
-      totalCash += amt;
-    }
+    const byAccount = sumByKey(
+      dayOrders.flatMap((o) => o.payments),
+      (p) => cashAccountForMethod(p.method),
+      (p) => p.amountCents,
+    );
+    const totalCash = sumValues(byAccount);
     for (const [code, amt] of byAccount) lines.push({ code, debit: amt });
     // El impuesto va por TRAMO: lo que cada factura congeló, agrupado por
-    // tarifa (`computeTaxSummary`). Un mes en el que el comercio cambió de
+    // tarifa (`salesTaxSlices`). Un día en el que el comercio cambió de
     // tarifa lleva un crédito por código (241205 + el auxiliar de IVA);
-    // un mes normal, uno solo. Nunca "tarifa de hoy × ventas del mes".
+    // un día normal, uno solo. Nunca "tarifa de hoy × ventas del día".
     const taxByCode = new Map<string, number>();
-    for (const slice of tax.sales.byRate) {
+    for (const slice of salesTaxByRate(salesTaxSlicesFor(taxable(dayOrders), current))) {
       const code = salesTaxCodeFor(slice.kind, slice.pct);
       if (!code || slice.taxCents <= 0) continue;
       taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
     }
-    const salesTax = [...taxByCode.values()].reduce((s, v) => s + v, 0);
-    const tips = salesBook.totals.tipCents;
+    const salesTax = sumValues(taxByCode);
+    const tips = dayOrders.reduce((s, o) => s + o.tipCents, 0);
     const income = totalCash - salesTax - tips;
     if (totalCash > 0 && income >= 0) {
       if (income > 0) lines.push({ code: ENGINE.INGRESOS, credit: income });
       for (const [code, credit] of taxByCode) lines.push({ code, credit });
       if (tips > 0) lines.push({ code: ENGINE.PROPINAS_POR_PAGAR, credit: tips });
-      entries.push({ source: "sale", memo: "Ventas del mes", lines });
+      entries.push({ source: "sale", memo: "Ventas del día", date: dateOf(day), day, lines });
     } else if (totalCash > 0) {
-      // Cobros < impuesto + propinas de los pedidos: datos inconsistentes
-      // (pagos parciales cruzando meses, etc.). No inventamos un asiento —
-      // lo dejamos trazado para diagnóstico.
-      console.error("[posting] ventas con ingreso negativo — asiento omitido", {
+      // Cobros < impuesto + propinas de los pedidos del día: datos
+      // inconsistentes. No inventamos un asiento — se omite SÓLO ese día y
+      // queda trazado para diagnóstico.
+      console.error("[posting] ventas con ingreso negativo — día omitido", {
         restaurantId,
+        day,
         totalCash,
         salesTax,
         tips,
@@ -191,139 +290,114 @@ async function buildMonthEntries(
     }
   }
 
-  // 1b) ABONOS DE CLIENTES — D cuenta de dinero de cada abono · C clientes.
-  // La venta a crédito debitó Clientes (130505) en "1)"; acá se cancela
-  // esa CxC cuando el cliente paga, agrupado por la cuenta (caja, banco,
-  // pasarela) que eligió el operador al registrar el abono.
-  {
-    const pays = await db.customerCreditPayment.findMany({
-      where: {
-        restaurantId,
-        paidAt: { gte: range.from, lt: range.to },
-      },
-      select: { amountCents: true, accountCode: true },
-    });
-    const byAccount = new Map<string, number>();
-    for (const p of pays) {
-      if (p.amountCents <= 0) continue;
-      byAccount.set(p.accountCode, (byAccount.get(p.accountCode) ?? 0) + p.amountCents);
-    }
-    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
-    if (total > 0) {
-      const lines: Line[] = [];
-      for (const [code, amount] of byAccount) lines.push({ code, debit: amount });
-      lines.push({ code: ENGINE.CLIENTES, credit: total });
-      entries.push({ source: "customer_credit_payment", memo: "Abonos de clientes", lines });
-    }
+  // 1b) ABONOS DE CLIENTES — por día del abono. D cuenta de dinero de cada
+  // abono · C clientes. La venta a crédito debitó Clientes (130505) en "1)";
+  // acá se cancela esa CxC cuando el cliente paga, agrupado por la cuenta
+  // (caja, banco, pasarela) que eligió el operador al registrar el abono.
+  for (const [day, pays] of groupByDay(creditPays, (p) => dayOf(p.paidAt))) {
+    const byAccount = sumByKey(pays, (p) => p.accountCode, (p) => p.amountCents);
+    const total = sumValues(byAccount);
+    if (total <= 0) continue;
+    const lines: Line[] = [];
+    for (const [code, amount] of byAccount) lines.push({ code, debit: amount });
+    lines.push({ code: ENGINE.CLIENTES, credit: total });
+    entries.push({ source: "customer_credit_payment", memo: "Abonos de clientes", date: dateOf(day), day, lines });
   }
 
-  // 2) COMPRAS — D inventario + IVA descontable · C proveedores − retenciones.
-  {
-    const t = purchasesBook.totals;
+  // 2) COMPRAS — por día de negocio de la recepción. D inventario + IVA
+  // descontable · C proveedores − retenciones. La misma suma del libro de
+  // compras, sobre las facturas de cada día.
+  const purchaseRows = purchasesBook.rows.filter(
+    (r): r is typeof r & { receivedAt: Date } => r.receivedAt != null,
+  );
+  for (const [day, rows] of groupByDay(purchaseRows, (r) => dayOf(r.receivedAt))) {
+    const t = sumPurchaseBookRows(rows as PurchaseBookRowAmounts[]);
     const purchaseCost = t.receivedCents + t.incCents;
     const nonInventoryNetCost = t.nonInventoryReceivedCents + t.nonInventoryIncCents;
     const expenseDebit = nonInventoryNetCost + t.nonInventoryNonDeductibleTaxCents;
     const invDebit = purchaseCost - nonInventoryNetCost;
     const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents;
-    if (purchaseCost > 0 || t.ivaCents > 0) {
-      const lines: Line[] = [];
-      if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });
-      if (expenseDebit > 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, debit: expenseDebit });
-      // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
-      // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
-      if (deductibleVat > 0)
-        lines.push({ code: ENGINE.IVA_DESCONTABLE, debit: deductibleVat });
-      if (t.retefuenteCents > 0)
-        lines.push({ code: ENGINE.RETEFUENTE, credit: t.retefuenteCents });
-      if (t.reteIvaCents > 0)
-        lines.push({ code: ENGINE.RETEIVA, credit: t.reteIvaCents });
-      if (t.reteIcaCents > 0)
-        lines.push({ code: ENGINE.RETEICA, credit: t.reteIcaCents });
-      const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
-      const proveedores = purchaseCost + t.ivaCents - ret;
-      if (proveedores >= 0) {
-        lines.push({ code: ENGINE.PROVEEDORES, credit: proveedores });
-        entries.push({ source: "purchase", memo: "Compras del mes", lines });
-      } else {
-        // Retenciones > compra: datos mal capturados. Un crédito negativo no
-        // es un asiento válido — omitimos y dejamos rastro.
-        console.error("[posting] compras con proveedores negativo — omitido", {
-          restaurantId,
-          invDebit,
-          iva: t.ivaCents,
-          ret,
-        });
-      }
-    }
-  }
-
-  // 2b) PAGOS A PROVEEDORES — D proveedores (220505) · C de donde salió.
-  // Hasta ahora los abonos de compras no se asentaban: la CxP que crea "2)"
-  // nunca se cancelaba y proveedores crecía sin fin. Se agrupa por la cuenta
-  // que eligió el operador en cada abono (caja, banco, pasarela); los abonos
-  // anteriores al campo caen en caja/banco según el texto del método.
-  {
-    const pays = await db.purchasePayment.findMany({
-      where: {
+    if (purchaseCost <= 0 && t.ivaCents <= 0) continue;
+    const lines: Line[] = [];
+    if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });
+    if (expenseDebit > 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, debit: expenseDebit });
+    // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
+    // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
+    if (deductibleVat > 0) lines.push({ code: ENGINE.IVA_DESCONTABLE, debit: deductibleVat });
+    if (t.retefuenteCents > 0) lines.push({ code: ENGINE.RETEFUENTE, credit: t.retefuenteCents });
+    if (t.reteIvaCents > 0) lines.push({ code: ENGINE.RETEIVA, credit: t.reteIvaCents });
+    if (t.reteIcaCents > 0) lines.push({ code: ENGINE.RETEICA, credit: t.reteIcaCents });
+    const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
+    const proveedores = purchaseCost + t.ivaCents - ret;
+    if (proveedores >= 0) {
+      lines.push({ code: ENGINE.PROVEEDORES, credit: proveedores });
+      entries.push({ source: "purchase", memo: "Compras del día", date: dateOf(day), day, lines });
+    } else {
+      // Retenciones > compra: datos mal capturados. Un crédito negativo no
+      // es un asiento válido — omitimos SÓLO ese día y dejamos rastro.
+      console.error("[posting] compras con proveedores negativo — día omitido", {
         restaurantId,
-        paidAt: { gte: range.from, lt: range.to },
-      },
-      select: { amountCents: true, accountCode: true, method: true },
-    });
-    const byAccount = new Map<string, number>();
-    for (const p of pays) {
-      if (p.amountCents <= 0) continue;
-      const code = resolvePurchasePaymentAccount(p);
-      byAccount.set(code, (byAccount.get(code) ?? 0) + p.amountCents);
-    }
-    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
-    if (total > 0) {
-      const lines: Line[] = [{ code: ENGINE.PROVEEDORES, debit: total }];
-      for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
-      entries.push({ source: "purchase_payment", memo: "Pagos a proveedores", lines });
+        day,
+        invDebit,
+        iva: t.ivaCents,
+        ret,
+      });
     }
   }
 
-  // 3) COSTO DE VENTAS — D costo · C inventario.
-  if (pnl.consumptionCents > 0) {
-    entries.push({
-      source: "cogs",
-      memo: "Costo de ventas del mes",
-      lines: [
-        { code: ENGINE.COSTO_VENTAS, debit: pnl.consumptionCents },
-        { code: ENGINE.INVENTARIO, credit: pnl.consumptionCents },
-      ],
-    });
+  // 2b) PAGOS A PROVEEDORES — por día del abono. D proveedores (220505) · C
+  // de donde salió. La CxP que crea "2)" se cancela acá, agrupado por la
+  // cuenta que eligió el operador en cada abono (caja, banco, pasarela); los
+  // abonos anteriores al campo caen en caja/banco según el texto del método.
+  for (const [day, pays] of groupByDay(purchasePays, (p) => dayOf(p.paidAt))) {
+    const byAccount = sumByKey(pays, (p) => resolvePurchasePaymentAccount(p), (p) => p.amountCents);
+    const total = sumValues(byAccount);
+    if (total <= 0) continue;
+    const lines: Line[] = [{ code: ENGINE.PROVEEDORES, debit: total }];
+    for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
+    entries.push({ source: "purchase_payment", memo: "Pagos a proveedores", date: dateOf(day), day, lines });
   }
 
-  // 4) MERMAS — D gasto · C inventario.
-  if (pnl.wasteCents > 0) {
-    entries.push({
-      source: "waste",
-      memo: "Mermas del mes",
-      lines: [
-        { code: ENGINE.GASTOS_DIVERSOS, debit: pnl.wasteCents },
-        { code: ENGINE.INVENTARIO, credit: pnl.wasteCents },
-      ],
-    });
+  // 3) COSTO DE VENTAS y 4) MERMAS — por día de negocio del movimiento de
+  // inventario. Las salidas tienen `valueCents` negativo: el neto del día
+  // (−Σ) va D costo/gasto · C inventario. Un día cuyo neto sea positivo
+  // (más reversas que salidas) se asienta al revés, D inventario · C
+  // costo/gasto, para que Σ días == mes también en ese caso.
+  for (const [day, moves] of groupByDay(stock, (m) => dayOf(m.createdAt))) {
+    const net = (kind: string) => -moves.filter((m) => m.kind === kind).reduce((s, m) => s + m.valueCents, 0);
+    const pair = (debit: string, credit: string, cents: number): Line[] =>
+      cents >= 0
+        ? [{ code: debit, debit: cents }, { code: credit, credit: cents }]
+        : [{ code: credit, debit: -cents }, { code: debit, credit: -cents }];
+    const consumption = net("sale_consumption");
+    if (consumption !== 0) {
+      entries.push({
+        source: "cogs",
+        memo: "Costo de ventas del día",
+        date: dateOf(day),
+        day,
+        lines: pair(ENGINE.COSTO_VENTAS, ENGINE.INVENTARIO, consumption),
+      });
+    }
+    const waste = net("waste");
+    if (waste !== 0) {
+      entries.push({
+        source: "waste",
+        memo: "Mermas del día",
+        date: dateOf(day),
+        day,
+        lines: pair(ENGINE.GASTOS_DIVERSOS, ENGINE.INVENTARIO, waste),
+      });
+    }
   }
 
-  // 5) GASTOS del mes — D la cuenta del gasto · C costos y gastos por pagar.
+  // 5) GASTOS — por día calendario de `Expense.date`. D la cuenta del gasto ·
+  // C costos y gastos por pagar.
   //
-  // Antes acreditaba bancos directo, o sea que daba por pagado TODO gasto en
-  // el momento de registrarlo. Un gasto que se debe no puede sacar plata del
-  // banco: nace como pasivo y se cancela con el asiento 5b cuando se paga.
-  // La cuenta del débito sale del gasto si el operador la fijó; si no, de la
-  // heurística por categoría de siempre.
-  {
-    const rows = await db.expense.findMany({
-      where: {
-        restaurantId,
-        recurring: false, // las plantillas no son gasto (igual que el P&L)
-        date: { gte: range.from, lt: range.to },
-      },
-      select: { amountCents: true, category: true, accountCode: true, costCenterId: true },
-    });
+  // Un gasto que se debe no puede sacar plata del banco: nace como pasivo y
+  // se cancela con el asiento 5b cuando se paga. La cuenta del débito sale
+  // del gasto si el operador la fijó; si no, de la heurística por categoría.
+  for (const [day, rows] of groupByDay(expenses, (e) => calendarDayOf(e.date))) {
     // Por cuenta Y centro de costos: agrupar sólo por cuenta perdía el
     // centro y el presupuesto por centro no veía los gastos.
     const byAccount = new Map<string, { code: string; costCenterId: string | null; amount: number; memo: string }>();
@@ -340,60 +414,46 @@ async function buildMonthEntries(
       });
     }
     const total = [...byAccount.values()].reduce((s, v) => s + v.amount, 0);
-    if (total > 0) {
-      const lines: Line[] = [...byAccount.values()].map((v) => ({
-        code: v.code,
-        debit: v.amount,
-        memo: v.memo,
-        costCenterId: v.costCenterId,
-      }));
-      lines.push({ code: EXPENSE_PAYABLE_CODE, credit: total });
-      entries.push({ source: "expense", memo: "Gastos del mes", lines });
-    }
+    if (total <= 0) continue;
+    const lines: Line[] = [...byAccount.values()].map((v) => ({
+      code: v.code,
+      debit: v.amount,
+      memo: v.memo,
+      costCenterId: v.costCenterId,
+    }));
+    lines.push({ code: EXPENSE_PAYABLE_CODE, credit: total });
+    entries.push({ source: "expense", memo: "Gastos del día", date: dateOf(day), day, lines });
   }
 
-  // 5b) PAGOS DE GASTOS — D costos y gastos por pagar · C de donde salió.
-  // Se agrupa por la cuenta que eligió el operador en cada abono, así el
-  // crédito cae en la caja o el banco real y no en uno fijo.
-  {
-    const pays = await db.expensePayment.findMany({
-      where: {
-        restaurantId,
-        paidAt: { gte: range.from, lt: range.to },
-      },
-      select: { amountCents: true, accountCode: true },
-    });
-    const byAccount = new Map<string, number>();
-    for (const p of pays) {
-      if (p.amountCents <= 0) continue;
-      byAccount.set(p.accountCode, (byAccount.get(p.accountCode) ?? 0) + p.amountCents);
-    }
-    const total = [...byAccount.values()].reduce((s, v) => s + v, 0);
-    if (total > 0) {
-      const lines: Line[] = [{ code: EXPENSE_PAYABLE_CODE, debit: total }];
-      for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
-      entries.push({ source: "expense_payment", memo: "Pagos de gastos", lines });
-    }
+  // 5b) PAGOS DE GASTOS — por día del pago. D costos y gastos por pagar · C
+  // de donde salió, agrupado por la cuenta que eligió el operador en cada
+  // abono, así el crédito cae en la caja o el banco real y no en uno fijo.
+  for (const [day, pays] of groupByDay(expensePays, (p) => dayOf(p.paidAt))) {
+    const byAccount = sumByKey(pays, (p) => p.accountCode, (p) => p.amountCents);
+    const total = sumValues(byAccount);
+    if (total <= 0) continue;
+    const lines: Line[] = [{ code: EXPENSE_PAYABLE_CODE, debit: total }];
+    for (const [code, amount] of byAccount) lines.push({ code, credit: amount });
+    entries.push({ source: "expense_payment", memo: "Pagos de gastos", date: dateOf(day), day, lines });
   }
 
-  // 6b) DEPRECIACIÓN — cuota mensual de los activos fijos, cada uno contra
-  // SUS cuentas (Debe gasto 5xxx · Haber depreciación acumulada 15xx),
-  // agregadas por cuenta. Antes era el par fijo 516005/159205 para todos;
-  // ahora las cuentas viven en cada activo (defaults iguales). Línea recta,
-  // arranca el mes siguiente a la compra — ver erp/activos.
+  // 6b) DEPRECIACIÓN (mensual) — cuota del mes de los activos fijos, cada
+  // uno contra SUS cuentas (Debe gasto 5xxx · Haber depreciación acumulada
+  // 15xx), agregadas por cuenta. Línea recta, arranca el mes siguiente a la
+  // compra — ver erp/activos.
   {
     const lines = await depreciationLinesForMonth(restaurantId, month);
     const total = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
     if (total > 0) {
-      entries.push({ source: "depreciation", memo: "Depreciación del mes", lines });
+      entries.push({ source: "depreciation", memo: "Depreciación del mes", date: monthEnd, lines });
     }
   }
 
-  // 6c) DIFERIDOS — amortización del mes: gastos pagados por anticipado
-  // (D gasto/costo · C puente 17xx) e ingresos recibidos por anticipado
-  // (D puente 27xx · C ingreso), agregados por cuenta y centro de costos.
-  // La cuota se calcula al vuelo por mes (ver erp/deferred): regenerar el
-  // mes ya cubre huecos y bajas, sin filas por período ni cron.
+  // 6c) DIFERIDOS (mensual) — amortización del mes: gastos pagados por
+  // anticipado (D gasto/costo · C puente 17xx) e ingresos recibidos por
+  // anticipado (D puente 27xx · C ingreso), agregados por cuenta y centro
+  // de costos. La cuota se calcula al vuelo por mes (ver erp/deferred):
+  // regenerar el mes ya cubre huecos y bajas, sin filas por período ni cron.
   {
     const lines = await deferredAmortizationLinesForMonth(restaurantId, month);
     const total = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
@@ -401,14 +461,15 @@ async function buildMonthEntries(
       entries.push({
         source: "deferred",
         memo: "Amortización de diferidos del mes",
+        date: monthEnd,
         lines,
       });
     }
   }
 
-  // 6) NÓMINA — con corrida liquidada: asiento completo (devengados, aportes,
-  // provisiones, retenciones y neto por pagar). Sin corrida: fallback simple
-  // salario+recargos del P&L.
+  // 6) NÓMINA (mensual) — con corrida liquidada: asiento completo
+  // (devengados, aportes, provisiones, retenciones y neto por pagar). Sin
+  // corrida: fallback simple salario+recargos del costo laboral del mes.
   {
     const run = await payrollTotalsForPosting(restaurantId, month);
     if (run) {
@@ -440,57 +501,67 @@ async function buildMonthEntries(
       entries.push({
         source: "payroll",
         memo: "Nómina del mes (liquidación)",
+        date: monthEnd,
         lines: lines.filter((l) => (l.debit ?? 0) > 0 || (l.credit ?? 0) > 0),
       });
     } else {
       // Sin corrida: estimado con los salarios de hoy, sólo en el mes en
       // curso (ver `payrollEstimateApplies`).
-      const labor = pnl.labor?.totalCents ?? 0;
-      if (labor > 0 && payrollEstimateApplies(month, now)) {
+      const laborCents = labor?.totalCents ?? 0;
+      if (laborCents > 0 && payrollEstimateApplies(month, now)) {
         entries.push({
           source: "payroll",
           memo: "Nómina del mes",
+          date: monthEnd,
           lines: [
-            { code: ENGINE.NOMINA_SALARIOS, debit: labor },
-            { code: ENGINE.SALARIOS_POR_PAGAR, credit: labor },
+            { code: ENGINE.NOMINA_SALARIOS, debit: laborCents },
+            { code: ENGINE.SALARIOS_POR_PAGAR, credit: laborCents },
           ],
         });
       }
     }
   }
 
-  // 7) DEVOLUCIONES — D devoluciones + impuesto · C pasarela.
-  // Un reembolso POSTERIOR a una nota crédito del mismo pedido no es una
-  // devolución nueva: la nota ya debitó devoluciones e impuesto y dejó el
-  // pasivo «reintegros por pagar». Esa parte (hasta lo que la nota dejó
-  // pendiente) cancela el pasivo; sólo el resto se estima como antes, con
-  // el impuesto embebido del régimen del mes.
-  if (refunds.totalCents > 0) {
-    const withNote = Math.min(Math.max(0, refunds.liabilityCents), refunds.totalCents);
-    const withoutNote = refunds.totalCents - withNote;
-    const rtax =
-      tax.sales.kind === "none" ? 0 : embeddedTaxCents(withoutNote, tax.sales.pct);
+  // 7) DEVOLUCIONES — por día de negocio del reembolso. D devoluciones +
+  // impuesto · C pasarela. Un reembolso POSTERIOR a una nota crédito del
+  // mismo pedido no es una devolución nueva: la nota ya debitó devoluciones
+  // e impuesto y dejó el pasivo «reintegros por pagar». Esa parte (hasta lo
+  // que la nota dejó pendiente, ya cruzada reembolso por reembolso) cancela
+  // el pasivo; sólo el resto se estima como antes, con el impuesto embebido
+  // del régimen del mes.
+  for (const [day, dayRefunds] of groupByDay(refunds.refunds, (r) => dayOf(r.createdAt))) {
+    const total = dayRefunds.reduce((s, r) => s + r.amountCents, 0);
+    if (total <= 0) continue;
+    const liability = dayRefunds.reduce((s, r) => s + r.liabilityCents, 0);
+    const withNote = Math.min(Math.max(0, liability), total);
+    const withoutNote = total - withNote;
+    const rtax = monthLabel.kind === "none" ? 0 : embeddedTaxCents(withoutNote, monthLabel.pct);
     const lines: Line[] = [];
     if (withoutNote > 0) lines.push({ code: ENGINE.DEVOLUCIONES, debit: withoutNote - rtax });
-    if (rtax > 0 && salesTaxCode)
-      lines.push({ code: salesTaxCode, debit: rtax });
+    if (rtax > 0 && refundTaxCode) lines.push({ code: refundTaxCode, debit: rtax });
     if (withNote > 0) lines.push({ code: ENGINE.DEVOLUCIONES_POR_PAGAR, debit: withNote });
-    lines.push({ code: ENGINE.PASARELA, credit: refunds.totalCents });
+    lines.push({ code: ENGINE.PASARELA, credit: total });
     entries.push({
       source: "refund",
-      memo: "Devoluciones del mes",
+      memo: "Devoluciones del día",
+      date: dateOf(day),
+      day,
       lines: lines.filter((l) => (l.debit ?? 0) > 0 || (l.credit ?? 0) > 0),
     });
   }
 
-  // 8) NOTAS CRÉDITO — D devoluciones en ventas (base) + IVA/INC generado
-  // por tarifa (lo que declaró cada nota, no la tarifa de hoy) · C Clientes
-  // por lo que canceló cartera de crédito y C «reintegros por pagar» por lo
-  // que el comercio le debe devolver al cliente. Lo que ya cubrió un
-  // reembolso ANTERIOR a la nota no se repite (ver creditNoteLedger).
-  // Mes: el fiscal de la nota, o el primer mes abierto si estaba cerrado.
-  if (creditNotes.noteIds.length > 0) {
-    const slices = sumSlices(creditNotes.notes.map((n) => n.slices));
+  // 8) NOTAS CRÉDITO — por día FISCAL de cada nota (día colombiano de
+  // emisión). D devoluciones en ventas (base) + IVA/INC generado por tarifa
+  // (lo que declaró cada nota, no la tarifa de hoy) · C Clientes por lo que
+  // canceló cartera de crédito y C «reintegros por pagar» por lo que el
+  // comercio le debe devolver al cliente. Lo que ya cubrió un reembolso
+  // ANTERIOR a la nota no se repite (ver creditNoteLedger). Una nota
+  // contabilizada en un mes distinto al de su fecha fiscal (su mes estaba
+  // cerrado → primer mes abierto, o quedó fijada con `postedMonth`) va al
+  // último día del mes.
+  const noteDay = (fiscalDate: string) => (fiscalDate.slice(0, 7) === month ? fiscalDate : lastDay);
+  for (const [day, notes] of groupByDay(creditNotes.notes, (n) => noteDay(n.fiscalDate))) {
+    const slices = sumSlices(notes.map((n) => n.slices));
     const lines: Line[] = [];
     const base = slices.reduce((s, x) => s + x.baseCents, 0);
     if (base > 0) lines.push({ code: ENGINE.DEVOLUCIONES, debit: base });
@@ -501,15 +572,19 @@ async function buildMonthEntries(
       taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
     }
     for (const [code, debit] of taxByCode) lines.push({ code, debit });
-    const receivable = creditNotes.notes.reduce((s, n) => s + n.receivableCents, 0);
-    const liability = creditNotes.notes.reduce((s, n) => s + n.liabilityCents, 0);
+    const receivable = notes.reduce((s, n) => s + n.receivableCents, 0);
+    const liability = notes.reduce((s, n) => s + n.liabilityCents, 0);
     if (receivable > 0) lines.push({ code: ENGINE.CLIENTES, credit: receivable });
     if (liability > 0) lines.push({ code: ENGINE.DEVOLUCIONES_POR_PAGAR, credit: liability });
+    // Con líneas vacías (notas que ya cubrieron por completo reembolsos
+    // anteriores) no se asienta nada, pero las notas quedan contabilizadas.
     entries.push({
       source: "credit_note",
-      memo: "Notas crédito del mes",
+      memo: "Notas crédito del día",
+      date: dateOf(day),
+      day,
       lines,
-      creditNoteIds: creditNotes.noteIds,
+      creditNoteIds: notes.map((n) => n.id),
     });
   }
 
@@ -517,13 +592,20 @@ async function buildMonthEntries(
 }
 
 /**
- * Genera (o refresca) los asientos-resumen del mes `month` (YYYY-MM). Borra los
- * existentes de ese mes por fuente y los recrea. Sólo persiste los que cuadran.
+ * Genera (o refresca) los asientos del motor del mes `month` (YYYY-MM).
+ * Por fuente: borra los existentes de ese mes (`source, sourceRef = mes`) y
+ * crea los nuevos —uno por día de negocio en las fuentes transaccionales,
+ * uno al mes en las mensuales— en la misma transacción. Sólo persiste los
+ * que cuadran; un día que no cuadra se omite solo (los demás se asientan).
+ *
+ * `range` es el mes UTC (`monthRange`), como siempre: con él se fechan los
+ * asientos mensuales y se cortan los campos FECHA; los días de negocio se
+ * construyen acá a partir del mes y la hora de corte del comercio.
  *
  * Una fuente del motor que este mes ya no produce asiento (se anuló el único
- * gasto, se dieron de baja todos los activos…) pierde el asiento viejo: antes
- * quedaba huérfano. Nunca toca comprobantes manuales (no son fuentes del
- * motor) ni numerados o anulados.
+ * gasto, se dieron de baja todos los activos…) pierde los asientos viejos:
+ * antes quedaban huérfanos. Nunca toca comprobantes manuales (no son fuentes
+ * del motor) ni numerados o anulados.
  */
 export async function generateJournalForMonth(
   restaurantId: string,
@@ -549,101 +631,120 @@ export async function generateJournalForMonth(
       });
     });
   }
-  // Fecha del asiento = último instante del mes.
-  const date = new Date(range.to.getTime() - 1);
 
+  // Por fuente, en el orden en que el motor las arma.
+  const bySource = new Map<string, DraftEntry[]>();
+  for (const d of drafts) {
+    const list = bySource.get(d.source);
+    if (list) list.push(d);
+    else bySource.set(d.source, [d]);
+  }
+
+  type Persisted = { draft: DraftEntry; lines: Array<Line & { accountId: string }>; debit: number };
   const results: GenResult[] = [];
-  for (const e of drafts) {
-    const debit = e.lines.reduce((s, l) => s + (l.debit ?? 0), 0);
-    const credit = e.lines.reduce((s, l) => s + (l.credit ?? 0), 0);
-    // Guarda de balance + que todas las cuentas existan.
-    if (debit !== credit || debit === 0) {
+  for (const [source, sourceDrafts] of bySource) {
+    const valid: Persisted[] = [];
+    // Notas de asientos sin monto (ya cubiertas por reembolsos anteriores):
+    // no hay nada que asentar, pero quedan contabilizadas en este mes.
+    const emptyNoteIds: string[] = [];
+    for (const e of sourceDrafts) {
+      const debit = e.lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+      const credit = e.lines.reduce((s, l) => s + (l.credit ?? 0), 0);
+      // Guarda de balance + que todas las cuentas existan.
       if (debit !== credit) {
         console.error("[posting] asiento desbalanceado", {
-          source: e.source,
+          source,
           month,
+          day: e.day,
           debit,
           credit,
         });
-      } else if (e.creditNoteIds?.length) {
-        // Notas del mes que ya cubrieron por completo reembolsos anteriores:
-        // no hay nada que asentar, pero quedan contabilizadas en este mes.
-        const ids = e.creditNoteIds;
-        await db.$transaction(async (tx) => {
-          await tx.journalEntry.deleteMany({
-            where: { restaurantId, source: e.source, sourceRef: month },
+        continue;
+      }
+      if (debit === 0) {
+        if (e.creditNoteIds?.length) emptyNoteIds.push(...e.creditNoteIds);
+        continue;
+      }
+      // Cada código base se resuelve a su cuenta IMPUTABLE: si el contador
+      // abrió auxiliares debajo (11100501 Bancolombia), el movimiento cae en
+      // la auxiliar y la línea guarda ESE código. Sin dónde asentar (cuenta
+      // faltante o madre sin hijas imputables) el asiento del día se omite.
+      const lines: Array<Line & { accountId: string }> = [];
+      let unresolved: string | null = null;
+      for (const l of e.lines) {
+        const code = resolvePostableCode(index, l.code);
+        const account = code ? index.get(code) : undefined;
+        if (!code || !account) {
+          unresolved = l.code;
+          break;
+        }
+        lines.push({ ...l, code, accountId: account.id });
+      }
+      if (unresolved) {
+        console.error("[posting] cuenta no imputable", {
+          source,
+          month,
+          day: e.day,
+          code: unresolved,
+        });
+        continue;
+      }
+      valid.push({ draft: e, lines, debit });
+    }
+    // Nada válido y nada que marcar: la fuente queda como estaba (igual que
+    // antes, un asiento que no se puede asentar no borra el anterior).
+    if (valid.length === 0 && emptyNoteIds.length === 0) continue;
+
+    const noteIds = [...valid.flatMap((v) => v.draft.creditNoteIds ?? []), ...emptyNoteIds];
+    await db.$transaction(
+      async (tx) => {
+        await tx.journalEntry.deleteMany({
+          where: { restaurantId, source, sourceRef: month },
+        });
+        for (const v of valid) {
+          await tx.journalEntry.create({
+            data: {
+              restaurantId,
+              date: v.draft.date,
+              source,
+              sourceRef: month,
+              memo: v.draft.memo,
+              status: "posted",
+              lines: {
+                create: v.lines.map((l) => ({
+                  accountId: l.accountId,
+                  accountCode: l.code,
+                  debitCents: l.debit ?? 0,
+                  creditCents: l.credit ?? 0,
+                  memo: l.memo,
+                  // Sólo cuando la fuente lo trae: las demás siguen creando
+                  // la línea exactamente igual que antes.
+                  ...(l.costCenterId ? { costCenterId: l.costCenterId } : {}),
+                })),
+              },
+            },
           });
+        }
+        // Las notas crédito de los asientos quedan contabilizadas en este
+        // mes: desde acá no se mueven aunque después se cierre o reabra otro.
+        if (noteIds.length > 0) {
           await tx.creditNote.updateMany({
-            where: { restaurantId, id: { in: ids }, OR: [{ postedMonth: null }, { postedMonth: month }] },
+            where: {
+              restaurantId,
+              id: { in: noteIds },
+              OR: [{ postedMonth: null }, { postedMonth: month }],
+            },
             data: { postedMonth: month },
           });
-        });
-      }
-      continue;
+        }
+      },
+      // Hasta 31 asientos con sus líneas por fuente: más que el tope por
+      // defecto de una transacción interactiva.
+      { maxWait: 10_000, timeout: 60_000 },
+    );
+    if (valid.length > 0) {
+      results.push({ source, totalCents: valid.reduce((s, v) => s + v.debit, 0) });
     }
-    // Cada código base se resuelve a su cuenta IMPUTABLE: si el contador
-    // abrió auxiliares debajo (11100501 Bancolombia), el movimiento cae en
-    // la auxiliar y la línea guarda ESE código. Sin dónde asentar (cuenta
-    // faltante o madre sin hijas imputables) el asiento entero se omite.
-    const lines: Array<Line & { accountId: string }> = [];
-    let unresolved: string | null = null;
-    for (const l of e.lines) {
-      const code = resolvePostableCode(index, l.code);
-      const account = code ? index.get(code) : undefined;
-      if (!code || !account) {
-        unresolved = l.code;
-        break;
-      }
-      lines.push({ ...l, code, accountId: account.id });
-    }
-    if (unresolved) {
-      console.error("[posting] cuenta no imputable", {
-        source: e.source,
-        month,
-        code: unresolved,
-      });
-      continue;
-    }
-    await db.$transaction(async (tx) => {
-      await tx.journalEntry.deleteMany({
-        where: { restaurantId, source: e.source, sourceRef: month },
-      });
-      await tx.journalEntry.create({
-        data: {
-          restaurantId,
-          date,
-          source: e.source,
-          sourceRef: month,
-          memo: e.memo,
-          status: "posted",
-          lines: {
-            create: lines.map((l) => ({
-              accountId: l.accountId,
-              accountCode: l.code,
-              debitCents: l.debit ?? 0,
-              creditCents: l.credit ?? 0,
-              memo: l.memo,
-              // Sólo cuando la fuente lo trae: las demás siguen creando
-              // la línea exactamente igual que antes.
-              ...(l.costCenterId ? { costCenterId: l.costCenterId } : {}),
-            })),
-          },
-        },
-      });
-      // Las notas crédito del asiento quedan contabilizadas en este mes:
-      // desde acá no se mueven aunque después se cierre o reabra otro mes.
-      if (e.creditNoteIds?.length) {
-        await tx.creditNote.updateMany({
-          where: {
-            restaurantId,
-            id: { in: e.creditNoteIds },
-            OR: [{ postedMonth: null }, { postedMonth: month }],
-          },
-          data: { postedMonth: month },
-        });
-      }
-    });
-    results.push({ source: e.source, totalCents: debit });
   }
   return results;
 }
@@ -663,7 +764,11 @@ export type JournalEntryDto = {
   }>;
 };
 
-/** Asientos del mes (para el Libro Diario), con el nombre de cada cuenta. */
+/**
+ * Asientos del mes (para el Libro Diario), con el nombre de cada cuenta.
+ * Con el motor diario son decenas por mes (uno por fuente y día): la
+ * pantalla los agrupa por fecha.
+ */
 export async function loadJournalForMonth(
   restaurantId: string,
   month: string,

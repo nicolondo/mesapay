@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { ComercialBottomNav } from "./ComercialBottomNav";
 import { PushSetup } from "@/app/mesero/PushSetup";
+import { ScrollerNavigationReset } from "@/components/ScrollerNavigationReset";
 
 /**
  * Layout server-gated para /comercial/*.
@@ -76,7 +77,11 @@ export default async function ComercialLayout({
           el scroll; solo el buscador del pipeline queda fijo. En desktop el
           header es sticky arriba. paddingTop env() despeja el notch en la
           PWA standalone (0 en desktop y Safari móvil). */}
+      {/* El scroller vive en el layout y conservaría el scroll de la
+          pantalla anterior al navegar: se devuelve al inicio por ruta. */}
+      <ScrollerNavigationReset scrollerId="crm-content" />
       <main
+        id="crm-content"
         className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >

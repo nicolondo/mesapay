@@ -11,6 +11,7 @@ import { deriveMembershipStatus } from "@/lib/membership";
 import { buildOperatorNav } from "@/lib/operatorNav";
 import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";
 import { OperatorCockpit } from "./OperatorCockpit";
+import { ScrollerNavigationReset } from "@/components/ScrollerNavigationReset";
 import { NavDropdown } from "./NavDropdown";
 import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
 import { computeBoardActivity, type BoardActivity } from "./boardActivity";
@@ -376,7 +377,8 @@ export default async function OperatorLayout({
           </header>
       {/* Único scroller del panel. El header (arriba, fuera de este main)
           queda siempre visible. overflow-y-auto + flex-1 = patrón app-shell. */}
-      <main className="relative flex flex-1 flex-col overflow-y-auto">{children}</main>
+      <ScrollerNavigationReset scrollerId="operator-content" />
+      <main id="operator-content" className="relative flex flex-1 flex-col overflow-y-auto">{children}</main>
     </div>
   );
 }

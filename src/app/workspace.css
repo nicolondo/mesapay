@@ -43,9 +43,6 @@
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-.mp-workspace-main .mp-btn {
-  border-radius: 10px;
-}
 .mp-page {
   width: 100%;
   max-width: 1320px;
@@ -185,6 +182,20 @@
   border-bottom: 0;
   border-radius: 20px 20px 0 0;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* La misma hoja, en pantallas medianas en adelante, pasa a popup centrado
+   (un solo <dialog>, sin otro componente). Las dos clases juntas ganan al
+   `bottom` que la PWA le fija a .mp-sheet más abajo. */
+@media (min-width: 768px) {
+  .mp-sheet.mp-sheet--md-center {
+    inset: 0;
+    margin: auto;
+    width: min(28rem, calc(100vw - 32px));
+    max-height: 85dvh;
+    border-bottom: 1px solid var(--op-border);
+    border-radius: 16px;
+    padding-bottom: 0;
+  }
 }
 .mp-navigation-drawer {
   inset: 0 auto 0 0;
@@ -1401,7 +1412,7 @@ a.mp-viz-heat-cell:focus-visible {
   gap: 6px;
   min-height: 32px;
   padding: 4px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   border: 1px solid var(--op-border-2);
   background: var(--op-bg);
   color: var(--op-text);

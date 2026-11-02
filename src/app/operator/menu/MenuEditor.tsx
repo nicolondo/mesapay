@@ -531,6 +531,23 @@ export function MenuEditor({
     target?.focus();
   }, [items]);
 
+  // Tira de pestañas de cartas (celular): al cambiar de carta se trae la
+  // activa a la vista desplazando SOLO la tira (scrollLeft), nunca con
+  // scrollIntoView, que también mueve el scroll vertical de la página.
+  const menuStripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = menuStripRef.current;
+    if (!strip) return;
+    const tab = strip.querySelector<HTMLElement>(`[data-menu-tab="${activeMenuId}"]`);
+    if (!tab) return;
+    const left = tab.offsetLeft - strip.offsetLeft;
+    const right = left + tab.offsetWidth;
+    if (left < strip.scrollLeft) strip.scrollLeft = Math.max(0, left - 16);
+    else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = right - strip.clientWidth + 16;
+    }
+  }, [activeMenuId]);
+
   return (
     <div
       className={
@@ -540,16 +557,17 @@ export function MenuEditor({
         (selectedIds.size > 0 ? "pb-28" : "")
       }
     >
-      {/* Móvil: título arriba; los botones envuelven naturalmente (cada pill a
-          su ancho, sin partir el texto) → quedan compactos en ~2 filas en vez
-          de ocupar 3 filas a ancho completo. Desktop: en línea. */}
+      {/* Móvil: título arriba; debajo el selector de orden a todo el ancho y
+          los dos botones repartidos en UNA fila (mitad y mitad). Antes cada
+          control envolvía a su ancho y la cabecera quedaba desordenada
+          (reporte del dueño). Desktop: todo en línea. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="font-display text-2xl sm:text-3xl">{tr("title")}</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           {/* Orden de los platos dentro de cada categoría (toda la carta:
               comensal, mesero, factura manual y este editor). Se autoguarda. */}
           {/* En pantallas angostas se recorta el rótulo, nunca el valor. */}
-          <label className="h-10 pl-4 pr-2 max-w-full min-w-0 rounded-full border border-op-border text-sm inline-flex items-center gap-1.5">
+          <label className="col-span-2 sm:col-span-1 h-10 pl-4 pr-2 max-w-full min-w-0 rounded-full border border-op-border text-sm inline-flex items-center gap-1.5">
             <span className="text-op-muted truncate min-w-0">{tr("itemOrderLabel")}</span>
             <select
               value={itemOrder}
@@ -577,14 +595,14 @@ export function MenuEditor({
                 ? `/operator/menu/import?menu=${encodeURIComponent(activeMenuId)}`
                 : "/operator/menu/import"
             }
-            className="h-10 px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center gap-1.5 hover:bg-op-bg whitespace-nowrap"
+            className="h-10 px-3 sm:px-4 rounded-full border border-op-border text-sm font-medium inline-flex items-center justify-center gap-1.5 hover:bg-op-bg whitespace-nowrap min-w-0"
           >
-            <span aria-hidden>🧠</span> {tr("importWithAi")}
+            <span aria-hidden>🧠</span> <span className="truncate">{tr("importWithAi")}</span>
           </a>
           {!addingCategory && (
             <button
               onClick={() => setAddingCategory(true)}
-              className="mp-btn mp-btn--sm mp-btn--primary"
+              className="mp-btn mp-btn--sm mp-btn--primary justify-center"
             >
               {tr("newCategory")}
             </button>
@@ -592,14 +610,23 @@ export function MenuEditor({
         </div>
       </div>
 
+      {/* Pestañas de cartas. En el celular, UNA fila que se desplaza de lado
+          (como los filtros de Mesas) en vez de una nube de pills de anchos
+          distintos que ocupaba media pantalla; la pestaña activa se trae a
+          la vista moviendo sólo esta tira (nunca el scroll de la página). En
+          sm+ envuelven como antes. */}
       {hasMultipleMenus && (
-        <div className="mb-5 flex gap-2 flex-wrap">
+        <div
+          ref={menuStripRef}
+          className="mb-5 flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 snap-x sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible"
+        >
           {menus.map((m) => {
             const active = m.id === activeMenuId;
             const count = categories.filter((c) => c.menuId === m.id).length;
             return (
               <button
                 key={m.id}
+                data-menu-tab={m.id}
                 onClick={() => {
                   setActiveMenuId(m.id);
                   // La selección es por pestaña; al cambiar de carta la
@@ -607,7 +634,7 @@ export function MenuEditor({
                   clearSelection();
                 }}
                 className={
-                  "h-9 px-4 rounded-full text-sm font-medium border " +
+                  "h-9 px-4 rounded-full text-sm font-medium border shrink-0 whitespace-nowrap snap-start " +
                   (active
                     ? "bg-ink text-bone border-ink"
                     : "bg-op-surface text-op-text border-op-border")
@@ -880,11 +907,12 @@ export function MenuEditor({
                         : undefined
                     }
                     className={
-                      // Móvil: grid de 3 columnas (check · foto · contenido) con
-                      // las acciones bajando a una 2ª fila a la derecha, así el
-                      // nombre y el precio usan todo el ancho. Desktop: una sola
-                      // fila (flex) como siempre.
-                      "p-3 sm:p-4 grid grid-cols-[auto_auto_1fr] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
+                      // Móvil: grid de 5 columnas (check · foto · contenido ·
+                      // precio+estado · chevron) en UNA fila; antes el botón
+                      // «Disponible» bajaba a una 2ª fila y cada plato medía
+                      // casi el doble (reporte del dueño). Sólo las flechas de
+                      // orden manual bajan a su propia fila. Desktop: flex.
+                      "p-3 sm:p-4 grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
                       (selectedIds.has(it.id) ? "bg-terracotta/5 " : "") +
                       (dragItem?.id === it.id ? "opacity-40 " : "") +
                       // Línea donde caería el plato al soltarlo.
@@ -949,13 +977,8 @@ export function MenuEditor({
                       }}
                       className="min-w-0 sm:flex-1 cursor-pointer"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="font-medium leading-snug line-clamp-2 sm:truncate">
-                          {it.name}
-                        </div>
-                        <div className="font-mono text-sm tabular shrink-0">
-                          {fmtCOP(it.priceCents)}
-                        </div>
+                      <div className="font-medium leading-snug line-clamp-2 sm:truncate">
+                        {it.name}
                       </div>
                       {it.trackInventory === false && <div className="text-xs text-op-muted mt-0.5">{tr("nonInventoriable")}</div>}
                       {it.description && (
@@ -964,8 +987,35 @@ export function MenuEditor({
                         </div>
                       )}
                     </div>
-                    <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
-                      {canReorderItems && rows.length > 1 && (
+                    {/* Precio y estado, apilados a la derecha del contenido. */}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div className="font-mono text-sm tabular">{fmtCOP(it.priceCents)}</div>
+                      <AvailabilityToggle
+                        item={it}
+                        onChanged={(available) =>
+                          patchItem(it.id, { available })
+                        }
+                      />
+                    </div>
+                    {/* Chevron: afford­ancia explícita de "abrir/editar". */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(it)}
+                      aria-label={tr("edit")}
+                      className="h-9 w-9 -mr-1 self-center rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                        <path
+                          d="M6 3.5L10.5 8L6 12.5"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    {canReorderItems && rows.length > 1 && (
+                      <div className="col-span-5 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
                         <div className="flex items-center">
                           <button
                             type="button"
@@ -990,31 +1040,8 @@ export function MenuEditor({
                             <span aria-hidden>↓</span>
                           </button>
                         </div>
-                      )}
-                      <AvailabilityToggle
-                        item={it}
-                        onChanged={(available) =>
-                          patchItem(it.id, { available })
-                        }
-                      />
-                      {/* Chevron: afford­ancia explícita de "abrir/editar". */}
-                      <button
-                        type="button"
-                        onClick={() => setEditingItem(it)}
-                        aria-label={tr("edit")}
-                        className="h-9 w-9 -mr-1 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                          <path
-                            d="M6 3.5L10.5 8L6 12.5"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1199,7 +1226,8 @@ function AvailabilityToggle({
           : tr("soldOutTitle")
       }
       className={
-        "h-9 sm:h-7 px-3.5 sm:px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
+        // Compacto: vive junto al precio, en la misma fila del plato.
+        "h-7 px-2.5 sm:px-3 rounded-full text-[10px] sm:text-[11px] font-mono uppercase tracking-wider border transition " +
         (available
           ? "bg-ok/10 text-[#1E5339] border-ok/30 hover:bg-ok/20"
           : "bg-danger/10 text-danger border-danger/30 hover:bg-danger/20")

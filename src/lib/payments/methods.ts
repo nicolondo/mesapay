@@ -46,6 +46,53 @@ export function reportingPaymentMethod<M extends string>(method: M): M | typeof 
 }
 
 /**
+ * ¿Este método lo paga el comensal desde SU PROPIO dispositivo, contra una
+ * pasarela en línea (tarjeta tokenizada, billetera, PSE)? Es la otra cara de
+ * los métodos que exigen a alguien del equipo en la mesa (efectivo, datáfonos)
+ * o que no son plata que entra en el momento (abono de reserva, bono, crédito).
+ *
+ * Lo usa la vista Mesas para resaltar "pagó desde el celular": un pago de
+ * pasarela SIN `collectedByUserId` lo hizo el comensal solo, sin que nadie del
+ * equipo se enterara (ver src/lib/tables/phonePaid.ts). `Record` sobre el
+ * enum a propósito: un método nuevo no compila hasta clasificarlo.
+ */
+const ONLINE_GATEWAY: Record<PaymentMethod, boolean> = {
+  // Tarjeta tokenizada / billeteras / PSE de Kushki: el comensal los completa
+  // en su celular (o el mesero en su PWA, con `collectedByUserId`).
+  kushki_card: true,
+  kushki_apple_pay: true,
+  kushki_google_pay: true,
+  kushki_pse: true,
+  // Rieles de Wompi (históricos): misma naturaleza.
+  wompi_card: true,
+  wompi_pse: true,
+  wompi_nequi: true,
+  // Tarjeta demo: simula exactamente este flujo (sólo fuera de producción).
+  demo_card: true,
+  // Efectivo y datáfonos: alguien del equipo está en la mesa.
+  cash: false,
+  demo_cash: false,
+  external_terminal: false,
+  kushki_card_terminal: false,
+  // Plata que ya entró antes (o deuda reconocida): no es un pago en la mesa.
+  reservation_deposit: false,
+  voucher: false,
+  customer_credit: false,
+};
+
+/** Métodos de pasarela en línea. Para filtros de Prisma: `method: { in: [...] }`. */
+export const ONLINE_PAYMENT_METHODS: readonly PaymentMethod[] = (
+  Object.keys(ONLINE_GATEWAY) as PaymentMethod[]
+).filter((m) => ONLINE_GATEWAY[m]);
+
+/** ¿Es un método de pasarela en línea? Desconocido o vacío → `false`. */
+export function isOnlinePaymentMethod(method: string | null | undefined): boolean {
+  return !!method && Object.prototype.hasOwnProperty.call(ONLINE_GATEWAY, method)
+    ? ONLINE_GATEWAY[method as PaymentMethod]
+    : false;
+}
+
+/**
  * ¿Qué es un pago `pending` de este método? ¿Una SOLICITUD que el staff
  * puede reemplazar al cobrar, o plata que puede estar en vuelo?
  *

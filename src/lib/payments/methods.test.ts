@@ -6,14 +6,62 @@ import { PaymentMethod } from "@prisma/client";
 import {
   CASH_METHOD,
   CASH_METHODS,
+  ONLINE_PAYMENT_METHODS,
   PUSHABLE_REQUEST_METHODS,
   REPLACEABLE_PENDING_METHODS,
   isCashMethod,
+  isOnlinePaymentMethod,
   isReplaceablePending,
   isReplaceablePendingMethod,
   reportingPaymentMethod,
   terminalClaimKey,
 } from "./methods";
+
+describe("isOnlinePaymentMethod", () => {
+  it("tarjeta, billeteras y PSE (Kushki y Wompi) y la tarjeta demo son pasarela en línea", () => {
+    for (const m of [
+      "kushki_card",
+      "kushki_apple_pay",
+      "kushki_google_pay",
+      "kushki_pse",
+      "wompi_card",
+      "wompi_pse",
+      "wompi_nequi",
+      "demo_card",
+    ]) {
+      expect(isOnlinePaymentMethod(m), m).toBe(true);
+    }
+  });
+
+  it("efectivo, datáfonos, abono de reserva, bono y crédito no lo son; vacío tampoco", () => {
+    for (const m of [
+      "cash",
+      "demo_cash",
+      "external_terminal",
+      "kushki_card_terminal",
+      "reservation_deposit",
+      "voucher",
+      "customer_credit",
+    ]) {
+      expect(isOnlinePaymentMethod(m), m).toBe(false);
+    }
+    expect(isOnlinePaymentMethod(null)).toBe(false);
+    expect(isOnlinePaymentMethod(undefined)).toBe(false);
+    expect(isOnlinePaymentMethod("")).toBe(false);
+    expect(isOnlinePaymentMethod("inventado")).toBe(false);
+  });
+
+  it("ONLINE_PAYMENT_METHODS (para filtros de Prisma) coincide con el helper y cubre todo el enum", () => {
+    const enumValues: string[] = Object.values(PaymentMethod);
+    for (const m of ONLINE_PAYMENT_METHODS) {
+      expect(isOnlinePaymentMethod(m)).toBe(true);
+      expect(enumValues).toContain(m);
+    }
+    for (const m of enumValues) {
+      expect(ONLINE_PAYMENT_METHODS.includes(m as PaymentMethod), m).toBe(isOnlinePaymentMethod(m));
+    }
+  });
+});
 
 describe("isCashMethod", () => {
   it("cash y el histórico demo_cash son efectivo", () => {

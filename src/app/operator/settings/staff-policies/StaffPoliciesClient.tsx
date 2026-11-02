@@ -9,11 +9,17 @@ import {
   type ShiftPolicy,
   type MeseroShiftWithoutLocal,
 } from "@/lib/staffPolicies";
+import {
+  DEFAULT_PHONE_PAID_HIGHLIGHT_MINUTES,
+  PHONE_PAID_HIGHLIGHT_MAX_MINUTES,
+  PHONE_PAID_HIGHLIGHT_MIN_MINUTES,
+} from "@/lib/tables/phonePaid";
 
 export function StaffPoliciesClient({
   initialTipPolicy,
   initialShiftPolicy,
   initialWalkoutDangerMinutes,
+  initialPhonePaidHighlightMinutes,
   initialBusinessDayCutoffHour,
   initialMeseroShiftWithoutLocal,
   initialCompEnabled,
@@ -25,6 +31,9 @@ export function StaffPoliciesClient({
   initialTipPolicy: TipPolicy;
   initialShiftPolicy: ShiftPolicy;
   initialWalkoutDangerMinutes: number;
+  // Minutos que una mesa que acaba de pagar desde el celular sale de primera
+  // y en verde fuerte en Mesas (0 = no resaltar). Ya normalizado por el server.
+  initialPhonePaidHighlightMinutes: number;
   initialBusinessDayCutoffHour: number;
   initialMeseroShiftWithoutLocal: MeseroShiftWithoutLocal;
   initialCompEnabled: boolean;
@@ -35,10 +44,15 @@ export function StaffPoliciesClient({
   initialCompAllowedRoles: CompRole[];
 }) {
   const t = useTranslations("opSettings");
+  // Rótulo exacto del tile de Mesas, para la muestra del resalte verde.
+  const trTables = useTranslations("opTables");
   const [tipPolicy, setTipPolicy] = useState<TipPolicy>(initialTipPolicy);
   const [shiftPolicy, setShiftPolicy] = useState<ShiftPolicy>(initialShiftPolicy);
   const [walkoutDanger, setWalkoutDanger] = useState<number>(
     initialWalkoutDangerMinutes,
+  );
+  const [phonePaidMinutes, setPhonePaidMinutes] = useState<number>(
+    initialPhonePaidHighlightMinutes,
   );
   const [cutoffHour, setCutoffHour] = useState<number>(
     initialBusinessDayCutoffHour,
@@ -83,6 +97,7 @@ export function StaffPoliciesClient({
     tipPolicy,
     shiftPolicy,
     walkoutDangerMinutes: walkoutDanger,
+    phonePaidHighlightMinutes: phonePaidMinutes,
     businessDayCutoffHour: cutoffHour,
     meseroShiftWithoutLocal: meseroWithoutLocal,
     compEnabled,
@@ -106,6 +121,14 @@ export function StaffPoliciesClient({
         kind: "error",
         text: t("policiesWalkoutRangeError"),
       });
+      return;
+    }
+    if (
+      !Number.isInteger(phonePaidMinutes) ||
+      phonePaidMinutes < PHONE_PAID_HIGHLIGHT_MIN_MINUTES ||
+      phonePaidMinutes > PHONE_PAID_HIGHLIGHT_MAX_MINUTES
+    ) {
+      setMsg({ kind: "error", text: t("policiesPhonePaidRangeError") });
       return;
     }
     setBusy(true);
@@ -405,6 +428,56 @@ export function StaffPoliciesClient({
         </div>
         <p className="text-[10px] text-op-muted mt-3">
           {t("policiesWalkoutFootnote")}
+        </p>
+      </section>
+
+      {/* Mesa que acaba de pagar desde el celular: minutos de resalte en Mesas */}
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+          {t("policiesPhonePaidKicker")}
+        </div>
+        <h2 className="font-display text-lg mb-1">
+          {t("policiesPhonePaidQuestion")}
+        </h2>
+        <p className="text-xs text-op-muted mb-3">
+          {t("policiesPhonePaidIntro")}
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2">
+            <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
+              {t("policiesPhonePaidLabel")}
+            </span>
+            <input
+              type="number"
+              min={PHONE_PAID_HIGHLIGHT_MIN_MINUTES}
+              max={PHONE_PAID_HIGHLIGHT_MAX_MINUTES}
+              step={1}
+              inputMode="numeric"
+              value={phonePaidMinutes}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setPhonePaidMinutes(
+                  Number.isFinite(v) ? v : DEFAULT_PHONE_PAID_HIGHLIGHT_MINUTES,
+                );
+              }}
+              className="h-9 w-20 px-2 rounded-lg border border-op-border bg-op-bg font-mono text-sm tabular text-center focus:outline-none focus:border-terracotta"
+            />
+            <span className="text-sm text-op-muted">
+              {t("policiesWalkoutMin")}
+            </span>
+          </label>
+          {/* Muestra de cómo se ve el tile resaltado en Mesas: mismo verde y
+              mismo rótulo que RecentlyPaidTile (opTables.tilePaidFromPhone). */}
+          <span
+            aria-hidden
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-ok text-bone text-xs font-medium"
+          >
+            <span className="inline-block w-2 h-2 rounded-full bg-bone" />
+            {trTables("tilePaidFromPhone")}
+          </span>
+        </div>
+        <p className="text-[10px] text-op-muted mt-3">
+          {t("policiesPhonePaidFootnote")}
         </p>
       </section>
 

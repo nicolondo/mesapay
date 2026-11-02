@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TableVisualState } from "@/lib/walkoutRisk";
 import {
   compareTableIdentity,
+  isPhonePaidHighlighted,
   salonRank,
   sortTablesForSalon,
   type SalonSortable,
@@ -115,6 +116,73 @@ describe("sortTablesForSalon", () => {
 
   it("lista vacía → lista vacía", () => {
     expect(sortTablesForSalon([])).toEqual([]);
+  });
+});
+
+/**
+ * "Cuando una mesa acaba de pagar directamente desde el móvil quiero que
+ * salga en verde de primera en la lista por los siguientes 3 minutos."
+ */
+describe("sortTablesForSalon — mesa que acaba de pagar desde el celular", () => {
+  const T0 = Date.parse("2026-11-02T20:00:00Z");
+  const min = (n: number) => n * 60_000;
+  const opts = { now: T0, phonePaidHighlightMinutes: 3 };
+
+  function phonePaid(number: number, paidAgoMin: number): Tile {
+    return {
+      id: `t${number}`,
+      number,
+      label: null,
+      state: "recently_paid",
+      paidAt: new Date(T0 - min(paidAgoMin)).toISOString(),
+      paidFromPhone: true,
+    };
+  }
+  function staffPaid(number: number, paidAgoMin: number): Tile {
+    return { ...phonePaid(number, paidAgoMin), paidFromPhone: false };
+  }
+
+  it("va de primera, antes incluso que una mesa en riesgo de fuga", () => {
+    const tiles = [free(1), active(2, "danger"), active(3, "needs_payment"), phonePaid(9, 1)];
+    expect(numbers(sortTablesForSalon(tiles, opts))).toEqual([9, 2, 3, 1]);
+  });
+
+  it("varias: la más reciente primero; el resto del orden no cambia", () => {
+    const tiles = [free(1), phonePaid(4, 2), active(6, "eating"), phonePaid(2, 0.5), free(3)];
+    expect(numbers(sortTablesForSalon(tiles, opts))).toEqual([2, 4, 6, 1, 3]);
+  });
+
+  it("al vencer los minutos vuelve a su sitio entre las vacías", () => {
+    const tiles = [free(5), active(2), phonePaid(9, 3), phonePaid(1, 2.9)];
+    expect(numbers(sortTablesForSalon(tiles, opts))).toEqual([1, 2, 5, 9]);
+    // Diez segundos después la 1 también venció.
+    expect(
+      numbers(sortTablesForSalon(tiles, { ...opts, now: T0 + 10_000 })),
+    ).toEqual([2, 1, 5, 9]);
+  });
+
+  it("una recién pagada que cobró el mesero no sube aunque sea de hace un minuto", () => {
+    const tiles = [free(5), active(2), staffPaid(1, 1)];
+    expect(numbers(sortTablesForSalon(tiles, opts))).toEqual([2, 1, 5]);
+  });
+
+  it("con 0 minutos (apagado) o sin opciones, nadie se adelanta", () => {
+    const tiles = [active(2), phonePaid(1, 0)];
+    expect(numbers(sortTablesForSalon(tiles, { ...opts, phonePaidHighlightMinutes: 0 }))).toEqual([2, 1]);
+    expect(numbers(sortTablesForSalon(tiles))).toEqual([2, 1]);
+  });
+
+  it("respeta los minutos del comercio (ventana larga)", () => {
+    const tiles = [active(2), phonePaid(1, 12)];
+    expect(numbers(sortTablesForSalon(tiles, { ...opts, phonePaidHighlightMinutes: 15 }))).toEqual([1, 2]);
+  });
+
+  it("isPhonePaidHighlighted es lo mismo que el grid usa para pintar de verde fuerte", () => {
+    expect(isPhonePaidHighlighted(phonePaid(1, 1), opts)).toBe(true);
+    expect(isPhonePaidHighlighted(phonePaid(1, 3), opts)).toBe(false);
+    expect(isPhonePaidHighlighted(staffPaid(1, 1), opts)).toBe(false);
+    expect(isPhonePaidHighlighted(phonePaid(1, 1), undefined)).toBe(false);
+    expect(isPhonePaidHighlighted(free(1), opts)).toBe(false);
   });
 });
 

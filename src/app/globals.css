@@ -667,6 +667,16 @@ input[type="time"] {
 .mesero-shell :is(button, a, [role="button"]).rounded-full {
   border-radius: var(--radius-btn);
 }
+/* Lo mismo para los botones sueltos con `rounded-xl`/`rounded-2xl` (12 y
+   16px): el botón «Entrar como operador» del admin seguía viéndose más
+   redondo que el resto (reporte del dueño). Sólo botones y enlaces-botón;
+   las tarjetas (div) conservan su radio. */
+.op-app-shell :is(button, a, [role="button"]):is(.rounded-xl, .rounded-2xl),
+.op-admin :is(button, a, [role="button"]):is(.rounded-xl, .rounded-2xl),
+.crm-app-shell :is(button, a, [role="button"]):is(.rounded-xl, .rounded-2xl),
+.mesero-shell :is(button, a, [role="button"]):is(.rounded-xl, .rounded-2xl) {
+  border-radius: var(--radius-btn);
+}
 
 /* Chip toggle (filtros tipo Entrada/Ajuste/Merma). */
 .mp-chip {
@@ -794,4 +804,14 @@ input[type="time"] {
   .mp-icobtn:hover {
     transform: none;
   }
+}
+
+/* Tira horizontal sin barra de scroll visible (pestañas de cartas del
+   editor de menú en el celular; el contenido sigue desplazándose con el
+   dedo o la rueda). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

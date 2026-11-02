@@ -166,7 +166,7 @@ export default async function PrecuentaPage({
               <hr className="dashed" />
               <div className="tip">
                 {doc.tipRows.map((row, i) => (
-                  <div className="row" key={i}>
+                  <div className={row.strong ? "row grand" : "row"} key={i}>
                     <span>{row.label}</span>
                     <span className="right">{row.amount}</span>
                   </div>

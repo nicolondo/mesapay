@@ -3,13 +3,15 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import type { CashSnapshot } from "@/lib/cashBox";
+import type { SoldOutItem } from "@/lib/menuSoldOut";
 import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
+import { SoldOutDialog } from "./SoldOutDialog";
 
 const METHOD_KEY: Record<string, string> = {
   // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
@@ -60,6 +62,58 @@ export function ShiftPanel({ initial }: ShiftPanelProps) {
   const [state, setState] = useState(initial);
   const [openSheet, setOpenSheet] = useState<"open" | "close" | null>(null);
 
+  // Platos agotados del turno: la lista se carga cada vez que hay un turno
+  // abierto (también si lo abrió automáticamente un mesero) y alimenta el
+  // recordatorio del panel. Cuando el operador acaba de abrir el turno a
+  // mano, además se abre el aviso de una (promptSoldOutRef).
+  const shiftId = state.open ? state.shift.id : null;
+  // La lista va atada al turno que la cargó: si el turno cambia (o se
+  // cierra) deja de contar sola, sin limpiar estado en el efecto.
+  const [soldOut, setSoldOut] = useState<{
+    shiftId: string;
+    items: SoldOutItem[];
+    dismissed: boolean;
+  } | null>(null);
+  const [soldOutOpen, setSoldOutOpen] = useState(false);
+  const promptSoldOutRef = useRef(false);
+  const soldOutCurrent = soldOut && soldOut.shiftId === shiftId ? soldOut : null;
+  const soldOutItems = soldOutCurrent?.items ?? [];
+
+  useEffect(() => {
+    if (!shiftId) return;
+    let alive = true;
+    fetchSoldOut().then((items) => {
+      if (!alive) return;
+      setSoldOut({
+        shiftId,
+        items,
+        dismissed: isSoldOutReminderDismissed(shiftId),
+      });
+      if (promptSoldOutRef.current) {
+        promptSoldOutRef.current = false;
+        if (items.length > 0) setSoldOutOpen(true);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [shiftId]);
+
+  const soldOutDialog = soldOutOpen && (
+    <SoldOutDialog
+      items={soldOutItems}
+      onAvailable={(id) =>
+        setSoldOut((prev) =>
+          prev && { ...prev, items: prev.items.filter((i) => i.id !== id) },
+        )
+      }
+      onClose={(changed) => {
+        setSoldOutOpen(false);
+        if (changed > 0) router.refresh();
+      }}
+    />
+  );
+
   // Light polling so the live numbers stay fresh while the operator looks
   // at the page. Every 30s is plenty for a Z-report panel.
   useEffect(() => {
@@ -91,8 +145,15 @@ export function ShiftPanel({ initial }: ShiftPanelProps) {
       <>
         <ClosedBanner onAbrir={() => setOpenSheet("open")} />
         {openSheet === "open" && (
-          <OpenShiftSheet onClose={() => setOpenSheet(null)} onDone={refresh} />
+          <OpenShiftSheet
+            onClose={() => setOpenSheet(null)}
+            onDone={async () => {
+              promptSoldOutRef.current = true;
+              await refresh();
+            }}
+          />
         )}
+        {soldOutDialog}
       </>
     );
   }
@@ -102,6 +163,12 @@ export function ShiftPanel({ initial }: ShiftPanelProps) {
       <OpenPanel
         state={state}
         onCerrar={() => setOpenSheet("close")}
+        soldOutCount={soldOutCurrent?.dismissed ? 0 : soldOutItems.length}
+        onReviewSoldOut={() => setSoldOutOpen(true)}
+        onDismissSoldOut={() => {
+          dismissSoldOutReminder(state.shift.id);
+          setSoldOut((prev) => prev && { ...prev, dismissed: true });
+        }}
       />
       {openSheet === "close" && (
         <CloseShiftSheet
@@ -110,8 +177,45 @@ export function ShiftPanel({ initial }: ShiftPanelProps) {
           onDone={refresh}
         />
       )}
+      {soldOutDialog}
     </>
   );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Platos agotados: lectura de la lista y descarte del recordatorio.
+
+async function fetchSoldOut(): Promise<SoldOutItem[]> {
+  try {
+    const r = await fetch("/api/operator/menu-items/sold-out", { cache: "no-store" });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { items?: SoldOutItem[] };
+    return j.items ?? [];
+  } catch {
+    // Sin red no hay aviso; el próximo turno lo vuelve a intentar.
+    return [];
+  }
+}
+
+// El descarte del recordatorio es por turno y por dispositivo (localStorage,
+// nunca en DB): al turno siguiente vuelve a aparecer si siguen agotados.
+const SOLD_OUT_DISMISS_KEY = "mesapay.soldOutReminder";
+
+function isSoldOutReminderDismissed(shiftId: string): boolean {
+  try {
+    return localStorage.getItem(`${SOLD_OUT_DISMISS_KEY}.${shiftId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissSoldOutReminder(shiftId: string) {
+  try {
+    localStorage.setItem(`${SOLD_OUT_DISMISS_KEY}.${shiftId}`, "1");
+  } catch {
+    // Modo privado o almacenamiento lleno: el recordatorio sólo se oculta
+    // en esta sesión.
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -144,9 +248,16 @@ function ClosedBanner({ onAbrir }: { onAbrir: () => void }) {
 function OpenPanel({
   state,
   onCerrar,
+  soldOutCount,
+  onReviewSoldOut,
+  onDismissSoldOut,
 }: {
   state: Extract<ShiftPanelProps["initial"], { open: true }>;
   onCerrar: () => void;
+  /** Platos agotados a recordar (0 = sin tarjeta: no hay o ya se descartó). */
+  soldOutCount: number;
+  onReviewSoldOut: () => void;
+  onDismissSoldOut: () => void;
 }) {
   const t = useTranslations("opReports");
   const since = useMemo(
@@ -178,6 +289,41 @@ function OpenPanel({
           </button>
         </div>
       </div>
+
+      {/* Recordatorio de platos agotados: cubre el turno abierto sin clic
+          (autoOpened por un mesero) y al operador que cerró el aviso con
+          «Dejar así». Se descarta por turno. */}
+      {soldOutCount > 0 && (
+        <div
+          role="status"
+          className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-amber-900">
+              {t("soldOutReminderTitle", { count: soldOutCount })}
+            </div>
+            <div className="text-[12px] text-amber-900/80">
+              {t("soldOutReminderBody")}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onDismissSoldOut}
+              className="mp-btn mp-btn--ghost mp-btn--sm"
+            >
+              {t("soldOutDismiss")}
+            </button>
+            <button
+              type="button"
+              onClick={onReviewSoldOut}
+              className="mp-btn mp-btn--secondary mp-btn--sm"
+            >
+              {t("soldOutReview")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={t("statCharged")} value={fmtCOP(state.metrics.grossCents)} hint={t("statChargedHint", { count: state.metrics.payments })} />

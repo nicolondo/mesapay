@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
+import { JournalLineCard } from "./DiarioTab";
 
 type Line = { code: string; name: string; amountCents: number };
 type TrialRow = {
@@ -139,51 +140,89 @@ export function EstadosTab({
         {st.trial.rows.length === 0 ? (
           <div className="px-4 py-4 text-sm text-op-muted">{t("stEmpty")}</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-op-muted">
-                <th className="px-3 py-1.5" />
-                <th className="px-2 py-1.5 text-left font-mono text-[9px] font-normal uppercase tracking-wider">
-                  {t("jAccount")}
-                </th>
-                <th className="px-3 py-1.5 text-right font-mono text-[9px] font-normal uppercase tracking-wider">
-                  {t("jDebit")}
-                </th>
-                <th className="px-3 py-1.5 text-right font-mono text-[9px] font-normal uppercase tracking-wider">
-                  {t("jCredit")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-op-border/50">
+          <>
+            {/* Tabla oficial (escritorio e impresión). */}
+            <div className="report-table">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-op-muted">
+                    <th className="px-3 py-1.5" />
+                    <th className="px-2 py-1.5 text-left font-mono text-[9px] font-normal uppercase tracking-wider">
+                      {t("jAccount")}
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-mono text-[9px] font-normal uppercase tracking-wider">
+                      {t("jDebit")}
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-mono text-[9px] font-normal uppercase tracking-wider">
+                      {t("jCredit")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-op-border/50">
+                  {st.trial.rows.map((r) => (
+                    <tr key={r.code}>
+                      <td className="px-3 py-1.5 font-mono text-xs text-op-muted tabular w-16">
+                        {r.code}
+                      </td>
+                      <td className="px-2 py-1.5 min-w-0">{r.name}</td>
+                      <td className="px-3 py-1.5 text-right font-mono tabular">
+                        {r.debitCents ? money(r.debitCents) : ""}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono tabular">
+                        {r.creditCents ? money(r.creditCents) : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-op-border font-medium">
+                    <td className="px-3 py-2" colSpan={2}>
+                      {t("stTotales")}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular">
+                      {money(st.trial.totalDebitCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular">
+                      {money(st.trial.totalCreditCents)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            {/* Celular: una tarjeta por cuenta (misma pieza que el Diario)
+                y los totales al pie en dos columnas rotuladas. */}
+            <div className="report-cards divide-y divide-op-border/50">
               {st.trial.rows.map((r) => (
-                <tr key={r.code}>
-                  <td className="px-3 py-1.5 font-mono text-xs text-op-muted tabular w-16">
-                    {r.code}
-                  </td>
-                  <td className="px-2 py-1.5 min-w-0">{r.name}</td>
-                  <td className="px-3 py-1.5 text-right font-mono tabular">
-                    {r.debitCents ? money(r.debitCents) : ""}
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono tabular">
-                    {r.creditCents ? money(r.creditCents) : ""}
-                  </td>
-                </tr>
+                <JournalLineCard
+                  key={r.code}
+                  line={{
+                    accountCode: r.code,
+                    accountName: r.name,
+                    debitCents: r.debitCents,
+                    creditCents: r.creditCents,
+                  }}
+                  money={money}
+                />
               ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-op-border font-medium">
-                <td className="px-3 py-2" colSpan={2}>
-                  {t("stTotales")}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular">
-                  {money(st.trial.totalDebitCents)}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular">
-                  {money(st.trial.totalCreditCents)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              <div className="border-t-2 border-op-border bg-op-bg px-4 py-2 font-medium">
+                <div className="text-sm">{t("stTotales")}</div>
+                <div className="mt-1 grid grid-cols-2 gap-x-3">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-op-muted">
+                      {t("jDebit")}
+                    </div>
+                    <div className="font-mono tabular text-[13px]">{money(st.trial.totalDebitCents)}</div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-op-muted">
+                      {t("jCredit")}
+                    </div>
+                    <div className="font-mono tabular text-[13px]">{money(st.trial.totalCreditCents)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </Section>
     </div>

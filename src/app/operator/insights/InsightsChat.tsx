@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { AppDialog } from "@/components/ui/AppDialog";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { conversationHref, formatConversationDate, readConversationId } from "./conversationUrl";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -343,13 +344,18 @@ export function InsightsChat() {
         <div className="flex flex-col gap-3">
           {msgs.map((m, i) => (
             <div key={i} className={m.role === "user" ? "self-end max-w-[85%]" : "self-start max-w-[90%]"}>
+              {/* La respuesta del modelo viene en Markdown (negritas, títulos,
+                  listas, separadores, tablas): se pinta con `ChatMarkdown`.
+                  Lo que escribe el usuario sigue tal cual, con sus saltos. */}
               <div
                 className={
-                  "rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap " +
-                  (m.role === "user" ? "bg-ink text-bone" : "bg-op-surface border border-op-border")
+                  "rounded-2xl px-4 py-2.5 text-sm " +
+                  (m.role === "user"
+                    ? "whitespace-pre-wrap bg-ink text-bone"
+                    : "bg-op-surface border border-op-border")
                 }
               >
-                {m.content}
+                {m.role === "assistant" ? <ChatMarkdown source={m.content} /> : m.content}
               </div>
             </div>
           ))}
@@ -361,7 +367,11 @@ export function InsightsChat() {
             e.preventDefault();
             send(input);
           }}
-          className="flex gap-2 mt-2"
+          // Pegado abajo del scroller: al leer una respuesta larga la caja
+          // de pregunta sigue a mano. El fondo tapa lo que pasa por debajo y
+          // el padding inferior incluye la franja del indicador de inicio
+          // (sticky no respeta el padding del contenedor).
+          className="sticky bottom-0 -mx-1 flex gap-2 bg-op-bg px-1 pt-2 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))]"
         >
           <input
             value={input}

@@ -83,6 +83,9 @@
 }
 .mp-rail {
   height: 100%;
+  /* El shell ya no reserva la franja del indicador de inicio: el riel
+     (columna fija de escritorio/tablet) la reserva él mismo. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .mp-rail-link {
   min-height: 42px;

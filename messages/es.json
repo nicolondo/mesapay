@@ -2022,6 +2022,7 @@
     "prevWeek": "Semana anterior",
     "nextWeek": "Semana siguiente",
     "periodEditDates": "Editar las fechas",
+    "weekNumber": "Semana {n}",
     "exportCsv": "Exportar CSV",
     "print": "Imprimir",
     "checkTitle": "Verificación",
@@ -8279,6 +8280,7 @@
     "showLess": "Ver menos",
     "andMore": "y {count} más",
     "weekOf": "Semana del {date}",
+    "weekOfNumbered": "Semana {n} · del {date}",
     "unitHours": "h",
     "unitMinutes": "min",
     "period": {

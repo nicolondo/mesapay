@@ -48,9 +48,13 @@ async function POSTHandler(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  // Conversación (crear o continuar) — sólo crear si no existe aún
+  // Conversación (crear o continuar) — sólo crear si no existe aún. Se
+  // filtra también por usuario, igual que el historial (GET): una
+  // conversación es de quien la abrió, no de todo el comercio.
   const existingConv = parsed.data.conversationId
-    ? await db.aiConversation.findFirst({ where: { id: parsed.data.conversationId, restaurantId: scope.restaurantId } })
+    ? await db.aiConversation.findFirst({
+        where: { id: parsed.data.conversationId, restaurantId: scope.restaurantId, userId: session.user.id },
+      })
     : null;
   const isNewConv = !existingConv;
   const conv = existingConv ?? await db.aiConversation.create({

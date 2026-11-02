@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 import { useTranslations } from "next-intl";
 import { CALLING_CODES } from "@/lib/crm/phone";
 
@@ -60,13 +61,9 @@ export function CrmNewLeadSheet({
   const citySearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  // Lock body scroll when open
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  // Bloquea el scroll de la página mientras la hoja está abierta (position:
+  // fixed en el body; `overflow: hidden` no frena el táctil en iOS).
+  useLockBodyScroll(true);
 
   // Fetch countries (if no locked country)
   useEffect(() => {

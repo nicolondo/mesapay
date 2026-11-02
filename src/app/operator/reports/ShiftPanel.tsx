@@ -23,6 +23,24 @@ const METHOD_KEY: Record<string, string> = {
   wompi_nequi: "methodWompiNequi",
   kushki_apple_pay: "methodKushkiApplePay",
   kushki_card_terminal: "methodKushkiCardTerminal",
+  // Faltaban: el turno abierto mostraba los códigos crudos
+  // («kushki_card», «external_terminal»). Mismas claves que la sección del
+  // día en reports/page.tsx.
+  kushki_card: "methodKushkiCard",
+  kushki_pse: "methodKushkiPse",
+  kushki_google_pay: "methodKushkiGooglePay",
+  external_terminal: "methodExternalTerminal",
+  voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
+};
+
+/** Estado de una cuenta abierta → clave de opReports (antes salía crudo: «placed»). */
+const ORDER_STATUS_KEY: Record<string, string> = {
+  placed: "openOrderPlaced",
+  in_kitchen: "openOrderInKitchen",
+  ready: "openOrderReady",
+  served: "openOrderServed",
+  paying: "openOrderPaying",
 };
 
 type Metrics = {
@@ -337,11 +355,13 @@ function OpenPanel({
       {state.metrics.byMethod.length > 0 && (
         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
           {state.metrics.byMethod.map((b) => (
+            // En el celular (2 columnas angostas) el monto va debajo del
+            // método: en la misma línea se desbordaba de la tarjeta.
             <div
               key={b.method}
-              className="border border-op-border rounded-xl px-3 py-2 flex items-center justify-between"
+              className="min-w-0 border border-op-border rounded-xl px-3 py-2 flex flex-col gap-0.5 md:flex-row md:items-center md:justify-between"
             >
-              <span>
+              <span className="min-w-0 truncate">
                 {METHOD_KEY[b.method] ? t(METHOD_KEY[b.method]) : b.method}
                 <span className="text-op-muted text-[11px]"> · {b.count}</span>
               </span>
@@ -368,7 +388,8 @@ function OpenPanel({
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{o.tableLabel}</div>
                   <div className="text-[11px] text-op-muted font-mono">
-                    {displayOrderCode(o.shortCode)} · {o.status}
+                    {displayOrderCode(o.shortCode)} ·{" "}
+                    {ORDER_STATUS_KEY[o.status] ? t(ORDER_STATUS_KEY[o.status]) : o.status}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

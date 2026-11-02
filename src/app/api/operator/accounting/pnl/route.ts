@@ -1,15 +1,20 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { monthRange } from "@/lib/erp/accounting";
-import { computeMonthPnl, computeTaxSummary } from "@/lib/erp/accountingData";
+import { accountingMonthRange, computeMonthPnl, computeTaxSummary } from "@/lib/erp/accountingData";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/** P&L del mes (spec B2 · D3) — derivado en vivo, nada persistido. */
+/**
+ * P&L del mes (spec B2 · D3) — derivado en vivo, nada persistido. El mes
+ * es el de NEGOCIO del comercio (`accountingMonthRange`): los cobros,
+ * compras, movimientos de inventario y reembolsos cortan por su día de
+ * negocio, como los asientos del libro; gastos y turnos (FECHAS) siguen con
+ * el mes calendario.
+ */
 async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
@@ -17,7 +22,7 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
+  const range = await accountingMonthRange(ctx.restaurantId, month);
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
   const [pnl, taxSummary] = await Promise.all([

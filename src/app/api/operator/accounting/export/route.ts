@@ -5,10 +5,14 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
   centsToCsvAmount,
-  monthRange,
   toCsv,
 } from "@/lib/erp/accounting";
-import { loadPurchasesBook, loadSalesBook } from "@/lib/erp/accountingData";
+import {
+  accountingMonthRange,
+  calendarRangeOf,
+  loadPurchasesBook,
+  loadSalesBook,
+} from "@/lib/erp/accountingData";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -36,7 +40,9 @@ async function GETHandler(req: Request) {
   const { searchParams } = new URL(req.url);
   const book = searchParams.get("book");
   const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
+  // Mes de NEGOCIO del comercio para ventas y compras (como el libro); los
+  // gastos viven en una FECHA y van por el mes calendario (`calendar`).
+  const range = await accountingMonthRange(ctx.restaurantId, month);
   if (!range || !["sales", "purchases", "expenses"].includes(book ?? "")) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
@@ -130,11 +136,12 @@ async function GETHandler(req: Request) {
       }),
     );
   } else {
+    const calendar = calendarRangeOf(range);
     const expenses = await db.expense.findMany({
       where: {
         restaurantId: ctx.restaurantId,
         recurring: false,
-        date: { gte: range.from, lt: range.to },
+        date: { gte: calendar.from, lt: calendar.to },
       },
       orderBy: { date: "asc" },
       include: { supplier: { select: { name: true } } },

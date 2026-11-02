@@ -8,6 +8,7 @@ import {
   splitPurchaseInventoryCost,
   type CategoryLine,
   type LaborSummary,
+  monthRange,
   netCategorySales,
   netSalesCents,
   netSalesTaxByRate,
@@ -16,6 +17,7 @@ import {
   type SalesDetail,
   type TaxSummary,
 } from "@/lib/erp/accounting";
+import { businessMonthRange } from "@/lib/erp/businessDays";
 import type { InvoiceSnapshot } from "@/lib/invoice";
 import {
   PURCHASE_LINE_AMOUNTS_SELECT,
@@ -48,7 +50,48 @@ import {
 import { creditNoteFiscalDate, sumSlices, type CreditNoteTaxSlice } from "@/lib/erp/creditNoteLedger";
 import { isoDateUtc } from "@/lib/erp/reports/period";
 
-export type MonthRange = { from: Date; to: Date };
+/**
+ * Rango `[from, to)` de un mes para las agregaciones contables.
+ *
+ * `from`/`to` cortan los hechos fechados por TIMESTAMP (pedidos pagados,
+ * compras recibidas, movimientos de inventario, reembolsos, abonos). Con
+ * `accountingMonthRange` es el mes de NEGOCIO del comercio (días de negocio
+ * 1..último, con su hora de corte); con `monthRange` a secas, el mes UTC.
+ *
+ * `calendar` es el mes CALENDARIO (UTC) para lo que vive en una FECHA:
+ * gastos (`Expense.date`), turnos (`StaffShift.date`) y el día fiscal de
+ * las notas crédito. Un DATE vive a medianoche (o mediodía) UTC: restarle
+ * el corte de negocio lo movería al día anterior. Sin `calendar`, se usa el
+ * propio rango (comportamiento histórico).
+ */
+export type MonthRange = { from: Date; to: Date; calendar?: { from: Date; to: Date } };
+
+/** Rango para campos FECHA: el calendario si viene, si no el propio rango. */
+export function calendarRangeOf(range: MonthRange): { from: Date; to: Date } {
+  return range.calendar ?? { from: range.from, to: range.to };
+}
+
+/**
+ * Rango contable del mes `month` para el comercio: `from`/`to` = su mes de
+ * negocio (`Restaurant.businessDayCutoffHour`, el mismo criterio del cierre
+ * de día y del motor de asientos) y `calendar` = el mes calendario UTC. Es
+ * lo que deben usar las tarjetas de Contabilidad para cuadrar con el libro,
+ * cuyos asientos diarios van por día de negocio. null si el mes no es válido.
+ */
+export async function accountingMonthRange(
+  restaurantId: string,
+  month: string,
+): Promise<MonthRange | null> {
+  const calendar = monthRange(month);
+  if (!calendar) return null;
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { businessDayCutoffHour: true },
+  });
+  const business = businessMonthRange(month, tenant?.businessDayCutoffHour ?? 0);
+  if (!business) return null;
+  return { from: business.from, to: business.to, calendar };
+}
 
 /**
  * Ventas y CMV por categoría del MENÚ. Ventas = Σ precio de los ítems
@@ -233,11 +276,12 @@ export async function computeMonthPnl(
     db.expense.groupBy({
       by: ["category"],
       // recurring:false = gastos reales (las plantillas no son gasto; sus
-      // copias materializadas nacen con recurring:false).
+      // copias materializadas nacen con recurring:false). `date` es una
+      // FECHA contable: mes calendario, no de negocio.
       where: {
         restaurantId,
         recurring: false,
-        date: { gte: range.from, lt: range.to },
+        date: { gte: calendarRangeOf(range).from, lt: calendarRangeOf(range).to },
       },
       _sum: { amountCents: true },
     }),
@@ -336,13 +380,15 @@ export async function computeMonthLabor(
   let labor: LaborSummary | null = null;
   if (isModuleEnabled(tenant?.enabledModules, "staff")) {
     const divisor = tenant?.staffHoursDivisor ?? 240;
+    // Los turnos viven en un DATE: mes calendario.
+    const calendar = calendarRangeOf(range);
     const [employees, shifts] = await Promise.all([
       db.employee.findMany({
         where: { restaurantId, active: true },
         select: { monthlySalaryCents: true },
       }),
       db.staffShift.findMany({
-        where: { restaurantId, date: { gte: range.from, lt: range.to } },
+        where: { restaurantId, date: { gte: calendar.from, lt: calendar.to } },
         select: {
           date: true,
           startMinutes: true,
@@ -372,8 +418,8 @@ export async function computeMonthLabor(
     // C2: recargos por festivo/domingo y faltas (modo estricto) — mismas
     // reglas del GET semanal, para que el P&L cuadre con Horarios.
     const holidaySet = new Set([
-      ...holidaysForYear(tenant?.country, range.from.getUTCFullYear()),
-      ...holidaysForYear(tenant?.country, range.to.getUTCFullYear()),
+      ...holidaysForYear(tenant?.country, calendar.from.getUTCFullYear()),
+      ...holidaysForYear(tenant?.country, calendar.to.getUTCFullYear()),
     ]);
     const now = new Date();
     for (const sh of shifts) {
@@ -562,15 +608,19 @@ type MonthCreditNote = SalesBookCreditNote & { slices: CreditNoteTaxSlice[] };
 
 /**
  * Notas crédito ACEPTADAS por la DIAN con fecha fiscal (día colombiano de
- * emisión) dentro del mes. Una nota que no cuadra al centavo se excluye
- * (igual que en contabilidad e impuestos) y queda en el log.
+ * emisión) dentro del mes. La fecha fiscal es un DÍA, así que el mes es el
+ * CALENDARIO del rango (`calendar`), no el de negocio: con el rango de
+ * negocio a secas, el último día se correría al 1.º del mes siguiente. Una
+ * nota que no cuadra al centavo se excluye (igual que en contabilidad e
+ * impuestos) y queda en el log.
  */
 async function loadMonthCreditNoteRows(
   restaurantId: string,
   range: MonthRange,
 ): Promise<MonthCreditNote[]> {
-  const desde = isoDateUtc(range.from);
-  const hasta = isoDateUtc(new Date(range.to.getTime() - 1));
+  const calendar = calendarRangeOf(range);
+  const desde = isoDateUtc(calendar.from);
+  const hasta = isoDateUtc(new Date(calendar.to.getTime() - 1));
   const rows = await db.creditNote.findMany({
     where: {
       ...acceptedCreditNoteWhere(restaurantId),

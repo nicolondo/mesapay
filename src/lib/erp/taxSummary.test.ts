@@ -184,6 +184,47 @@ describe("computeTaxSummary — ventas", () => {
   });
 });
 
+describe("computeTaxSummary — mes de negocio (accountingMonthRange)", () => {
+  // Octubre con corte 5: los timestamps van del 1-oct 10:00Z al 1-nov 10:00Z;
+  // las FECHAS (día fiscal de las notas) por el mes calendario.
+  const BUSINESS = {
+    from: new Date("2026-10-01T10:00:00.000Z"),
+    to: new Date("2026-11-01T10:00:00.000Z"),
+    calendar: { from: new Date("2026-10-01T00:00:00.000Z"), to: new Date("2026-11-01T00:00:00.000Z") },
+  };
+
+  it("los pedidos cortan por el rango de negocio y las notas crédito por el mes calendario de su día fiscal", async () => {
+    sales([INC_8]);
+    m.creditNotes.mockResolvedValue([
+      // 31-oct a las 10 p. m. de Bogotá (1-nov 03:00Z): octubre.
+      note("oct", { issuedAt: "2026-11-01T03:00:00Z", base: 100_000, tax: 8_000 }),
+      // 1-nov a las 2 a. m. de Bogotá (07:00Z): cae dentro del rango de negocio de
+      // octubre, pero su día FISCAL es noviembre — no resta en octubre.
+      note("nov", { issuedAt: "2026-11-01T07:00:00Z" }),
+    ]);
+    const { sales: s } = await computeTaxSummary("rest-1", BUSINESS);
+    expect(m.orders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { restaurantId: "rest-1", status: "paid", paidAt: { gte: BUSINESS.from, lt: BUSINESS.to } },
+      }),
+    );
+    expect(s.creditNotes).toEqual({ count: 1, grossCents: 108_000, baseCents: 100_000, taxCents: 8_000 });
+    // Los reembolsos sin nota se buscan con el rango de negocio (timestamps).
+    expect(m.refunds).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ createdAt: { gte: BUSINESS.from, lt: BUSINESS.to } }) }),
+    );
+  });
+
+  it("sin `calendar` (rango UTC a secas) el comportamiento es el de siempre", async () => {
+    m.creditNotes.mockResolvedValue([note("oct", { issuedAt: "2026-11-01T03:00:00Z" })]);
+    const { sales: s } = await computeTaxSummary("rest-1", {
+      from: new Date("2026-10-01T00:00:00.000Z"),
+      to: new Date("2026-11-01T00:00:00.000Z"),
+    });
+    expect(s.creditNotes.count).toBe(1);
+  });
+});
+
 describe("computeTaxSummary — notas crédito y devoluciones", () => {
   it("el bruto no cambia (lo asienta «Ventas del mes»); el neto resta las notas aceptadas del mes en su tarifa", async () => {
     sales([INC_8]);

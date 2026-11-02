@@ -907,11 +907,12 @@ export function MenuEditor({
                         : undefined
                     }
                     className={
-                      // Móvil: grid de 3 columnas (check · foto · contenido) con
-                      // las acciones bajando a una 2ª fila a la derecha, así el
-                      // nombre y el precio usan todo el ancho. Desktop: una sola
-                      // fila (flex) como siempre.
-                      "p-3 sm:p-4 grid grid-cols-[auto_auto_1fr] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
+                      // Móvil: grid de 5 columnas (check · foto · contenido ·
+                      // precio+estado · chevron) en UNA fila; antes el botón
+                      // «Disponible» bajaba a una 2ª fila y cada plato medía
+                      // casi el doble (reporte del dueño). Sólo las flechas de
+                      // orden manual bajan a su propia fila. Desktop: flex.
+                      "p-3 sm:p-4 grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-start gap-x-3 gap-y-2 sm:flex hover:bg-op-bg/50 " +
                       (selectedIds.has(it.id) ? "bg-terracotta/5 " : "") +
                       (dragItem?.id === it.id ? "opacity-40 " : "") +
                       // Línea donde caería el plato al soltarlo.
@@ -976,13 +977,8 @@ export function MenuEditor({
                       }}
                       className="min-w-0 sm:flex-1 cursor-pointer"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="font-medium leading-snug line-clamp-2 sm:truncate">
-                          {it.name}
-                        </div>
-                        <div className="font-mono text-sm tabular shrink-0">
-                          {fmtCOP(it.priceCents)}
-                        </div>
+                      <div className="font-medium leading-snug line-clamp-2 sm:truncate">
+                        {it.name}
                       </div>
                       {it.trackInventory === false && <div className="text-xs text-op-muted mt-0.5">{tr("nonInventoriable")}</div>}
                       {it.description && (
@@ -991,8 +987,35 @@ export function MenuEditor({
                         </div>
                       )}
                     </div>
-                    <div className="col-span-3 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
-                      {canReorderItems && rows.length > 1 && (
+                    {/* Precio y estado, apilados a la derecha del contenido. */}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div className="font-mono text-sm tabular">{fmtCOP(it.priceCents)}</div>
+                      <AvailabilityToggle
+                        item={it}
+                        onChanged={(available) =>
+                          patchItem(it.id, { available })
+                        }
+                      />
+                    </div>
+                    {/* Chevron: afford­ancia explícita de "abrir/editar". */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(it)}
+                      aria-label={tr("edit")}
+                      className="h-9 w-9 -mr-1 self-center rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                        <path
+                          d="M6 3.5L10.5 8L6 12.5"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    {canReorderItems && rows.length > 1 && (
+                      <div className="col-span-5 justify-self-end sm:col-auto sm:justify-self-auto shrink-0 flex items-center gap-2">
                         <div className="flex items-center">
                           <button
                             type="button"
@@ -1017,31 +1040,8 @@ export function MenuEditor({
                             <span aria-hidden>↓</span>
                           </button>
                         </div>
-                      )}
-                      <AvailabilityToggle
-                        item={it}
-                        onChanged={(available) =>
-                          patchItem(it.id, { available })
-                        }
-                      />
-                      {/* Chevron: afford­ancia explícita de "abrir/editar". */}
-                      <button
-                        type="button"
-                        onClick={() => setEditingItem(it)}
-                        aria-label={tr("edit")}
-                        className="h-9 w-9 -mr-1 rounded-full inline-flex items-center justify-center text-op-muted hover:bg-op-border/40 hover:text-ink"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                          <path
-                            d="M6 3.5L10.5 8L6 12.5"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1226,7 +1226,8 @@ function AvailabilityToggle({
           : tr("soldOutTitle")
       }
       className={
-        "h-9 sm:h-7 px-3.5 sm:px-3 rounded-full text-[11px] font-mono uppercase tracking-wider border transition " +
+        // Compacto: vive junto al precio, en la misma fila del plato.
+        "h-7 px-2.5 sm:px-3 rounded-full text-[10px] sm:text-[11px] font-mono uppercase tracking-wider border transition " +
         (available
           ? "bg-ok/10 text-[#1E5339] border-ok/30 hover:bg-ok/20"
           : "bg-danger/10 text-danger border-danger/30 hover:bg-danger/20")

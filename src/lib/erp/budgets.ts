@@ -291,6 +291,9 @@ export async function loadBudgetExecution(
   year: number,
   month: number,
 ): Promise<BudgetExecution> {
+  // Mes UTC a propósito: lo real sale de los ASIENTOS, fechados por día de
+  // negocio dentro de su día calendario UTC; no hay que pasar al mes de
+  // negocio (sería contar dos veces el corte).
   const range = monthRange(`${year}-${String(month).padStart(2, "0")}`);
   const [budgets, lines] = await Promise.all([
     db.budget.findMany({

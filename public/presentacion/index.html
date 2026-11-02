@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MESAPAY para restaurantes · Pedido por QR, cocina, cobro, factura DIAN y contabilidad</title>
+<meta name="description" content="Tu restaurante completo en un solo sistema: los comensales piden y pagan desde su celular, el pedido llega solo a la cocina, la factura sale sola a la DIAN y la contabilidad se arma sola.">
+<link rel="canonical" href="https://mesapay.co/presentacion">
+<meta name="theme-color" content="#17110E">
+<link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/apple-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MESAPAY">
+<meta property="og:locale" content="es_CO">
+<meta property="og:url" content="https://mesapay.co/presentacion">
+<meta property="og:title" content="MESAPAY · Tu restaurante completo, en un solo sistema">
+<meta property="og:description" content="Pedido y pago por QR, cocina, propinas, factura DIAN, inventario y contabilidad, todo conectado. Mira cómo se ve.">
+<meta property="og:image" content="https://mesapay.co/presentacion/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://mesapay.co/presentacion/og.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: vertical story deck for the phone — one screen per idea, swipe down; alternating ink and cream screens; a fixed progress bar on top. */
+:root{
+  --ink:#17110E; --ink-2:#241A15; --ink-line:#3A2C24;
+  --cream:#F6F1EA; --paper:#FBF8F3; --cream-line:#E8DFD3;
+  --accent:#C4532B; --accent-on-ink:#E07A52; --accent-on-cream:#B04A22; --accent-soft:#F0D9CC; --glow:#7A2E14;
+  --fg-on-ink:#F6F1EA; --muted-on-ink:#B9ADA1; --fg-on-cream:#1B1512; --muted-on-cream:#6F655C; --body-on-cream:#4F463F;
+  --display:'Fraunces', Georgia, 'Times New Roman', serif;
+  --text:'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --mono:'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  color-scheme:dark;
+}
+html{scroll-snap-type:y proximity;scroll-behavior:smooth;height:100%}
+body{background:var(--ink);color:var(--fg-on-ink);font-family:var(--text);font-size:17px;line-height:1.5;margin:0;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ink)}
+#progress{position:fixed;top:env(safe-area-inset-top,0px);left:0;height:4px;width:0;background:var(--accent);z-index:11;transition:width .15s linear}
+.deck{max-width:520px;margin-inline:auto}
+.slide{min-height:100svh;scroll-snap-align:start;display:flex;flex-direction:column;justify-content:center;gap:22px;padding-block:72px 64px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));position:relative;overflow:hidden}
+.slide.ink{background:var(--ink);color:var(--fg-on-ink)}
+.slide.cream{background:var(--cream);color:var(--fg-on-cream)}
+.slide.glow{background:radial-gradient(circle at 85% 12%,var(--glow) 0%,#2A1A12 34%,var(--ink) 62%)}
+.slide.glow-center{background:radial-gradient(circle at 50% 30%,var(--glow) 0%,#2A1A12 40%,var(--ink) 72%)}
+.deck .slide + .slide.ink{border-top:1px solid var(--ink-line)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-on-ink);margin:0}
+.cream .eyebrow{color:var(--accent-on-cream)}
+.pain{font-family:var(--display);font-style:italic;font-weight:400;font-size:20px;line-height:1.3;color:var(--muted-on-ink);margin:0;padding-left:14px;border-left:3px solid var(--accent)}
+.cream .pain{color:var(--muted-on-cream)}
+h1,h2{font-family:var(--display);font-weight:400;letter-spacing:-.02em;text-wrap:balance;margin:0}
+h1{font-size:clamp(40px,11vw,52px);line-height:1.02;font-weight:300}
+h2{font-size:clamp(30px,8vw,36px);line-height:1.1}
+h2 em,h1 em{font-style:normal;color:var(--accent-on-ink)}
+.cream h2 em{color:var(--accent-on-cream)}
+.lead{font-size:18px;line-height:1.5;margin:0;color:var(--muted-on-ink);max-width:36ch}
+.cream .lead{color:var(--body-on-cream)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:18px}
+.brand .m{width:34px;height:34px;border-radius:8px;background:var(--cream);color:var(--ink);display:grid;place-items:center;font-family:var(--display);font-size:22px;line-height:1}
+.brand b{font-weight:600}
+.brand span{color:var(--accent-on-ink)}
+.cream .brand .m{background:var(--ink);color:var(--cream)}
+.cream .brand span{color:var(--accent-on-cream)}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.pills li{font-family:var(--mono);font-size:12px;letter-spacing:.02em;padding:7px 12px;border:1px solid var(--ink-line);border-radius:999px;color:var(--muted-on-ink)}
+.cream .pills li{border-color:var(--cream-line);color:var(--body-on-cream);background:var(--paper)}
+.hint{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-on-ink)}
+.hint svg{width:18px;height:18px;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+
+.list{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;list-style:none}
+.list li{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start;min-width:0}
+.list .ic{width:40px;height:40px;border-radius:10px;background:var(--ink-2);color:var(--accent-on-ink);display:grid;place-items:center;flex:none}
+.cream .list .ic{background:var(--accent-soft);color:var(--accent-on-cream)}
+.list .ic svg{width:21px;height:21px}
+.list b{display:block;font-weight:600;font-size:17px;line-height:1.3}
+.list p{margin:2px 0 0;font-size:15.5px;line-height:1.45;color:var(--muted-on-ink)}
+.cream .list p{color:var(--body-on-cream)}
+
+.steps{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{display:grid;grid-template-columns:52px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--cream-line);counter-increment:s;align-items:start}
+.steps li:first-child{border-top:none;padding-top:0}
+.steps li::before{content:counter(s,decimal-leading-zero);font-family:var(--display);font-size:38px;line-height:1;color:var(--accent-on-cream);font-weight:300}
+.ink .steps li{border-color:var(--ink-line)}
+.ink .steps li::before{color:var(--accent-on-ink)}
+.steps b{display:block;font-weight:600;font-size:17px}
+.steps p{margin:2px 0 0;font-size:15.5px;color:var(--body-on-cream);line-height:1.45}
+.ink .steps p{color:var(--muted-on-ink)}
+
+.callout{border-radius:14px;padding:14px 16px;font-size:15.5px;line-height:1.45;background:var(--accent-soft);color:var(--body-on-cream)}
+.callout b{color:var(--fg-on-cream)}
+.ink .callout{background:var(--ink-2);color:var(--muted-on-ink);border:1px solid var(--ink-line)}
+.ink .callout b{color:var(--fg-on-ink)}
+
+/* pain checklist */
+.checks{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.checks button{width:100%;text-align:left;display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;border:1px solid var(--cream-line);background:var(--paper);color:var(--fg-on-cream);font:inherit;font-size:16px;cursor:pointer;transition:transform .12s ease,background .12s ease}
+.checks button:active{transform:scale(.985)}
+.checks button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.checks .box{width:24px;height:24px;border-radius:7px;border:2px solid var(--accent-on-cream);display:grid;place-items:center;color:var(--cream)}
+.checks .box svg{width:14px;height:14px;opacity:0;transform:scale(.6);transition:all .15s ease}
+.checks button[aria-pressed="true"]{background:var(--accent-soft)}
+.checks button[aria-pressed="true"] .box{background:var(--accent);border-color:var(--accent)}
+.checks button[aria-pressed="true"] .box svg{opacity:1;transform:scale(1)}
+#tally{font-family:var(--display);font-size:22px;line-height:1.25;margin:0;color:var(--fg-on-cream)}
+#tally em{font-style:normal;color:var(--accent-on-cream)}
+
+/* module cloud */
+.cloud{display:flex;flex-wrap:wrap;gap:8px}
+.cloud span{font-size:14px;padding:9px 13px;border-radius:999px;border:1px solid var(--ink-line);color:var(--fg-on-ink);background:var(--ink-2)}
+.cloud span.hot{background:var(--accent);border-color:var(--accent);color:var(--cream);font-weight:500}
+
+/* flow */
+.flow{display:grid;grid-template-columns:1fr;gap:0;margin:0;padding:0;list-style:none}
+.flow li{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;position:relative;padding-bottom:18px}
+.flow li:last-child{padding-bottom:0}
+.flow li::before{content:"";position:absolute;left:21px;top:44px;bottom:0;width:2px;background:var(--cream-line)}
+.flow li:last-child::before{display:none}
+.flow .dot{width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--cream);display:grid;place-items:center;flex:none;position:relative}
+.flow .dot svg{width:22px;height:22px}
+.flow b{display:block;font-size:17px;font-weight:600;padding-top:8px}
+.flow p{margin:2px 0 0;font-size:15.5px;color:var(--body-on-cream);line-height:1.45}
+
+/* stat + plans */
+.stat{font-family:var(--display);font-size:clamp(44px,13vw,60px);line-height:1;letter-spacing:-.02em;font-weight:300;margin:0}
+.stat small{font-family:var(--text);font-size:15px;letter-spacing:0;color:var(--muted-on-ink);display:block;margin-top:6px}
+.plans{display:grid;grid-template-columns:1fr;gap:10px}
+.plan{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:baseline;padding:14px 16px;border-radius:14px;border:1px solid var(--ink-line);background:var(--ink-2)}
+.plan.hot{border-color:var(--accent)}
+.plan b{font-weight:600;font-size:16px}
+.plan small{grid-column:1;font-size:13px;color:var(--muted-on-ink)}
+.plan .price{font-family:var(--display);font-size:26px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.plan .price i{font-style:normal;font-family:var(--text);font-size:13px;color:var(--muted-on-ink)}
+.fine{font-size:13px;line-height:1.45;color:var(--muted-on-ink);margin:0}
+.cream .fine{color:var(--muted-on-cream)}
+
+/* cta */
+.cta-row{display:flex;flex-direction:column;gap:10px}
+.copy{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:14px 16px;border-radius:999px;border:1px solid var(--ink-line);background:var(--ink-2);color:var(--fg-on-ink);font:inherit;font-family:var(--mono);font-size:15px;cursor:pointer;text-align:left}
+.copy.primary{background:var(--accent);border-color:var(--accent);color:var(--cream)}
+.copy:focus-visible{outline:2px solid var(--cream);outline-offset:2px}
+.copy svg{width:18px;height:18px;flex:none}
+.copy .ok{display:none}
+.copy.done .ok{display:block}
+.copy.done .cp{display:none}
+.copy .addr{user-select:all;-webkit-user-select:all;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a.copy{text-decoration:none}
+a.copy .addr{font-family:var(--text);font-weight:600;font-size:16px;letter-spacing:0}
+
+.foot{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-on-ink);margin:0;position:absolute;left:max(20px,env(safe-area-inset-left,0px));right:max(20px,env(safe-area-inset-right,0px));bottom:22px;display:flex;justify-content:space-between}
+.cream .foot{color:var(--muted-on-cream)}
+
+/* product screenshots: a phone (or tablet) bezel showing the top of the real screen; tap to see it whole */
+.shots{display:flex;justify-content:center;gap:12px;margin:2px 0}
+.shot{all:unset;cursor:zoom-in;display:block;position:relative;flex:0 1 auto;-webkit-tap-highlight-color:transparent}
+.shot:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:30px}
+.shot .bezel{display:block;background:#0E0A08;padding:7px;border-radius:34px;box-shadow:0 18px 40px -18px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06)}
+.cream .shot .bezel{box-shadow:0 18px 40px -20px rgba(40,24,14,.45)}
+.shot .screen{display:block;overflow:hidden;border-radius:27px;position:relative;background:#fff}
+.shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
+.shot.phone{width:min(70%,268px)}
+.shot.phone .screen{height:360px}
+.shots.pair .shot.phone{width:calc(50% - 6px);max-width:220px}
+.shots.pair .shot.phone .screen{height:300px}
+.shot.tablet{width:100%}
+.shot.tablet .bezel{padding:8px;border-radius:22px}
+.shot.tablet .screen{border-radius:15px;aspect-ratio:1180/820;height:auto}
+.shot.phone .screen::after{content:"";position:absolute;inset:auto 0 0;height:56px;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.96))}
+.shot .zoom{position:absolute;right:10px;bottom:10px;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(23,17,14,.82);color:#F6F1EA;z-index:1}
+.shot .zoom svg{width:16px;height:16px}
+.shot-cap{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;text-align:center;color:var(--muted-on-ink);margin:-8px 0 0}
+.cream .shot-cap{color:var(--muted-on-cream)}
+#lb{border:none;padding:0;background:rgba(10,7,5,.94);max-width:100vw;max-height:100svh;width:100vw;height:100svh;margin:0;inset:0}
+#lb::backdrop{background:rgba(10,7,5,.92)}
+#lb .lb-in{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
+#lb img{max-width:100%;max-height:calc(100svh - 96px);width:auto;height:auto;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6);background:#fff}
+#lb .lb-cap{font-size:14px;color:#D9CFC4;text-align:center;max-width:40ch;margin:0}
+#lb .lb-x{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:14px;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(23,17,14,.7);color:#F6F1EA;display:grid;place-items:center;cursor:pointer}
+#lb .lb-x svg{width:20px;height:20px}
+
+/* motion: everything is visible at rest; only the position eases in */
+.rise{transform:translateY(16px);transition:transform .7s cubic-bezier(.2,.7,.2,1)}
+.slide.in .rise{transform:none}
+.slide.in .rise:nth-child(2){transition-delay:.05s}.slide.in .rise:nth-child(3){transition-delay:.1s}.slide.in .rise:nth-child(4){transition-delay:.15s}.slide.in .rise:nth-child(5){transition-delay:.2s}
+@media (prefers-reduced-motion:reduce){.rise{transform:none;transition:none}.hint svg{animation:none}html{scroll-behavior:auto}}
+@media (min-width:560px){body{background:#0F0B09}.deck{box-shadow:0 0 0 1px var(--ink-line)}}
+</style>
+</head>
+<body>
+
+<div id="progress" aria-hidden="true"></div>
+<main class="deck">
+
+<!-- 01 · Portada -->
+<section class="slide ink glow" id="inicio">
+  <div class="brand rise"><span class="m">M</span><b>mesa<span>pay</span></b></div>
+  <p class="eyebrow rise">ERP para restaurantes · Colombia</p>
+  <h1 class="rise">Tu restaurante completo, en un solo sistema.</h1>
+  <p class="lead rise">Los comensales piden y pagan desde su celular. El pedido llega solo a la cocina, la factura sale sola a la DIAN y la contabilidad se arma sola. Tú ves todo el negocio en un solo lugar.</p>
+  <ul class="pills rise">
+    <li>Pedido por QR</li><li>Cocina y bar</li><li>Cobro y propinas</li><li>Factura DIAN</li><li>Inventario y recetas</li><li>Nómina</li><li>Contabilidad</li>
+  </ul>
+  <p class="hint rise"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>Desliza</p>
+  <p class="foot"><span>mesapay.co</span><span>1 / 20</span></p>
+</section>
+
+<!-- 02 · Dolores -->
+<section class="slide cream" id="dolores">
+  <p class="eyebrow rise">¿Te suena?</p>
+  <h2 class="rise">Marca lo que te pasa hoy.</h2>
+  <ul class="checks rise" id="checks">
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>No consigo meseros, y los que tengo no dan abasto.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>La mesa espera para pedir y vuelve a esperar para pagar.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>La comanda llega mal a la cocina.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>Las propinas y la caja nunca cuadran.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>El inventario desaparece y nadie sabe en qué plato.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>Facturar es otro trabajo aparte del de vender.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>El contador recibe un Excel a fin de mes y lo digita otra vez.</button></li>
+    <li><button type="button" aria-pressed="false"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>La carta nunca está al día: ofrecemos platos que ya se acabaron.</button></li>
+  </ul>
+  <p id="tally" class="rise">Toca los que reconoces. <em>MESAPAY resuelve los ocho.</em></p>
+  <p class="foot"><span>El problema</span><span>2 / 20</span></p>
+</section>
+
+<!-- 03 · Todo en uno -->
+<section class="slide ink" id="todo">
+  <p class="eyebrow rise">La idea</p>
+  <h2 class="rise">Un sistema que hace el trabajo que hoy hacen <em>cinco programas</em>.</h2>
+  <p class="lead rise">Todo parte de la misma venta. Lo que el comensal pide en la mesa se vuelve comanda, cobro, factura, consumo de inventario, propina, comisión y asiento contable, sin que nadie lo vuelva a digitar.</p>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="Resumen del día: ventas, órdenes, ticket promedio y caja en vivo." aria-label="Ampliar: Resumen del día en el panel del restaurante: ventas de hoy, órdenes pagadas, ticket promedio, mesas abiertas y caja"><span class="bezel"><span class="screen"><img src="/presentacion/shots/10-resumen.webp" alt="Resumen del día en el panel del restaurante: ventas de hoy, órdenes pagadas, ticket promedio, mesas abiertas y caja" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Resumen del día</p>
+  <div class="cloud rise">
+    <span class="hot">Carta y pedido por QR</span><span>Cocina y bar</span><span>App del mesero</span><span>Cobro y propinas</span><span>Factura electrónica DIAN</span><span>Reservas</span><span>Para llevar</span><span>Inventario</span><span>Recetas y food cost</span><span>Compras y proveedores</span><span>Horarios y nómina</span><span>Contabilidad</span><span>Reportes</span><span>Pulso · IA</span><span>Multi-sucursal</span>
+  </div>
+  <p class="foot"><span>La idea</span><span>3 / 20</span></p>
+</section>
+
+<!-- 04 · La mesa -->
+<section class="slide cream" id="mesa">
+  <p class="pain rise">«La mesa espera para pedir y vuelve a esperar para pagar.»</p>
+  <h2 class="rise">El comensal escanea, pide y paga desde su celular.</h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="La carta que ve el comensal al escanear el QR: fotos, precios y su pedido abajo." aria-label="Ampliar: Carta del comensal abierta desde el QR de la mesa 9, con fotos, precios, calificaciones y el pedido en curso"><span class="bezel"><span class="screen"><img src="/presentacion/shots/01-carta-comensal.webp" alt="Carta del comensal abierta desde el QR de la mesa 9, con fotos, precios, calificaciones y el pedido en curso" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · La carta por QR</p>
+  <ol class="flow rise">
+    <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-4M14 21h1"/></svg></span><div><b>Escanea el QR de su mesa</b><p>Ve tu carta con fotos, en su idioma, sin descargar nada. Siempre al día: un plato agotado desaparece de la carta en un toque y nadie pide lo que no hay. Cada persona pide lo suyo a la vez.</p></div></li>
+    <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16M6 11V9a6 6 0 0 1 12 0v2M5 11l1 8h12l1-8"/></svg></span><div><b>Marcha la orden</b><p>El pedido entra directo al tablero de la cocina y del bar, con sus opciones y notas. Sigue el estado en vivo y pide más rondas.</p></div></li>
+    <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v1M12 19v1M8.5 9.5a3.5 3 0 0 1 7 0c0 2.5-7 2.5-7 5a3.5 3 0 0 0 7 0"/></svg></span><div><b>Paga sin esperar</b><p>Tarjeta, PSE o Apple Pay desde el celular, o avisa que paga en efectivo o con datáfono. Divide la cuenta y deja la propina.</p></div></li>
+    <li><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg></span><div><b>Recibe su factura</b><p>Pide la factura electrónica a su nombre desde el celular y le llega al correo, aceptada por la DIAN.</p></div></li>
+  </ol>
+  <p class="foot"><span>La mesa</span><span>4 / 20</span></p>
+</section>
+
+<!-- 05 · Meseros -->
+<section class="slide ink" id="meseros">
+  <p class="pain rise">«No consigo meseros, y los que tengo no dan abasto.»</p>
+  <h2 class="rise">Menos carga para el mesero. <em>Mejor atención</em> para la mesa.</h2>
+  <div class="shots pair rise"><button type="button" class="shot phone" data-cap="App del mesero: llamadas de las mesas y cobros en efectivo con la devuelta calculada." aria-label="Ampliar: App de la mesera: una mesa solicita mesero y otra pagará en efectivo con la devuelta calculada"><span class="bezel"><span class="screen"><img src="/presentacion/shots/05-mesero.webp" alt="App de la mesera: una mesa solicita mesero y otra pagará en efectivo con la devuelta calculada" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button><button type="button" class="shot phone" data-cap="Mesas en vivo: la mesa que acaba de pagar desde el celular sale en verde y de primera." aria-label="Ampliar: Pantalla Mesas en vivo con la mesa 5 en verde porque pagó desde el celular"><span class="bezel"><span class="screen"><img src="/presentacion/shots/03-mesas.webp" alt="Pantalla Mesas en vivo con la mesa 5 en verde porque pagó desde el celular" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · App del mesero y Mesas en vivo</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><div><b>Toda la mesa pide al mismo tiempo</b><p>Nadie transcribe pedidos ni camina hasta el sistema. El mesero asesora, recomienda y sube el ticket.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></span><div><b>App del mesero con avisos</b><p>Le llega cuándo una mesa lo llama, pidió la cuenta, quiere pagar en efectivo o tiene platos listos. Solo de sus mesas.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></span><div><b>Si el cliente prefiere el trato de siempre</b><p>El mesero toma el pedido desde su celular y lo marcha a cocina. Cobra en la mesa con datáfono o efectivo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><div><b>Pantalla Mesas en vivo</b><p>Qué mesa está libre, cuál come, cuál tiene platos listos y cuál está en riesgo de irse sin pagar.</p></div></li>
+  </ul>
+  <div class="callout rise"><b>Basta una tablet para cocina y los celulares de tus meseros.</b> Nada de licencias por terminal ni equipos propietarios.</div>
+  <p class="foot"><span>Meseros</span><span>5 / 20</span></p>
+</section>
+
+<!-- 06 · Cocina -->
+<section class="slide cream" id="cocina">
+  <p class="pain rise">«La comanda llegó mal.»</p>
+  <h2 class="rise">A la cocina llega exactamente lo que pidió el cliente.</h2>
+  <div class="shots rise"><button type="button" class="shot tablet" data-cap="Tablero de cocina en la tablet: por preparar, en cocina y listo, con términos y notas del cliente." aria-label="Ampliar: Tablero de cocina en una tablet con las columnas Por preparar, En cocina y Listo, términos de la carne y notas del cliente"><span class="bezel"><span class="screen"><img src="/presentacion/shots/04-cocina-tablet.webp" alt="Tablero de cocina en una tablet con las columnas Por preparar, En cocina y Listo, términos de la carne y notas del cliente" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Tablero de cocina</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M3 10h18"/></svg></span><div><b>Tablero por estación</b><p>Cocina, bar con sus puestos (cocteles, cafetería…) y refri. Cada equipo ve solo lo suyo: Por preparar, En cocina, Listo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg></span><div><b>Comandas impresas solas</b><p>Ticket en la impresora de cada estación al entrar el pedido, agrupado por mesa, y sonido para los pedidos nuevos.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><b>Tiempos y entregas</b><p>Con un toque empiezas, marcas listo o sirves. Salón le dice al equipo de piso qué plato entregar y a qué mesa.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><div><b>Modificadores sin malentendidos</b><p>Término, tamaño, adiciones con recargo y notas del cliente, tal como los eligió.</p></div></li>
+  </ul>
+  <p class="foot"><span>Cocina y bar</span><span>6 / 20</span></p>
+</section>
+
+<!-- 07 · Cobro -->
+<section class="slide ink" id="cobro">
+  <p class="pain rise">«La fila para pagar es el peor momento del servicio.»</p>
+  <h2 class="rise">Cobra como pague el cliente, <em>sin fila</em>.</h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="El comensal elige la propina y paga con Apple Pay, tarjeta o PSE desde su celular." aria-label="Ampliar: Pantalla de pago del comensal con propina sugerida del 10 por ciento y botones de Apple Pay, tarjeta y PSE"><span class="bezel"><span class="screen"><img src="/presentacion/shots/02-pago-comensal.webp" alt="Pantalla de pago del comensal con propina sugerida del 10 por ciento y botones de Apple Pay, tarjeta y PSE" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Pago desde el celular</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span><div><b>En línea desde el celular</b><p>Tarjeta, PSE y Apple Pay. El dinero queda en tu Wallet y lo pasas al banco cuando quieras.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6.5a4 4 0 0 0-5-2.5c-3 0-4 2-4 3.5 0 4 9 2.5 9 6.5 0 1.5-1.5 3.5-5 3.5a4.5 4.5 0 0 1-5-3"/></svg></span><div><b>Efectivo y datáfono</b><p>Datáfono Kushki enviado al aparato que tienes en la mano, o tu datáfono propio. Efectivo con devuelta calculada.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span><div><b>Divide y combina</b><p>Partes iguales, por persona o varios pagos con distintos medios: una parte en efectivo, el resto con tarjeta.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span><div><b>Crédito y bonos empresariales</b><p>Vende a crédito a clientes de confianza con límite y plazo, y vende lotes de bonos a empresas para que sus invitados paguen con un código.</p></div></li>
+  </ul>
+  <p class="foot"><span>Cobro</span><span>7 / 20</span></p>
+</section>
+
+<!-- 08 · Propinas y caja -->
+<section class="slide cream" id="propinas">
+  <p class="pain rise">«Las propinas y la caja nunca cuadran.»</p>
+  <h2 class="rise">Propinas claras y una caja que cierra sola.</h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="Cierre: caja con base y egresos, lo cobrado, las propinas y el ticket promedio." aria-label="Ampliar: Cierre del día con la caja, lo cobrado, las órdenes pagadas, las propinas y el ticket promedio"><span class="bezel"><span class="screen"><img src="/presentacion/shots/06-cierre.webp" alt="Cierre del día con la caja, lo cobrado, las órdenes pagadas, las propinas y el ticket promedio" loading="lazy" decoding="async" style="object-position:50% 55%"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Cierre y caja</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4M4 6v12a2 2 0 0 0 2 2h14v-4M18 12a2 2 0 1 0 0 4h4v-4z"/></svg></span><div><b>Cada propina queda registrada</b><p>Sugerida al 10 %, ajustable por el cliente, también la del vuelto en efectivo. Propinas por mesero o compartidas para repartir al cierre.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><div><b>El mesero ve lo suyo</b><p>En su app ve sus ventas, propinas y comisiones del día. Con turno por mesero, abre con su base y cierra contando su caja.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v14H3zM3 10h18M8 15h3"/></svg></span><div><b>Cierre de turno en un toque</b><p>Ventas por medio de pago, propinas, impuesto al consumo y la diferencia entre lo esperado y lo contado.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"/></svg></span><div><b>Control de la plata</b><p>Decide quién cobra. Si solo el administrador maneja el dinero, el mesero avisa que la mesa pidió la cuenta.</p></div></li>
+  </ul>
+  <p class="foot"><span>Propinas y caja</span><span>8 / 20</span></p>
+</section>
+
+<!-- 09 · Factura DIAN -->
+<section class="slide ink" id="factura">
+  <p class="pain rise">«Facturar es otro trabajo aparte del de vender.»</p>
+  <h2 class="rise">Cada cuenta cobrada se factura sola ante la <em>DIAN</em>.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2l-2 9h4l-4 11 2-9H9z"/></svg></span><div><b>En segundos, sin tocar nada</b><p>Al quedar pagada, se numera con tu resolución y va a la DIAN. Si no responde, MESAPAY reintenta solo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 4L12 14l-3-3M22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/></svg></span><div><b>A nombre del cliente o a consumidor final</b><p>Si el comensal la pidió desde su celular, sale a su nombre y le llega al correo con PDF y XML. Se imprime sola en la caja.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg></span><div><b>Notas crédito electrónicas</b><p>Anula o ajusta una factura aceptada, total o parcial, y la contabilidad y los impuestos se corrigen solos.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg></span><div><b>Impuesto bien partido</b><p>Impoconsumo, IVA o ninguno, con la tarifa guardada en cada factura. Factura manual para catering o eventos.</p></div></li>
+  </ul>
+  <p class="foot"><span>Facturación</span><span>9 / 20</span></p>
+</section>
+
+<!-- 10 · Inventario -->
+<section class="slide cream" id="inventario">
+  <p class="pain rise">«El inventario desaparece y nadie sabe en qué plato.»</p>
+  <h2 class="rise">Cada venta descuenta sus insumos. Cada conteo te dice la verdad.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg></span><div><b>Consumo automático por receta</b><p>Al cobrar, los insumos de cada plato salen del inventario. Existencias valoradas al costo promedio, siempre al día.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14M8 5v14M12 5v14M15 5v14M20 5v14"/></svg></span><div><b>Conteo con código de barras</b><p>Cuenta la bodega en dos pasadas con lector o a mano. Revisa faltantes y sobrantes antes de ajustar.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span><div><b>Mermas con motivo y alertas</b><p>Vencido, dañado, error o cortesía: queda quién y por qué. Aviso cuando un insumo baja del mínimo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg></span><div><b>Producción por lotes</b><p>Salsas, masas y fondos como sub-recetas: los insumos salen y el elaborado entra con su costo.</p></div></li>
+  </ul>
+  <div class="callout rise"><b>El inventario nunca frena una venta.</b> Se descuenta después de cobrar, para que un error de bodega jamás detenga una mesa.</div>
+  <p class="foot"><span>Inventario</span><span>10 / 20</span></p>
+</section>
+
+<!-- 11 · Recetas y food cost -->
+<section class="slide ink" id="foodcost">
+  <p class="pain rise">«No sé cuánto gano de verdad en cada plato.»</p>
+  <h2 class="rise">Food cost y margen de cada plato, <em>con semáforo</em>.</h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="Recetas: food cost y margen de cada plato, y aviso cuando un insumo no tiene costo." aria-label="Ampliar: Recetas con precio, food cost, costo y margen de cada plato, y un plato marcado con costo incompleto"><span class="bezel"><span class="screen"><img src="/presentacion/shots/07-recetas.webp" alt="Recetas con precio, food cost, costo y margen de cada plato, y un plato marcado con costo incompleto" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Recetas y food cost</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/></svg></span><div><b>Costo real por receta</b><p>Carga qué lleva cada plato y en qué cantidad. MESAPAY calcula costo, food cost y margen con el precio actual de los insumos.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg></span><div><b>Qué subió y qué duele</b><p>Detecta los platos caros y los insumos que subieron de precio antes de que se coman el margen.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></span><div><b>Ingeniería de menú</b><p>Clasifica la carta por popularidad y margen para decidir qué empujar, qué subir de precio y qué sacar.</p></div></li>
+  </ul>
+  <p class="foot"><span>Recetas</span><span>11 / 20</span></p>
+</section>
+
+<!-- 12 · Compras -->
+<section class="slide cream" id="compras">
+  <p class="pain rise">«¿A qué proveedor le debo y cuánto?»</p>
+  <h2 class="rise">Compras, recepción y pago a proveedores en un solo flujo.</h2>
+  <ol class="steps rise">
+    <li><div><b>Orden de compra por WhatsApp</b><p>Pide a tu proveedor desde MESAPAY, con su lista de precios, y envíale la orden.</p></div></li>
+    <li><div><b>Recibe completa o por partes</b><p>Lo recibido entra al inventario con su costo. Lo pendiente sigue abierto.</p></div></li>
+    <li><div><b>Sube la factura y la IA la lee</b><p>Foto o PDF de la factura del proveedor: líneas, IVA y retenciones detectados. Tú revisas y confirmas.</p></div></li>
+    <li><div><b>Registra el pago hasta saldo cero</b><p>Cuenta por pagar por orden, abonos desde caja o banco, y la cartera con proveedores siempre al día.</p></div></li>
+  </ol>
+  <p class="foot"><span>Compras</span><span>12 / 20</span></p>
+</section>
+
+<!-- 13 · Equipo -->
+<section class="slide ink" id="equipo">
+  <p class="pain rise">«Turnos, recargos y nómina a mano, cada mes.»</p>
+  <h2 class="rise">Tu equipo: horarios, asistencia y <em>nómina</em> en el mismo lugar.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span><div><b>Turnos de la semana</b><p>Arma la semana, copia la anterior o aplica la plantilla. Recargos de festivos y domingos calculados solos.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="11" r="3"/><path d="M7 18a5 5 0 0 1 10 0"/></svg></span><div><b>Kiosko de asistencia con la cara</b><p>Una tablet en el local: cada persona marca entrada y salida y la cámara la reconoce. Foto de evidencia en cada marcación.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg></span><div><b>Nómina del mes</b><p>Salario, recargos, auxilio de transporte, deducciones, aportes y provisiones. Costo total empresa a la vista, para que tu contador valide.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17l-5.9 3 1.2-6.5L2.5 8.9 9.1 8z"/></svg></span><div><b>Comisiones por mesero</b><p>Un porcentaje por mesero, fijado en cada cuenta al cobrarla. Él lo ve en su app; tú lo liquidas con un reporte.</p></div></li>
+  </ul>
+  <p class="foot"><span>Equipo</span><span>13 / 20</span></p>
+</section>
+
+<!-- 14 · Clientes -->
+<section class="slide cream" id="clientes">
+  <p class="pain rise">«Reservas por WhatsApp, mesas vacías por no-shows.»</p>
+  <h2 class="rise">Más clientes, que vuelven más.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M9 15l2 2 4-4"/></svg></span><div><b>Reservas con depósito</b><p>Un link para tu WhatsApp, redes o Google Maps. Turnos, duración, mesa y depósito en línea para frenar los no-shows.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l1 5H5zM5 7h14v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM9 11h6"/></svg></span><div><b>Pedidos para llevar</b><p>QR de recogida: el cliente pide y paga desde su celular y recoge en el mostrador con su código.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17l-5.9 3 1.2-6.5L2.5 8.9 9.1 8z"/></svg></span><div><b>Reseñas y clientes registrados</b><p>El comensal califica los platos que ya probó. Con su cuenta en tu restaurante usa su descuento y ve sus órdenes.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span><div><b>Carta en tres idiomas</b><p>Español, inglés y portugués, traducida con IA y corregible por ti. El turista pide sin pedir ayuda.</p></div></li>
+  </ul>
+  <p class="foot"><span>Clientes</span><span>14 / 20</span></p>
+</section>
+
+<!-- 15 · Carta con IA -->
+<section class="slide ink" id="carta">
+  <p class="pain rise">«Pasar la carta al sistema me va a tomar semanas.»</p>
+  <h2 class="rise">Sube una foto de tu carta. <em>La IA</em> la arma.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM5 18l.8 2 2 .8-2 .8L5 23.6l-.8-2-2-.8 2-.8z"/></svg></span><div><b>Importa desde PDF, foto o enlace</b><p>La IA lee categorías, platos, precios y descripciones en segundos. Tú revisas y los importas de una vez.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span><div><b>Fotos, etiquetas y modificadores</b><p>Platos con foto, etiquetas como «De la casa» o «Picante», opciones obligatorias y adiciones con recargo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><div><b>Varias cartas, siempre al día</b><p>Comida, vinos, brunch. Agota un plato con un toque y desaparece de la carta del comensal al instante; al abrir el turno, MESAPAY te recuerda cuáles siguen agotados para que los reactives. Edita en bloque y cambia precios cuando quieras.</p></div></li>
+  </ul>
+  <p class="foot"><span>Carta</span><span>15 / 20</span></p>
+</section>
+
+<!-- 16 · Contabilidad -->
+<section class="slide cream" id="contabilidad">
+  <p class="pain rise">«El contador recibe un Excel a fin de mes y lo digita otra vez.»</p>
+  <h2 class="rise">La contabilidad se arma sola, cada madrugada.</h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="Estado de resultado del mes con la cascada de los ingresos al resultado." aria-label="Ampliar: Estado de resultado de octubre con la cascada de los ingresos al resultado"><span class="bezel"><span class="screen"><img src="/presentacion/shots/08-estado-resultado.webp" alt="Estado de resultado de octubre con la cascada de los ingresos al resultado" loading="lazy" decoding="async" style="object-position:50% 100%"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Estado de resultado</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"/></svg></span><div><b>Partida doble sobre el PUC</b><p>Ventas, compras, gastos, nómina, depreciación y bancos se vuelven asientos sobre el PUC para restaurantes, bajo NIIF Grupo 2.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg></span><div><b>PYG en vivo y estados financieros</b><p>Utilidad del mes hoy, no en 40 días. Libro diario, mayor, balance de prueba, estado de resultado y situación financiera.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/></svg></span><div><b>Impuestos, exógena y bancos</b><p>IVA o impoconsumo y retenciones del período, exógena en XML para la DIAN y conciliación pegando el extracto.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><div><b>Cierre con candado</b><p>Cierras el mes, los comprobantes se numeran y nada cambia después de que tu contador lo revisó.</p></div></li>
+  </ul>
+  <div class="callout rise"><b>Tu contador deja de digitar y pasa a revisar.</b> Entra con su propio usuario, importa su plan de cuentas y exporta todo en CSV.</div>
+  <p class="foot"><span>Contabilidad</span><span>16 / 20</span></p>
+</section>
+
+<!-- 17 · Reportes y Pulso -->
+<section class="slide ink" id="reportes">
+  <p class="pain rise">«Decido a ciegas, por intuición.»</p>
+  <h2 class="rise">Pregúntale a tu restaurante. <em>Te responde con datos.</em></h2>
+  <div class="shots rise"><button type="button" class="shot phone" data-cap="Pulso responde con los datos del restaurante: tabla de los platos más vendidos y recomendaciones." aria-label="Ampliar: Pulso respondiendo cuáles fueron los platos más vendidos del mes con una tabla y recomendaciones"><span class="bezel"><span class="screen"><img src="/presentacion/shots/09-pulso.webp" alt="Pulso respondiendo cuáles fueron los platos más vendidos del mes con una tabla y recomendaciones" loading="lazy" decoding="async"></span></span><span class="zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button></div>
+  <p class="shot-cap rise">Así se ve · Pulso</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><div><b>Análisis de ventas</b><p>Cuánto, cuándo y qué vendiste frente a otro período: día y hora, productos y margen, equipo y medios de pago. Toca cualquier cifra y filtra todo.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></span><div><b>Pulso, tu asistente con IA</b><p>«¿Cuáles son mis platos más vendidos este mes?» «¿Cuántos meseros necesito los sábados?» Responde con tus datos reales y no inventa cifras.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><div><b>Resumen diario</b><p>Ventas de hoy, ticket promedio, mesas abiertas y la caja que debería haber, apenas entras al panel.</p></div></li>
+  </ul>
+  <p class="foot"><span>Reportes</span><span>17 / 20</span></p>
+</section>
+
+<!-- 18 · Confianza -->
+<section class="slide cream" id="confianza">
+  <p class="eyebrow rise">Para crecer tranquilo</p>
+  <h2 class="rise">Hecho para operar todos los días, en una o en varias sedes.</h2>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></span><div><b>Multi-sucursal</b><p>Varias sedes desde un solo panel, con datos consolidados y módulos activables por comercio.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg></span><div><b>Wallet y dispersiones</b><p>Tus cobros en línea en un saldo visible, que pasas a tu cuenta bancaria cuando quieras.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9M12 3v9l6 3"/></svg></span><div><b>Copias de seguridad diarias</b><p>Una copia automática cada día y las tuyas cuando quieras, con restauración a la fecha de una copia.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 17h.01"/></svg></span><div><b>Centro de ayuda y roles</b><p>Más de cien guías paso a paso en tres idiomas, usuarios con permisos por rol y soporte por WhatsApp.</p></div></li>
+  </ul>
+  <p class="foot"><span>Plataforma</span><span>18 / 20</span></p>
+</section>
+
+<!-- 19 · Retorno y planes -->
+<section class="slide ink" id="planes">
+  <p class="eyebrow rise">El retorno</p>
+  <p class="stat rise">~$3.000.000<small>es lo que cuesta un mesero al mes en Colombia, con prestaciones</small></p>
+  <p class="lead rise">MESAPAY automatiza el pedido, el cobro, la comanda, la factura y el cierre: el equivalente al trabajo de al menos un mesero. Y tus meseros quedan libres para vender más en la mesa.</p>
+  <ul class="list rise">
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span><div><b>Ticket promedio más alto</b><p>Venta sugerida en la carta y meseros con tiempo para recomendar.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span><div><b>Mesas que rotan más rápido</b><p>Sin espera para pedir ni para pagar.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span><div><b>Cero filas, cero errores de comanda</b><p>Y un cierre de caja que cuadra todas las noches.</p></div></li>
+    <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span><div><b>Menos horas de administración</b><p>Factura, inventario, nómina y contabilidad salen de la misma operación.</p></div></li>
+  </ul>
+  <p class="fine rise">Estimaciones basadas en restaurantes piloto; el resultado depende del tamaño y la operación de cada restaurante.</p>
+  <p class="foot"><span>El retorno</span><span>19 / 20</span></p>
+</section>
+
+<!-- 20 · CTA -->
+<section class="slide ink glow-center" id="demo">
+  <div class="brand rise"><span class="m">M</span><b>mesa<span>pay</span></b></div>
+  <h1 class="rise">Agenda una demo con tu carta.</h1>
+  <ol class="steps rise">
+    <li><div><b>Demo de 30 minutos</b><p>Te mostramos MESAPAY funcionando con tu carta, sin compromiso.</p></div></li>
+    <li><div><b>Listo en una semana</b><p>Subimos tu carta, configuramos cocina y bar, generamos los QR y entrenamos al equipo.</p></div></li>
+    <li><div><b>Primer día acompañado</b><p>Estamos contigo en el primer servicio en vivo.</p></div></li>
+  </ol>
+  <div class="cta-row rise">
+    <a class="copy primary" href="mailto:info@mesapay.co?subject=Quiero%20una%20demo%20de%20MESAPAY"><span class="addr">Agenda tu demo</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <button type="button" class="copy" data-copy="info@mesapay.co"><span class="addr">info@mesapay.co</span><svg class="cp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+  </div>
+  <p class="fine rise">Escríbenos a info@mesapay.co. Te respondemos el mismo día hábil.</p>
+  <p class="foot"><span>mesapay.co</span><span>20 / 20</span></p>
+</section>
+
+</main>
+
+<dialog id="lb" aria-label="Captura ampliada">
+  <div class="lb-in">
+    <button type="button" class="lb-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <img alt="">
+    <p class="lb-cap"></p>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  var bar=document.getElementById('progress');
+  function prog(){var h=document.documentElement;var max=h.scrollHeight-h.clientHeight;bar.style.width=(max>0?Math.min(100,Math.round(h.scrollTop/max*100)):0)+'%';}
+  window.addEventListener('scroll',prog,{passive:true});prog();
+
+  var slides=document.querySelectorAll('.slide');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)e.target.classList.add('in');});},{threshold:.25});
+    slides.forEach(function(s){io.observe(s);});
+  }else{slides.forEach(function(s){s.classList.add('in');});}
+
+  var checks=document.querySelectorAll('#checks button');var tally=document.getElementById('tally');
+  checks.forEach(function(b){b.addEventListener('click',function(){
+    b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')==='true'?'false':'true');
+    var n=document.querySelectorAll('#checks button[aria-pressed="true"]').length;
+    if(n===0){tally.innerHTML='Toca los que reconoces. <em>MESAPAY resuelve los ocho.</em>';}
+    else if(n===1){tally.innerHTML='Marcaste uno. <em>Con uno solo ya se paga.</em>';}
+    else{tally.innerHTML='Marcaste '+n+' de 8. <em>Todos se resuelven con el mismo sistema.</em>';}
+  });});
+
+  // Capturas: tocar una abre la pantalla completa en un visor; tocar fuera, la X o Esc lo cierra.
+  var lb=document.getElementById('lb');
+  if(lb){
+    var lbImg=lb.querySelector('img'),lbCap=lb.querySelector('.lb-cap');
+    document.querySelectorAll('.shot').forEach(function(s){s.addEventListener('click',function(){
+      var img=s.querySelector('img');lbImg.src=img.currentSrc||img.src;lbImg.alt=img.alt;lbCap.textContent=s.getAttribute('data-cap')||img.alt;
+      if(typeof lb.showModal==='function'){lb.showModal();}else{lb.setAttribute('open','');}
+    });});
+    function closeLb(){if(lb.open){if(typeof lb.close==='function'){lb.close();}else{lb.removeAttribute('open');}}}
+    lb.addEventListener('click',function(e){if(e.target===lb||e.target.closest('.lb-x')||e.target.classList.contains('lb-in'))closeLb();});
+  }
+
+  document.querySelectorAll('.copy').forEach(function(btn){btn.addEventListener('click',function(){
+    var text=btn.getAttribute('data-copy');if(!text)return;var addr=btn.querySelector('.addr');
+    function done(){btn.classList.add('done');setTimeout(function(){btn.classList.remove('done');},1600);}
+    function fallback(){try{var r=document.createRange();r.selectNodeContents(addr);var s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(e){}}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,fallback);}else{fallback();}
+  });});
+})();
+</script>
+
+</body>
+</html>

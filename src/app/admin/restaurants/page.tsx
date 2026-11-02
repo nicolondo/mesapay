@@ -250,28 +250,53 @@ export default async function RestaurantsAdmin({
               suspended: r.suspended,
             });
             return (
-              <li key={r.id}>
+              <li
+                key={r.id}
+                className="relative rounded-2xl border border-op-border bg-op-surface p-4"
+              >
+                {/* La cabecera (nombre · slug · badges) sigue siendo el enlace
+                    al comercio. Las seis cifras van PLEGADAS por defecto: con
+                    todas abiertas cada tarjeta medía ~250px y en el celular
+                    apenas cabían dos comercios por pantalla. Se despliegan con
+                    el chevrón de la derecha; es un <details> nativo, sin JS,
+                    así que funciona antes de hidratar y no convierte la página
+                    en componente cliente. El summary va posicionado en la
+                    esquina para que el enlace y el toggle no se pisen. */}
                 <Link
                   href={`/admin/restaurants/${r.id}`}
-                  className="block rounded-2xl border border-op-border bg-op-surface p-4 active:scale-[0.99] transition-transform"
+                  className="block min-w-0 pr-12 active:opacity-70 transition-opacity"
                 >
-                  {/* Nombre a todo el ancho y los badges (plan · estado de
-                      membresía · estado de uso) en una fila con wrap debajo.
-                      Antes iban en una columna a la derecha que le robaba
-                      ancho al nombre y se apilaba de forma torpe. */}
-                  <div className="mb-3">
-                    <div className="font-display text-lg leading-tight truncate">
-                      {r.name}
-                    </div>
-                    <div className="font-mono text-[11px] text-op-muted truncate">
-                      /{r.slug}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <MembershipPill status={membership} plan={r.plan} t={t} inline />
-                      <StatePill state={state} t={t} />
-                    </div>
+                  <div className="font-display text-lg leading-tight truncate">
+                    {r.name}
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="font-mono text-[11px] text-op-muted truncate">
+                    /{r.slug}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <MembershipPill status={membership} plan={r.plan} t={t} inline />
+                    <StatePill state={state} t={t} />
+                  </div>
+                </Link>
+                <details className="group">
+                  <summary
+                    aria-label={t("cardToggleFigures")}
+                    title={t("cardToggleFigures")}
+                    className="absolute top-4 right-4 flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-op-border bg-op-bg text-op-muted [&::-webkit-details-marker]:hidden"
+                  >
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 20 20"
+                      className="h-4 w-4 transition-transform group-open:rotate-180"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 7.5l5 5 5-5" />
+                    </svg>
+                  </summary>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <MiniStat label={t("colOperators")} value={ops} />
                     <MiniStat label={t("colMenu")} value={r._count.menuItems} />
                     <MiniStat label={t("colTables")} value={r._count.tables} />
@@ -282,7 +307,7 @@ export default async function RestaurantsAdmin({
                       value={last ? <RelTime now={now} date={last} t={t} /> : "—"}
                     />
                   </div>
-                </Link>
+                </details>
               </li>
             );
           })}

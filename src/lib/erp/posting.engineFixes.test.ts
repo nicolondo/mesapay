@@ -1,21 +1,25 @@
 // Tres arreglos del motor que pesan más desde que los meses abiertos se
 // regeneran solos todos los días:
-//  · una fuente que el mes ya no produce pierde su asiento viejo (antes
-//    quedaba huérfano), sin tocar numerados, anulados ni manuales;
+//  · una fuente que el mes ya no produce pierde sus asientos viejos (antes
+//    quedaban huérfanos), sin tocar numerados, anulados ni manuales;
 //  · la nómina ESTIMADA (salarios de hoy) sólo se asienta en el mes en
 //    curso — un mes pasado no sigue la planta de hoy;
-//  · los gastos se asientan por cuenta Y centro de costos.
+//  · los gastos se asientan por cuenta Y centro de costos (y por día
+//    calendario de su fecha contable).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   expenses: vi.fn(),
   createEntry: vi.fn(),
   deleteMany: vi.fn(),
-  pnl: vi.fn(),
+  labor: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
-    payment: { groupBy: async () => [] },
+    restaurant: {
+      findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }),
+    },
+    stockMovement: { findMany: async () => [] },
     expense: { findMany: m.expenses },
     expensePayment: { findMany: async () => [] },
     purchasePayment: { findMany: async () => [] },
@@ -25,15 +29,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }),
-  loadPurchasesBook: async () => ({
-    totals: {
-      receivedCents: 0, incCents: 0, nonInventoryReceivedCents: 0, nonInventoryIncCents: 0,
-      nonInventoryNonDeductibleTaxCents: 0, ivaCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0,
-    },
-  }),
-  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
-  computeMonthPnl: m.pnl,
+  loadSalesPostingOrders: async () => [],
+  loadPurchasesBook: async () => ({ rows: [], totals: {} }),
+  computeMonthLabor: m.labor,
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
@@ -45,7 +43,7 @@ vi.mock("./deferred", () => ({ deferredAmortizationLinesForMonth: async () => []
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 
 import { generateJournalForMonth, payrollEstimateApplies } from "./posting";
@@ -53,15 +51,17 @@ import { ENGINE_SOURCES } from "./engineCodes";
 
 const OCT = { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z") };
 const IN_NOVEMBER = new Date("2026-11-15T10:30:00Z");
+/** Fecha contable de los gastos del test: 8-oct (mediodía de Colombia, como la guarda el formulario). */
+const OCT_8 = new Date("2026-10-08T17:00:00Z");
 
-const created = () => m.createEntry.mock.calls.map((c) => c[0].data as { source: string; lines: { create: Array<Record<string, unknown>> } });
+const created = () => m.createEntry.mock.calls.map((c) => c[0].data as { source: string; date: Date; lines: { create: Array<Record<string, unknown>> } });
 
 beforeEach(() => {
   vi.resetAllMocks();
   m.expenses.mockResolvedValue([]);
   m.deleteMany.mockResolvedValue({ count: 0 });
   m.createEntry.mockResolvedValue({});
-  m.pnl.mockResolvedValue({ consumptionCents: 0, wasteCents: 0, labor: { totalCents: 4_000_000 } });
+  m.labor.mockResolvedValue({ totalCents: 4_000_000 });
 });
 
 describe("asientos huérfanos", () => {
@@ -83,19 +83,24 @@ describe("asientos huérfanos", () => {
   });
 
   it("las fuentes que sí produjo se reemplazan por la vía de siempre, no entran a los huérfanos", async () => {
-    m.expenses.mockResolvedValue([{ amountCents: 100_000, category: "Arriendo", accountCode: "512010", costCenterId: null }]);
+    m.expenses.mockResolvedValue([{ amountCents: 100_000, category: "Arriendo", accountCode: "512010", costCenterId: null, date: OCT_8 }]);
     await generateJournalForMonth("r1", "2026-10", OCT, { now: IN_NOVEMBER });
     const orphanCall = m.deleteMany.mock.calls.find((c) => "in" in (c[0].where.source ?? {}));
     expect(orphanCall![0].where.source.in).not.toContain("expense");
+    // El reemplazo: borrar (fuente, mes) y crear los del día, en ese orden.
+    expect(m.deleteMany).toHaveBeenCalledWith({ where: { restaurantId: "r1", source: "expense", sourceRef: "2026-10" } });
     expect(created().map((e) => e.source)).toEqual(["expense"]);
   });
 });
 
 describe("nómina estimada sin corrida", () => {
-  it("se asienta en el mes en curso", async () => {
+  it("se asienta en el mes en curso, fechada el último instante del mes (fuente mensual)", async () => {
     const nov = { from: new Date("2026-11-01T00:00:00Z"), to: new Date("2026-12-01T00:00:00Z") };
     await generateJournalForMonth("r1", "2026-11", nov, { now: IN_NOVEMBER });
     expect(created().map((e) => e.source)).toEqual(["payroll"]);
+    expect(created()[0]!.date).toEqual(new Date("2026-11-30T23:59:59.999Z"));
+    // El costo laboral se calcula con el mes CALENDARIO (turnos en un DATE).
+    expect(m.labor).toHaveBeenCalledWith("r1", nov);
   });
 
   it("no se asienta en un mes que ya terminó (no sigue la planta de hoy)", async () => {
@@ -113,15 +118,16 @@ describe("nómina estimada sin corrida", () => {
 
 describe("gastos por centro de costos", () => {
   it("una línea por cuenta y centro, con el centro en la línea", async () => {
-    m.pnl.mockResolvedValue({ consumptionCents: 0, wasteCents: 0, labor: null });
+    m.labor.mockResolvedValue(null);
     m.expenses.mockResolvedValue([
-      { amountCents: 100_000, category: "Gas", accountCode: "512010", costCenterId: "cc-cocina" },
-      { amountCents: 50_000, category: "Gas", accountCode: "512010", costCenterId: "cc-cocina" },
-      { amountCents: 30_000, category: "Gas", accountCode: "512010", costCenterId: "cc-bar" },
-      { amountCents: 20_000, category: "Gas", accountCode: "512010", costCenterId: null },
+      { amountCents: 100_000, category: "Gas", accountCode: "512010", costCenterId: "cc-cocina", date: OCT_8 },
+      { amountCents: 50_000, category: "Gas", accountCode: "512010", costCenterId: "cc-cocina", date: OCT_8 },
+      { amountCents: 30_000, category: "Gas", accountCode: "512010", costCenterId: "cc-bar", date: OCT_8 },
+      { amountCents: 20_000, category: "Gas", accountCode: "512010", costCenterId: null, date: OCT_8 },
     ]);
     await generateJournalForMonth("r1", "2026-10", OCT, { now: IN_NOVEMBER });
     const entry = created().find((e) => e.source === "expense")!;
+    expect(entry.date).toEqual(new Date("2026-10-08T05:00:00.000Z"));
     const debits = entry.lines.create.filter((l) => (l.debitCents as number) > 0);
     expect(debits).toEqual([
       expect.objectContaining({ accountCode: "512010", debitCents: 150_000, costCenterId: "cc-cocina" }),
@@ -130,5 +136,17 @@ describe("gastos por centro de costos", () => {
     ]);
     expect(debits[2]).not.toHaveProperty("costCenterId");
     expect(entry.lines.create).toContainEqual(expect.objectContaining({ accountCode: "233505", creditCents: 200_000 }));
+  });
+
+  it("la fecha contable del gasto es un DÍA calendario: no se le resta el corte de negocio", async () => {
+    m.labor.mockResolvedValue(null);
+    m.expenses.mockResolvedValue([
+      // Guardado a medianoche UTC (como un DATE): sigue siendo el 1-oct.
+      { amountCents: 10_000, category: "Gas", accountCode: "512010", costCenterId: null, date: new Date("2026-10-01T00:00:00Z") },
+      // Y el del 8 a mediodía, el 8.
+      { amountCents: 20_000, category: "Gas", accountCode: "512010", costCenterId: null, date: OCT_8 },
+    ]);
+    await generateJournalForMonth("r1", "2026-10", OCT, { now: IN_NOVEMBER });
+    expect(created().map((e) => e.date.toISOString())).toEqual(["2026-10-01T05:00:00.000Z", "2026-10-08T05:00:00.000Z"]);
   });
 });

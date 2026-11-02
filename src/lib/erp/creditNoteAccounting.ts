@@ -6,11 +6,12 @@
 //    fija UNA vez cuánto de ella cancela cartera de crédito de cliente
 //    (`CreditNote.receivableCents`) y baja esa deuda en los cargos a
 //    crédito de la cuenta (`Payment.creditNoteCents`). Fijarlo una vez es
-//    lo que hace que el asiento mensual regenerable salga siempre igual
-//    aunque después entren abonos.
+//    lo que hace que el asiento regenerable salga siempre igual aunque
+//    después entren abonos.
 //  · `loadCreditNoteMonthPosting` / `loadRefundMonthPosting`: lo que el
-//    motor (`posting.ts`) asienta en «Notas crédito del mes» y cuánto de
-//    «Devoluciones del mes» cancela el pasivo de una nota.
+//    motor (`posting.ts`) asienta en «Notas crédito» (por día fiscal de cada
+//    nota) y cuánto de cada reembolso («Devoluciones», por día) cancela el
+//    pasivo de una nota.
 //  · `loadUnlinkedRefundsCents`: reembolsos del período que NO están
 //    cubiertos por una nota (los reportes de impuestos sólo restan esos;
 //    los ligados a una nota ya los resta la nota).
@@ -248,14 +249,19 @@ async function loadOrderMatches(
 }
 
 export type CreditNoteMonthPosting = {
-  /** Lo que aporta cada nota al asiento (sólo las que cuadran). */
-  notes: CreditNotePosting[];
-  /** Notas que el asiento del mes considera: se marcan con `postedMonth`. */
+  /**
+   * Lo que aporta cada nota al asiento (sólo las que cuadran), con su fecha
+   * FISCAL ("YYYY-MM-DD", día colombiano de emisión): el motor asienta las
+   * notas por ese día; una nota contabilizada en un mes distinto al de su
+   * fecha fiscal (mes cerrado → primer mes abierto) va al último día del mes.
+   */
+  notes: Array<CreditNotePosting & { fiscalDate: string }>;
+  /** Notas que los asientos del mes consideran: se marcan con `postedMonth`. */
   noteIds: string[];
 };
 
 /**
- * Notas del asiento «Notas crédito del mes» de `month`: las ya asentadas en
+ * Notas de los asientos «Notas crédito» de `month`: las ya asentadas en
  * ese mes y las pendientes cuyo mes contable (fiscal, o el primer mes
  * abierto si el fiscal está cerrado) es `month`.
  */
@@ -276,24 +282,29 @@ export async function loadCreditNoteMonthPosting(
       orderBy: { createdAt: "asc" },
     }),
   ]);
-  const selected: { row: NoteRow; slices: Extract<CreditNoteSlicesResult, { ok: true }>["slices"] }[] = [];
+  const selected: {
+    row: NoteRow;
+    fiscalDate: string;
+    slices: Extract<CreditNoteSlicesResult, { ok: true }>["slices"];
+  }[] = [];
   for (const row of candidates) {
-    const fiscalMonth = monthOfIsoDate(creditNoteFiscalDate(creditNoteInstant(row)));
+    const fiscalDate = creditNoteFiscalDate(creditNoteInstant(row));
+    const fiscalMonth = monthOfIsoDate(fiscalDate);
     if (!belongsToMonth({ postedMonth: row.postedMonth, fiscalMonth }, month, cfg.closedThrough)) continue;
     const slices = storedNoteSlices(row);
     if (!slices.ok) {
       logInvalidCreditNote(row.id, row.documentNumber, slices.reason);
       continue;
     }
-    selected.push({ row, slices: slices.slices });
+    selected.push({ row, fiscalDate, slices: slices.slices });
   }
   const matches = await loadOrderMatches(
     db,
     restaurantId,
     [...new Set(selected.map((s) => s.row.originalInvoice.orderId))],
   );
-  const notes = selected.map(({ row, slices }) =>
-    creditNotePosting({
+  const notes = selected.map(({ row, fiscalDate, slices }) => ({
+    ...creditNotePosting({
       id: row.id,
       slices,
       totalCents: row.totalCents,
@@ -301,7 +312,8 @@ export async function loadCreditNoteMonthPosting(
       coveredByPriorRefundsCents:
         matches.get(row.originalInvoice.orderId)?.notes.get(row.id)?.coveredByPriorRefundsCents ?? 0,
     }),
-  );
+    fiscalDate,
+  }));
   return { notes, noteIds: notes.map((n) => n.id) };
 }
 
@@ -309,31 +321,56 @@ export async function loadCreditNoteMonthPosting(
 async function loadRefundsInRange(restaurantId: string, from: Date, to: Date) {
   return db.kushkiTransaction.findMany({
     where: { restaurantId, kind: "refund", createdAt: { gte: from, lt: to } },
-    select: { id: true, amountCents: true, payment: { select: { orderId: true } } },
+    select: { id: true, amountCents: true, createdAt: true, payment: { select: { orderId: true } } },
+    orderBy: { createdAt: "asc" },
   });
 }
 
+export type RefundPosting = {
+  id: string;
+  /** Instante del reembolso: define su día de negocio. */
+  createdAt: Date;
+  amountCents: number;
+  /**
+   * Parte que cancela el pasivo «reintegros por pagar» de una nota ANTERIOR
+   * del mismo pedido (no vuelve a debitar devoluciones). Siempre ≤ `amountCents`.
+   */
+  liabilityCents: number;
+};
+
+export type RefundMonthPosting = {
+  /** Cada reembolso del rango con su cruce (el motor los agrupa por día). */
+  refunds: RefundPosting[];
+  /** Σ `amountCents`. */
+  totalCents: number;
+  /** Σ `liabilityCents`. */
+  liabilityCents: number;
+};
+
 /**
- * Reembolsos del mes para el asiento «Devoluciones del mes»: el total y la
+ * Reembolsos del rango para los asientos «Devoluciones»: cada uno con la
  * parte que cancela el pasivo «reintegros por pagar» de una nota ANTERIOR
- * del mismo pedido (esa parte no vuelve a debitar devoluciones).
+ * del mismo pedido. El cruce nota ↔ reembolso es por pedido y con toda su
+ * historia (no depende del rango), así que repartirlo por día es exacto:
+ * Σ días == mes.
  */
 export async function loadRefundMonthPosting(
   restaurantId: string,
   range: MonthRange,
-): Promise<{ totalCents: number; liabilityCents: number }> {
-  const refunds = await loadRefundsInRange(restaurantId, range.from, range.to);
-  const totalCents = refunds.reduce((s, r) => s + r.amountCents, 0);
-  const orderIds = [...new Set(refunds.map((r) => r.payment?.orderId).filter((x): x is string => !!x))];
-  if (orderIds.length === 0) return { totalCents, liabilityCents: 0 };
-  const matches = await loadOrderMatches(db, restaurantId, orderIds);
-  let liabilityCents = 0;
-  for (const r of refunds) {
+): Promise<RefundMonthPosting> {
+  const rows = await loadRefundsInRange(restaurantId, range.from, range.to);
+  const orderIds = [...new Set(rows.map((r) => r.payment?.orderId).filter((x): x is string => !!x))];
+  const matches = orderIds.length > 0 ? await loadOrderMatches(db, restaurantId, orderIds) : new Map();
+  const refunds: RefundPosting[] = rows.map((r) => {
     const orderId = r.payment?.orderId;
-    if (!orderId) continue;
-    liabilityCents += matches.get(orderId)?.refunds.get(r.id)?.liabilityDebitCents ?? 0;
-  }
-  return { totalCents, liabilityCents };
+    const liabilityCents = orderId ? matches.get(orderId)?.refunds.get(r.id)?.liabilityDebitCents ?? 0 : 0;
+    return { id: r.id, createdAt: r.createdAt, amountCents: r.amountCents, liabilityCents };
+  });
+  return {
+    refunds,
+    totalCents: refunds.reduce((s, r) => s + r.amountCents, 0),
+    liabilityCents: refunds.reduce((s, r) => s + r.liabilityCents, 0),
+  };
 }
 
 /**

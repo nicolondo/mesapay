@@ -1,12 +1,15 @@
-// Asiento 6b "Depreciación del mes": un resumen `depreciation` por mes con la
-// cuota de cada activo contra SUS cuentas (gasto 5xxx / acumulada 15xx),
+// Asiento 6b "Depreciación del mes": un resumen `depreciation` por mes
+// (fuente MENSUAL: sigue siendo uno, fechado el último instante del mes) con
+// la cuota de cada activo contra SUS cuentas (gasto 5xxx / acumulada 15xx),
 // agregadas por cuenta — ya no el par fijo 516005/159205.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ assets: vi.fn(), createEntry: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
-    kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-    payment: { groupBy: async () => [] },
+    restaurant: {
+      findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }),
+    },
+    stockMovement: { findMany: async () => [] },
     expense: { findMany: async () => [] },
     expensePayment: { findMany: async () => [] },
     purchasePayment: { findMany: async () => [] }, customerCreditPayment: { findMany: async () => [] },
@@ -17,15 +20,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }),
-  loadPurchasesBook: async () => ({
-    totals: {
-      receivedCents: 0, incCents: 0, nonInventoryReceivedCents: 0, nonInventoryIncCents: 0,
-      nonInventoryNonDeductibleTaxCents: 0, ivaCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0,
-    },
-  }),
-  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
-  computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
+  loadSalesPostingOrders: async () => [],
+  loadPurchasesBook: async () => ({ rows: [], totals: {} }),
+  computeMonthLabor: async () => null,
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
@@ -40,7 +37,7 @@ vi.mock("./ledger", () => ({
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 import { generateJournalForMonth } from "./posting";
 
@@ -71,6 +68,8 @@ describe("asiento de depreciación por cuentas de cada activo", () => {
     expect(entry.source).toBe("depreciation");
     expect(entry.sourceRef).toBe("2026-09");
     expect(entry.memo).toBe("Depreciación del mes");
+    // Fuente mensual: fechada el último instante UTC del mes, como siempre.
+    expect(entry.date).toEqual(new Date("2026-09-30T23:59:59.999Z"));
     const lines = entry.lines.create as CreatedLine[];
     expect(lines).toHaveLength(4);
     expect(lines).toEqual(

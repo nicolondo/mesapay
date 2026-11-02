@@ -7,7 +7,6 @@ import {
   buildPnl,
   splitPurchaseInventoryCost,
   type CategoryLine,
-  embeddedTaxCents,
   type LaborSummary,
   netCategorySales,
   netSalesCents,
@@ -15,12 +14,22 @@ import {
   type Pnl,
   refundAdjustment,
   type SalesDetail,
-  type SalesTaxKind,
-  type SalesTaxSlice,
   type TaxSummary,
 } from "@/lib/erp/accounting";
-import { frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
-import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
+import type { InvoiceSnapshot } from "@/lib/invoice";
+import {
+  PURCHASE_LINE_AMOUNTS_SELECT,
+  purchaseOrderTotals,
+  receivedPurchaseLineAmounts,
+  sumPurchaseBookRows,
+} from "@/lib/erp/purchaseTax";
+import {
+  currentSalesTaxOf,
+  salesTaxByRate,
+  salesTaxLabel,
+  salesTaxSlicesFor,
+  type SalesTaxOrder,
+} from "@/lib/erp/salesTaxSlices";
 import { derivedHourlyCents, shiftSurcharge } from "@/lib/erp/staff";
 import { grossQty } from "@/lib/erp/recipes";
 import { holidaysForYear, isSunday } from "@/lib/erp/holidays";
@@ -239,10 +248,91 @@ export async function computeMonthPnl(
     movements.map((m) => [m.kind, m._sum.valueCents ?? 0]),
   );
 
-  // Costo laboral del mes (modelo de salario mensual): base fija = Σ
-  // salarios de los empleados activos; encima, recargos festivo/dominical
-  // de los turnos. Solo con el módulo staff activo; apagado, el P&L no
-  // cambia.
+  const labor = await computeMonthLabor(restaurantId, range, tenant);
+
+  // CMV por categoría solo si hay consumo real (módulos inventory+recipes).
+  const cmvEnabled =
+    isModuleEnabled(tenant?.enabledModules, "inventory") &&
+    isModuleEnabled(tenant?.enabledModules, "recipes");
+  const categories = await computeCategoryBreakdown(
+    restaurantId,
+    range,
+    cmvEnabled,
+  );
+
+  // Ingresos por ventas: sin impuesto ni propina, netos de descuentos y de
+  // notas crédito y devoluciones (ver `netSalesCents`). Antes era Σ
+  // subtotal: con el impuesto adentro, antes de descuentos y sin restar
+  // notas, así que el margen salía inflado frente al estado de resultado.
+  const salesDetail: SalesDetail = {
+    listCents: sales._sum.subtotalCents ?? 0,
+    discountCents: sales._sum.discountCents ?? 0,
+    includedTaxCents: salesTax.taxCents,
+    creditNotesCents: salesTax.creditNotes.baseCents,
+    refundsCents: salesTax.refunds.baseCents,
+  };
+  const categoryBreakdown = netCategoryBreakdown(categories, salesDetail);
+
+  return {
+    ...buildPnl({
+      salesCents: netSalesCents(salesDetail),
+      salesDetail,
+      tipsCents: sales._sum.tipCents ?? 0,
+      taxesCents: sales._sum.taxCents ?? 0,
+      consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
+      wasteCents: Math.abs(byKind.get("waste") ?? 0),
+      expensesByCategory: [
+        ...expenses.map((e) => ({ category: e.category, amountCents: e._sum.amountCents ?? 0 })),
+        ...(purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents > 0
+          ? [{ category: "", source: "non_inventory_purchases" as const,
+              amountCents: purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents }]
+          : []),
+      ],
+      purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0)
+        + purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents,
+      labor,
+    }),
+    categoryBreakdown,
+  };
+}
+
+/** Lo que el costo laboral necesita del comercio. */
+type LaborTenant = {
+  enabledModules: unknown;
+  country: string | null;
+  staffStrictAttendance: boolean | null;
+  staffHolidayPct: number | null;
+  staffSundayPct: number | null;
+  staffHoursDivisor: number | null;
+} | null;
+
+/**
+ * Costo laboral del mes (modelo de salario mensual): base fija = Σ salarios
+ * de los empleados activos; encima, recargos festivo/dominical de los
+ * turnos. Solo con el módulo staff activo; apagado, devuelve null y el P&L
+ * no cambia. Es MENSUAL por naturaleza (el salario es del mes y los turnos
+ * viven en un DATE), así que el motor lo usa para la nómina estimada con el
+ * mes calendario, no con el mes de negocio.
+ */
+export async function computeMonthLabor(
+  restaurantId: string,
+  range: MonthRange,
+  tenantRow?: LaborTenant,
+): Promise<LaborSummary | null> {
+  const tenant =
+    tenantRow !== undefined
+      ? tenantRow
+      : await db.restaurant.findUnique({
+          where: { id: restaurantId },
+          select: {
+            enabledModules: true,
+            country: true,
+            staffStrictAttendance: true,
+            staffHolidayPct: true,
+            staffSundayPct: true,
+            staffHoursDivisor: true,
+          },
+        });
   let labor: LaborSummary | null = null;
   if (isModuleEnabled(tenant?.enabledModules, "staff")) {
     const divisor = tenant?.staffHoursDivisor ?? 240;
@@ -313,51 +403,7 @@ export async function computeMonthPnl(
     }
     labor.totalCents = labor.baseSalaryCents + labor.surchargeCents;
   }
-
-  // CMV por categoría solo si hay consumo real (módulos inventory+recipes).
-  const cmvEnabled =
-    isModuleEnabled(tenant?.enabledModules, "inventory") &&
-    isModuleEnabled(tenant?.enabledModules, "recipes");
-  const categories = await computeCategoryBreakdown(
-    restaurantId,
-    range,
-    cmvEnabled,
-  );
-
-  // Ingresos por ventas: sin impuesto ni propina, netos de descuentos y de
-  // notas crédito y devoluciones (ver `netSalesCents`). Antes era Σ
-  // subtotal: con el impuesto adentro, antes de descuentos y sin restar
-  // notas, así que el margen salía inflado frente al estado de resultado.
-  const salesDetail: SalesDetail = {
-    listCents: sales._sum.subtotalCents ?? 0,
-    discountCents: sales._sum.discountCents ?? 0,
-    includedTaxCents: salesTax.taxCents,
-    creditNotesCents: salesTax.creditNotes.baseCents,
-    refundsCents: salesTax.refunds.baseCents,
-  };
-  const categoryBreakdown = netCategoryBreakdown(categories, salesDetail);
-
-  return {
-    ...buildPnl({
-      salesCents: netSalesCents(salesDetail),
-      salesDetail,
-      tipsCents: sales._sum.tipCents ?? 0,
-      taxesCents: sales._sum.taxCents ?? 0,
-      consumptionCents: Math.abs(byKind.get("sale_consumption") ?? 0),
-      wasteCents: Math.abs(byKind.get("waste") ?? 0),
-      expensesByCategory: [
-        ...expenses.map((e) => ({ category: e.category, amountCents: e._sum.amountCents ?? 0 })),
-        ...(purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents > 0
-          ? [{ category: "", source: "non_inventory_purchases" as const,
-              amountCents: purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents }]
-          : []),
-      ],
-      purchasesReceivedCents: Math.abs(byKind.get("purchase_in") ?? 0)
-        + purchases.totals.nonInventoryReceivedCents + purchases.totals.nonInventoryIncCents + purchases.totals.nonInventoryNonDeductibleTaxCents,
-      labor,
-    }),
-    categoryBreakdown,
-  };
+  return labor;
 }
 
 /**
@@ -379,18 +425,20 @@ export async function computeMonthPnl(
  * mismo período aunque la tirilla se haya numerado después.
  *
  * Bruto y neto: `byRate`, `grossCents`, `taxCents` y `baseCents` son el
- * BRUTO de lo facturado (lo que asienta «Ventas del mes»). Aparte vienen
- * lo que restan las notas crédito aceptadas con fecha fiscal en el mes y
- * los reembolsos sin nota, y `net`, que es bruto − notas − devoluciones:
- * la misma regla de «Impuestos del período» (`reports/taxesDocuments`).
+ * BRUTO de lo facturado (lo que asientan los «Ventas del día» del mes).
+ * Aparte vienen lo que restan las notas crédito aceptadas con fecha fiscal
+ * en el mes y los reembolsos sin nota, y `net`, que es bruto − notas −
+ * devoluciones: la misma regla de «Impuestos del período»
+ * (`reports/taxesDocuments`).
  *
- * Criterios documentados:
+ * El tramo de cada pedido lo decide `salesTaxSlices.ts` (compartido con el
+ * motor, que agrupa los mismos pedidos por día). Criterios documentados:
  *   · Snapshot sin tarifa (anterior a congelarla) ⇒ tramo "none", cero
  *     impuesto: es la verdad de cómo se emitió y así lo declaró el XML.
  *   · Ventas pagadas SIN factura (comercio sin facturación electrónica,
  *     o cuentas que nunca la generaron) siguen como hasta hoy: tarifa
- *     actual del comercio × su subtotal. No hay documento que las
- *     congele, y es lo que el contador venía recibiendo.
+ *     actual del comercio × su subtotal, redondeado por pedido. No hay
+ *     documento que las congele, y es lo que el contador venía recibiendo.
  */
 export async function computeTaxSummary(
   restaurantId: string,
@@ -435,75 +483,30 @@ async function computeSalesTaxSummary(
     status: "paid" as const,
     paidAt: { gte: range.from, lt: range.to },
   };
-  const [tenant, sales, uninvoiced, invoices, creditNotes, refundsCents] = await Promise.all([
+  const [tenant, orders, creditNotes, refundsCents] = await Promise.all([
     db.restaurant.findUnique({
       where: { id: restaurantId },
       select: { salesTaxKind: true, salesTaxPct: true },
     }),
-    db.order.aggregate({
+    // Pedidos pagados del mes con el snapshot de su factura (si la tiene).
+    // El snapshot es JSON, así que se agrupa en memoria: una fila por venta.
+    db.order.findMany({
       where: { restaurantId, ...paidInMonth },
-      _sum: { subtotalCents: true },
-    }),
-    // Ventas del mes que no tienen factura: siguen con la tarifa actual.
-    db.order.aggregate({
-      where: { restaurantId, ...paidInMonth, simpleInvoice: null },
-      _sum: { subtotalCents: true },
-    }),
-    // Facturas del mes: lo que cada una congeló. El snapshot es JSON, así
-    // que se agrupa en memoria (una fila por venta facturada del mes).
-    db.simpleInvoice.findMany({
-      where: { restaurantId, order: paidInMonth },
-      select: { snapshot: true },
+      select: { subtotalCents: true, simpleInvoice: { select: { snapshot: true } } },
     }),
     loadMonthCreditNotes(restaurantId, range),
     loadUnlinkedRefundsCents(restaurantId, range.from, range.to),
   ]);
 
-  const current = {
-    kind: (tenant?.salesTaxKind ?? "none") as SalesTaxKind,
-    pct: tenant?.salesTaxPct ?? 0,
-  };
-  if (current.kind === "none") current.pct = 0;
-
-  // Tramos por tarifa: (tipo, %) → acumulado.
-  const slices = new Map<string, SalesTaxSlice>();
-  const add = (kind: SalesTaxKind, pct: number, grossCents: number, taxCents: number) => {
-    const key = `${kind}:${pct}`;
-    const s = slices.get(key) ?? { kind, pct, grossCents: 0, taxCents: 0, baseCents: 0 };
-    s.grossCents += grossCents;
-    s.taxCents += taxCents;
-    s.baseCents = s.grossCents - s.taxCents;
-    slices.set(key, s);
-  };
-  for (const inv of invoices) {
-    const snap = inv.snapshot as unknown as InvoiceSnapshot;
-    const frozen = frozenSalesTax(snap);
-    const taxCents = frozen.kind === "none" ? 0 : (snap.embeddedTaxCents ?? 0);
-    // Bruto del tramo: los platos del menú (base + impuesto) cuando el
-    // snapshot lo congeló; para los viejos, el subtotal entero, que es lo
-    // que el cálculo anterior tomaba como bruto.
-    const grossCents =
-      snap.embeddedBaseCents != null
-        ? snap.embeddedBaseCents + taxCents
-        : snap.subtotalCents;
-    add(frozen.kind, frozen.pct, grossCents, taxCents);
-  }
-  const uninvoicedGross = uninvoiced._sum.subtotalCents ?? 0;
-  if (uninvoicedGross > 0) {
-    add(
-      current.kind,
-      current.pct,
-      uninvoicedGross,
-      current.kind === "none" ? 0 : embeddedTaxCents(uninvoicedGross, current.pct),
-    );
-  }
-
-  const byRate = [...slices.values()]
-    .filter((s) => s.kind !== "none" && s.taxCents > 0)
-    .sort((a, b) => b.taxCents - a.taxCents);
-  const grossCents = sales._sum.subtotalCents ?? 0;
+  const current = currentSalesTaxOf(tenant);
+  const taxOrders: SalesTaxOrder[] = orders.map((o) => ({
+    subtotalCents: o.subtotalCents,
+    invoiceSnapshot: (o.simpleInvoice?.snapshot as unknown as InvoiceSnapshot | undefined) ?? null,
+  }));
+  const byRate = salesTaxByRate(salesTaxSlicesFor(taxOrders, current));
+  const grossCents = orders.reduce((s, o) => s + o.subtotalCents, 0);
   const salesTaxCents = byRate.reduce((s, r) => s + r.taxCents, 0);
-  const label = byRate[0] ?? current;
+  const label = salesTaxLabel(byRate, current);
 
   // Lo que restan: las notas por la tarifa de sus líneas; las devoluciones
   // sin nota, estimadas con el tramo del mes (como su asiento).
@@ -746,20 +749,74 @@ export async function loadPurchasesBook(
     reteIvaCents: o.reteIvaCents,
     reteIcaCents: o.reteIcaCents,
   }));
+  // Misma suma que el asiento «Compras del día» hace sobre las filas de cada
+  // día (`sumPurchaseBookRows`): Σ días == mes al centavo.
   const totals = {
-    count: rows.length,
-    receivedCents: rows.reduce((s, r) => s + r.receivedCents, 0),
-    nonInventoryReceivedCents: rows.reduce((s, r) => s + r.nonInventoryReceivedCents, 0),
-    nonInventoryNonDeductibleTaxCents: rows.reduce((s, r) => s + r.nonInventoryNonDeductibleTaxCents, 0),
-    nonInventoryIncCents: rows.reduce((s, r) => s + r.nonInventoryIncCents, 0),
+    ...sumPurchaseBookRows(rows),
     unpaidCents: rows.reduce((s, r) => s + r.outstandingCents, 0),
-    ivaCents: rows.reduce((s, r) => s + r.ivaCents, 0),
-    incCents: rows.reduce((s, r) => s + r.incCents, 0),
-    retefuenteCents: rows.reduce((s, r) => s + r.retefuenteCents, 0),
-    reteIvaCents: rows.reduce((s, r) => s + r.reteIvaCents, 0),
-    reteIcaCents: rows.reduce((s, r) => s + r.reteIcaCents, 0),
   };
   return { rows, totals };
+}
+
+/** Lo que el asiento «Ventas del día» necesita de cada pedido pagado. */
+export type SalesPostingOrder = {
+  /** Instante del pago: define el día de negocio de TODO el pedido. */
+  paidAt: Date;
+  status: string;
+  subtotalCents: number;
+  tipCents: number;
+  /** Snapshot de su factura (lo que congeló), o null si no tiene. */
+  invoiceSnapshot: InvoiceSnapshot | null;
+  /** Cobros BRUTOS (approved + refunded) por método. */
+  payments: Array<{ method: string; amountCents: number }>;
+};
+
+/**
+ * Pedidos pagados en el rango con lo que el motor asienta de cada uno:
+ * cobros brutos por método, propina y el snapshot de su factura para el
+ * impuesto por tramo. Se corta por `Order.paidAt` (sin filtrar estado, como
+ * el libro de ventas), y los cobros de un pedido se atribuyen al día de
+ * negocio de ESE instante aunque se hayan registrado en otro momento: así
+ * cobros, propinas e impuesto del mismo pedido quedan en el mismo asiento.
+ *
+ * Cobros BRUTOS por método (approved + refunded): el asiento de ventas
+ * debita lo cobrado originalmente; las devoluciones tienen su propio
+ * asiento que acredita la pasarela. Si filtráramos sólo approved, un pago
+ * totalmente devuelto (status→refunded) desaparecería del débito pero la
+ * devolución igual acreditaría → doble descuento.
+ */
+export async function loadSalesPostingOrders(
+  restaurantId: string,
+  range: MonthRange,
+): Promise<SalesPostingOrder[]> {
+  const orders = await db.order.findMany({
+    where: { restaurantId, paidAt: { gte: range.from, lt: range.to } },
+    orderBy: { paidAt: "asc" },
+    select: {
+      paidAt: true,
+      status: true,
+      subtotalCents: true,
+      tipCents: true,
+      simpleInvoice: { select: { snapshot: true } },
+      payments: {
+        where: { status: { in: ["approved", "refunded"] } },
+        select: { method: true, amountCents: true },
+      },
+    },
+  });
+  const out: SalesPostingOrder[] = [];
+  for (const o of orders) {
+    if (!o.paidAt) continue;
+    out.push({
+      paidAt: o.paidAt,
+      status: o.status,
+      subtotalCents: o.subtotalCents,
+      tipCents: o.tipCents,
+      invoiceSnapshot: (o.simpleInvoice?.snapshot as unknown as InvoiceSnapshot | undefined) ?? null,
+      payments: o.payments,
+    });
+  }
+  return out;
 }
 
 /**

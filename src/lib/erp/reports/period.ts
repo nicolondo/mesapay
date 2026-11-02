@@ -7,13 +7,16 @@
  * mismas reglas aplican tal cual.
  *
  * ── Zona horaria ────────────────────────────────────────────────────────
- * Los asientos automáticos del motor (`posting.ts`) se fechan al ÚLTIMO
- * instante UTC del mes (`monthRange` usa `Date.UTC`), y el cierre mensual
- * corta con `date < inicio del mes siguiente` también en UTC. Para que un
- * asiento de agosto nunca caiga en septiembre por un desfase horario, los
- * límites de todos los reportes se calculan en UTC: `desde` a las 00:00Z y
- * `hasta` EXCLUSIVO a las 00:00Z del día siguiente. `todayIso` sí mira la
- * hora local del comercio (Bogotá): es lo que el usuario entiende por hoy.
+ * Los asientos automáticos del motor (`posting.ts`) se fechan dentro del
+ * día calendario UTC al que pertenecen: los diarios a la medianoche de
+ * Bogotá de su día de negocio (`YYYY-MM-DDT05:00:00Z`, ver
+ * `businessDays.ts`) y los mensuales al ÚLTIMO instante UTC del mes
+ * (`monthRange` usa `Date.UTC`); el cierre mensual corta con `date <
+ * inicio del mes siguiente` también en UTC. Para que un asiento del 31 de
+ * agosto nunca caiga en septiembre por un desfase horario, los límites de
+ * todos los reportes se calculan en UTC: `desde` a las 00:00Z y `hasta`
+ * EXCLUSIVO a las 00:00Z del día siguiente. `todayIso` sí mira la hora
+ * local del comercio (Bogotá): es lo que el usuario entiende por hoy.
  */
 
 export type ReportPeriod = { desde: string; hasta: string };

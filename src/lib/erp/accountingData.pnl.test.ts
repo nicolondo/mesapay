@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   orderAggregate: vi.fn(),
+  orders: vi.fn(),
   items: vi.fn(),
-  invoices: vi.fn(),
   creditNotes: vi.fn(),
   refunds: vi.fn(),
 }));
@@ -25,9 +25,8 @@ vi.mock("@/lib/db", () => ({
         staffHoursDivisor: 240,
       }),
     },
-    order: { aggregate: m.orderAggregate },
+    order: { aggregate: m.orderAggregate, findMany: m.orders },
     orderItem: { findMany: m.items },
-    simpleInvoice: { findMany: m.invoices },
     stockMovement: { groupBy: async () => [] },
     expense: { groupBy: async () => [] },
     purchaseOrder: { findMany: async () => [] },
@@ -47,13 +46,15 @@ beforeEach(() => {
   vi.resetAllMocks();
   // Dos cuentas del mes: $108.000 de carta con INC 8 % congelado, una con
   // descuento de $10.800, y $5.000 de propina.
-  m.orderAggregate.mockImplementation(async (args: { where: object; _sum: Record<string, boolean> }) =>
-    args._sum.discountCents
-      ? { _sum: { subtotalCents: 108_000, discountCents: 10_800, tipCents: 5_000, taxCents: 0 } }
-      : { _sum: { subtotalCents: "simpleInvoice" in args.where ? 0 : 108_000 } },
-  );
-  m.invoices.mockResolvedValue([
-    { snapshot: { subtotalCents: 108_000, salesTaxKind: "inc", salesTaxPct: 8, embeddedTaxCents: 8_000, embeddedBaseCents: 100_000 } },
+  m.orderAggregate.mockResolvedValue({ _sum: { subtotalCents: 108_000, discountCents: 10_800, tipCents: 5_000, taxCents: 0 } });
+  // La misma cuenta, facturada: lo que congeló su factura manda en el impuesto.
+  m.orders.mockResolvedValue([
+    {
+      subtotalCents: 108_000,
+      simpleInvoice: {
+        snapshot: { subtotalCents: 108_000, salesTaxKind: "inc", salesTaxPct: 8, embeddedTaxCents: 8_000, embeddedBaseCents: 100_000 },
+      },
+    },
   ]);
   m.items.mockResolvedValue([
     { qty: 1, priceCentsSnapshot: 75_600, menuItemId: "m1", taxKind: null, cancelledAt: null, cancellationKind: null, menuItem: { category: { label: "Platos" } } },

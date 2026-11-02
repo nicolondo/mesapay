@@ -9,8 +9,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({
   db: {
-    kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-    payment: { groupBy: async () => [] },
+    restaurant: {
+      findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }),
+    },
+    stockMovement: { findMany: async () => [] },
     expense: { findMany: async () => [] },
     expensePayment: { findMany: async () => [] },
     purchasePayment: { findMany: mocks.purchasePayments },
@@ -23,12 +25,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }),
+  loadSalesPostingOrders: async () => [],
   loadPurchasesBook: mocks.purchases,
-  computeTaxSummary: async () => ({
-    sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] },
-  }),
-  computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
+  computeMonthLabor: async () => null,
 }));
 vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
@@ -38,7 +37,7 @@ vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 import { generateJournalForMonth } from "./posting";
 
@@ -49,6 +48,8 @@ type CreatedLine = {
   creditCents: number;
 };
 const range = { from: new Date("2026-09-01"), to: new Date("2026-10-01") };
+/** Todos los abonos del test caen el 15-sep. */
+const paidAt = new Date("2026-09-15T16:00:00Z");
 
 /** Índice código → {id, postable, active} como lo devuelve loadAccountIndex. */
 const indexOf = (entries: Array<[string, boolean]>) =>
@@ -63,28 +64,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.index.mockResolvedValue(indexOf(BASE_INDEX));
   // Sin compras del mes: sólo interesa el asiento de pagos.
-  mocks.purchases.mockResolvedValue({
-    totals: {
-      receivedCents: 0,
-      incCents: 0,
-      nonInventoryReceivedCents: 0,
-      nonInventoryIncCents: 0,
-      nonInventoryNonDeductibleTaxCents: 0,
-      ivaCents: 0,
-      retefuenteCents: 0,
-      reteIvaCents: 0,
-      reteIcaCents: 0,
-    },
-  });
+  mocks.purchases.mockResolvedValue({ rows: [], totals: {} });
 });
 
 describe("asiento de pagos a proveedores", () => {
   it("debita proveedores y acredita cada cuenta de origen, resolviendo los abonos viejos", async () => {
     mocks.purchasePayments.mockResolvedValue([
-      { amountCents: 30000, accountCode: "110505", method: null },
-      { amountCents: 20000, accountCode: "111005", method: null },
+      { amountCents: 30000, accountCode: "110505", method: null, paidAt },
+      { amountCents: 20000, accountCode: "111005", method: null, paidAt },
       // Abono anterior al campo: cae en bancos por el texto del método.
-      { amountCents: 5000, accountCode: null, method: "transferencia" },
+      { amountCents: 5000, accountCode: null, method: "transferencia", paidAt },
     ]);
     const results = await generateJournalForMonth("r", "2026-09", range);
 
@@ -92,6 +81,7 @@ describe("asiento de pagos a proveedores", () => {
     const entry = mocks.createEntry.mock.calls[0][0].data;
     expect(entry.source).toBe("purchase_payment");
     expect(entry.sourceRef).toBe("2026-09");
+    expect(entry.date).toEqual(new Date("2026-09-15T05:00:00.000Z"));
     const lines = entry.lines.create as CreatedLine[];
     expect(lines).toHaveLength(3);
     expect(lines).toEqual(
@@ -120,7 +110,7 @@ describe("asiento de pagos a proveedores", () => {
       indexOf([...BASE_INDEX.filter(([c]) => c !== "111005"), ["111005", false], ["11100501", true]]),
     );
     mocks.purchasePayments.mockResolvedValue([
-      { amountCents: 20000, accountCode: "111005", method: null },
+      { amountCents: 20000, accountCode: "111005", method: null, paidAt },
     ]);
     await generateJournalForMonth("r", "2026-09", range);
     const lines = mocks.createEntry.mock.calls[0][0].data.lines.create as CreatedLine[];
@@ -138,7 +128,7 @@ describe("asiento de pagos a proveedores", () => {
       indexOf([...BASE_INDEX.filter(([c]) => c !== "111005"), ["111005", false]]),
     );
     mocks.purchasePayments.mockResolvedValue([
-      { amountCents: 20000, accountCode: "111005", method: null },
+      { amountCents: 20000, accountCode: "111005", method: null, paidAt },
     ]);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const results = await generateJournalForMonth("r", "2026-09", range);
@@ -146,15 +136,15 @@ describe("asiento de pagos a proveedores", () => {
     expect(results).toEqual([]);
     expect(err).toHaveBeenCalledWith(
       "[posting] cuenta no imputable",
-      expect.objectContaining({ source: "purchase_payment", code: "111005" }),
+      expect.objectContaining({ source: "purchase_payment", code: "111005", day: "2026-09-15" }),
     );
     err.mockRestore();
   });
 
   it("ignora abonos con monto 0 o negativo", async () => {
     mocks.purchasePayments.mockResolvedValue([
-      { amountCents: 0, accountCode: "110505", method: null },
-      { amountCents: -100, accountCode: "110505", method: null },
+      { amountCents: 0, accountCode: "110505", method: null, paidAt },
+      { amountCents: -100, accountCode: "110505", method: null, paidAt },
     ]);
     await generateJournalForMonth("r", "2026-09", range);
     expect(mocks.createEntry).not.toHaveBeenCalled();

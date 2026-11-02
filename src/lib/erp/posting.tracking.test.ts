@@ -1,33 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ purchases: vi.fn(), createEntry: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: {
-  kushkiTransaction: { aggregate: async () => ({ _sum: { amountCents: 0 } }) },
-  payment: { groupBy: async () => [] }, expense: { findMany: async () => [] }, expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] }, customerCreditPayment: { findMany: async () => [] },
+  restaurant: { findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }) },
+  stockMovement: { findMany: async () => [] },
+  expense: { findMany: async () => [] }, expensePayment: { findMany: async () => [] }, purchasePayment: { findMany: async () => [] }, customerCreditPayment: { findMany: async () => [] },
   deferredItem: { findMany: async () => [] },
   $transaction: async (fn: (tx: unknown) => unknown) => fn({ journalEntry: { deleteMany: async () => ({}), create: mocks.createEntry } }),
 } }));
 vi.mock("./accountingData", () => ({
-  loadSalesBook: async () => ({ totals: { tipCents: 0 } }), loadPurchasesBook: mocks.purchases,
-  computeTaxSummary: async () => ({ sales: { kind: "none", pct: 0, taxCents: 0, byRate: [] } }),
-  computeMonthPnl: async () => ({ consumptionCents: 0, wasteCents: 0, labor: null }),
+  loadSalesPostingOrders: async () => [], loadPurchasesBook: mocks.purchases,
+  computeMonthLabor: async () => null,
 }));
 vi.mock("./ledger", () => ({ ensureChartOfAccounts: vi.fn(), loadAccountIndex: async () => new Map(["143505", "519505", "24081001", "220505", "236505", "236705", "236805"].map((code) => [code, { id: code, postable: true, active: true }])) }));
 vi.mock("./activos", () => ({ depreciationLinesForMonth: async () => [] }));
 vi.mock("./payrollData", () => ({ payrollTotalsForPosting: async () => null }));
 vi.mock("./creditNoteAccounting", () => ({
   loadCreditNoteMonthPosting: async () => ({ notes: [], noteIds: [] }),
-  loadRefundMonthPosting: async () => ({ totalCents: 0, liabilityCents: 0 }),
+  loadRefundMonthPosting: async () => ({ refunds: [], totalCents: 0, liabilityCents: 0 }),
 }));
 import { generateJournalForMonth } from "./posting";
 
 beforeEach(() => vi.clearAllMocks());
 describe("non-stock purchase journal", () => {
   it.each([0, 1900])("balances mixed inventory and expense while preserving VAT deductibility=%i", async (nonInventoryNonDeductibleTaxCents) => {
-    mocks.purchases.mockResolvedValue({ totals: { receivedCents: 30000, incCents: 3000, nonInventoryReceivedCents: 10000, nonInventoryIncCents: 1000,
-      nonInventoryNonDeductibleTaxCents, ivaCents: 5700, retefuenteCents: 500, reteIvaCents: 0, reteIcaCents: 0 } });
+    // Una factura recibida el 10-sep: el asiento del día lleva la misma suma que el libro.
+    mocks.purchases.mockResolvedValue({ rows: [{ receivedAt: new Date("2026-09-10T15:00:00Z"), receivedCents: 30000, incCents: 3000, nonInventoryReceivedCents: 10000, nonInventoryIncCents: 1000,
+      nonInventoryNonDeductibleTaxCents, ivaCents: 5700, retefuenteCents: 500, reteIvaCents: 0, reteIcaCents: 0 }], totals: {} });
     await generateJournalForMonth("r", "2026-09", { from: new Date("2026-09-01"), to: new Date("2026-10-01") });
     const entry = mocks.createEntry.mock.calls[0][0].data;
     expect(entry.source).toBe("purchase");
+    expect(entry.date).toEqual(new Date("2026-09-10T05:00:00.000Z"));
     const lines = entry.lines.create as { accountCode: string; debitCents: number; creditCents: number }[];
     expect(lines).toEqual(expect.arrayContaining([
       expect.objectContaining({ accountCode: "143505", debitCents: 22000 }),

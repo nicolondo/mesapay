@@ -56,7 +56,7 @@ export default async function MeseroLayout({
   const showHelp = hasHelpFor((await getLocale()) as Locale, "mesero");
 
   return (
-    <div className="flex flex-col min-h-screen bg-paper">
+    <div className="mesero-shell flex flex-col min-h-screen bg-paper">
       {/* `min-h-screen` (100vh) en vez de `100dvh` — iOS Safari/PWA
           tiene un bug donde dvh no se computa bien en el primer
           paint y se "arregla" cuando el usuario intenta scroll,

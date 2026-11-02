@@ -43,9 +43,6 @@
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-.mp-workspace-main .mp-btn {
-  border-radius: 10px;
-}
 .mp-page {
   width: 100%;
   max-width: 1320px;
@@ -1415,7 +1412,7 @@ a.mp-viz-heat-cell:focus-visible {
   gap: 6px;
   min-height: 32px;
   padding: 4px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-btn);
   border: 1px solid var(--op-border-2);
   background: var(--op-bg);
   color: var(--op-text);

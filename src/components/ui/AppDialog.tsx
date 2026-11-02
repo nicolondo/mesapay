@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
+import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 import { useVisualViewport } from "@/lib/useVisualViewport";
 import { centerInVisualViewport } from "@/lib/visualViewport";
 
@@ -50,6 +51,12 @@ export function AppDialog({
   // Alto real del diálogo ya renderizado, para centrarlo. Cero hasta la
   // primera medición: ese frame se pinta invisible para no verlo saltar.
   const [dialogHeight, setDialogHeight] = useState(0);
+  // `showModal()` deja el fondo inerte, pero en iOS Safari (y en la PWA) el
+  // dedo sobre el diálogo o su backdrop sigue desplazando la página de
+  // atrás: con el cajón de navegación abierto, el scroll se iba a la
+  // pantalla de fondo. El componente sólo está montado mientras el diálogo
+  // está abierto, así que el bloqueo va atado al montaje.
+  useLockBodyScroll(true);
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);

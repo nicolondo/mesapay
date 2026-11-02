@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
 import { useActiveNav } from "./useActiveNav";
@@ -59,15 +60,10 @@ export function OperatorMobileMenu({
     setOpen(false);
   }
 
-  // Lock body scroll while open.
-  useEffect(() => {
-    if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
+  // Bloquea el scroll de la página mientras el cajón está abierto. Antes era
+  // `overflow: hidden` en el body, que iOS ignora al tocar: el dedo sobre el
+  // menú movía la página de atrás (reporte del dueño en la PWA).
+  useLockBodyScroll(open);
 
   return (
     <>
@@ -144,7 +140,12 @@ export function OperatorMobileMenu({
               </button>
             </div>
 
-            <nav className="flex flex-col p-3 gap-1 overflow-y-auto">
+            {/* flex-1 + min-h-0: la lista es la que scrollea DENTRO del cajón
+                (con Negocio desplegado supera la pantalla; sin esto el cajón
+                crecía, el pie tapaba «Cierre» y nada se podía desplazar).
+                overscroll-contain: al llegar al tope el gesto no se encadena
+                a la página de atrás. */}
+            <nav className="flex flex-col p-3 gap-1 flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {items.map((it) =>
                 "children" in it ? (
                   <div key={it.label} className="my-1">

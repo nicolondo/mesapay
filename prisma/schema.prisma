@@ -65,6 +65,13 @@ model Restaurant {
   // casual-fast no.
   walkoutDangerMinutes Int @default(20)
 
+  // Minutos que una mesa cuya cuenta pagó EL COMENSAL desde su celular
+  // (tarjeta, Apple/Google Pay o PSE, sin que nadie del equipo cobrara) sale
+  // de primera y en verde fuerte en la vista Mesas, para ver que ya pagó
+  // cuando la gente se levanta. Default 3; 0 = no resaltar (queda como
+  // cualquier otra recién pagada). Ver src/lib/tables/phonePaid.ts.
+  phonePaidHighlightMinutes Int @default(3)
+
   serviceMode         ServiceMode @default(table)
   pickupEnabled       Boolean     @default(false)
   pickupHours         Json?

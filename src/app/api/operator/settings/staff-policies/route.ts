@@ -13,6 +13,10 @@ import {
 } from "@/lib/staffPolicies";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { shiftPolicyAllowedWith } from "@/lib/chargeControl";
+import {
+  PHONE_PAID_HIGHLIGHT_MAX_MINUTES,
+  PHONE_PAID_HIGHLIGHT_MIN_MINUTES,
+} from "@/lib/tables/phonePaid";
 
 const putBody = z.object({
   tipPolicy: z.enum(TIP_POLICIES).optional(),
@@ -20,6 +24,14 @@ const putBody = z.object({
   // Umbral en minutos para walkout-risk en Mesas. Acepta 1-180 —
   // <1 sería absurdo, >180 (3h) sería ignorar el feature. Default 20.
   walkoutDangerMinutes: z.number().int().min(1).max(180).optional(),
+  // Minutos que una mesa que acaba de pagar desde el celular sale de primera
+  // y en verde fuerte en Mesas. 0 = no resaltar. Ver src/lib/tables/phonePaid.ts.
+  phonePaidHighlightMinutes: z
+    .number()
+    .int()
+    .min(PHONE_PAID_HIGHLIGHT_MIN_MINUTES)
+    .max(PHONE_PAID_HIGHLIGHT_MAX_MINUTES)
+    .optional(),
   // Hora de corte del día contable (0-23). Un comercio que cierra a las
   // 2-3am pone 5 para que la madrugada cuente para la jornada anterior.
   businessDayCutoffHour: z.number().int().min(0).max(23).optional(),
@@ -78,6 +90,7 @@ async function PUTHandler(req: Request) {
       tipPolicy: true,
       shiftPolicy: true,
       walkoutDangerMinutes: true,
+      phonePaidHighlightMinutes: true,
       businessDayCutoffHour: true,
       meseroShiftWithoutLocal: true,
       compEnabled: true,
@@ -148,6 +161,9 @@ async function PUTHandler(req: Request) {
           }),
       ...(parsed.data.walkoutDangerMinutes !== undefined && {
         walkoutDangerMinutes: parsed.data.walkoutDangerMinutes,
+      }),
+      ...(parsed.data.phonePaidHighlightMinutes !== undefined && {
+        phonePaidHighlightMinutes: parsed.data.phonePaidHighlightMinutes,
       }),
       ...(parsed.data.businessDayCutoffHour !== undefined && {
         businessDayCutoffHour: parsed.data.businessDayCutoffHour,

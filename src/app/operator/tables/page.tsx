@@ -20,6 +20,12 @@ import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { isReplaceablePending } from "@/lib/payments/methods";
 import { terminalClaims } from "@/lib/payments/pendingRequests";
 import { canMoveBetweenTables } from "@/lib/tableMoveControl";
+import {
+  RECENTLY_PAID_MINUTES,
+  isRecentlyPaidVisible,
+  resolvePhonePaidHighlightMinutes,
+  wasPaidFromPhone,
+} from "@/lib/tables/phonePaid";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
 import {
   canCompOrders,
@@ -102,8 +108,17 @@ export default async function TablesPage({
   const scope = await getMeseroScope();
   const tableNumberFilter = meseroTableWhere(scope) ?? {};
 
-  const RECENTLY_PAID_MS = 15 * 60 * 1000;
-  const recentlyPaidSince = new Date((await requestTime()) - RECENTLY_PAID_MS);
+  // Mesa que acaba de pagar desde el celular: minutos de resalte del
+  // comercio (default 3, 0 = apagado). La ventana de consulta de "recién
+  // pagadas" es la mayor entre los 15 min clásicos y ese resalte, para que
+  // un resalte largo no se quede sin datos.
+  const phonePaidHighlightMinutes = resolvePhonePaidHighlightMinutes(
+    tenant?.phonePaidHighlightMinutes,
+  );
+  const nowMs = await requestTime();
+  const recentWindowMs =
+    Math.max(RECENTLY_PAID_MINUTES, phonePaidHighlightMinutes) * 60_000;
+  const recentlyPaidSince = new Date(nowMs - recentWindowMs);
 
   const allTables = await db.table.findMany({
     where: { restaurantId, ...tableNumberFilter },
@@ -192,7 +207,9 @@ export default async function TablesPage({
     occupied: t.orders.length > 0,
   }));
 
-  // Recently-paid lookup.
+  // Recently-paid lookup. Trae los pagos aprobados de cada cuenta para saber
+  // si la cerró el comensal desde su celular (wasPaidFromPhone): esa mesa
+  // sale de primera y en verde fuerte durante `phonePaidHighlightMinutes`.
   const tableIds = allTables.map((t) => t.id);
   const recentPaid = tableIds.length
     ? await db.order.findMany({
@@ -201,14 +218,33 @@ export default async function TablesPage({
           status: "paid",
           paidAt: { gte: recentlyPaidSince },
         },
-        select: { tableId: true, paidAt: true },
+        select: {
+          tableId: true,
+          paidAt: true,
+          payments: {
+            where: { status: "approved" },
+            select: {
+              method: true,
+              status: true,
+              collectedByUserId: true,
+              settledAt: true,
+              createdAt: true,
+            },
+          },
+        },
         orderBy: { paidAt: "desc" },
       })
     : [];
-  const recentPaidByTable = new Map<string, Date>();
+  const recentPaidByTable = new Map<
+    string,
+    { paidAt: Date; paidFromPhone: boolean }
+  >();
   for (const o of recentPaid) {
     if (o.tableId && !recentPaidByTable.has(o.tableId) && o.paidAt) {
-      recentPaidByTable.set(o.tableId, o.paidAt);
+      recentPaidByTable.set(o.tableId, {
+        paidAt: o.paidAt,
+        paidFromPhone: wasPaidFromPhone(o.payments),
+      });
     }
   }
 
@@ -312,15 +348,25 @@ export default async function TablesPage({
   const tiles: TileData[] = tables.map((t) => {
     const order = t.orders[0];
     if (!order) {
-      const recentlyPaidAt = recentPaidByTable.get(t.id);
-      if (recentlyPaidAt) {
+      const recent = recentPaidByTable.get(t.id);
+      // La ventana de consulta es la mayor de las dos; acá se decide si ESTA
+      // mesa todavía se dibuja como recién pagada (15 min para todas, o el
+      // resalte del comercio si la pagó el comensal desde su celular).
+      if (
+        recent &&
+        isRecentlyPaidVisible(recent.paidAt, nowMs, {
+          paidFromPhone: recent.paidFromPhone,
+          phonePaidHighlightMinutes,
+        })
+      ) {
         return {
           id: t.id,
           number: t.number,
           label: t.label,
           qrToken: t.qrToken,
           state: "recently_paid",
-          paidAt: recentlyPaidAt.toISOString(),
+          paidAt: recent.paidAt.toISOString(),
+          paidFromPhone: recent.paidFromPhone,
         };
       }
       return {
@@ -494,7 +540,8 @@ export default async function TablesPage({
       )}
 
       <MesasGrid
-        initialTime={await requestTime()}
+        initialTime={nowMs}
+        phonePaidHighlightMinutes={phonePaidHighlightMinutes}
         tiles={tiles}
         manualTiles={manualTiles}
         canOpenManual={!isMeseroView}

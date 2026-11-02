@@ -4,6 +4,10 @@ import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+// Bloqueo del scroll del fondo (position: fixed en el body): la carta
+// scrollea en la ventana, así que al abrir la lista de categorías se bloquea
+// el body. Compartido con los menús móviles del operador y del admin.
+import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -156,40 +160,6 @@ function formatLineSelections(
     out.push(`${m.label}: ${cleaned.join(", ")}`);
   }
   return out;
-}
-
-/**
- * Bloquea el scroll del fondo mientras un overlay (sheet) está abierto.
- * position:fixed es la única forma confiable en iOS — overflow:hidden en
- * el body no frena el scroll táctil. Preserva la posición y la restaura al
- * cerrar. La carta scrollea en la ventana, así que bloqueamos el body.
- */
-function useLockBodyScroll(locked: boolean) {
-  useEffect(() => {
-    if (!locked || typeof document === "undefined") return;
-    const scrollY = window.scrollY;
-    const body = document.body;
-    const prev = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-    };
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    return () => {
-      body.style.position = prev.position;
-      body.style.top = prev.top;
-      body.style.left = prev.left;
-      body.style.right = prev.right;
-      body.style.width = prev.width;
-      window.scrollTo(0, scrollY);
-    };
-  }, [locked]);
 }
 
 export function MenuClient({

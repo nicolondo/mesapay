@@ -197,6 +197,13 @@
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
+  /* El cajón mide 100dvh con overflow hidden: el riel es el que scrollea.
+     Con «Negocio» desplegado la lista supera la pantalla; sin esto el pie
+     tapaba «Cierre» y el gesto, al no tener nada que mover acá, se iba a la
+     página de atrás. overscroll-behavior: al llegar al tope no se encadena. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .mp-drawer-close {
   position: absolute;

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 
 /**
  * Mobile-only hamburger drawer for the admin layout. The desktop nav
@@ -36,16 +37,10 @@ export function AdminMobileMenu({
     setOpen(false);
   }
 
-  // Lock body scroll while the drawer is open so the page underneath
-  // doesn't slide around with the menu.
-  useEffect(() => {
-    if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
+  // Bloquea el scroll de la página mientras el cajón está abierto
+  // (position: fixed en el body; `overflow: hidden` no frena el táctil en
+  // iOS y el dedo sobre el menú movía la página de atrás).
+  useLockBodyScroll(open);
 
   return (
     <>
@@ -115,7 +110,7 @@ export function AdminMobileMenu({
             {/* min-h-0 + overflow-y-auto: con 10 enlaces de 44 px la lista
                 no cabe en un iPhone SE / en horizontal; sin esto el pie
                 (correo + cerrar sesión) quedaba fuera de pantalla. */}
-            <nav className="flex flex-col p-3 gap-1 flex-1 min-h-0 overflow-y-auto">
+            <nav className="flex flex-col p-3 gap-1 flex-1 min-h-0 overflow-y-auto overscroll-contain">
               <DrawerLink href="/admin/restaurants" pathname={pathname}>
                 {t("navRestaurants")}
               </DrawerLink>

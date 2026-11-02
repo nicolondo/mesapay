@@ -8,6 +8,7 @@ import { BoardDot, BOARD_BY_HREF, useAnyBoardAlert } from "./BoardDot";
 import type { BoardActivity } from "./boardActivity";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { Icon, routeIcon } from "@/components/ui/Icon";
+import { ScrollerNavigationReset } from "@/components/ScrollerNavigationReset";
 import { NavigationSearch } from "./NavigationSearch";
 import type { NavEntry } from "./OperatorMobileMenu";
 import { useActiveNav } from "./useActiveNav";
@@ -154,7 +155,10 @@ export function OperatorCockpit({
             arriba del contenido en todas las pantallas del operador. */}
         <CockpitTopbar navItems={navItems} />
 
-        {/* Único scroller del contenido */}
+        {/* Único scroller del contenido. Como vive en el layout, sobrevive a
+            la navegación y conservaría el scroll de la pantalla anterior:
+            ScrollerNavigationReset lo devuelve al inicio al cambiar de ruta. */}
+        <ScrollerNavigationReset scrollerId="operator-content" />
         <main
           id="operator-content"
           tabIndex={-1}

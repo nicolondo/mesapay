@@ -13,7 +13,15 @@ import {
   type RiskLevel,
   type TableVisualState,
 } from "@/lib/walkoutRisk";
-import { sortTablesForSalon } from "@/lib/tables/sortTables";
+import {
+  isPhonePaidHighlighted,
+  sortTablesForSalon,
+  type SalonSortOptions,
+} from "@/lib/tables/sortTables";
+import {
+  isRecentlyPaidVisible,
+  minutesSincePaid,
+} from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
 import type { InvoiceRequestSummary } from "@/components/invoice/types";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
@@ -59,6 +67,10 @@ export type TileData =
       qrToken: string;
       state: "recently_paid";
       paidAt: string; // ISO
+      // La cuenta la cerró el comensal desde su celular (tarjeta, Apple/Google
+      // Pay, PSE) sin que nadie del equipo cobrara: durante los minutos del
+      // comercio la mesa va de primera y en verde fuerte. Ver phonePaid.ts.
+      paidFromPhone: boolean;
     }
   | {
       id: string;
@@ -165,6 +177,7 @@ export function MesasGrid({
   allTables,
   country,
   salesTax,
+  phonePaidHighlightMinutes,
 }: {
   initialTime: number;
   tiles: TileData[];
@@ -196,10 +209,23 @@ export function MesasGrid({
   // Impuesto de ventas del comercio: el que un cargo puede llevar "incluido"
   // en el precio (como un plato de la carta) y el que la ficha muestra.
   salesTax: RestaurantTax | null;
+  // Minutos que una mesa que acaba de pagar desde el celular va de primera y
+  // en verde fuerte (Restaurant.phonePaidHighlightMinutes; 0 = apagado).
+  phonePaidHighlightMinutes: number;
 }) {
   const tr = useTranslations("opTables");
   const router = useRouter();
   const [filter, setFilter] = useState<FilterChip>("all");
+  // Reloj del cliente (tick de 10 s): el refresh de la grilla es por SSE y
+  // nada avisa cuando VENCE un resalte, así que "ahora" se reevalúa acá para
+  // que la mesa pagada desde el celular baje sola y la recién pagada caiga a
+  // libre a los 15 min sin esperar al servidor. Arranca con la hora del
+  // servidor para que hidratación y primer render coincidan.
+  const now = useClock(initialTime);
+  const sortOpts = useMemo<SalonSortOptions>(
+    () => ({ now, phonePaidHighlightMinutes }),
+    [now, phonePaidHighlightMinutes],
+  );
   // ID del tile cuyo sheet está abierto. Solo uno a la vez.
   const [openTileId, setOpenTileId] = useState<string | null>(
     initialOpenTileId,
@@ -242,21 +268,49 @@ export function MesasGrid({
     label: string | null;
   } | null>(null);
 
+  // Lo que el servidor mandó, releído con el reloj del cliente: una recién
+  // pagada cuyo tiempo venció desde el último refresh pasa a libre acá mismo
+  // (misma regla que usa el servidor para armar el tile, isRecentlyPaidVisible).
+  const liveTiles = useMemo<TileData[]>(
+    () =>
+      tiles.map((t) =>
+        t.state === "recently_paid" &&
+        !isRecentlyPaidVisible(t.paidAt, now, {
+          paidFromPhone: t.paidFromPhone,
+          phonePaidHighlightMinutes,
+        })
+          ? {
+              id: t.id,
+              number: t.number,
+              label: t.label,
+              qrToken: t.qrToken,
+              state: "free",
+            }
+          : t,
+      ),
+    [tiles, now, phonePaidHighlightMinutes],
+  );
+
   const counts = useMemo(() => {
-    const c = { all: tiles.length, by_pay: 0, recent: 0, free: 0 };
-    for (const t of tiles) {
+    const c = { all: liveTiles.length, by_pay: 0, recent: 0, free: 0 };
+    for (const t of liveTiles) {
       if (t.state === "active") c.by_pay += 1;
       else if (t.state === "recently_paid") c.recent += 1;
       else c.free += 1;
     }
     return c;
-  }, [tiles]);
+  }, [liveTiles]);
 
-  // Activas primero (las que piden acción arriba), después las vacías;
-  // dentro de cada grupo por número. Se ordena ANTES de filtrar, así el
-  // orden vale igual en cualquier chip. `tiles` llega nuevo con cada
-  // refresh de LiveRefresh y React reordena solo por la `key` del tile.
-  const ordered = useMemo(() => sortTablesForSalon(tiles), [tiles]);
+  // La mesa que ACABA DE PAGAR DESDE EL CELULAR va de primera (la más
+  // reciente arriba) mientras dure su resalte; después las activas (las que
+  // piden acción arriba) y al final las vacías; dentro de cada grupo por
+  // número. Se ordena ANTES de filtrar, así el orden vale igual en cualquier
+  // chip. `tiles` llega nuevo con cada refresh de LiveRefresh y `now` cambia
+  // cada 10 s: React reordena solo por la `key` del tile.
+  const ordered = useMemo(
+    () => sortTablesForSalon(liveTiles, sortOpts),
+    [liveTiles, sortOpts],
+  );
 
   const filtered = useMemo(() => {
     if (filter === "all") return ordered;
@@ -417,9 +471,10 @@ export function MesasGrid({
           if (tile.state === "recently_paid") {
             return (
               <RecentlyPaidTile
-                initialTime={initialTime}
                 key={tile.id}
+                now={now}
                 tile={tile}
+                highlight={isPhonePaidHighlighted(tile, sortOpts)}
                 counterMode={counterMode}
                 isMeseroView={isMeseroView}
                 tenantSlug={tenantSlug}
@@ -737,28 +792,34 @@ function FreeTile({
 
 /**
  * Tile recién pagada — muestra dot verde + tiempo desde el pago.
+ *
+ * Con `highlight` (la cuenta la pagó el comensal desde su celular hace menos
+ * de los minutos del comercio) se pinta de verde FUERTE con el rótulo "Pagó
+ * desde el celular · hace N min": es la mesa que va de primera para ver que
+ * ya pagó cuando la gente se está levantando. Al vencer, el padre deja de
+ * pasar `highlight` y vuelve al verde claro de siempre.
+ *
  * Tap arranca un pedido nuevo (la mesa ya está físicamente libre y
  * un grupo nuevo puede llegar enseguida — mismo target que FreeTile).
  */
 function RecentlyPaidTile({
-  initialTime,
+  now,
   tile,
+  highlight,
   counterMode,
   isMeseroView,
   tenantSlug,
 }: {
-  initialTime: number;
+  // Reloj del padre (useClock): un solo tick para toda la grilla.
+  now: number;
   tile: Extract<TileData, { state: "recently_paid" }>;
+  highlight: boolean;
   counterMode: boolean;
   isMeseroView: boolean;
   tenantSlug: string;
 }) {
   const tr = useTranslations("opTables");
-  const now = useClock(initialTime);
-  const minsAgo = Math.max(
-    0,
-    Math.floor((now - new Date(tile.paidAt).getTime()) / 60000),
-  );
+  const minsAgo = minutesSincePaid(tile.paidAt, now);
   // Mismo href + target que FreeTile — la mesa está libre para
   // recibir un grupo nuevo, sólo que recordamos el pago previo como
   // info al operador.
@@ -768,12 +829,19 @@ function RecentlyPaidTile({
   const targetProps = isMeseroView
     ? {}
     : { target: "_blank" as const, rel: "noreferrer" };
+  const base =
+    "aspect-[4/3] rounded-xl border p-2 flex flex-col items-center justify-center text-center relative transition-colors ";
   return (
     <Link
       href={href}
       prefetch={false}
       {...targetProps}
-      className="aspect-[4/3] rounded-xl border border-ok/35 bg-ok/10 hover:bg-ok/15 p-2 flex flex-col items-center justify-center text-center relative transition-colors"
+      className={
+        base +
+        (highlight
+          ? "border-ok bg-ok text-bone hover:bg-ok/90 shadow-md"
+          : "border-ok/35 bg-ok/10 hover:bg-ok/15")
+      }
     >
       <div className="font-display text-base leading-none">
         {counterMode
@@ -781,17 +849,37 @@ function RecentlyPaidTile({
           : tr("tileTableShort", { number: tile.number })}
       </div>
       {tile.label && (
-        <div className="font-mono text-[9px] text-op-muted mt-0.5 truncate w-full">
+        <div
+          className={
+            "font-mono text-[9px] mt-0.5 truncate w-full " +
+            (highlight ? "text-bone/80" : "text-op-muted")
+          }
+        >
           {tile.label}
         </div>
       )}
-      <div className="text-[10px] text-[#1E5339] font-medium mt-1">
-        <span aria-hidden>{"✓ "}</span>
-        {minsAgo === 0 ? tr("tileNow") : tr("tileMinutesAgo", { mins: minsAgo })}
-      </div>
+      {highlight ? (
+        <>
+          <div className="text-[10px] font-semibold mt-1 leading-tight">
+            <span aria-hidden>{"✓ "}</span>
+            {tr("tilePaidFromPhone")}
+          </div>
+          <div className="text-[10px] text-bone/85 leading-tight">
+            {minsAgo === 0 ? tr("tileNow") : tr("elapsedAgo", { mins: minsAgo })}
+          </div>
+        </>
+      ) : (
+        <div className="text-[10px] text-[#1E5339] font-medium mt-1">
+          <span aria-hidden>{"✓ "}</span>
+          {minsAgo === 0 ? tr("tileNow") : tr("tileMinutesAgo", { mins: minsAgo })}
+        </div>
+      )}
       <span
         aria-hidden
-        className="absolute bottom-2.5 right-2.5 inline-block w-2 h-2 rounded-full bg-ok"
+        className={
+          "absolute bottom-2.5 right-2.5 inline-block w-2 h-2 rounded-full " +
+          (highlight ? "bg-bone" : "bg-ok")
+        }
       />
     </Link>
   );

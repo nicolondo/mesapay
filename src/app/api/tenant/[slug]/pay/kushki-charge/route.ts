@@ -17,6 +17,7 @@ import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
+import { staffForRestaurant, COLLECTOR_ROLES } from "@/lib/staffAccess";
 
 /**
  * Token-based charge through Kushki. Maneja DOS variantes:
@@ -95,7 +96,14 @@ async function POSTHandler(
   const provider = await getPaymentProvider(await getRestaurantKushkiMode(tenant));
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) return NextResponse.json({ error: "credentials_missing" }, { status: 503 });
-  const intent = await reservePayment({ orderId: order.id, method: parsed.data.method, status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents }, parsed.data.token);
+  // Quién inicia el cobro (mismo criterio que pse-init y terminal-request):
+  // si lo lanza alguien del equipo desde su PWA (PayFlow op=1) queda
+  // registrado para reportes y para que Mesas NO lo tome por un pago que el
+  // comensal hizo solo desde su celular (src/lib/tables/phonePaid.ts). El
+  // comensal pagando desde su QR llega sin sesión → null.
+  const staffSession = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+  const collectedByUserId = staffSession?.user.id ?? null;
+  const intent = await reservePayment({ orderId: order.id, method: parsed.data.method, status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId }, parsed.data.token);
   const pendingPayment = intent.payment;
   if (!intent.created) return NextResponse.json({ paymentId: pendingPayment.id, approved: pendingPayment.status === "approved", pending: pendingPayment.status === "pending" });
 

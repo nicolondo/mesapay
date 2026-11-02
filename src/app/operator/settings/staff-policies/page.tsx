@@ -8,6 +8,7 @@ import {
   resolveMeseroShiftWithoutLocal,
   resolveCompAllowedRoles,
 } from "@/lib/staffPolicies";
+import { resolvePhonePaidHighlightMinutes } from "@/lib/tables/phonePaid";
 import { StaffPoliciesClient } from "./StaffPoliciesClient";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function StaffPoliciesPage() {
       tipPolicy: true,
       shiftPolicy: true,
       walkoutDangerMinutes: true,
+      phonePaidHighlightMinutes: true,
       businessDayCutoffHour: true,
       meseroShiftWithoutLocal: true,
       compEnabled: true,
@@ -51,6 +53,9 @@ export default async function StaffPoliciesPage() {
         initialTipPolicy={resolveTipPolicy(tenant.tipPolicy)}
         initialShiftPolicy={resolveShiftPolicy(tenant.shiftPolicy)}
         initialWalkoutDangerMinutes={tenant.walkoutDangerMinutes ?? 20}
+        initialPhonePaidHighlightMinutes={resolvePhonePaidHighlightMinutes(
+          tenant.phonePaidHighlightMinutes,
+        )}
         initialBusinessDayCutoffHour={tenant.businessDayCutoffHour ?? 5}
         initialMeseroShiftWithoutLocal={resolveMeseroShiftWithoutLocal(
           tenant.meseroShiftWithoutLocal,

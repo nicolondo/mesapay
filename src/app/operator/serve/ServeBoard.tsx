@@ -336,8 +336,10 @@ export function ServeBoard({
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full">
-      <div className="flex items-baseline justify-between mb-4">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full">
+      {/* En el celular el resumen va debajo del título: en la misma línea
+          quedaba pegado («Salón1 llamada · …»). En sm+ comparten fila. */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-4">
         <div className="font-display text-3xl">{tr("title")}</div>
         <div className="font-mono text-xs text-op-muted">
           {waiterCalls.length > 0 && (

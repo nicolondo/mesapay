@@ -9,6 +9,7 @@ import type { Locale } from "@/i18n/config";
 import type { AccountOption, AssetDetail, AssetDto } from "@/lib/erp/activosQuery";
 import { centsToMajor, fractionDigitsFor, majorToCents } from "./comprobantes/shared";
 import { ENTRY_PATH, monthLabel } from "./diferidos/shared";
+import { CardFact, pillCls } from "./CardFact";
 
 type ListResponse = { assets: AssetDto[]; accounts: { asset: AccountOption[]; expense: AccountOption[] } };
 
@@ -431,8 +432,9 @@ export function ActivosTab({ currency }: { currency: string }) {
     </div>
   );
 
+  // Pastilla chica (antes era un .mp-chip de 44px, pensado para botones).
   const statusBadge = (a: AssetDto) => (
-    <span className={"mp-chip text-[10px] " + (a.active ? "" : "opacity-60")}>
+    <span className={pillCls + " shrink-0 " + (a.active ? "bg-ok/10 text-[#1E5339]" : "bg-paper text-op-muted")}>
       {a.active ? t("assetStatusActive") : t("assetStatusDisposed")}
     </span>
   );
@@ -493,7 +495,8 @@ export function ActivosTab({ currency }: { currency: string }) {
         </div>
       ) : (
         <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+          <div className="report-table">
             <table className="w-full text-sm">
               <thead>
                 <tr>
@@ -530,6 +533,34 @@ export function ActivosTab({ currency }: { currency: string }) {
               </tbody>
             </table>
           </div>
+          {/* Celular: una tarjeta por activo con los mismos datos de la tabla. */}
+          <div className="report-cards divide-y divide-op-border/50">
+            {data.assets.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => openDetail(a.id)}
+                className={"w-full text-left px-4 py-3 hover:bg-op-bg" + (a.active ? "" : " opacity-60")}
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{a.name}</span>
+                    {a.code && <span className="block font-mono text-xs text-op-muted">{a.code}</span>}
+                  </span>
+                  {statusBadge(a)}
+                </span>
+                <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <CardFact label={t("assetColPurchase")} value={money(a.purchaseCents)} />
+                  <CardFact label={t("assetColDepreciated")} value={money(a.depreciatedCents)} />
+                  <CardFact label={t("assetColBook")} value={money(a.bookValueCents)} strong />
+                  <CardFact
+                    label={t("assetColLife")}
+                    value={t("assetLifeProgress", { posted: a.postedMonths, total: a.usefulLifeMonths })}
+                  />
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -543,7 +574,10 @@ export function ActivosTab({ currency }: { currency: string }) {
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
-            className="w-full md:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-op-surface border border-op-border p-4 space-y-4"
+            className="w-full md:max-w-2xl max-h-[92dvh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-op-surface border border-op-border p-4 space-y-4"
+            // Hoja pegada al borde inferior: reserva la franja del indicador
+            // de inicio en la PWA de iOS (env() = 0 en escritorio).
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
           >
             {detail === null ? (
               <div className="text-sm text-op-muted">{err ? errText(err) : t("loadingEllipsis")}</div>

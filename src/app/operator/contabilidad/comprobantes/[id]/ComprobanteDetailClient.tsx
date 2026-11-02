@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { LIST_PATH, voucherLabel, type EntryDetail } from "../shared";
+import { CardFact } from "../../CardFact";
 
 const thCls =
   "px-3 py-1.5 text-left font-mono text-[9px] uppercase tracking-wider font-normal text-op-muted";
@@ -248,7 +249,8 @@ export function ComprobanteDetailClient({ id, currency }: { id: string; currency
         <div className="border-b border-op-border bg-op-bg px-4 py-2 text-sm font-medium">
           {t("linesTitle")}
         </div>
-        <div className="overflow-x-auto">
+        {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+        <div className="report-table">
           <table className="w-full text-sm">
             <thead>
               <tr>
@@ -284,6 +286,27 @@ export function ComprobanteDetailClient({ id, currency }: { id: string; currency
               ))}
             </tbody>
           </table>
+        </div>
+        {/* Celular: una tarjeta por línea — cuenta (y centro · glosa) a la
+            izquierda, el lado con saldo rotulado a la derecha. */}
+        <div className="report-cards divide-y divide-op-border/50">
+          {entry.lines.map((l) => (
+            <div key={l.id} className="flex items-start justify-between gap-3 px-4 py-2">
+              <span className="min-w-0 text-sm">
+                <span className="font-mono text-xs text-op-muted tabular-nums mr-1.5">{l.accountCode}</span>
+                {l.accountName}
+                {(l.costCenterName || l.memo) && (
+                  <span className="block text-xs text-op-muted">
+                    {[l.costCenterName, l.memo].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 space-y-1 text-right">
+                {l.debitCents !== 0 && <CardFact label={t("lDebit")} value={money(l.debitCents)} />}
+                {l.creditCents !== 0 && <CardFact label={t("lCredit")} value={money(l.creditCents)} />}
+              </span>
+            </div>
+          ))}
         </div>
         <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 border-t border-op-border bg-op-bg px-4 py-2 text-sm">
           <span className="font-medium">

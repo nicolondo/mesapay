@@ -273,8 +273,11 @@ export function EntryForm({
         ) : (
           <div className="divide-y divide-op-border/50">
             {lines.map((l, i) => (
+              // Celular: cuenta a todo el ancho; débito | crédito en una
+              // fila; centro | glosa | quitar en la siguiente (order-*).
+              // md+: la fila única de siempre (order-none).
               <div key={l.key} className="grid grid-cols-12 gap-2 px-3 py-2 items-start">
-                <div className="col-span-12 md:col-span-4">
+                <div className="order-1 col-span-12 md:order-none md:col-span-4">
                   <AccountCombobox
                     accounts={accounts}
                     value={l.accountCode}
@@ -298,7 +301,7 @@ export function EntryForm({
                     ariaLabel={`${t("lAccount")} ${i + 1}`}
                   />
                 </div>
-                <div className="col-span-6 md:col-span-2">
+                <div className="order-4 col-span-5 md:order-none md:col-span-2">
                   <select
                     value={l.costCenterId}
                     onChange={(e) => patchLine(l.key, { costCenterId: e.target.value })}
@@ -313,7 +316,7 @@ export function EntryForm({
                     ))}
                   </select>
                 </div>
-                <div className="col-span-6 md:col-span-2">
+                <div className="order-2 col-span-6 md:order-none md:col-span-2">
                   <MoneyInput
                     value={l.debit}
                     onChange={(raw) =>
@@ -325,7 +328,7 @@ export function EntryForm({
                     className={smallInputCls + " text-right font-mono tabular-nums"}
                   />
                 </div>
-                <div className="col-span-6 md:col-span-2">
+                <div className="order-3 col-span-6 md:order-none md:col-span-2">
                   <MoneyInput
                     value={l.credit}
                     onChange={(raw) =>
@@ -337,7 +340,7 @@ export function EntryForm({
                     className={smallInputCls + " text-right font-mono tabular-nums"}
                   />
                 </div>
-                <div className="col-span-5 md:col-span-1">
+                <div className="order-5 col-span-5 md:order-none md:col-span-1">
                   <input
                     type="text"
                     value={l.memo}
@@ -348,7 +351,7 @@ export function EntryForm({
                     className={smallInputCls}
                   />
                 </div>
-                <div className="col-span-1 flex justify-end">
+                <div className="order-6 col-span-2 flex justify-end md:order-none md:col-span-1">
                   <button
                     type="button"
                     onClick={() => removeLine(l.key)}
@@ -403,11 +406,12 @@ export function EntryForm({
       )}
       {validLines < 2 && <p className="text-xs text-op-muted">{t("minLinesHint")}</p>}
 
-      <div className="flex gap-2 justify-end">
-        <Link href={backHref} className="mp-btn mp-btn--ghost px-4">
+      {/* Celular: Cancelar | Guardar en una fila de dos a todo el ancho. */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+        <Link href={backHref} className="mp-btn mp-btn--ghost sm:px-4">
           {t("cancel")}
         </Link>
-        <button type="submit" disabled={!canSave} className="mp-btn mp-btn--primary px-5">
+        <button type="submit" disabled={!canSave} className="mp-btn mp-btn--primary sm:px-5">
           {saving ? t("saving") : t("save")}
         </button>
       </div>

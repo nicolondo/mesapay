@@ -805,3 +805,13 @@ input[type="time"] {
     transform: none;
   }
 }
+
+/* Tira horizontal sin barra de scroll visible (pestañas de cartas del
+   editor de menú en el celular; el contenido sigue desplazándose con el
+   dedo o la rueda). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

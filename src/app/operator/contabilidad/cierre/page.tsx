@@ -49,8 +49,24 @@ export default async function CierrePage({
   const prevYear = year > MIN_YEAR ? year - 1 : null;
   const followingYear = year < currentYear + 1 ? year + 1 : null;
 
+  // Pastilla de estado del mes (tabla y tarjeta del celular).
+  const stateBadge = (m: (typeof status.months)[number]) => (
+    <span
+      className={
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium " +
+        (m.closed
+          ? "bg-ok/15 text-ok"
+          : m.future
+            ? "bg-op-bg text-op-muted"
+            : "bg-[#C98A2E]/15 text-[#7F5A1F]")
+      }
+    >
+      {m.closed ? t("stateClosed") : m.future ? t("stateFuture") : t("stateOpen")}
+    </span>
+  );
+
   return (
-    <div className="p-6 max-w-4xl mx-auto w-full">
+    <div className="op-contabilidad p-4 sm:p-6 max-w-4xl mx-auto w-full">
       <div className="mb-1">
         <div className="font-display text-3xl">{t("title")}</div>
         <Link
@@ -114,7 +130,8 @@ export default async function CierrePage({
             </span>
           )}
         </div>
-        <div className="overflow-x-auto">
+        {/* Tabla (md+): el scroll, si hace falta, queda dentro de la tarjeta. */}
+        <div className="report-table">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-op-border">
@@ -134,20 +151,7 @@ export default async function CierrePage({
                   }
                 >
                   <td className={TD + " font-medium"}>{monthLabel(m.month)}</td>
-                  <td className={TD}>
-                    <span
-                      className={
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium " +
-                        (m.closed
-                          ? "bg-ok/15 text-ok"
-                          : m.future
-                            ? "bg-op-bg text-op-muted"
-                            : "bg-[#C98A2E]/15 text-[#7F5A1F]")
-                      }
-                    >
-                      {m.closed ? t("stateClosed") : m.future ? t("stateFuture") : t("stateOpen")}
-                    </span>
-                  </td>
+                  <td className={TD}>{stateBadge(m)}</td>
                   <td className={TD}>
                     <span>{t("entriesCount", { n: m.entries })}</span>
                     {m.entries > 0 && m.numbered > 0 && (
@@ -165,6 +169,28 @@ export default async function CierrePage({
               ))}
             </tbody>
           </table>
+        </div>
+        {/* Celular: una tarjeta por mes (mes + estado, asientos, acción). */}
+        <div className="report-cards divide-y divide-op-border/50">
+          {status.months.map((m) => (
+            <div key={m.month} className={"px-4 py-3 " + (m.future ? "text-op-muted" : "")}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{monthLabel(m.month)}</span>
+                {stateBadge(m)}
+              </div>
+              <div className="mt-1 text-xs text-op-muted">
+                <span>{t("entriesCount", { n: m.entries })}</span>
+                {m.entries > 0 && m.numbered > 0 && (
+                  <span className="ml-2">{t("numberedCount", { n: m.numbered })}</span>
+                )}
+              </div>
+              {m.canClose && (
+                <div className="mt-2">
+                  <CloseMonthButton month={m.month} monthLabel={monthLabel(m.month)} />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
         {(nextElsewhere || status.nextToClose == null) && (
           <div className="px-4 py-3 border-t border-op-border text-xs text-op-muted flex flex-wrap items-center gap-2">

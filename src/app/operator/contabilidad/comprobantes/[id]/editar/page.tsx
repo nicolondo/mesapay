@@ -21,7 +21,7 @@ export default async function EditarComprobantePage({
     return <div className="p-6">{tSettings("noRestaurant")}</div>;
   }
   return (
-    <div className="p-6 max-w-4xl mx-auto w-full">
+    <div className="op-contabilidad p-4 sm:p-6 max-w-4xl mx-auto w-full">
       <EntryForm mode="edit" entryId={id} currency={ctx.currency} />
     </div>
   );

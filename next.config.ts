@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   // bundler no puede empaquetar. Se dejan como require() de Node en el server.
   // exceljs: librería grande con requires dinámicos; se deja como require de Node en el server.
   serverExternalPackages: ["ssh2", "ssh2-sftp-client", "sharp", "exceljs"],
+  // Presentación comercial pública (mesapay.co/presentacion): un HTML
+  // estático en public/presentacion/ con sus capturas. Next no sirve
+  // index.html de una carpeta por su cuenta, así que la ruta sin archivo se
+  // reescribe a él.
+  async rewrites() {
+    return [{ source: "/presentacion", destination: "/presentacion/index.html" }];
+  },
 };
 
 export default withNextIntl(nextConfig);

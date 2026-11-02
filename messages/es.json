@@ -8718,5 +8718,24 @@
     "detailTitle": "Detalle de la cuenta",
     "totalLabel": "Total",
     "footer": "Enviado por MESAPAY en nombre de {restaurant}"
+  },
+  "legal": {
+    "eyebrow": "Legal",
+    "privacyTitle": "Política de privacidad",
+    "privacyDescription": "Cómo MESAPAY trata los datos personales de los comercios, los comensales y los prospectos, y cómo ejercer tus derechos.",
+    "termsTitle": "Términos de servicio",
+    "termsDescription": "Las condiciones para usar MESAPAY: cuenta, planes, pagos, facturación electrónica, datos y responsabilidades.",
+    "updatedOn": "Última actualización: {date}",
+    "tocTitle": "En este documento",
+    "languageNote": "Disponible en español, inglés y portugués. Si hay diferencias entre las versiones, prevalece la versión en español.",
+    "seeAlsoPrivacy": "Leer la Política de privacidad",
+    "seeAlsoTerms": "Leer los Términos de servicio",
+    "backHome": "Volver al inicio",
+    "contactTitle": "¿Tienes preguntas?",
+    "contactBody": "Para consultas, reclamos o cualquier asunto sobre estos documentos, escríbenos a <email></email>.",
+    "acceptNotice": "Al crear la cuenta aceptas los <terms>Términos de servicio</terms> y la <privacy>Política de privacidad</privacy>.",
+    "linksLabel": "Enlaces legales",
+    "footerPrivacy": "Política de privacidad",
+    "footerTerms": "Términos de servicio"
   }
 }

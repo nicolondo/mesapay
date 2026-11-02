@@ -8718,5 +8718,24 @@
     "detailTitle": "Bill details",
     "totalLabel": "Total",
     "footer": "Sent by MESAPAY on behalf of {restaurant}"
+  },
+  "legal": {
+    "eyebrow": "Legal",
+    "privacyTitle": "Privacy Policy",
+    "privacyDescription": "How MESAPAY handles the personal data of restaurants, guests and prospects, and how to exercise your rights.",
+    "termsTitle": "Terms of Service",
+    "termsDescription": "The conditions for using MESAPAY: account, plans, payments, electronic invoicing, data and responsibilities.",
+    "updatedOn": "Last updated: {date}",
+    "tocTitle": "In this document",
+    "languageNote": "Available in Spanish, English and Portuguese. If the versions differ, the Spanish version prevails.",
+    "seeAlsoPrivacy": "Read the Privacy Policy",
+    "seeAlsoTerms": "Read the Terms of Service",
+    "backHome": "Back to home",
+    "contactTitle": "Questions?",
+    "contactBody": "For queries, claims or anything about these documents, write to us at <email></email>.",
+    "acceptNotice": "By creating the account you accept the <terms>Terms of Service</terms> and the <privacy>Privacy Policy</privacy>.",
+    "linksLabel": "Legal links",
+    "footerPrivacy": "Privacy Policy",
+    "footerTerms": "Terms of Service"
   }
 }

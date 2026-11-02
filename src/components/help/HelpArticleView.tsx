@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { helpHeadings } from "@/lib/help/markdown";
 import { supportMailto } from "@/lib/help/constants";
 import type { ResolvedHelpArticle } from "@/lib/help/content";
+import { LEGAL_PATHS } from "@/content/legal";
 import type { HelpArticle } from "@/content/help/types";
 import { HelpMarkdown } from "./HelpMarkdown";
 import { HelpIcon } from "./HelpIcon";
@@ -38,6 +39,7 @@ export async function HelpArticleView({
   showSupport?: boolean;
 }) {
   const t = await getTranslations("help");
+  const tl = await getTranslations("legal");
   const { category, article, blocks } = resolved;
   const toc = helpHeadings(blocks).filter((h) => h.level === 2);
   const links = allowHref ? article.links.filter((l) => allowHref(l.href)) : article.links;
@@ -146,6 +148,16 @@ export async function HelpArticleView({
               <p className="mt-1 text-sm text-op-muted">{t("meseroAskManager")}</p>
             )}
           </section>
+
+          {/* Pie legal del centro de ayuda: los documentos públicos del dominio principal. */}
+          <nav aria-label={tl("linksLabel")} className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-op-muted">
+            <Link href={LEGAL_PATHS.privacidad} className="hover:text-op-text hover:underline">
+              {tl("footerPrivacy")}
+            </Link>
+            <Link href={LEGAL_PATHS.terminos} className="hover:text-op-text hover:underline">
+              {tl("footerTerms")}
+            </Link>
+          </nav>
 
           {related.length > 0 && (
             <section aria-labelledby="help-related" className="mt-10">

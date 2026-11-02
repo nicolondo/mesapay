@@ -26,6 +26,7 @@ export function DinerSignup({
   restaurantName: string;
 }) {
   const t = useTranslations("customerAuth");
+  const tLegal = useTranslations("legal");
   const router = useRouter();
   const [name, setName] = useState("");
   const [cedula, setCedula] = useState("");
@@ -207,6 +208,23 @@ export function DinerSignup({
         </button>
         <p className="text-xs text-muted-2 mt-3 text-center">
           {t("sessionNote")}
+        </p>
+        {/* Aviso de aceptación: sin casilla obligatoria. Los enlaces abren en
+            otra pestaña para no perder el formulario; el middleware sirve
+            /terminos y /privacidad también en el subdominio del comercio. */}
+        <p className="text-xs text-muted-2 mt-2 text-center leading-snug">
+          {tLegal.rich("acceptNotice", {
+            terms: (chunks) => (
+              <Link href="/terminos" target="_blank" rel="noopener" className="underline">
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link href="/privacidad" target="_blank" rel="noopener" className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
 
         <div className="mt-5 text-sm text-muted text-center">

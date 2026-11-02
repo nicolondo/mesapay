@@ -42,6 +42,10 @@ const MIGRATED = [
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",
   "src/app/signup/page.tsx",
+  // Documentos legales públicos (/privacidad, /terminos): nacieron trilingües.
+  "src/app/privacidad/**/*.{ts,tsx}",
+  "src/app/terminos/**/*.{ts,tsx}",
+  "src/components/legal/**/*.{ts,tsx}",
   "src/app/cuenta/**/*.{ts,tsx}",
   "src/app/me/**/*.{ts,tsx}",
   // Cuenta del comensal DENTRO del comercio (login, registro, enlace

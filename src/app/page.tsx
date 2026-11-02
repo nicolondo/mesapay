@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import QRCode from "qrcode";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -1070,7 +1071,9 @@ function FinalCta() {
 
 /* ---------------- Footer ---------------- */
 
-function SiteFooter() {
+async function SiteFooter() {
+  // Enlaces legales (trilingües); el resto del pie sigue pendiente de migrar.
+  const tl = await getTranslations("legal");
   return (
     <footer className="border-t border-hairline bg-paper/70">
       <div className="max-w-6xl mx-auto px-5 md:px-8 py-10 grid md:grid-cols-4 gap-6 text-sm">
@@ -1128,6 +1131,14 @@ function SiteFooter() {
       <div className="border-t border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-8 py-5 flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] tracking-wider uppercase text-muted">
           <span>© {new Date().getFullYear()} MESAPAY · Medellín</span>
+          <nav aria-label={tl("linksLabel")} className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link href="/privacidad" className="hover:text-ink">
+              {tl("footerPrivacy")}
+            </Link>
+            <Link href="/terminos" className="hover:text-ink">
+              {tl("footerTerms")}
+            </Link>
+          </nav>
           <span>Construido para meseros, cocineros y dueños.</span>
         </div>
       </div>

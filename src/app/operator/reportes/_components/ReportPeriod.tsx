@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, localeTag } from "@/lib/format";
+import { isoWeekNumber } from "@/lib/isoWeek";
 import {
   periodKind,
   shiftPeriod,
@@ -194,7 +195,11 @@ export function ReportPeriod({
             title={t("periodEditDates")}
             className="min-h-[44px] min-w-0 truncate rounded-lg border border-op-border bg-op-bg px-3 text-center text-sm font-medium"
           >
-            {unitLabel(kind as PeriodStep, period, locale)}
+            {/* La semana lleva su número ISO delante («Semana 44 · 26 oct –
+                1 nov 2026») para citarla rápido con el contador. */}
+            {kind === "semana"
+              ? `${t("weekNumber", { n: isoWeekNumber(desde).week })} · ${unitLabel(kind, period, locale)}`
+              : unitLabel(kind as PeriodStep, period, locale)}
           </button>
           <input type="hidden" name="desde" value={desde} />
           <input type="hidden" name="hasta" value={hasta} />

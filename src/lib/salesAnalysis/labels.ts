@@ -4,6 +4,7 @@
 // un día por la zona horaria de quien mira.
 import type { Locale } from "@/i18n/config";
 import { formatDate, localeTag } from "@/lib/format";
+import { isoWeekNumber } from "@/lib/isoWeek";
 import type { DayRange, Granularity } from "@/lib/salesAnalysis/period";
 
 const noon = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -51,7 +52,7 @@ export function bucketLabel(
   key: string,
   granularity: Granularity,
   locale: Locale,
-): { short: string; long: string; weekOf?: string } {
+): { short: string; long: string; weekOf?: string; weekNumber?: number } {
   switch (granularity) {
     case "hora": {
       const day = key.slice(0, 10);
@@ -61,7 +62,15 @@ export function bucketLabel(
     case "dia":
       return { short: fmtDayShort(key, locale), long: fmtDayLong(key, locale) };
     case "semana":
-      return { short: fmtDayShort(key, locale), long: fmtDayLong(key, locale), weekOf: fmtDayShort(key, locale) };
+      // La clave es el lunes; el globo dice «Semana 44 · del 26 oct» (el
+      // número ISO permite citarla con el contador y cruzarla con los
+      // reportes contables, que usan el mismo criterio lunes–domingo).
+      return {
+        short: fmtDayShort(key, locale),
+        long: fmtDayLong(key, locale),
+        weekOf: fmtDayShort(key, locale),
+        weekNumber: isoWeekNumber(key).week,
+      };
     case "mes":
       return { short: fmt(`${key}-01`, locale, { month: "short" }), long: fmtMonth(key, locale) };
   }

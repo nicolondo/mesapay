@@ -5,10 +5,10 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
   buildXlsxWorkbook,
   centsToAmount,
-  monthRange,
   type XlsxSheet,
 } from "@/lib/erp/accounting";
 import {
+  accountingMonthRange,
   computeTaxSummary,
   loadCogsBook,
   loadInventoryBook,
@@ -42,7 +42,9 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
+  // Mes de NEGOCIO del comercio: ventas, compras, CMV e impuestos cortan
+  // como los asientos del libro (las notas crédito, por su día fiscal).
+  const range = await accountingMonthRange(ctx.restaurantId, month);
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
   const t = await getTranslations("opErp");

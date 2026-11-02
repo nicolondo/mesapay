@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getActiveGroupShellContext } from "@/lib/activeRestaurant";
 import { monthRange } from "@/lib/erp/accounting";
-import { computeMonthPnl } from "@/lib/erp/accountingData";
+import { accountingMonthRange, computeMonthPnl } from "@/lib/erp/accountingData";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
 
@@ -21,8 +21,7 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
-  if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  if (!monthRange(month)) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
   const restaurants = await db.restaurant.findMany({
     where: { groupId: shell.groupId },
@@ -44,7 +43,9 @@ async function GETHandler(req: Request) {
       name: r.name,
       currency: await getCurrencyForCountry(r.country),
       enabled,
-      pnl: enabled ? await computeMonthPnl(r.id, range) : null,
+      // Cada sede tiene su propia hora de corte: su mes de NEGOCIO, como el
+      // P&L de la sede y los asientos de su libro.
+      pnl: enabled ? await computeMonthPnl(r.id, (await accountingMonthRange(r.id, month))!) : null,
     });
   }
 

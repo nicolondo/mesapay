@@ -1,8 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { monthRange } from "@/lib/erp/accounting";
-import { loadPurchasesBook, loadSalesBook } from "@/lib/erp/accountingData";
+import { accountingMonthRange, loadPurchasesBook, loadSalesBook } from "@/lib/erp/accountingData";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +19,10 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const book = searchParams.get("book");
-  const range = monthRange(searchParams.get("month") ?? "");
+  // Mes de NEGOCIO del comercio: ventas por `paidAt` y compras por
+  // `receivedAt` cortan como los asientos del libro; las notas crédito, por
+  // su día fiscal dentro del mes calendario.
+  const range = await accountingMonthRange(ctx.restaurantId, searchParams.get("month") ?? "");
   if (!range || (book !== "sales" && book !== "purchases")) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }

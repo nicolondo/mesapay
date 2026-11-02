@@ -26,6 +26,7 @@ async function GETHandler(req: Request) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   const { searchParams } = new URL(req.url);
+  // `Expense.date` es una FECHA contable: mes calendario, no de negocio.
   const range = monthRange(searchParams.get("month") ?? "");
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 

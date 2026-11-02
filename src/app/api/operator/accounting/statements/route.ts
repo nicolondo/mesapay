@@ -20,6 +20,10 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? "";
+  // Mes UTC a propósito: los estados salen de los ASIENTOS, que ya van
+  // fechados por día de negocio dentro de su día calendario UTC (los
+  // diarios a la medianoche de Bogotá, los mensuales al fin de mes), así
+  // que el mes UTC del libro ES el mes de negocio.
   const range = monthRange(month);
   if (!range) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });

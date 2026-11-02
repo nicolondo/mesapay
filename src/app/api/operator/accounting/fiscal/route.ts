@@ -1,7 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { monthRange } from "@/lib/erp/accounting";
+import { accountingMonthRange } from "@/lib/erp/accountingData";
 import {
   generateYearClosing,
   loadClosing,
@@ -22,7 +22,9 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const month = searchParams.get("month") ?? "";
-  const range = monthRange(month);
+  // Mes de NEGOCIO del comercio (ventas por `paidAt`, compras por
+  // `receivedAt`, reembolsos); las notas crédito por su día fiscal.
+  const range = await accountingMonthRange(ctx.restaurantId, month);
   if (!range) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }

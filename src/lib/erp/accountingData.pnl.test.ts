@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   orderAggregate: vi.fn(),
   orders: vi.fn(),
   items: vi.fn(),
+  stockGroupBy: vi.fn(),
+  expenseGroupBy: vi.fn(),
   creditNotes: vi.fn(),
   refunds: vi.fn(),
 }));
@@ -27,8 +29,8 @@ vi.mock("@/lib/db", () => ({
     },
     order: { aggregate: m.orderAggregate, findMany: m.orders },
     orderItem: { findMany: m.items },
-    stockMovement: { groupBy: async () => [] },
-    expense: { groupBy: async () => [] },
+    stockMovement: { groupBy: m.stockGroupBy },
+    expense: { groupBy: m.expenseGroupBy },
     purchaseOrder: { findMany: async () => [] },
     creditNote: {
       findMany: (args: { where: { accountingStampedAt?: unknown } }) =>
@@ -62,6 +64,8 @@ beforeEach(() => {
   ]);
   m.creditNotes.mockResolvedValue([]);
   m.refunds.mockResolvedValue([]);
+  m.stockGroupBy.mockResolvedValue([]);
+  m.expenseGroupBy.mockResolvedValue([]);
 });
 
 describe("computeMonthPnl — ingresos por ventas netos", () => {
@@ -105,5 +109,26 @@ describe("computeMonthPnl — ingresos por ventas netos", () => {
     // Las categorías no cargan notas ni devoluciones (no tienen categoría).
     const byCategory = pnl.categoryBreakdown.reduce((s, c) => s + c.salesCents, 0);
     expect(byCategory).toBe(108_000 - 10_800 - 8_000);
+  });
+});
+
+describe("computeMonthPnl — mes de negocio", () => {
+  it("los timestamps (pedidos, inventario) cortan por el rango; los gastos (FECHA) por el mes calendario", async () => {
+    const business = {
+      from: new Date("2026-09-01T10:00:00.000Z"),
+      to: new Date("2026-10-01T10:00:00.000Z"),
+      calendar: RANGE,
+    };
+    await computeMonthPnl("r1", business);
+    const ts = { gte: business.from, lt: business.to };
+    expect(m.orderAggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ paidAt: ts }) }),
+    );
+    expect(m.stockGroupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ createdAt: ts }) }),
+    );
+    expect(m.expenseGroupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ date: { gte: RANGE.from, lt: RANGE.to } }) }),
+    );
   });
 });

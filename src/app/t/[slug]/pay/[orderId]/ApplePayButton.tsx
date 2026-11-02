@@ -37,6 +37,7 @@ export function ApplePayButton({
   displayName,
   busy,
   onTokenized,
+  onReadyChange,
 }: {
   publicKey: string;
   kushkiMode: "mock" | "sandbox" | "production";
@@ -45,6 +46,13 @@ export function ApplePayButton({
   displayName: string;
   busy: boolean;
   onTokenized: (token: string) => void;
+  /**
+   * Avisa si el botón de Apple Pay quedó VISIBLE (navegador compatible y
+   * SDK de Kushki inicializado con el dominio validado). El checkout del
+   * link de pago lo usa para preseleccionar Apple Pay sólo cuando de verdad
+   * se puede tocar; si el dominio no está validado, el default es tarjeta.
+   */
+  onReadyChange?: (ready: boolean) => void;
 }) {
   const t = useTranslations("wait");
   const canUseApplePay = useApplePaySupport();
@@ -53,6 +61,13 @@ export function ApplePayButton({
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const kushkiRef = useRef<unknown>(null);
+  const visible = supported === true && ready;
+  useEffect(() => {
+    onReadyChange?.(visible);
+    // Sólo cuando cambia la visibilidad: el callback puede ser una función
+    // nueva en cada render del padre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   function requestToken() {
     if (!kushkiRef.current) return;

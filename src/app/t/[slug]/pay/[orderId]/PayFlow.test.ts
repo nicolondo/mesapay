@@ -129,3 +129,31 @@ describe("a qué datáfono va el cobro del staff", () => {
     expect((await flow()).props).toMatchObject({ terminalDevices: [], kushkiTerminalAvailable: false });
   });
 });
+
+describe("factura manual pagada por link", () => {
+  const manual = () => m.order.mockResolvedValue({
+    id: "o1", restaurantId: "r1", shortCode: "TEST", subtotalCents: 100000, taxCents: 8000, discountCents: 0, discountPct: null,
+    status: "open", table: { id: "tm", number: -100, kind: "manual" }, items: [], payments: [], simpleInvoiceEmail: null,
+  });
+
+  it("quien llega sin sesión de staff es un pagador remoto: modo link, sin propina sugerida", async () => {
+    manual(); m.session = null;
+    const page = await flow(undefined);
+    expect(page.props).toMatchObject({ operatorMode: false, payLinkMode: true, initialTipPct: 0, subtotalCents: 108000 });
+    // La etiqueta del encabezado es la de factura manual, no "Mesa -100".
+    expect(page.props.locationLabel).toBe("manualInvoice");
+  });
+
+  it("el staff cobrando la misma factura manual en caja sigue en modo operador", async () => {
+    manual();
+    const page = await flow();
+    expect(page.props).toMatchObject({ operatorMode: true, payLinkMode: false });
+    expect(page.props.initialTipPct).toBeNull();
+  });
+
+  it("una mesa real nunca entra en modo link", async () => {
+    m.session = null;
+    const page = await flow(undefined);
+    expect(page.props).toMatchObject({ operatorMode: false, payLinkMode: false });
+  });
+});

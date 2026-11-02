@@ -49,6 +49,9 @@ export type AuditKind =
   | "order.cancel"
   | "order.comp"
   | "order.manual_invoice.open"
+  // Link de pago de la factura manual (crear/renovar y enviar por correo)
+  | "order.manual_invoice.pay_link.create"
+  | "order.manual_invoice.pay_link.email"
   | "order.prebill.print"
   | "order_item.cancel"
   | "order_item.comp"
@@ -117,6 +120,8 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order.cancel": "Canceló orden",
   "order.comp": "No cobró la cuenta",
   "order.manual_invoice.open": "Abrió factura manual",
+  "order.manual_invoice.pay_link.create": "Creó link de pago de factura manual",
+  "order.manual_invoice.pay_link.email": "Envió link de pago de factura manual por correo",
   "order.prebill.print": "Imprimió precuenta",
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",

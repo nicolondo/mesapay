@@ -237,9 +237,9 @@ export default async function ReportsPage({
   const recentClosed = await getRecentShifts(restaurantId, 10);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
-        <div>
+        <div className="min-w-0">
           <div className="font-display text-3xl">{t("title")}</div>
           <p className="text-sm text-op-muted mt-1">
             {t("subtitle")}
@@ -252,9 +252,14 @@ export default async function ReportsPage({
             </p>
           )}
         </div>
-        <div className="flex items-end gap-3">
-          <form action="/operator/reports" className="flex items-end gap-2">
-            <label className="flex flex-col">
+        {/* Celular: en una sola fila no cabía (la fecha quedaba aplastada
+            en «2,» y «Volver a hoy» se salía por la derecha). Ahora es una
+            grilla: las flechas con el día arriba a todo el ancho, debajo el
+            campo de fecha con «Ver», y «Volver a hoy» en su propia fila.
+            En sm+ todo vuelve a una fila, alineado abajo. */}
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:items-end sm:gap-3">
+          <form action="/operator/reports" className="order-2 flex min-w-0 items-end gap-2 sm:order-none">
+            <label className="flex min-w-0 flex-1 flex-col">
               <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
                 {t("dateLabel")}
               </span>
@@ -263,12 +268,12 @@ export default async function ReportsPage({
                 name="date"
                 defaultValue={dateIso}
                 max={todayIso}
-                className="h-9 px-3 rounded-lg border border-op-border bg-op-surface text-sm"
+                className="h-10 w-full min-w-0 px-3 rounded-lg border border-op-border bg-op-surface text-sm sm:h-9 sm:w-auto"
               />
             </label>
             <button
               type="submit"
-              className="h-9 px-4 rounded-full bg-ink text-bone text-sm"
+              className="h-10 shrink-0 px-4 rounded-full bg-ink text-bone text-sm sm:h-9"
             >
               {t("viewCta")}
             </button>
@@ -279,12 +284,12 @@ export default async function ReportsPage({
               dueño). Volver a hoy es un botón aparte, que sólo aparece
               cuando hace falta. */}
           <div
-            className="inline-flex border border-op-border bg-op-surface"
+            className="order-1 flex w-full border border-op-border bg-op-surface sm:order-none sm:inline-flex sm:w-auto"
             style={{ borderRadius: "var(--radius-btn)" }}
           >
             <Link
               href={`/operator/reports?date=${prevDay}`}
-              className="px-3 h-9 inline-flex items-center text-sm text-op-text/80"
+              className="px-4 h-11 inline-flex items-center text-sm text-op-text/80 sm:px-3 sm:h-9"
               aria-label={t("prevDay")}
             >
               {"←"}
@@ -292,7 +297,7 @@ export default async function ReportsPage({
             <span
               aria-live="polite"
               className={
-                "px-2 h-9 inline-flex items-center text-xs font-medium whitespace-nowrap " +
+                "flex-1 justify-center px-2 h-11 inline-flex items-center text-sm font-medium whitespace-nowrap sm:flex-none sm:h-9 sm:text-xs " +
                 (isToday ? "text-op-muted" : "text-op-text")
               }
             >
@@ -303,7 +308,7 @@ export default async function ReportsPage({
               aria-disabled={isToday}
               aria-label={t("nextDay")}
               className={
-                "px-3 h-9 inline-flex items-center text-sm " +
+                "px-4 h-11 inline-flex items-center text-sm sm:px-3 sm:h-9 " +
                 (isToday ? "text-op-muted pointer-events-none opacity-40" : "text-op-text/80")
               }
             >
@@ -311,7 +316,10 @@ export default async function ReportsPage({
             </Link>
           </div>
           {!isToday && (
-            <Link href={`/operator/reports?date=${todayIso}`} className="mp-btn mp-btn--secondary mp-btn--sm">
+            <Link
+              href={`/operator/reports?date=${todayIso}`}
+              className="order-3 mp-btn mp-btn--secondary mp-btn--sm w-full justify-center sm:order-none sm:w-auto"
+            >
               {t("backToToday")}
             </Link>
           )}

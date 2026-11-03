@@ -6,6 +6,7 @@ import { auth, signOut } from "@/auth";
 import { ComercialBottomNav } from "./ComercialBottomNav";
 import { PushSetup } from "@/app/mesero/PushSetup";
 import { ScrollerNavigationReset } from "@/components/ScrollerNavigationReset";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /**
  * Layout server-gated para /comercial/*.
@@ -45,7 +46,18 @@ export const viewport: Viewport = {
 
 const CRM_ROLES = new Set(["comercial", "gerente_comercial", "platform_admin"]);
 
-export default async function ComercialLayout({
+/**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function ComercialLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <ComercialLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await ComercialLayoutContent({ children })}</FullIntlProvider>;
+}
+
+async function ComercialLayoutContent({
   children,
 }: {
   children: React.ReactNode;

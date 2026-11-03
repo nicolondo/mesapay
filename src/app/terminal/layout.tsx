@@ -3,6 +3,18 @@ import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
+
+/**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function TerminalLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <TerminalLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await TerminalLayoutContent({ children })}</FullIntlProvider>;
+}
 
 /**
  * Layout for the datáfono operator surface. Roles allowed:
@@ -10,7 +22,7 @@ import { getActiveContext } from "@/lib/activeRestaurant";
  *   - operator (so the owner can preview / cover for them)
  *   - platform_admin (for support)
  */
-export default async function TerminalLayout({
+async function TerminalLayoutContent({
   children,
 }: {
   children: React.ReactNode;

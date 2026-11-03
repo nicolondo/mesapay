@@ -3,8 +3,20 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
 import { AdminMobileMenu } from "./AdminMobileMenu";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
-export default async function AdminLayout({
+/**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <AdminLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await AdminLayoutContent({ children })}</FullIntlProvider>;
+}
+
+async function AdminLayoutContent({
   children,
 }: {
   children: React.ReactNode;

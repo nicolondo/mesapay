@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { LandscapeLock } from "@/components/LandscapeLock";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /** Ver `src/app/mesero/layout.tsx` para el racional. */
 export const metadata: Metadata = {
@@ -16,12 +17,23 @@ export const metadata: Metadata = {
 };
 
 /**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function CocinaLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <CocinaLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await CocinaLayoutContent({ children })}</FullIntlProvider>;
+}
+
+/**
  * Cocina-only layout — no top nav, no chrome. The cook opens the app,
  * logs in, and lands directly on the kitchen board. Same role gate as
  * the kitchen page itself: `kitchen` (primary) plus operator /
  * platform_admin for ops + dogfooding.
  */
-export default async function CocinaLayout({
+async function CocinaLayoutContent({
   children,
 }: {
   children: React.ReactNode;

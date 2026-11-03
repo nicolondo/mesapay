@@ -73,6 +73,10 @@ vi.mock("@/lib/reports/dashboardSalesQuery", () => ({ loadDashboardSales: async 
 vi.mock("./LiveRefresh", () => ({ LiveRefresh: () => null }));
 vi.mock("@/components/ui/AppDialog", () => ({ AppDialog: ({ children }: { children: ReactNode }) => children }));
 vi.mock("@/app/mesero/PushSetup", () => ({ PushSetup: () => null }));
+// El provider de textos del layout (catálogo completo) no influye en la navegación.
+vi.mock("@/i18n/IntlProviders", () => ({
+  FullIntlProvider: ({ children }: { children: ReactNode }) => children,
+}));
 
 import { OperatorCockpit } from "./OperatorCockpit";
 import { OperatorMobileMenu, type NavEntry } from "./OperatorMobileMenu";

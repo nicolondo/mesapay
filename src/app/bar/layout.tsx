@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { LandscapeLock } from "@/components/LandscapeLock";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /** Ver `src/app/mesero/layout.tsx` para el racional. */
 export const metadata: Metadata = {
@@ -16,11 +17,22 @@ export const metadata: Metadata = {
 };
 
 /**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function BarLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <BarLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await BarLayoutContent({ children })}</FullIntlProvider>;
+}
+
+/**
  * Bar-only layout — same single-purpose pattern as /cocina. Drops the
  * top nav; the bartender lands here and stays here. Allowed roles:
  * bar (primary), operator + platform_admin for ops + dogfooding.
  */
-export default async function BarLayout({
+async function BarLayoutContent({
   children,
 }: {
   children: React.ReactNode;

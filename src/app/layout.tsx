@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale } from "next-intl/server";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { GLOBAL_NAMESPACES, pickMessages } from "@/i18n/clientMessages";
 import { StaleBuildReload } from "@/components/StaleBuildReload";
 import { getBuildId } from "@/lib/buildId";
 
@@ -84,6 +85,7 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // Idioma resuelto por next-intl (cookie MESAPAY_LOCALE → Accept-Language → es).
   const locale = await getLocale();
+  const messages = await getMessages();
   return (
     <html lang={locale} className="h-full antialiased">
       <head>
@@ -138,12 +140,15 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-bone text-ink">
         {/*
-          NextIntlClientProvider sin props: hereda locale + mensajes del
-          request config (src/i18n/request.ts) y los reenvía a los Client
-          Components. Envuelve a Providers (SessionProvider) para que
-          useTranslations funcione en toda la app.
+          NextIntlClientProvider raíz: el locale para toda la app (selector
+          de idioma, useFormatter…), pero SÓLO los namespaces globales
+          (src/i18n/clientMessages.ts). Lo
+          que se serializa acá viaja en el HTML de TODAS las páginas; con el
+          catálogo entero eran ~480 KB por página. Cada superficie pública
+          monta su <SurfaceIntlProvider> con sus namespaces y cada área con
+          sesión su <FullIntlProvider> con el catálogo completo.
         */}
-        <NextIntlClientProvider>
+        <NextIntlClientProvider messages={pickMessages(messages, GLOBAL_NAMESPACES)}>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
         {/* Recarga pestañas con bundle viejo tras un deploy (ver componente). */}

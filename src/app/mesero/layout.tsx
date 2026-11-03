@@ -7,6 +7,7 @@ import type { Locale } from "@/i18n/config";
 import { hasHelpFor } from "@/lib/help/content";
 import { MESERO_HELP_BASE } from "@/lib/help/constants";
 import { PushSetup } from "./PushSetup";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /**
  * Override del root metadata. Cuando un mesero hace "Add to Home
@@ -27,6 +28,17 @@ export const metadata: Metadata = {
 };
 
 /**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function MeseroLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <MeseroLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await MeseroLayoutContent({ children })}</FullIntlProvider>;
+}
+
+/**
  * Mesero layout — mobile-first PWA wrapper. Reaches into the diner side
  * of the floor: Salón (kitchen-ready items to deliver), Cobros (cuentas
  * pidiendo pago), Mesas (live state of every table). No top nav — the
@@ -35,7 +47,7 @@ export const metadata: Metadata = {
  * Allowed roles: mesero (primary), operator + platform_admin (so an
  * owner/admin can dogfood without flipping accounts).
  */
-export default async function MeseroLayout({
+async function MeseroLayoutContent({
   children,
 }: {
   children: React.ReactNode;

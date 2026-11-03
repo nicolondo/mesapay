@@ -18,8 +18,20 @@ import { computeBoardActivity, type BoardActivity } from "./boardActivity";
 import { GroupSwitcher } from "./GroupSwitcher";
 import { BillRequestAlert } from "./BillRequestAlert";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
 
-export default async function OperatorLayout({
+/**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <OperatorLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await OperatorLayoutContent({ children })}</FullIntlProvider>;
+}
+
+async function OperatorLayoutContent({
   children,
 }: {
   children: React.ReactNode;

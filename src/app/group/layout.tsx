@@ -8,6 +8,18 @@ import {
   IMPERSONATE_GROUP_COOKIE,
   getActiveGroupShellContext,
 } from "@/lib/activeRestaurant";
+import { FullIntlProvider } from "@/i18n/IntlProviders";
+
+/**
+ * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
+ * banners y la página) recibe el catálogo completo de textos. Ver
+ * src/i18n/clientMessages.ts.
+ */
+export default async function GroupLayout({ children }: { children: React.ReactNode }) {
+  // Se llama como función (no como <GroupLayoutContent/>) para que redirect() y
+  // notFound() sigan saliendo del propio layout, igual que antes.
+  return <FullIntlProvider>{await GroupLayoutContent({ children })}</FullIntlProvider>;
+}
 
 /**
  * Layout server-gated para /group/*. Sólo group_admin entra.
@@ -18,7 +30,7 @@ import {
  * El switcher entre restaurantes y la lista del grupo viven en
  * /group (la página landing), no en el layout.
  */
-export default async function GroupLayout({
+async function GroupLayoutContent({
   children,
 }: {
   children: React.ReactNode;

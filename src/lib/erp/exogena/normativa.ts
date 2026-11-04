@@ -84,6 +84,13 @@ export function isFormatoExogena(v: string): v is FormatoExogena {
   return (FORMATOS_EXOGENA as readonly string[]).includes(v);
 }
 
+/** Formatos con XML oficial: el 2276 se calcula, pero su anexo T3.45 no está portado. */
+export type FormatoConXml = Exclude<FormatoExogena, "2276">;
+
+export function tieneXml(codigo: FormatoExogena): codigo is FormatoConXml {
+  return codigo !== "2276";
+}
+
 /** Cómo produce MESAPAY cada formato. */
 export type OrigenFormato =
   | "auto" // se calcula de los documentos del comercio
@@ -161,7 +168,7 @@ export function catalogoFormatos(year: number): CatalogoFormato[] {
     nombre: NOMBRES[codigo],
     version: versionFormato(codigo, year),
     origen: ORIGEN[codigo],
-    xml: codigo !== "2276",
+    xml: tieneXml(codigo),
   }));
 }
 

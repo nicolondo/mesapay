@@ -6,6 +6,7 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import { getAccountingConfig, isMonthClosed } from "@/lib/erp/cierre";
 import { loadAccountMap } from "@/lib/erp/ledger";
 import { centsToNumber } from "@/lib/erp/ledgerCents";
+import { listMoneyAccounts } from "@/lib/erp/paymentAccounts";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ const GATE: ModuleSlug[] = ["accounting"];
 /**
  * Cuenta del PASIVO que se cancela al pagar cada impuesto. IVA se paga desde
  * el auxiliar de la tarifa dominante (el contador reclasifica si mezcla);
- * el crédito va contra el banco.
+ * el crédito va contra la cuenta de dinero que eligió el operador (caja,
+ * banco…), o contra el banco si no eligió ninguna.
  */
 const FORM_ACCOUNT: Record<string, string> = {
   iva: "24080501",
@@ -24,6 +26,7 @@ const FORM_ACCOUNT: Record<string, string> = {
   ica: "241605",
 };
 
+/** Cuenta de dinero por defecto (registros anteriores a poder elegirla). */
 const BANK_CODE = "111005";
 
 /** Declaraciones registradas del año. */
@@ -34,16 +37,34 @@ async function GETHandler(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? new Date().getUTCFullYear());
-  const filings = await db.taxFiling.findMany({
-    where: {
-      restaurantId: ctx.restaurantId,
-      period: { startsWith: String(year) },
-    },
-    orderBy: [{ period: "desc" }, { form: "asc" }],
-  });
+  const [filings, accounts] = await Promise.all([
+    db.taxFiling.findMany({
+      where: {
+        restaurantId: ctx.restaurantId,
+        period: { startsWith: String(year) },
+      },
+      orderBy: [{ period: "desc" }, { form: "asc" }],
+    }),
+    listMoneyAccounts(ctx.restaurantId),
+  ]);
+  // De qué cuenta salió cada pago: la línea crédito de su asiento.
+  const entryIds = filings.map((f) => f.entryId).filter((id): id is string => !!id);
+  const paidLines = entryIds.length
+    ? await db.journalLine.findMany({
+        where: { entryId: { in: entryIds }, creditCents: { gt: 0 } },
+        select: { entryId: true, accountCode: true },
+      })
+    : [];
+  const paidFrom = new Map(paidLines.map((l) => [l.entryId, l.accountCode]));
   return NextResponse.json({
     year,
-    filings: filings.map((f) => ({ ...f, declaredCents: centsToNumber(f.declaredCents) })),
+    accounts,
+    defaultAccountCode: accounts.some((a) => a.code === BANK_CODE) ? BANK_CODE : (accounts[0]?.code ?? null),
+    filings: filings.map((f) => ({
+      ...f,
+      declaredCents: centsToNumber(f.declaredCents),
+      paidFromAccountCode: f.entryId ? (paidFrom.get(f.entryId) ?? null) : null,
+    })),
   });
 }
 
@@ -54,13 +75,15 @@ const createSchema = z.object({
   // cabían en INT4. Mismo tope que una línea de comprobante manual.
   declaredCents: z.number().int().min(0).max(1_000_000_000_000),
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Cuenta de dinero de donde sale el pago (caja, banco…). Sin ella, el banco. */
+  payFromAccountCode: z.string().trim().min(4).max(10).optional(),
   notes: z.string().max(500).optional(),
 });
 
 /**
  * Registra la declaración/pago de un impuesto: guarda el trámite y, si el
- * monto es > 0, contabiliza el pago (D cuenta del impuesto · C banco) con
- * fuente `taxpay`. Respeta el candado de cierre.
+ * monto es > 0, contabiliza el pago (D cuenta del impuesto · C la cuenta de
+ * dinero elegida) con fuente `taxpay`. Respeta el candado de cierre.
  */
 async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
@@ -90,10 +113,18 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ error: "already_filed" }, { status: 409 });
   }
 
+  // Sólo una cuenta de dinero POSTABLE del plan del comercio (la misma lista
+  // que ofrecen los abonos de compras y gastos).
+  const payFromCode = b.payFromAccountCode ?? BANK_CODE;
+  const moneyAccounts = await listMoneyAccounts(ctx.restaurantId);
+  if (!moneyAccounts.some((a) => a.code === payFromCode)) {
+    return NextResponse.json({ error: "pay_account_invalid" }, { status: 400 });
+  }
+
   const map = await loadAccountMap(ctx.restaurantId);
   const taxCode = FORM_ACCOUNT[b.form]!;
   const taxId = map.get(taxCode);
-  const bankId = map.get(BANK_CODE);
+  const bankId = map.get(payFromCode);
   if (!taxId || !bankId) {
     return NextResponse.json({ error: "account_not_found" }, { status: 500 });
   }
@@ -119,7 +150,7 @@ async function POSTHandler(req: Request) {
               },
               {
                 accountId: bankId,
-                accountCode: BANK_CODE,
+                accountCode: payFromCode,
                 debitCents: 0,
                 creditCents: b.declaredCents,
               },

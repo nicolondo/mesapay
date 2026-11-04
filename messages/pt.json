@@ -4085,6 +4085,7 @@
     "paymentsCount": "{count, plural, one {# pagamento} other {# pagamentos}}",
     "drawer": "Caixa {sign}{amount}",
     "tipSuffix": "+ {amount} gorjeta",
+    "tipReturnedSuffix": "− {amount} gorjeta devolvida",
     "loadMore": "Carregar mais",
     "durationDash": "—",
     "durationHm": "{h}h {m}m",
@@ -8562,6 +8563,19 @@
     "adjustTitle": "Ajustar fatura {number}",
     "available": "Saldo disponível para ajustar: {amount}",
     "separateRefund": "A nota ajusta a fatura. A devolução do dinheiro é tratada separadamente.",
+    "chargeTitle": "O que foi cobrado nesta conta",
+    "chargeInvoice": "Fatura eletrônica",
+    "chargeTip": "Gorjeta (não faz parte da fatura eletrônica)",
+    "chargeCharged": "Cobrado",
+    "tipAnnulmentHint": "A anulação (motivo 2) também devolve ao cliente a gorjeta de {amount}. Uma nota parcial não altera a gorjeta.",
+    "reviewCreditNote": "Nota de crédito",
+    "reviewTipReturned": "+ Gorjeta devolvida",
+    "reviewRefundTotal": "Total a devolver ao cliente",
+    "tipReturnExplain": "A gorjeta é devolvida ao cliente com a anulação, mas não faz parte da nota de crédito eletrônica: a DIAN só recebe a comida e seus impostos. Nas gorjetas da equipe aparece como «Gorjeta devolvida por anulação».",
+    "tipNotAffected": "É uma nota parcial: a gorjeta da conta ({amount}) não muda.",
+    "detailTipReturned": "Gorjeta devolvida: {amount} (não faz parte da nota de crédito eletrônica)",
+    "detailRefundTotal": "Total a devolver ao cliente: {amount}",
+    "listTipReturned": "+ gorjeta devolvida {amount}",
     "mode": "Tipo de ajuste",
     "mode_total": "Todo o saldo disponível",
     "mode_total_hint": "Inclui o saldo ainda não reservado por outras notas de crédito.",
@@ -8733,6 +8747,7 @@
     "intro": "Sua nota de crédito eletrônica validada pela DIAN está em anexo.",
     "reference": "Fatura original: {number}",
     "total": "Total creditado: {amount}",
+    "tipRefund": "Gorjeta devolvida: {amount} (não faz parte da nota de crédito eletrônica)",
     "open": "Consultar nota de crédito",
     "attachments": "Anexamos a representação em PDF e o contêiner XML com a resposta da DIAN."
   },
@@ -9429,5 +9444,14 @@
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",
     "dayOrigin": "{source} · {tax}"
+  },
+  "tipReturns": {
+    "collected": "Gorjetas cobradas",
+    "line": "Gorjeta devolvida por anulação ({number})",
+    "net": "Gorjetas líquidas da equipe",
+    "negative": "Ficam negativas: a gorjeta devolvida já tinha sido entregue à equipe. A diferença é dinheiro que a equipe recebeu a mais.",
+    "explain": "Anular uma fatura com nota de crédito devolve a gorjeta ao cliente. Ela é descontada no dia da nota; o turno da conta original não muda.",
+    "waiterReturned": "−{amount} devolvida",
+    "statHint": "Cobradas {collected} · devolvidas {returned}"
   }
 }

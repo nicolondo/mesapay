@@ -12,6 +12,8 @@ En **Facturas → Notas crédito**, un administrador puede buscar una factura ac
 
 La nota ajusta fiscalmente la factura. No ejecuta una devolución de dinero, no cambia el estado pagado del pedido y no mueve inventario. Los reembolsos se gestionan por separado. Si la cuenta se cobró a crédito de cliente y ese crédito tiene saldo, la nota aceptada sí baja la deuda del cliente (ver «Contabilidad e impuestos»).
 
+La **anulación** (motivo DIAN 2) también le devuelve al cliente la **propina** de la cuenta, que no va en la factura electrónica (ver «Propina devuelta con la anulación»). La nota electrónica no cambia.
+
 ## Contabilidad e impuestos
 
 Sólo cuentan las notas **aceptadas por la DIAN** y no descartadas; una nota rechazada, pendiente o descartada no toca libros ni reportes. El dato sale del `snapshot.lines` de la nota (lo que declaró su XML), agrupado por tarifa (IVA x %, INC x %, sin impuesto), nunca del pedido actual. Base + impuesto tiene que cuadrar al centavo con `subtotalCents`, `taxCents` y `totalCents`; una nota que no cuadra se excluye de contabilidad, impuestos, exógena y libro de ventas, y queda en el log (`[creditNotes] nota crédito que no cuadra`).
@@ -39,6 +41,36 @@ Sólo cuentan las notas **aceptadas por la DIAN** y no descartadas; una nota rec
 **Libro de ventas.** El libro de ventas, su CSV y la hoja «Ventas» del Excel para el contador listan las notas del mes en negativo (número de la nota y factura que ajusta); el total del Excel queda neto de notas.
 
 **Fuera de alcance.** El estado de resultados operativo de la pestaña Contabilidad (calculado desde las cuentas pagadas, que tampoco resta reembolsos) no cambia; el estado de resultados, balance, diario y mayor de Reportes salen de los asientos y sí reflejan las notas.
+
+## Propina devuelta con la anulación
+
+La propina no hace parte de la factura electrónica: el XML aceptado (fuente única de la nota, `creditNoteSource.ts`) sólo trae la comida y sus impuestos. Antes, anular una factura de $680.130 (con $61.830 de propina) dejaba la nota en $618.300 —correcto fiscalmente— y la propina por fuera de todo: el comercio quedaba debiéndole al cliente $618.300 y la propina seguía como deuda con el equipo.
+
+**Regla (decisión del dueño, 2026-11-04).** Toda nota de **anulación** (motivo DIAN `2`, que siempre cubre la factura entera) le devuelve también la propina de la cuenta, automáticamente. Las notas parciales (otros motivos) no tocan la propina. **La nota electrónica no cambia**: XML, CUDE, totales fiscales, PDF/representación gráfica y lo que va a la DIAN siguen siendo sólo la comida.
+
+**De dónde sale la propina** (`src/lib/erp/creditNoteTips.ts`). Una factura (`SimpleInvoice`) es siempre de una cuenta entera: `orderId` es único y la factura sólo se emite con la cuenta pagada; la cuenta dividida tiene varios cobros pero una sola factura. Por eso la parte de la propina de la factura es la de la cuenta, y se toma el **mínimo** de: la propina congelada en la factura (`SimpleInvoice.snapshot.tipCents`), la de la cuenta (`Order.tipCents`, la que el asiento de ventas acreditó a 238030) y la cobrada en los cobros (`Payment.tipCents` de los cobros `approved` o `refunded`; efectivo, tarjeta, datáfono y crédito de cliente por igual; pendientes, rechazados y anulados no). Así nunca se devuelve más de lo cobrado.
+
+**Se fija una vez.** `CreditNote.tipRefundCents` se guarda al crear la nota (0 si no es anulación): si la cuenta cambia después, la historia no cambia. La pantalla y la revisión la muestran antes de confirmar.
+
+**Pantalla.** Al elegir la factura: «Factura electrónica $618.300 · Propina $61.830 (no va en la factura electrónica) · Cobrado $680.130» (cobrado = `SimpleInvoice.totalCents`). En la revisión de una anulación: «Nota crédito $618.300 + Propina devuelta $61.830 = Total a devolver al cliente $680.130», con la aclaración de que la propina no hace parte de la nota electrónica; en una parcial, «la propina no cambia». El detalle y la lista muestran la propina devuelta. El correo de la nota agrega una línea informativa «Propina devuelta: $61.830 (no hace parte de la nota crédito electrónica)»; el PDF y el XML adjuntos no cambian.
+
+**Contabilidad** (en el mismo asiento «Notas crédito del día» de la nota; regenerable):
+
+| Caso | Asiento de la propina |
+|---|---|
+| Efectivo / tarjeta / datáfono | D 238030 Propinas por pagar · C 238020 Reintegros por pagar |
+| Crédito de cliente con saldo | D 238030 · C 130505 Clientes (y `Payment.creditNoteCents` sube: la deuda del cliente baja también por la propina) |
+| Crédito con abonos | la parte fiscal toma primero el saldo FIFO; lo que quede, la propina (C 130505); el resto, C 238020 |
+| Reembolso de la pasarela DESPUÉS de la nota | el reembolso debita 238020 hasta lo que la nota **y su propina** dejaron pendiente: un reembolso de $680.130 cancela todo, sin devolución estimada de más |
+| Reembolso ANTES de la nota | el reembolso ya se asentó como devolución estimada (con impuesto embebido del régimen); la nota cubre primero la parte fiscal (como siempre) y lo que sobra, la propina: esa parte va D 238030 · C 417505 + C impuesto estimado (reclasifica la propina, que no es venta) y no crea pasivo con el cliente |
+
+- La parte de la propina que cancela cartera se fija con el sello de la nota (`CreditNote.tipReceivableCents`), después de la parte fiscal, con el mismo lock y la misma regla FIFO. Débitos = créditos por construcción (cada cuenta va neteada en una línea).
+- **Mes.** El de la nota (mismo «primer mes abierto» si el mes fiscal está cerrado). Una nota ya asentada en un mes que se cerró **antes** de esta regla lleva su propina al primer mes abierto, último día (`CreditNote.tipPostedMonth`, se fija una vez).
+- **Reportes.** Ventas, estado de resultados, impuestos y exógena no cambian: la propina no es venta ni lleva impuesto (238030 y 238020 son pasivos). Excepción buscada: un reembolso hecho antes de la nota que incluyó la propina deja de inflar las devoluciones en ventas. Un reembolso de la propina ya no se resta como «devolución sin nota» en los reportes de impuestos ni en el análisis de ventas. Cartera/CxC (incluida la 1008) y reintegros reflejan la propina.
+
+**Propinas del equipo** (`src/lib/creditNoteTipReturns.ts`). La propina devuelta baja lo que se le debe al equipo **el día de la nota** (instante de la emisión firmada), con una línea negativa «Propina devuelta por anulación (NC…)», en: el cierre de turno abierto (Reportes › Cierre), el reporte del turno cerrado y la lista de turnos, el reporte del día y, con propinas por mesero, la vista **Yo** y el cierre de turno del mesero (la devuelta se reparte entre quienes cobraron la propina original, en proporción). El turno donde se cobró la cuenta original no se reescribe. Si la propina ya se le había entregado al equipo, las propinas netas pueden quedar en negativo: se muestra así, con un aviso, en vez de esconderlo. Una nota que la DIAN acepta horas después de firmarse cae igual en el turno de su emisión firmada.
+
+**Notas existentes.** La regla aplica también a las anulaciones ya aceptadas. Sus columnas nuevas arrancan en `null` y la contabilidad las fija la primera vez que las ve (`ensureCreditNoteStamps`: al abrir Notas crédito, al regenerar asientos o al leer propinas del equipo), con la misma regla que las notas nuevas. Se eligió eso en vez de un backfill SQL porque la regla vive en el código (snapshot JSON, cobros, cartera FIFO) y así no se duplica; además cubre notas creadas por la versión anterior durante el despliegue blue/green.
 
 ## Reglas de integridad
 
@@ -76,6 +108,8 @@ Un error de canal (timeout, 5xx, Fault SOAP, respuesta ilegible), un envío `sen
 **Serie de una nota nueva** (`chooseCreditNotePrefix`): se usa el prefijo configurado (`DianConfig.creditNotePrefix`) salvo que su serie esté **en conflicto**: alguna de sus notas —descartadas incluidas— recibió el rechazo regla 90 y ninguna nota posterior de esa serie fue aceptada. En ese caso se usa otra serie del mismo NIT y ambiente, sin conflicto, válida y con al menos una nota aceptada (la de aceptación más reciente). Si no existe, no se emite: hay que configurar un prefijo nuevo, y la pantalla de numeración lo explica. Una serie en conflicto no se puede volver a configurar (`series_in_conflict`). La decisión se recalcula desde la evidencia fiscal; no reescribe la configuración. Con `NC` en conflicto y `NCM1` aceptada, las notas nuevas y los reemplazos salen en `NCM`.
 
 ## Instalación y operación
+
+La migración aditiva `20261104170000_credit_note_tip_refund` agrega `CreditNote.tipRefundCents`, `tipReceivableCents` y `tipPostedMonth` (nullable, sin reescribir filas; checks `NOT VALID`). Las notas existentes se fijan solas la primera vez que la contabilidad las ve.
 
 La migración aditiva `20261031140000_credit_note_status_not_found` agrega `DianDocument.statusNotFoundCount` (entero, default 0). Las notas existentes arrancan en 0: alcanzan el umbral con consultas nuevas, sin migración de datos.
 

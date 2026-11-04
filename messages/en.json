@@ -4085,6 +4085,7 @@
     "paymentsCount": "{count, plural, one {# payment} other {# payments}}",
     "drawer": "Drawer {sign}{amount}",
     "tipSuffix": "+ {amount} tip",
+    "tipReturnedSuffix": "− {amount} tip returned",
     "loadMore": "Load more",
     "durationDash": "—",
     "durationHm": "{h}h {m}m",
@@ -8562,6 +8563,19 @@
     "adjustTitle": "Adjust invoice {number}",
     "available": "Available amount to adjust: {amount}",
     "separateRefund": "The note adjusts the invoice. Refunds are handled separately.",
+    "chargeTitle": "What this bill charged",
+    "chargeInvoice": "Electronic invoice",
+    "chargeTip": "Tip (not part of the electronic invoice)",
+    "chargeCharged": "Charged",
+    "tipAnnulmentHint": "A cancellation (reason 2) also returns the {amount} tip to the customer. A partial note does not affect the tip.",
+    "reviewCreditNote": "Credit note",
+    "reviewTipReturned": "+ Tip returned",
+    "reviewRefundTotal": "Total to return to the customer",
+    "tipReturnExplain": "The tip is returned to the customer with the cancellation, but it is not part of the electronic credit note: DIAN only receives the food and its taxes. In the team's tips it shows as «Tip returned on cancellation».",
+    "tipNotAffected": "This is a partial note: the bill's tip ({amount}) does not change.",
+    "detailTipReturned": "Tip returned: {amount} (not part of the electronic credit note)",
+    "detailRefundTotal": "Total to return to the customer: {amount}",
+    "listTipReturned": "+ tip returned {amount}",
     "mode": "Adjustment type",
     "mode_total": "All available balance",
     "mode_total_hint": "Includes the balance not already reserved by other credit notes.",
@@ -8733,6 +8747,7 @@
     "intro": "Your electronic credit note, validated by DIAN, is attached.",
     "reference": "Original invoice: {number}",
     "total": "Total credited: {amount}",
+    "tipRefund": "Tip returned: {amount} (not part of the electronic credit note)",
     "open": "View credit note",
     "attachments": "The PDF representation and XML container with the DIAN response are attached."
   },
@@ -9429,5 +9444,14 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "dayOrigin": "{source} · {tax}"
+  },
+  "tipReturns": {
+    "collected": "Tips collected",
+    "line": "Tip returned on cancellation ({number})",
+    "net": "Team's net tips",
+    "negative": "They are negative: the returned tip had already been handed to the team. The difference is money the team received in excess.",
+    "explain": "Cancelling an invoice with a credit note returns the tip to the customer. It is subtracted on the day of the note; the original bill's shift does not change.",
+    "waiterReturned": "−{amount} returned",
+    "statHint": "Collected {collected} · returned {returned}"
   }
 }

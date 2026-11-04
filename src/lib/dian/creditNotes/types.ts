@@ -51,6 +51,14 @@ export type CreditNoteProposal = {
     taxCents: number;
     totalCents: number;
 };
+/**
+ * Revisión antes de confirmar: la nota fiscal y la propina que devuelve
+ * (sólo la anulación, motivo 2; ver erp/creditNoteTips.ts). La propina NO va
+ * en la nota electrónica: total a devolver = totalCents + tipRefundCents.
+ */
+export type CreditNoteReview = CreditNoteProposal & {
+    tipRefundCents: number;
+};
 export type CreditNoteDto = {
     /**
      * Contabilización de la nota aceptada («Contabilizada en …» / pendiente).
@@ -77,6 +85,12 @@ export type CreditNoteDto = {
     subtotalCents: number;
     taxCents: number;
     totalCents: number;
+    /**
+     * Propina devuelta con la anulación (no hace parte de la nota
+     * electrónica). 0 en notas parciales; null = nota anterior a la regla
+     * todavía sin aceptar (se calcula al contabilizarla).
+     */
+    tipRefundCents: number | null;
     environment: "1" | "2";
     createdAt: string;
     abandonedAt: string | null;
@@ -98,6 +112,16 @@ export type CreditNoteSource = {
     original: OriginalInvoiceSnapshot;
     lines: RemainingCreditLine[];
     remainingTotalCents: number;
+    /**
+     * Lo cobrado de la cuenta, separado: la factura electrónica (comida e
+     * impuestos, lo que dice el XML), la propina (que no va en la factura
+     * electrónica) y el total cobrado en MESAPAY (`SimpleInvoice.totalCents`).
+     */
+    charge: {
+        fiscalTotalCents: number;
+        tipCents: number;
+        chargedCents: number;
+    };
     sourceVersion: string;
     prefix: string;
     nextNumber: number;

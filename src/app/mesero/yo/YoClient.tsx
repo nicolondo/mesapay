@@ -6,11 +6,16 @@ import { useEffect, useState, type ReactNode } from "react";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import type { TipPolicy, ShiftPolicy } from "@/lib/staffPolicies";
+import { TipReturnsBox, fmtSignedCOP, type TipReturnLineView } from "@/components/TipReturns";
+
+const returnedOf = (lines: readonly TipReturnLineView[] | undefined) => (lines ?? []).reduce((s, l) => s + l.cents, 0);
 
 type Stats = {
   sinceIso: string;
   tipsCents: number | null;
   tipsRawCents: number;
+  /** Su parte de las propinas devueltas por anulación (sólo con propinas por mesero). */
+  tipReturns?: TipReturnLineView[];
   salesCents: number;
   paymentCount: number;
   tableCount: number;
@@ -28,6 +33,7 @@ type CloseSummary = {
   closedAtIso: string;
   durationMs: number;
   tipsCents: number;
+  tipReturns?: TipReturnLineView[];
   salesCents: number;
   paymentCount: number;
   tableCount: number;
@@ -147,7 +153,7 @@ export function YoClient({
             label="Propinas"
             value={
               stats.tipsCents != null
-                ? fmtCOP(stats.tipsCents)
+                ? fmtSignedCOP(stats.tipsCents - returnedOf(stats.tipReturns))
                 : "Compartidas"
             }
             hint={
@@ -159,6 +165,9 @@ export function YoClient({
           <Stat label="Mesas" value={String(stats.tableCount)} />
           <Stat label="Pagos" value={String(stats.paymentCount)} />
         </div>
+        {stats.tipsCents != null && (
+          <TipReturnsBox lines={stats.tipReturns ?? []} collectedCents={stats.tipsCents} />
+        )}
       </section>
 
       {/* Sheet: abrir turno → pedir base inicial */}
@@ -274,11 +283,14 @@ function CloseSummarySheet({
             label="Propinas"
             value={
               tipPolicy === "by_waiter"
-                ? fmtCOP(summary.tipsCents)
+                ? fmtSignedCOP(summary.tipsCents - returnedOf(summary.tipReturns))
                 : "Compartidas con el local"
             }
             accent={tipPolicy === "by_waiter"}
           />
+          {tipPolicy === "by_waiter" && (
+            <TipReturnsBox lines={summary.tipReturns ?? []} collectedCents={summary.tipsCents} />
+          )}
         </div>
 
         {/* Arqueo de la caja del mesero */}

@@ -7037,7 +7037,7 @@
     "jSource_taxpay": "Pagamento de impostos",
     "jSource_manual": "Comprovante manual",
     "filingsTitle": "Declarações e pagamentos",
-    "filingsIntro": "Registre o pagamento de cada imposto do período: gera o lançamento (conta do imposto contra banco) e fica no histórico.",
+    "filingsIntro": "Registre o pagamento de cada imposto do período: gera o lançamento (conta do imposto contra a conta de onde saiu o dinheiro) e fica no histórico.",
     "filingForm": "Imposto",
     "filingFormIva": "IVA",
     "filingFormInc": "INC",

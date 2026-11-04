@@ -680,9 +680,18 @@ export function buildTaxDrill({ docs, ledger }: DrillFacts): TaxDrill {
   };
 }
 
-/** Los impuestos que vale la pena mostrar: con cifra o renglones (el INC/IVA del régimen siempre). */
+/**
+ * Impuestos que siempre se muestran, aunque el período no tenga cifra: la
+ * retención en la fuente es mensual y obligatoria para quien la practica, y
+ * verla en $0 es información (no «falta»). El INC/IVA del régimen también.
+ */
+const ALWAYS_VISIBLE: readonly DrillTaxKey[] = ["retefuente"];
+
+/** Los impuestos que vale la pena mostrar: con cifra o renglones, más los de siempre. */
 export function visibleTaxes(drill: TaxDrill, regime: CurrentSalesTax["kind"]): DrillTax[] {
-  return drill.taxes.filter((t) => t.status !== "empty" || t.key === regime);
+  return drill.taxes.filter(
+    (t) => t.status !== "empty" || t.key === regime || ALWAYS_VISIBLE.includes(t.key),
+  );
 }
 
 // ── Nivel 3: auxiliares ───────────────────────────────────────────────────

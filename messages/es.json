@@ -1721,7 +1721,7 @@
   "opOrders": {
     "noRestaurant": "Sin restaurante.",
     "title": "Órdenes",
-    "summary": "{count, plural, one {# orden} other {# órdenes}} · {paidCount, plural, one {# pagada} other {# pagadas}} · {amount}",
+    "summary": "{count, plural, one {# orden} other {# órdenes}} · {paidCount, plural, one {# pagada} other {# pagadas}} · Ventas brutas {amount} (con impuestos y propina)",
     "filterStatus": "Estado",
     "filterPeriod": "Periodo",
     "statusAll": "Todas",
@@ -4179,7 +4179,7 @@
     "salesUncollectedTables": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# mesa} other {# mesas}}</nowrap>",
     "salesUncollectedOrders": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# orden} other {# órdenes}}</nowrap>",
     "noRestaurant": "No tienes restaurante asignado. Contacta al admin.",
-    "kpiSalesToday": "Ventas hoy",
+    "kpiSalesToday": "Ventas netas hoy",
     "kpiPaidOrders": "Órdenes pagadas",
     "kpiAvgTicket": "Ticket promedio",
     "kpiOpenNow": "Abiertas ahora",

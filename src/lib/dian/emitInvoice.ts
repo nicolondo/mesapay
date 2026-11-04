@@ -33,8 +33,8 @@ import { sendBillSync, sendTestSetAsync, zipInvoice } from "@/lib/dian/soap";
 import { transitionAfterSend } from "@/lib/dian/documentState";
 import {
   claimDianDocument,
-  creditPaymentMeans,
   customerPartyFor,
+  invoicePaymentMeans,
   orderToInvoiceLines,
 } from "@/lib/dian/emit";
 import { dianIssueDateTime, dianSigningTime } from "@/lib/dian/dianDateTime";
@@ -51,6 +51,7 @@ import { acceptedInvoiceClosureCutoff } from "@/lib/dian/invoiceRequestCoverage"
 import {
   formatInvoiceNumber,
   frozenSalesTax,
+  isIssuedBeforePayment,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 
@@ -146,6 +147,12 @@ export async function emitDianInvoice(opts: {
   simpleInvoiceId: string;
   restaurantId: string;
   now?: Date;
+  /**
+   * `false`: NO encolar el papel al aceptarse. Lo usa la factura emitida
+   * antes de cobrar (`preInvoice.ts`), que imprime ella misma para poder
+   * decirle al staff por dónde salió (o caer al navegador). Default true.
+   */
+  printOnAccept?: boolean;
 }): Promise<EmitDianInvoiceResult> {
   const inv = await db.simpleInvoice.findUnique({
     where: { id: opts.simpleInvoiceId },
@@ -170,6 +177,7 @@ export async function emitDianInvoice(opts: {
               OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
             },
             select: {
+              id: true,
               nameSnapshot: true,
               qty: true,
               priceCentsSnapshot: true,
@@ -288,7 +296,22 @@ export async function emitDianInvoice(opts: {
   // lo mismo que el papel, y un reintento días después no puede cambiar
   // lo declarado); para cada línea libre, el suyo, sumado encima — ver
   // salesTax.ts. Snapshot viejo sin tarifa ⇒ sin impuesto embebido.
-  const lines = orderToInvoiceLines(inv.order.items, frozenSalesTax(snap));
+  // Factura emitida ANTES de cobrar: sólo los ítems que congeló. La cuenta
+  // queda cerrada a cambios, así que es el mismo conjunto; esto es la red
+  // para que una factura ya numerada (y quizá ya impresa) no cambie en
+  // silencio si algo se colara.
+  const frozenIds = snap.orderItemIds ? new Set(snap.orderItemIds) : null;
+  const invoicedItems = frozenIds
+    ? inv.order.items.filter((i) => frozenIds.has(i.id))
+    : inv.order.items;
+  if (frozenIds && invoicedItems.length !== frozenIds.size) {
+    console.warn("[dian-emit] la cuenta ya no tiene todos los ítems facturados", {
+      simpleInvoiceId: inv.id,
+      invoiced: frozenIds.size,
+      live: invoicedItems.length,
+    });
+  }
+  const lines = orderToInvoiceLines(invoicedItems, frozenSalesTax(snap));
   if (lines.length === 0) return blocked("no_lines");
 
   const input: DianInvoiceInput = {
@@ -305,7 +328,11 @@ export async function emitDianInvoice(opts: {
     // El CUFE sale de este mismo objeto (NumAdq = companyId).
     customer: customerPartyFor(inv.order.invoiceRequests[0] ?? null),
     lines,
-    ...creditPaymentMeans(inv.order.payments ?? [], issued.date),
+    // Emitida antes de cobrar ⇒ medio "1 – Instrumento no definido" (ver
+    // `invoicePaymentMeans`); a crédito ⇒ crédito; si no, efectivo "10".
+    ...invoicePaymentMeans(inv.order.payments ?? [], issued.date, {
+      issuedBeforePayment: isIssuedBeforePayment(snap),
+    }),
   };
 
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,
@@ -420,12 +447,14 @@ export async function emitDianInvoice(opts: {
     // dos rieles ven la aceptación sale UNA hoja. Rechazada o pendiente
     // ⇒ nada de papel. Ver print/invoiceQueue.ts.
     const cufe = t.cufe ?? built.cufe;
-    await printAcceptedDianInvoice({
-      simpleInvoiceId: inv.id,
-      restaurantId: opts.restaurantId,
-      cufe,
-      qrUrl: dianQrUrl(cufe, env),
-    });
+    if (opts.printOnAccept !== false) {
+      await printAcceptedDianInvoice({
+        simpleInvoiceId: inv.id,
+        restaurantId: opts.restaurantId,
+        cufe,
+        qrUrl: dianQrUrl(cufe, env),
+      });
+    }
   }
 
   return {

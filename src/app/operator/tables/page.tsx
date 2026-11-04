@@ -33,6 +33,16 @@ import {
   resolveCompAllowedRoles,
   type CompPolicyView,
 } from "@/lib/staffPolicies";
+import {
+  ORDER_INVOICE_VIEW_SELECT,
+  orderInvoiceViewOf,
+  type OrderInvoiceView,
+} from "@/lib/orders/invoicedOrder";
+import type { InvoiceIntent } from "@/components/invoice/types";
+import {
+  isSimpleInvoiceRequested,
+  simpleInvoiceEmailFrom,
+} from "@/lib/simpleInvoiceRequest";
 
 export const dynamic = "force-dynamic";
 
@@ -172,6 +182,9 @@ export default async function TablesPage({
               email: true,
             },
           },
+          // Factura emitida ANTES de cobrar: la ficha muestra "Facturada ·
+          // pendiente de pago" y deja la cuenta cerrada a cambios.
+          simpleInvoice: { select: ORDER_INVOICE_VIEW_SELECT },
         },
       },
       _count: { select: { orders: true } },
@@ -260,6 +273,19 @@ export default async function TablesPage({
     allTables.flatMap((t) => t.orders.flatMap((o) => o.payments.filter((p) => p.status === "pending"))),
   );
 
+  // Facturas emitidas antes de cobrar (raras: se cargan aparte, con su
+  // estado DIAN y si una nota crédito ya las anuló).
+  const invoiceViews = new Map<string, OrderInvoiceView>();
+  await Promise.all(
+    allTables
+      .flatMap((t) => t.orders)
+      .filter((o) => o.simpleInvoice)
+      .map(async (o) => {
+        const view = await orderInvoiceViewOf(db, o.simpleInvoice);
+        if (view) invoiceViews.set(o.id, view);
+      }),
+  );
+
   // Lo que el tile necesita de una cuenta viva, compartido entre las mesas
   // físicas y las facturas manuales: cobrable neto del descuento, lo que
   // falta por cobrar, y el resumen de rondas/cliente para la ficha.
@@ -296,6 +322,14 @@ export default async function TablesPage({
           }
         : null,
       invoiceRequest: order.invoiceRequests[0] ?? null,
+      // Lo que ya se pidió de factura en la cuenta (la hoja de "Imprimir
+      // factura" lo muestra y deja cambiarlo) y la factura, si ya existe.
+      invoiceIntent: (order.invoiceRequests[0]
+        ? { kind: "formal", summary: order.invoiceRequests[0] }
+        : isSimpleInvoiceRequested(order.simpleInvoiceEmail)
+          ? { kind: "simple", email: simpleInvoiceEmailFrom(order.simpleInvoiceEmail) }
+          : null) satisfies InvoiceIntent | null,
+      invoice: invoiceViews.get(order.id) ?? null,
       outstandingCents,
       needsWaiter: order.needsWaiter,
       // Lo que el comensal pidió para pagar (efectivo, datáfono del

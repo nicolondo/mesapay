@@ -144,7 +144,9 @@
     "identifyAs": "Soy {name} · aplicar mi cuenta",
     "identifying": "Identificando…",
     "identifiedAs": "Identificado como {name}. Tu descuento ya está aplicado.",
-    "haveAccount": "¿Tienes cuenta MESAPAY? Entra para usar tu descuento"
+    "haveAccount": "¿Tienes cuenta MESAPAY? Entra para usar tu descuento",
+    "orderInvoicedDiner": "Esta cuenta ya tiene la factura. Para pedir algo más, avísale al mesero.",
+    "orderInvoicedStaff": "Esta cuenta ya está facturada: no se le pueden agregar platos. Cóbrala y abre una cuenta nueva para lo adicional."
   },
   "landing": {
     "viewMenu": "Solo ver la carta",
@@ -1338,7 +1340,8 @@
     "einvoiceLabel": "FACTURA ELECTRÓNICA DE VENTA",
     "finalConsumer": "Consumidor final",
     "einvoiceVerify": "Consulta esta factura en la DIAN:",
-    "einvoiceRepresentation": "Representación impresa de la factura electrónica de venta"
+    "einvoiceRepresentation": "Representación impresa de la factura electrónica de venta",
+    "paymentPending": "Pendiente de pago"
   },
   "emailDianInvoice": {
     "subject": "Tu factura electrónica de {brand} — {number}",
@@ -3257,7 +3260,12 @@
     "check_variacion_up": "{tax}: {pct} % más que el promedio de los períodos anteriores ({current} frente a {average}).",
     "check_variacion_down": "{tax}: {pct} % menos que el promedio de los períodos anteriores ({current} frente a {average}).",
     "check_variacion_action": "Puede ser la temporada; si no tiene explicación, despliega el impuesto y revisa sus documentos.",
-    "check_variacion_ok": "Ningún impuesto con un cambio inusual"
+    "check_variacion_ok": "Ningún impuesto con un cambio inusual",
+    "check_facturadaPendiente_title": "{count, plural, one {# factura emitida antes de cobrar, pendiente de pago} other {# facturas emitidas antes de cobrar, pendientes de pago}}",
+    "check_facturadaPendiente_body": "Se emitieron en el período y la DIAN ya las tiene ({amount} de impuesto), pero la cuenta todavía no se cobró: no están en los documentos ni en el libro de este reporte. No es un error: la venta entra el día en que se cobre.",
+    "check_facturadaPendiente_action": "Cóbralas en Mesas. Si el cliente se fue sin pagar, anula la factura con una nota crédito y cierra la cuenta sin cobro.",
+    "check_facturadaPendiente_ok": "Ninguna factura emitida antes de cobrar quedó sin cobrar",
+    "linkTables": "Ir a Mesas"
   },
   "opBackups": {
     "cardTitle": "Copias de seguridad",
@@ -4068,7 +4076,8 @@
     "soldOutReminderTitle": "{count, plural, one {# plato agotado} other {# platos agotados}}",
     "soldOutReminderBody": "Revisa si hoy sí hay y vuelve a ofrecerlos.",
     "soldOutReview": "Revisar",
-    "soldOutDismiss": "Descartar"
+    "soldOutDismiss": "Descartar",
+    "openBillInvoiced": "Facturada ({number}), pendiente de pago: cóbrala o anula la factura con nota crédito"
   },
   "opShifts": {
     "noRestaurant": "Sin restaurante.",
@@ -9451,7 +9460,8 @@
     "severity_info": "Para tener en cuenta",
     "expandAll": "Desplegar todo",
     "collapseAll": "Plegar todo",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "flag_pendingPayment": "Pendiente de pago"
   },
   "tipReturns": {
     "collected": "Propinas cobradas",
@@ -9461,5 +9471,57 @@
     "explain": "Anular una factura con nota crédito le devuelve la propina al cliente. Se resta el día de la nota; el turno de la cuenta original no cambia.",
     "waiterReturned": "−{amount} devuelta",
     "statHint": "Cobradas {collected} · devueltas {returned}"
+  },
+  "preInvoice": {
+    "action": "Imprimir factura",
+    "sheetLabel": "Factura antes de cobrar",
+    "sheetTitle": "Imprimir la factura",
+    "sheetIntro": "Se emite la factura de la cuenta tal como está, por {total}. El cliente paga después con lo que quiera: efectivo, datáfono, link o dividida.",
+    "customerLabel": "Cliente de la factura",
+    "customerFinal": "Consumidor final",
+    "customerFinalHint": "Si no eliges a nadie, sale a consumidor final (222222222222).",
+    "customerPerson": "{name} · {doc}",
+    "customerGenericEmail": "Consumidor final · se envía a {email}",
+    "toName": "A nombre del cliente",
+    "change": "Cambiar",
+    "addEmail": "Agregar correo",
+    "changeEmail": "Cambiar correo",
+    "lockWarning": "Después de facturar, la cuenta queda cerrada: no se le pueden agregar ni quitar platos. Si el cliente va a pedir algo más, imprime mejor la precuenta.",
+    "confirm": "Emitir e imprimir factura",
+    "issuing": "Emitiendo factura…",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "resultSent": "Factura {number} enviada a {printer}.",
+    "resultSentNoName": "Factura {number} enviada a la impresora.",
+    "resultBrowser": "Factura {number} emitida. No hay impresora de facturas disponible: se imprime desde este equipo.",
+    "resultDuplicate": "La factura {number} ya se había enviado a la impresora. Para otra copia usa «Reimprimir factura».",
+    "resultIssued": "Factura {number} emitida.",
+    "dianPending": "Factura {number} enviada a la DIAN. Todavía no responde: sale sola por la impresora apenas la acepte. Mientras, puedes llevar la precuenta.",
+    "dianBlocked": "La factura {number} quedó numerada, pero no se pudo enviar a la DIAN por la configuración de facturación electrónica. El administrador lo resuelve en Facturas; mientras, lleva la precuenta.",
+    "dianRejected": "La DIAN rechazó la factura {number}. El administrador la revisa en Facturas; mientras, lleva la precuenta.",
+    "dianError": "La DIAN no respondió a la factura {number}. Se reintenta sola; mientras, lleva la precuenta.",
+    "afterIssueHint": "Cuando el cliente pague, cóbrale con cualquier medio: no sale otra factura.",
+    "printPrebill": "Imprimir precuenta",
+    "checkAgain": "Consultar a la DIAN",
+    "checking": "Consultando…",
+    "errorNotBillable": "Esta cuenta no tiene nada que facturar.",
+    "errorClosed": "La cuenta ya está pagada o cancelada.",
+    "errorNumbering": "Se acabó la numeración de la resolución DIAN. El administrador tiene que cargar una resolución nueva.",
+    "errorGeneric": "No se pudo emitir la factura. Intenta de nuevo.",
+    "bannerLabel": "Facturada · pendiente de pago",
+    "bannerAnnulled": "Factura anulada",
+    "bannerBody": "La cuenta quedó cerrada: no se le pueden agregar ni quitar platos. Cóbrala con cualquier medio (no sale otra factura). Para corregirla, anula la factura con una nota crédito; si piden algo más, cobra esta cuenta y abre una nueva.",
+    "bannerBodyCompact": "Cóbrala con cualquier medio: no sale otra factura ni otra hoja.",
+    "bannerAnnulledBody": "Una nota crédito anuló la factura {number}. Si el cliente se fue sin pagar, cierra la cuenta sin cobro desde el cobro (cortesía).",
+    "dianStateAccepted": "Aceptada por la DIAN",
+    "dianStatePending": "Esperando a la DIAN",
+    "dianStateBlocked": "Sin enviar a la DIAN (configuración)",
+    "dianStateRejected": "Rechazada por la DIAN",
+    "dianStateError": "Sin respuesta de la DIAN",
+    "reprint": "Reimprimir factura",
+    "annulLink": "Anular con nota crédito",
+    "view": "Ver factura",
+    "tileBadge": "Facturada",
+    "dinerInvoiced": "La factura de esta cuenta ya está emitida ({number}). Puedes pagar con cualquier medio."
   }
 }

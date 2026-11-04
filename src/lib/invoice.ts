@@ -102,7 +102,31 @@ export type InvoiceSnapshot = {
     city?: string | null;
     department?: string | null;
   } | null;
+  /**
+   * Factura emitida ANTES de cobrar ("Imprimir factura" desde la mesa o el
+   * cobro, sin método de pago todavía). Ver `src/lib/preInvoice.ts`:
+   *   · la DIAN la recibe con medio de pago "1 – Instrumento no definido";
+   *   · el papel dice "Pendiente de pago" (y la propina sugerida) mientras
+   *     la cuenta no esté saldada;
+   *   · `paidAtIso` es el instante de EMISIÓN, no el del cobro.
+   * Ausente/false = la factura de siempre, emitida al cobrar.
+   */
+  issuedBeforePayment?: boolean;
+  /**
+   * Los `OrderItem` que cubre la factura emitida antes de cobrar. La cuenta
+   * queda cerrada a cambios (ver `orders/invoicedOrder.ts`), y el XML de la
+   * DIAN se arma SÓLO con estos ítems: si algo se colara después, no
+   * cambiaría en silencio una factura ya numerada.
+   */
+  orderItemIds?: string[];
 };
+
+/** ¿La factura se emitió antes de cobrar la cuenta? */
+export function isIssuedBeforePayment(
+  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment"> | null | undefined,
+): boolean {
+  return snapshot?.issuedBeforePayment === true;
+}
 
 /**
  * Tarifa CONGELADA en la factura: la que el comercio tenía al emitirla.

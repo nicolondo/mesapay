@@ -23,7 +23,8 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
-import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
+import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
 import type { RestaurantTax } from "@/lib/salesTax";
 
@@ -108,6 +109,10 @@ export type ActiveOrder = {
   } | null;
   /** Solicitud de factura pendiente de la cuenta: el cliente al que va. */
   invoiceRequest: InvoiceRequestSummary | null;
+  /** Lo que ya se pidió de factura (personalizada / genérica con correo). */
+  invoiceIntent: InvoiceIntent | null;
+  /** Factura ya emitida (antes de cobrar): la cuenta queda cerrada. */
+  invoice: InvoicedOrderView | null;
   outstandingCents: number;
   needsWaiter: boolean;
   rounds: Round[];
@@ -968,6 +973,8 @@ function ManualInvoiceTile({
           discountPct={tile.order.discountPct}
           customer={tile.order.customer}
           invoiceRequest={tile.order.invoiceRequest}
+          invoiceIntent={tile.order.invoiceIntent}
+          invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
@@ -1020,6 +1027,7 @@ function ActiveTile({
   viewerRole: string | null;
 }) {
   const tr = useTranslations("opTables");
+  const tPre = useTranslations("preInvoice");
   const tokens = tileTokensForState(tile.visualState);
   const tableLabel = counterMode
     ? tr("tableFullCounter")
@@ -1088,6 +1096,13 @@ function ActiveTile({
             (pulse ? " animate-pulse" : "")
           }
         />
+        {/* Overlay: cuenta ya facturada (factura antes de cobrar),
+            arriba a la izquierda — pendiente de pago, no se le suma nada. */}
+        {tile.order.invoice && (
+          <span className="absolute top-1 left-1.5 font-mono text-[8px] tracking-wider uppercase text-[#8F6828] bg-[#F6EEDD] rounded px-1">
+            {tPre("tileBadge")}
+          </span>
+        )}
         {/* Overlay: icono de llamada mesero arriba derecha. */}
         {tile.order.needsWaiter && (
           <span
@@ -1122,6 +1137,8 @@ function ActiveTile({
           discountCents={tile.order.discountCents}
           discountPct={tile.order.discountPct}
           customer={tile.order.customer}
+          invoiceIntent={tile.order.invoiceIntent}
+          invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
           counterMode={counterMode}
           tenantSlug={tenantSlug}

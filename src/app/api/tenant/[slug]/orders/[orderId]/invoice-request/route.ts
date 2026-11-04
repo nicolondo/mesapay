@@ -9,6 +9,8 @@ import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { applyCustomerDiscount, type ApplyCustomerDiscountResult } from "@/lib/customerDiscount";
+import { ORDER_INVOICED } from "@/lib/orders/orderInvoicedError";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 
 /**
  * Customer-submitted billing info attached to an order. We store it
@@ -76,9 +78,31 @@ async function POSTHandler(
   if (!tenant) {
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
   }
-  const order = await db.order.findUnique({ where: { id: orderId } });
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { simpleInvoice: { select: { id: true, invoiceNumber: true, snapshot: true } } },
+  });
   if (!order || order.restaurantId !== tenant.id) {
     return NextResponse.json({ error: "order_not_found" }, { status: 404 });
+  }
+  // Factura emitida ANTES de cobrar: el adquiriente ya quedó en ella (y en
+  // el XML que va a la DIAN). Cambiarlo ahora sería otra factura: se anula
+  // con nota crédito. Con la cuenta ya pagada sigue el camino de siempre
+  // (la solicitud tardía queda pendiente en Facturas).
+  if (order.simpleInvoice && order.status !== "paid") {
+    return NextResponse.json(
+      {
+        error: ORDER_INVOICED,
+        invoice: {
+          invoiceId: order.simpleInvoice.id,
+          documentNumber: formatInvoiceNumber(
+            order.simpleInvoice.snapshot as unknown as InvoiceSnapshot,
+            order.simpleInvoice.invoiceNumber,
+          ),
+        },
+      },
+      { status: 409 },
+    );
   }
 
   const body = await req.json().catch(() => null);

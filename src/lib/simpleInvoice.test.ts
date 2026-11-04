@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   orderFindUnique: vi.fn(),
   restaurantUpdate: vi.fn(),
   invoiceCreate: vi.fn(),
+  invoiceFindUnique: vi.fn(),
   enqueue: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
@@ -14,7 +15,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     order: { findUnique: m.orderFindUnique },
     restaurant: { update: m.restaurantUpdate },
-    simpleInvoice: { create: m.invoiceCreate },
+    simpleInvoice: { create: m.invoiceCreate, findUnique: m.invoiceFindUnique },
   },
 }));
 vi.mock("@/lib/env", () => ({ env: { APP_PUBLIC_BASE_URL: "https://mesapay.co" } }));
@@ -243,5 +244,106 @@ describe("invoice sale timestamp", () => {
     m.orderFindUnique.mockResolvedValue({ ...order(), createdAt: new Date("2026-09-13T13:00:00Z") });
     const snapshot = await issuedSnapshot();
     expect(snapshot.paidAtIso).toBe("2026-09-14T20:00:00.000Z");
+  });
+});
+
+describe("issueSimpleInvoice — factura ANTES de cobrar (beforePayment)", () => {
+  const openOrder = () => ({
+    ...order(),
+    status: "served",
+    paidAt: null,
+    items: order().items.map((i, n) => ({ ...i, id: `it-${n + 1}` })),
+  });
+
+  it("sobre una cuenta abierta: numera, congela los ítems y NO encola papel (lo imprime quien la pidió)", async () => {
+    m.orderFindUnique.mockResolvedValue(openOrder());
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    const before = Date.now();
+    const r = await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1", beforePayment: true });
+    expect(r).toMatchObject({ ok: true, invoiceNumber: 42, alreadyIssued: false });
+    const snap = (m.invoiceCreate.mock.calls[0][0] as { data: { snapshot: InvoiceSnapshot } }).data.snapshot;
+    expect(snap.issuedBeforePayment).toBe(true);
+    expect(snap.orderItemIds).toEqual(["it-1", "it-2"]);
+    // Sin `paidAt`: la fecha de la factura es la de la emisión.
+    expect(Date.parse(snap.paidAtIso)).toBeGreaterThanOrEqual(before - 1000);
+    // La venta (sin propina) es el total de la factura, igual que siempre.
+    expect(snap.totalCents).toBe(4_190_000);
+    expect(snap.tipCents).toBe(0);
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("sin pedirlo explícitamente, una cuenta sin pagar sigue sin factura (order_not_paid)", async () => {
+    m.orderFindUnique.mockResolvedValue(openOrder());
+    const r = await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1" });
+    expect(r).toEqual({ ok: false, error: "order_not_paid" });
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+  });
+
+  it("con un pago parcial que dejó propina, la factura es la VENTA: sin esa propina", async () => {
+    // Una parte de la mesa ya pagó $1.000.000 + $100.000 de propina: la
+    // orden lleva tipCents y totalCents con esa propina. La factura no.
+    m.orderFindUnique.mockResolvedValue({ ...openOrder(), status: "paying", tipCents: 100_000, totalCents: 4_290_000 });
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1", beforePayment: true });
+    const data = (m.invoiceCreate.mock.calls[0][0] as { data: { snapshot: InvoiceSnapshot; totalCents: number } }).data;
+    expect(data.snapshot.tipCents).toBe(0);
+    expect(data.snapshot.totalCents).toBe(4_190_000);
+    expect(data.totalCents).toBe(4_190_000);
+  });
+
+  it("una cuenta cancelada no se factura", async () => {
+    m.orderFindUnique.mockResolvedValue({ ...openOrder(), status: "cancelled" });
+    const r = await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1", beforePayment: true });
+    expect(r).toEqual({ ok: false, error: "order_closed" });
+  });
+
+  it("al cobrar después, el riel del cobro encuentra ESA factura: ni otro número ni otra hoja", async () => {
+    m.orderFindUnique.mockResolvedValue({
+      ...order(),
+      simpleInvoice: {
+        id: "inv-pre",
+        restaurantId: "rest-1",
+        orderId: "order-1",
+        invoiceNumber: 41,
+        email: null,
+        snapshot: { restaurantName: "Son y Melona", issuedBeforePayment: true },
+      },
+    });
+    const r = await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1" });
+    expect(r).toMatchObject({ ok: true, invoiceId: "inv-pre", invoiceNumber: 41, alreadyIssued: true });
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+    expect(m.invoiceCreate).not.toHaveBeenCalled();
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("una factura emitida al cobrar sí reintenta el encolado (comportamiento de siempre)", async () => {
+    m.orderFindUnique.mockResolvedValue({
+      ...order(),
+      simpleInvoice: {
+        id: "inv-1",
+        restaurantId: "rest-1",
+        orderId: "order-1",
+        invoiceNumber: 41,
+        email: null,
+        snapshot: { restaurantName: "Son y Melona" },
+      },
+    });
+    await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1" });
+    expect(m.enqueue).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: "inv-1", trigger: "paid" }));
+  });
+
+  it("carrera (el cobro y la emisión a la vez): el segundo choca con el único y devuelve la del primero", async () => {
+    m.orderFindUnique.mockResolvedValue(openOrder());
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    m.invoiceCreate.mockRejectedValue(Object.assign(new Error("Unique constraint"), { code: "P2002" }));
+    m.invoiceFindUnique.mockResolvedValue({
+      id: "inv-winner",
+      invoiceNumber: 41,
+      email: null,
+      snapshot: { restaurantName: "Son y Melona" },
+    });
+    const r = await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1", beforePayment: true });
+    expect(r).toMatchObject({ ok: true, invoiceId: "inv-winner", invoiceNumber: 41, alreadyIssued: true });
+    expect(m.enqueue).not.toHaveBeenCalled();
   });
 });

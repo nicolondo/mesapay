@@ -46,6 +46,7 @@ export function InvoiceFormSheet({
   beforePayment = false,
   operatorMode = false,
   staffPrint = null,
+  closeOnSave = false,
   onClose,
   onSaved,
 }: {
@@ -54,6 +55,12 @@ export function InvoiceFormSheet({
    * por el agente, como las comandas. null (el comensal): abre la vista.
    */
   staffPrint?: StaffPrintAccess | null;
+  /**
+   * Cerrar apenas se guarda, sin la pantalla de "listo". Lo usa la factura
+   * ANTES de cobrar (`PreInvoiceAction`): los datos son del cliente de la
+   * factura que se va a emitir ya, no una solicitud que "llega al pagar".
+   */
+  closeOnSave?: boolean;
   tenantSlug: string;
   orderId: string;
   /** Solicitud previa de esta misma cuenta, para corregir datos. */
@@ -169,6 +176,10 @@ export function InvoiceFormSheet({
       /* ignore */
     }
     onSaved?.({ status: "pending", ...payload, ...(j.request ?? {}) });
+    if (closeOnSave) {
+      onClose();
+      return;
+    }
     if (j.deferred) {
       setDone({ deferred: true, email: payload.email });
     } else if (j.invoiceUrl) {

@@ -26,7 +26,10 @@ export function InvoiceCheckoutCard({
   initialIntent = null,
   prefillEmail = null,
   operatorMode = false,
+  onIntentChange,
 }: {
+  /** Avisa lo pedido (personalizada / genérica) a quien lo comparte. */
+  onIntentChange?: (intent: InvoiceIntent) => void;
   tenantSlug: string;
   orderId: string;
   /** Lo que ya se había pedido en esta cuenta (sobrevive a un refresh). */
@@ -100,7 +103,10 @@ export function InvoiceCheckoutCard({
           beforePayment
           operatorMode={operatorMode}
           onClose={() => setFormOpen(false)}
-          onSaved={(summary) => setIntent({ kind: "formal", summary })}
+          onSaved={(summary) => {
+            setIntent({ kind: "formal", summary });
+            onIntentChange?.({ kind: "formal", summary });
+          }}
         />
       )}
       {simpleOpen && (
@@ -113,7 +119,10 @@ export function InvoiceCheckoutCard({
           beforePayment
           operatorMode={operatorMode}
           onClose={() => setSimpleOpen(false)}
-          onSaved={(email) => setIntent({ kind: "simple", email })}
+          onSaved={(email) => {
+            setIntent({ kind: "simple", email });
+            onIntentChange?.({ kind: "simple", email });
+          }}
         />
       )}
     </section>

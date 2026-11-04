@@ -59,6 +59,8 @@ export type AuditKind =
   | "order_item.free_line"
   // Factura de una cuenta (tirilla): reimpresión pedida desde el panel
   | "invoice.reprint"
+  // Factura emitida ANTES de cobrar ("Imprimir factura" desde la mesa)
+  | "invoice.pre_issue"
   // Carta: un plato sale o vuelve a la carta (Agotado / Disponible). Lo
   // graban el editor de carta, Archivar y el aviso de agotados al abrir turno.
   | "menu_item.availability.update"
@@ -132,6 +134,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order_item.serve_all": "Sirvió todo el tablero",
   "order_item.free_line": "Agregó línea libre",
   "invoice.reprint": "Reimprimió factura",
+  "invoice.pre_issue": "Emitió la factura antes de cobrar",
   "menu_item.availability.update": "Cambió disponibilidad de un plato",
   "printer.invoice_settings.update": "Cambió la impresión de facturas",
   "restaurant.create": "Creó restaurante",

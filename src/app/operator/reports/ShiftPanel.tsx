@@ -62,6 +62,8 @@ type Metrics = {
 type OpenOrder = {
   id: string;
   shortCode: string;
+  /** Factura emitida antes de cobrar ("FESM-42"): facturada, sin pagar. */
+  invoiceDocumentNumber?: string | null;
   status: string;
   subtotalCents: number;
   totalCents: number;
@@ -410,6 +412,11 @@ function OpenPanel({
                     {displayOrderCode(o.shortCode)} ·{" "}
                     {ORDER_STATUS_KEY[o.status] ? t(ORDER_STATUS_KEY[o.status]) : o.status}
                   </div>
+                  {o.invoiceDocumentNumber && (
+                    <div className="text-[11px] text-[#8F6828]">
+                      {t("openBillInvoiced", { number: o.invoiceDocumentNumber })}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="font-mono tabular text-sm">{fmtCOP(o.totalCents)}</div>

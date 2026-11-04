@@ -69,7 +69,7 @@ import { getEmailTranslator } from "@/lib/emailIntl";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
-import type { InvoiceSnapshot } from "@/lib/invoice";
+import { isIssuedBeforePayment, type InvoiceSnapshot } from "@/lib/invoice";
 import {
   CUSTOMER_INVOICE_JOB_KIND,
   INVOICE_PAYLOAD_VERSION,
@@ -209,6 +209,7 @@ export async function enqueueInvoicePrintDetailed(
     trigger,
     autoPrint: restaurant.invoiceAutoPrint ?? true,
     einvoicing: isModuleEnabled(restaurant.enabledModules, "einvoicing"),
+    issuedBeforePayment: isIssuedBeforePayment(args.snapshot),
   });
   if (decision !== "print") return { queued: false, reason: "skipped" };
 

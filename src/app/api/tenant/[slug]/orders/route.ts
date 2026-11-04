@@ -1,5 +1,6 @@
 import { secureApi } from "@/lib/secureApi";
 import { lockOrder } from "@/lib/orderLock";
+import { assertOrderNotInvoicedInTx } from "@/lib/orders/invoicedOrder";
 import { recomputeOrderLinesInTx } from "@/lib/orders";
 import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
@@ -117,6 +118,9 @@ async function POSTHandler(
     if (order && (order.restaurantId !== tenant.id || order.tableId !== table.id)) {
       return null;
     }
+    // Cuenta ya facturada (factura antes de cobrar): no se le suman platos.
+    // 409 `order_invoiced` (secureApi) — lo nuevo va en otra cuenta.
+    if (order) await assertOrderNotInvoicedInTx(tx, order.id);
     if (!order) {
       // Counter-mode tenants (food trucks, mostrador) have no
       // mains-together flow — force "asReady" regardless of what the

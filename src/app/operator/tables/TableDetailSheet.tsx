@@ -9,7 +9,12 @@ import { fmtCOP, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
-import type { InvoiceRequestSummary } from "@/components/invoice/types";
+import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
+import {
+  InvoicedOrderBanner,
+  PreInvoiceAction,
+  type InvoicedOrderView,
+} from "@/components/invoice/PreInvoicePanel";
 import {
   PendingPaymentNotice,
   type PendingPaymentView,
@@ -147,6 +152,8 @@ export function TableDetailSheet({
   viewerRole = null,
   manual = false,
   invoiceRequest = null,
+  invoiceIntent = null,
+  invoice = null,
   pendingPayments = [],
   counterMode = false,
 }: {
@@ -239,6 +246,13 @@ export function TableDetailSheet({
   pendingPayments?: PendingPaymentView[];
   // Modo mostrador: el cobro en efectivo titula "Orden X" en vez de "Mesa N".
   counterMode?: boolean;
+  // Lo que ya se pidió de factura en la cuenta: la hoja de "Imprimir
+  // factura" (antes de cobrar) lo muestra y deja cambiarlo.
+  invoiceIntent?: InvoiceIntent | null;
+  // Factura ya emitida ANTES de cobrar: la ficha la muestra arriba y la
+  // cuenta queda CERRADA a cambios (el servidor también lo exige — ver
+  // src/lib/orders/invoicedOrder.ts). Se cobra con cualquier medio.
+  invoice?: InvoicedOrderView | null;
 }) {
   const tr = useTranslations("opTables");
   // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
@@ -361,6 +375,9 @@ export function TableDetailSheet({
   const [prebillNoPrinter, setPrebillNoPrinter] = useState(false);
   const router = useRouter();
   const [, startTx] = useTransition();
+  // Cuenta facturada y sin cobrar: no se agrega, quita ni descuenta nada.
+  const invoiceLocked =
+    !!invoice && orderStatus !== "paid" && orderStatus !== "cancelled";
 
   // "Confirmar pago recibido" sobre la solicitud del comensal. Si cerró la
   // cuenta, a la misma pantalla de "listo" a la que llega el cobro normal
@@ -839,6 +856,19 @@ export function TableDetailSheet({
                 />
               )}
 
+            {/* Factura emitida ANTES de cobrar: va arriba, es lo primero
+                que hay que saber de esta cuenta (cerrada, pendiente de
+                pago, se cobra con cualquier medio). */}
+            {invoiceLocked && invoice && (
+              <InvoicedOrderBanner
+                orderId={orderId}
+                invoice={invoice}
+                sameTab={isMeseroView}
+                canConfigurePrinters={!isMeseroView}
+                canAnnul={!isMeseroView}
+              />
+            )}
+
             {/* Resumen del cobro + acciones principales. "Agregar
                 platos" siempre visible (acción frecuente); "Cobrar
                 la cuenta" sólo si queda algo por cobrar; "Cancelar"
@@ -895,6 +925,7 @@ export function TableDetailSheet({
                 cuenta, la misma que la caja ve cargada al cobrar. */}
             {manual &&
               tenantSlug &&
+              !invoiceLocked &&
               orderStatus !== "paid" &&
               orderStatus !== "cancelled" && (
                 <div className="rounded-xl border border-hairline bg-op-bg p-3">
@@ -942,7 +973,7 @@ export function TableDetailSheet({
                 que aplica el beneficio; quitar el descuento NO borra la
                 identidad (el consumo del cliente se sigue registrando).
                 En una factura manual no va: ahí el bloque es el de arriba. */}
-            {!manual && orderStatus !== "paid" && orderStatus !== "cancelled" && (
+            {!manual && !invoiceLocked && orderStatus !== "paid" && orderStatus !== "cancelled" && (
               <div className="rounded-xl border border-hairline bg-op-bg p-3">
                 <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-2">
                   {tr("customerTitle")}
@@ -1026,7 +1057,9 @@ export function TableDetailSheet({
               // Una factura manual se descarta entera mientras siga
               // abierta, tenga o no ítems: nada pasó por cocina (el
               // backend también lo sabe).
-              const canCancelOrder = manual
+              const canCancelOrder = invoiceLocked
+                ? false
+                : manual
                 ? orderStatus !== "paid" &&
                   orderStatus !== "cancelled" &&
                   orderStatus !== "paying"
@@ -1036,12 +1069,13 @@ export function TableDetailSheet({
                   orderStatus !== "cancelled" &&
                   orderStatus !== "paying";
               const canAdd =
-                isMeseroView || (tenantSlug && qrToken);
+                !invoiceLocked && (isMeseroView || (tenantSlug && qrToken));
               const canMove = !manual && !moveLocked && freeTables.length > 0;
               // Línea libre: mientras la cuenta siga abierta. En cobro no —
               // el comensal ya está viendo un total que dejaría de ser cierto
               // (el backend también lo rechaza).
               const canAddFreeLine =
+                !invoiceLocked &&
                 orderStatus !== "paid" &&
                 orderStatus !== "cancelled" &&
                 orderStatus !== "paying";
@@ -1052,6 +1086,13 @@ export function TableDetailSheet({
                 orderStatus !== "paid" &&
                 orderStatus !== "cancelled" &&
                 (hasAnyLiveItem || freeLines.length > 0);
+              // Factura ANTES de cobrar: mientras la cuenta no tenga
+              // factura. Mismo staff que la precuenta (mesero incluido).
+              const canPreInvoice =
+                canPrebill &&
+                !invoice &&
+                !!tenantSlug &&
+                (subtotalCents ?? 0) > 0;
               if (
                 !canAdd &&
                 !canCharge &&
@@ -1185,6 +1226,18 @@ export function TableDetailSheet({
                         )}
                       </div>
                     </div>
+                  )}
+                  {canPreInvoice && tenantSlug && (
+                    <PreInvoiceAction
+                      orderId={orderId}
+                      tenantSlug={tenantSlug}
+                      totalLabel={fmtCOP(subtotalCents ?? 0)}
+                      initialIntent={invoiceIntent}
+                      sameTab={isMeseroView}
+                      canConfigurePrinters={!isMeseroView}
+                      onPrintPrebill={printPrebill}
+                      onIssued={() => startTx(() => router.refresh())}
+                    />
                   )}
                   {canMove && (
                     <button
@@ -1356,7 +1409,7 @@ export function TableDetailSheet({
                                 el plato conserva su estado y no vuelve
                                 a entrar a cocina. El plato puede
                                 unirse a una mesa ocupada. */}
-                            {!manual && !moveLocked && allTables.length > 0 && (
+                            {!invoiceLocked && !manual && !moveLocked && allTables.length > 0 && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1389,7 +1442,7 @@ export function TableDetailSheet({
                                 cocina): quitarlo es cancelarlo, no una
                                 cortesía. El servidor aplica el mismo
                                 criterio. */}
-                            {cancellationRequiresAdmin(viewerRole, it, manual ? "manual" : undefined) ? (
+                            {invoiceLocked ? null : cancellationRequiresAdmin(viewerRole, it, manual ? "manual" : undefined) ? (
                               <div className="max-w-[210px] text-right">
                                 <button
                                   type="button"
@@ -1477,6 +1530,7 @@ export function TableDetailSheet({
                 puede. En el celular no hay tooltip, así que va en texto. */}
             {compLocked &&
               !manual &&
+              !invoiceLocked &&
               rounds.some(
                 (r) =>
                   r.status !== "cancelled" &&
@@ -1554,6 +1608,7 @@ export function TableDetailSheet({
                                   })
                                 : tr("freeLineNoTax")}
                           </span>
+                          {!invoiceLocked && (
                           <button
                             type="button"
                             onClick={() =>
@@ -1569,6 +1624,7 @@ export function TableDetailSheet({
                           >
                             {tr("cancelItem")}
                           </button>
+                          )}
                         </div>
                       </li>
                     );

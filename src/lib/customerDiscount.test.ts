@@ -10,6 +10,7 @@ import { applyCustomerDiscount, bpsToPct, customerDiscountCents } from "./custom
 const tx = {
   order: { findUnique: vi.fn(), update: vi.fn() },
   payment: { count: vi.fn() },
+  simpleInvoice: { count: vi.fn() },
 };
 type Tx = Parameters<typeof applyCustomerDiscount>[0];
 
@@ -28,6 +29,16 @@ beforeEach(() => {
   tx.order.findUnique.mockResolvedValue({ ...baseOrder });
   tx.order.update.mockResolvedValue({});
   tx.payment.count.mockResolvedValue(0);
+  tx.simpleInvoice.count.mockResolvedValue(0);
+});
+
+describe("applyCustomerDiscount — cuenta ya facturada (factura antes de cobrar)", () => {
+  it("no cambia lo cobrable: el descuento quedó congelado en la factura", async () => {
+    tx.simpleInvoice.count.mockResolvedValue(1);
+    const r = await applyCustomerDiscount(tx as unknown as Tx, "o1", "r1", { discountEnabled: true, discountBps: 1000 });
+    expect(r).toMatchObject({ applied: false, reason: "not_applicable", discountCents: 0 });
+    expect(tx.order.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("customerDiscountCents / bpsToPct", () => {

@@ -1009,7 +1009,14 @@ export function MenuClient({
         }),
       });
       if (!res.ok) {
-        alert("No pudimos enviar el pedido. Intenta de nuevo.");
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        // Cuenta ya facturada (factura antes de cobrar): no se le suman
+        // platos. El staff la cobra y abre otra; el comensal le avisa.
+        alert(
+          j.error === "order_invoiced"
+            ? tMenu(operatorMode ? "orderInvoicedStaff" : "orderInvoicedDiner")
+            : tMenu("sendError"),
+        );
         return;
       }
       const json = await res.json();

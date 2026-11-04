@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: {} }));
 
-import { creditPaymentMeans } from "./emit";
+import { creditPaymentMeans, invoicePaymentMeans } from "./emit";
 import { buildDianInvoiceXml, type DianInvoiceInput, type DianParty } from "./ubl";
 
 describe("creditPaymentMeans", () => {
@@ -56,5 +56,31 @@ describe("PaymentMeans en el XML", () => {
     expect(means({ ...base, ...creditPaymentMeans([{ billingCustomer: { creditTermsDays: 15 } }], base.issueDate) })).toBe(
       "<cbc:ID>2</cbc:ID><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode><cbc:PaymentDueDate>2026-09-23</cbc:PaymentDueDate><cbc:PaymentID>1</cbc:PaymentID>",
     );
+  });
+});
+
+describe("invoicePaymentMeans — factura emitida ANTES de cobrar", () => {
+  it("emitida antes de cobrar: contado con medio 1 (instrumento no definido), sin vencimiento", () => {
+    expect(invoicePaymentMeans([], "2026-11-04", { issuedBeforePayment: true })).toEqual({
+      paymentMeansCode: "1",
+    });
+  });
+  it("emitida al cobrar: igual que siempre (efectivo 10)", () => {
+    expect(invoicePaymentMeans([], "2026-11-04")).toEqual({ paymentMeansCode: "10" });
+    expect(invoicePaymentMeans([], "2026-11-04", { issuedBeforePayment: false })).toEqual({
+      paymentMeansCode: "10",
+    });
+  });
+  it("si la cuenta terminó cobrada a crédito, manda el crédito (forma 2 + vencimiento)", () => {
+    expect(
+      invoicePaymentMeans([{ billingCustomer: { creditTermsDays: 15 } }], "2026-11-04", {
+        issuedBeforePayment: true,
+      }),
+    ).toEqual({ paymentMeansCode: "1", paymentMeansId: "2", paymentDueDate: "2026-11-19" });
+  });
+  it("el XML de una factura antes de cobrar declara <cbc:ID>1</cbc:ID> y <cbc:PaymentMeansCode>1</cbc:PaymentMeansCode>", () => {
+    const means = invoicePaymentMeans([], "2026-11-04", { issuedBeforePayment: true });
+    expect(means.paymentMeansId).toBeUndefined();
+    expect(means.paymentMeansCode).toBe("1");
   });
 });

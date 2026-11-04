@@ -202,11 +202,13 @@ export async function loadCreditReceivables(
     where: {
       ...acceptedCreditNoteWhere(restaurantId),
       accountingStampedAt: { not: null },
-      receivableCents: { gt: 0 },
+      // La parte fiscal y la propina devuelta que cancelaron cartera.
+      OR: [{ receivableCents: { gt: 0 } }, { tipReceivableCents: { gt: 0 } }],
       originalInvoice: { orderId: { in: orderIds } },
     },
     select: {
       receivableCents: true,
+      tipReceivableCents: true,
       createdAt: true,
       dianDocument: { select: { issuedAt: true } },
       originalInvoice: { select: { orderId: true } },
@@ -229,7 +231,7 @@ export async function loadCreditReceivables(
     abonos.map((a) => ({ customerId: a.billingCustomerId, amountCents: a.amountCents })),
     notes.map((n) => ({
       orderId: n.originalInvoice.orderId,
-      receivableCents: n.receivableCents ?? 0,
+      receivableCents: (n.receivableCents ?? 0) + (n.tipReceivableCents ?? 0),
       fiscalDate: creditNoteFiscalDate(creditNoteInstant(n)),
     })),
     hasta,

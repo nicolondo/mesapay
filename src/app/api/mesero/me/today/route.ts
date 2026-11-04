@@ -11,6 +11,7 @@ import {
   resolveShiftPolicy,
 } from "@/lib/staffPolicies";
 import { isCashMethod } from "@/lib/payments/methods";
+import { loadTipReturns, tipReturnLines } from "@/lib/creditNoteTipReturns";
 
 /**
  * Stats personales del mesero para la vista "Yo". Cubre:
@@ -90,6 +91,13 @@ async function GETHandler() {
     if (p.order?.tableId) tableSet.add(p.order.tableId);
   }
   const tableCount = tableSet.size;
+  // Propinas devueltas por notas de anulación en la ventana: con propinas
+  // por mesero, su parte («Propina devuelta por anulación (NC…)») baja lo
+  // que se le debe. En "shared" las maneja el local.
+  const tipReturns =
+    tipPolicy === "by_waiter"
+      ? tipReturnLines(await loadTipReturns(restaurantId, { from: sinceDate, to: null }), userId)
+      : [];
 
   return NextResponse.json({
     sinceIso: sinceDate.toISOString(),
@@ -109,6 +117,7 @@ async function GETHandler() {
     // el monto es del local. Mantenemos la cifra raw para auditoría.
     tipsCents: tipPolicy === "by_waiter" ? tipsCents : null,
     tipsRawCents: tipsCents,
+    tipReturns,
     salesCents,
     paymentCount,
     tableCount,

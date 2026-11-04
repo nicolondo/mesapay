@@ -12,6 +12,7 @@ import {
 } from "@/lib/shiftReport";
 import { PrintButton } from "./PrintButton";
 import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
+import { TipReturnsBox } from "@/components/TipReturns";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export default async function ShiftDetailPage({
 }) {
   const { id } = await params;
   const t = await getTranslations("opShifts");
+  const tTips = await getTranslations("tipReturns");
   const methodLabel = (method: string) =>
     METHOD_KEY[method]
       ? t(METHOD_KEY[method])
@@ -156,6 +158,8 @@ export default async function ShiftDetailPage({
               value={`${report.totals.paymentCount} · ${report.totals.ordersClosed}`}
             />
           </div>
+          {/* Propinas devueltas por anulación durante el turno: bajan lo que se le debe al equipo. */}
+          <TipReturnsBox lines={report.totals.tipReturns} collectedCents={report.totals.tipCents} className="mt-4" />
           <ShiftConsumptionTax {...report.totals} className="mt-4" />
         </section>
 
@@ -246,6 +250,11 @@ export default async function ShiftDetailPage({
                     </Td>
                     <Td align="right" mono>
                       {fmtCOP(w.tipCents)}
+                      {w.tipReturnedCents > 0 && (
+                        <div className="text-[11px] text-danger">
+                          {tTips("waiterReturned", { amount: fmtCOP(w.tipReturnedCents) })}
+                        </div>
+                      )}
                     </Td>
                   </tr>
                 ))}

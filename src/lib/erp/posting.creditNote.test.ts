@@ -42,7 +42,7 @@ vi.mock("./ledger", () => ({
   ensureChartOfAccounts: vi.fn(),
   loadAccountIndex: async () =>
     new Map(
-      ["112005", "130505", "238020", "241205", "24080501", "24080503", "417505"].map((c) => [
+      ["112005", "130505", "238020", "238030", "241205", "24080501", "24080503", "417505"].map((c) => [
         c,
         { id: `id-${c}`, postable: true, active: true },
       ]),
@@ -67,7 +67,7 @@ async function entries(): Promise<Created[]> {
 }
 const debits = (lines: Line[]) => lines.reduce((s, l) => s + l.debitCents, 0);
 const credits = (lines: Line[]) => lines.reduce((s, l) => s + l.creditCents, 0);
-const posting = (p: Partial<CreditNoteMonthPosting>): CreditNoteMonthPosting => ({ notes: [], noteIds: [], ...p });
+const posting = (p: Partial<CreditNoteMonthPosting>): CreditNoteMonthPosting => ({ notes: [], noteIds: [], tipNoteIds: [], ...p });
 /** Reembolsos del mes (con su cruce ya hecho por pedido). */
 const refunded = (list: Array<Partial<RefundPosting> & Pick<RefundPosting, "amountCents">>): RefundMonthPosting => {
   const refunds = list.map((r, i) => ({
@@ -260,5 +260,119 @@ describe("asientos «Devoluciones» con notas crédito", () => {
     expect(net("241205")).toBe(8_000);
     expect(net("238020")).toBe(0); // el pasivo nace con la nota y lo cancela el reembolso
     expect(net("112005")).toBe(-108_000);
+  });
+});
+
+describe("propina devuelta con la anulación (NC de Son y Melona: $618.300 + propina $61.830)", () => {
+  const nc3 = (tip: Partial<NonNullable<CreditNoteMonthPosting["notes"][number]["tip"]>>, over: Partial<CreditNoteMonthPosting["notes"][number]> = {}) => ({
+    id: "nc3",
+    fiscalDate: "2026-10-26",
+    // INC 8 %: 572.500 + 45.800 = 618.300.
+    slices: [{ kind: "inc" as const, pct: 8, baseCents: 572_500_00, taxCents: 45_800_00, grossCents: 618_300_00 }],
+    receivableCents: 0,
+    liabilityCents: 618_300_00,
+    tip: { refundCents: 61_830_00, receivableCents: 0, liabilityCents: 61_830_00, coveredByPriorRefundsCents: 0, ...tip },
+    postsFiscal: true,
+    postsTip: true,
+    ...over,
+  });
+  const net = (lines: Line[], code: string) =>
+    lines.filter((l) => l.accountCode === code).reduce((s, l) => s + l.debitCents - l.creditCents, 0);
+
+  it("efectivo / tarjeta: D propinas por pagar · C reintegros por pagar por la propina; el total a devolver es lo cobrado", async () => {
+    m.creditNotes.mockResolvedValue(posting({ noteIds: ["nc3"], tipNoteIds: ["nc3"], notes: [nc3({})] }));
+    const entry = (await entries()).find((e) => e.source === "credit_note")!;
+    const lines = entry.lines.create;
+    expect(entry.date).toEqual(new Date("2026-10-26T05:00:00.000Z"));
+    expect(net(lines, "417505")).toBe(572_500_00);
+    expect(net(lines, "241205")).toBe(45_800_00);
+    expect(net(lines, "238030")).toBe(61_830_00);
+    expect(net(lines, "238020")).toBe(-680_130_00);
+    expect(lines).toHaveLength(4);
+    expect(debits(lines)).toBe(credits(lines));
+    // Propina y nota quedan contabilizadas en el mes, en la misma transacción.
+    expect(m.noteUpdateMany).toHaveBeenCalledWith({
+      where: { restaurantId: "r", id: { in: ["nc3"] }, OR: [{ tipPostedMonth: null }, { tipPostedMonth: "2026-10" }] },
+      data: { tipPostedMonth: "2026-10" },
+    });
+  });
+
+  it("crédito de cliente: la propina que canceló cartera acredita Clientes (y la deuda baja por todo lo cobrado)", async () => {
+    m.creditNotes.mockResolvedValue(
+      posting({
+        noteIds: ["nc3"],
+        tipNoteIds: ["nc3"],
+        notes: [nc3({ receivableCents: 61_830_00, liabilityCents: 0 }, { receivableCents: 618_300_00, liabilityCents: 0 })],
+      }),
+    );
+    const lines = (await entries()).find((e) => e.source === "credit_note")!.lines.create;
+    expect(net(lines, "130505")).toBe(-680_130_00);
+    expect(net(lines, "238030")).toBe(61_830_00);
+    expect(lines.some((l) => l.accountCode === "238020")).toBe(false);
+    expect(debits(lines)).toBe(credits(lines));
+  });
+
+  it("reembolso POSTERIOR por $680.130: cancela todo el pasivo (nota + propina) sin devolución de más", async () => {
+    m.creditNotes.mockResolvedValue(posting({ noteIds: ["nc3"], tipNoteIds: ["nc3"], notes: [nc3({})] }));
+    m.refunds.mockResolvedValue(refunded([{ amountCents: 680_130_00, liabilityCents: 680_130_00, createdAt: new Date("2026-10-28T15:00:00Z") }]));
+    const lines = (await entries()).flatMap((e) => e.lines.create);
+    expect(net(lines, "238020")).toBe(0);
+    expect(net(lines, "238030")).toBe(61_830_00); // las propinas por pagar bajan una sola vez
+    expect(net(lines, "417505")).toBe(572_500_00); // la devolución en ventas es sólo la de la nota
+    expect(net(lines, "241205")).toBe(45_800_00);
+    expect(net(lines, "112005")).toBe(-680_130_00);
+  });
+
+  it("reembolso ANTERIOR por $680.130: la nota no crea pasivo y reclasifica la propina que el reembolso asentó como devolución", async () => {
+    // El reembolso sin nota (asiento «Devoluciones»): 680.130 con INC estimado del régimen (8 %).
+    m.refunds.mockResolvedValue(refunded([{ amountCents: 680_130_00, createdAt: new Date("2026-10-20T15:00:00Z") }]));
+    m.creditNotes.mockResolvedValue(
+      posting({
+        noteIds: ["nc3"],
+        tipNoteIds: ["nc3"],
+        notes: [nc3({ liabilityCents: 0, coveredByPriorRefundsCents: 61_830_00 }, { slices: [], liabilityCents: 0 })],
+      }),
+    );
+    const all = await entries();
+    const note = all.find((e) => e.source === "credit_note")!.lines.create;
+    expect(debits(note)).toBe(credits(note));
+    // D propinas por pagar 61.830 · C devoluciones 57.250 · C INC 4.580.
+    expect(net(note, "238030")).toBe(61_830_00);
+    expect(net(note, "417505")).toBe(-57_250_00);
+    expect(net(note, "241205")).toBe(-4_580_00);
+    expect(note.some((l) => l.accountCode === "238020")).toBe(false);
+    const lines = all.flatMap((e) => e.lines.create);
+    // Neto del mes: devolución = la comida, sin la propina; nada pendiente con el cliente.
+    expect(net(lines, "417505")).toBe(572_500_00);
+    expect(net(lines, "241205")).toBe(45_800_00);
+    expect(net(lines, "238020")).toBe(0);
+    expect(net(lines, "112005")).toBe(-680_130_00);
+  });
+
+  it("nota ya asentada en un mes cerrado: sólo la propina, al último día del primer mes abierto", async () => {
+    m.creditNotes.mockResolvedValue(
+      posting({
+        noteIds: [],
+        tipNoteIds: ["nc3"],
+        notes: [nc3({}, { fiscalDate: "2026-09-26", slices: [], liabilityCents: 0, postsFiscal: false })],
+      }),
+    );
+    const entry = (await entries()).find((e) => e.source === "credit_note")!;
+    expect(entry.date).toEqual(new Date("2026-10-31T05:00:00.000Z"));
+    expect(entry.lines.create).toEqual([
+      expect.objectContaining({ accountCode: "238030", debitCents: 61_830_00 }),
+      expect.objectContaining({ accountCode: "238020", creditCents: 61_830_00 }),
+    ]);
+    // Sólo se marca la propina: la parte fiscal sigue en su mes.
+    expect(m.noteUpdateMany).toHaveBeenCalledTimes(1);
+    expect(m.noteUpdateMany.mock.calls[0]![0].data).toEqual({ tipPostedMonth: "2026-10" });
+  });
+
+  it("regenerar el mes da exactamente el mismo asiento (idempotente)", async () => {
+    m.creditNotes.mockResolvedValue(posting({ noteIds: ["nc3"], tipNoteIds: ["nc3"], notes: [nc3({})] }));
+    const first = (await entries()).find((e) => e.source === "credit_note")!;
+    m.createEntry.mockClear();
+    const second = (await entries()).find((e) => e.source === "credit_note")!;
+    expect(second).toEqual(first);
   });
 });

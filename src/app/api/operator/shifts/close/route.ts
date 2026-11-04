@@ -189,6 +189,10 @@ async function POSTHandler(req: Request) {
     breakdown: {
       grossCents: metrics.grossCents,
       tipCents: metrics.tipCents,
+      // Propinas devueltas por anulación durante el turno y las del equipo netas.
+      tipReturns: metrics.tipReturns,
+      tipReturnedCents: metrics.tipReturnedCents,
+      tipNetCents: metrics.tipNetCents,
       consumptionTaxCents: metrics.consumptionTaxCents,
       taxPendingPayments: metrics.taxPendingPayments,
       cashCents: metrics.cashCents,

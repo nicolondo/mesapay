@@ -7,7 +7,8 @@ import { parseAcceptedInvoiceXml } from '../creditNoteSource';
 import { documentErrors } from '../config';
 import { formatInvoiceNumber, type InvoiceSnapshot } from '@/lib/invoice';
 import { buildProposal, canAbandon, chooseCreditNotePrefix, CreditNoteError, reissueCreditNoteInput, reissueRequestId, remainingLines, requestHash, seriesInConflict, sourceVersion, type CreditNoteSeriesUsage } from './domain';
-import type { CreditNoteDto, CreditNoteInput, CreditNotePreviewInput, CreditNoteSnapshot, CreditNoteSource, OriginalInvoiceSnapshot } from './types';
+import type { CreditNoteDto, CreditNoteInput, CreditNotePreviewInput, CreditNoteReview, CreditNoteSnapshot, CreditNoteSource, OriginalInvoiceSnapshot } from './types';
+import { collectedAmountCents, invoiceTipCents, isAnnulmentReason } from '@/lib/erp/creditNoteTips';
 import { isModuleEnabled } from '@/lib/modules';
 import { getAccountingConfig } from '@/lib/erp/cierre';
 import { creditNoteInstant, ensureCreditNoteStamps } from '@/lib/erp/creditNoteAccounting';
@@ -21,10 +22,10 @@ type Note = Prisma.CreditNoteGetPayload<{
 }>;
 export function creditNoteDto(note: Note): CreditNoteDto {
     const d = note.dianDocument;
-    return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), failure: creditNoteFailure(d), canRetry: !note.abandonedAt && !!d && !isCreditNoteIdentityError(d.lastError) && !documentErrors(d.errors).some(isCreditNoteIdentityError) && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
+    return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, tipRefundCents: note.tipRefundCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), failure: creditNoteFailure(d), canRetry: !note.abandonedAt && !!d && !isCreditNoteIdentityError(d.lastError) && !documentErrors(d.errors).some(isCreditNoteIdentityError) && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
 }
 async function sourceData(client: Client, restaurantId: string, invoiceId: string) {
-    const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });
+    const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true, tipCents: true, payments: { select: { status: true, tipCents: true, amountCents: true } } } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });
     const document = invoice?.dianDocument;
     if (!invoice || !document || document.kind !== 'invoice' || document.state !== 'accepted' || !document.xmlZip || !document.cufe)
         throw new CreditNoteError('accepted_invoice_required', 404);
@@ -59,7 +60,14 @@ async function sourceData(client: Client, restaurantId: string, invoiceId: strin
     const lines = remainingLines(original.lines, active.flatMap(n => (n.snapshot as unknown as CreditNoteSnapshot).lines));
     const version = sourceVersion(createHash('sha256').update(xml).update(prefix).digest('hex'), active.map(n => ({ id: n.id, lines: (n.snapshot as unknown as CreditNoteSnapshot).lines })));
     const scope = { issuerNit: original.supplier.companyId, environment: original.environment, prefix };
-    const source: CreditNoteSource = { originalInvoiceId: invoiceId, original, lines, remainingTotalCents: lines.reduce((s, l) => s + l.remainingGrossCents, 0), sourceVersion: version, prefix, nextNumber: series.nextNumber, conflictPrefix: series.conflictPrefix, notes: notes.map(creditNoteDto) };
+    // La propina NO está en el XML (la factura electrónica es la comida): sale
+    // de la factura y los cobros de la cuenta (regla en erp/creditNoteTips.ts).
+    // «Cobrado» = lo cobrado en los cobros de la cuenta (con propina); sin cobros, factura + propina.
+    const payments = invoice.order?.payments ?? [];
+    const tipCents = invoiceTipCents({ orderTipCents: invoice.order?.tipCents, payments });
+    const fiscalTotalCents = original.totals?.payableCents ?? 0;
+    const charge = { fiscalTotalCents, tipCents, chargedCents: collectedAmountCents(payments) || fiscalTotalCents + tipCents };
+    const source: CreditNoteSource = { originalInvoiceId: invoiceId, original, lines, remainingTotalCents: lines.reduce((s, l) => s + l.remainingGrossCents, 0), charge, sourceVersion: version, prefix, nextNumber: series.nextNumber, conflictPrefix: series.conflictPrefix, notes: notes.map(creditNoteDto) };
     return { source, scope, invoice, seriesBlocked: series.blocked };
 }
 const validCreditPrefix = (prefix: string, invoicePrefix: string) => /^[A-Z0-9]{1,10}$/.test(prefix) && !prefixesOverlap(prefix, invoicePrefix);
@@ -88,13 +96,15 @@ async function activeCreditNoteSeries(client: Client, scope: { issuerNit: string
     return { ...choice, nextNumber: usage.find(series => series.prefix === choice.prefix)?.nextNumber ?? 1 };
 }
 export async function getCreditNoteSource(restaurantId: string, invoiceId: string) { return (await sourceData(db, restaurantId, invoiceId)).source; }
-export async function previewCreditNote(restaurantId: string, input: CreditNotePreviewInput) {
+/** Propina que devuelve una nota con ese motivo: toda la de la factura si es anulación (motivo 2); si no, 0. */
+const tipRefundFor = (source: CreditNoteSource, reasonCode: string) => isAnnulmentReason(reasonCode) ? source.charge.tipCents : 0;
+export async function previewCreditNote(restaurantId: string, input: CreditNotePreviewInput): Promise<CreditNoteReview> {
     const { source, seriesBlocked } = await sourceData(db, restaurantId, input.originalInvoiceId);
     if (source.sourceVersion !== input.sourceVersion)
         throw new CreditNoteError('source_changed');
     if (seriesBlocked)
         throw new CreditNoteError('series_in_conflict');
-    return buildProposal(source.lines, input);
+    return { ...buildProposal(source.lines, input), tipRefundCents: tipRefundFor(source, input.reasonCode) };
 }
 async function lock(client: Client, key: string) { await client.$executeRaw `SELECT pg_advisory_xact_lock(hashtext(${key}))`; }
 async function auditActor(client: Client, userId: string | null) {
@@ -125,8 +135,8 @@ async function insertCreditNote(tx: Client, restaurantId: string, userId: string
     const fiscalKey = `${scope.issuerNit}:${scope.environment}:${documentNumber}`;
     if (await tx.creditNote.findUnique({where:{fiscalKey},select:{id:true}})) throw new CreditNoteError('numbering_conflict');
     const snapshot: CreditNoteSnapshot = { version: 1, originalDocumentId: source.original.documentId, original: source.original, lines: proposal.lines, locale: invoice.order.locale ?? 'es', recipientEmail: source.original.customer.email || invoice.email || null, brandName: invoice.restaurant.name };
-    const note = await tx.creditNote.create({ data: { fiscalKey, restaurantId, originalInvoiceId: input.originalInvoiceId, seriesId: series.id, number, documentNumber, requestId: input.requestId, requestHash: hash, reasonCode: input.reasonCode, reasonText: input.reasonText, snapshot: snapshot as unknown as Prisma.InputJsonValue, subtotalCents: proposal.subtotalCents, taxCents: proposal.taxCents, totalCents: proposal.totalCents, createdById: userId, dianDocument: { create: { restaurantId, orderId: invoice.orderId, kind: 'credit_note', state: 'to_send' } } }, include: noteInclude });
-    await tx.auditEvent.create({ data: { restaurantId, ...await auditActor(tx, userId), kind: 'credit_note.create', targetType: 'CreditNote', targetId: note.id, summary: replaces ? `Credit note ${note.documentNumber} replaces ${replaces.documentNumber}` : `Credit note ${note.documentNumber}`, diff: { originalInvoiceId: invoice.id, totalCents: note.totalCents, ...(replaces ? { replacesCreditNoteId: replaces.id } : {}) } } });
+    const note = await tx.creditNote.create({ data: { fiscalKey, restaurantId, originalInvoiceId: input.originalInvoiceId, seriesId: series.id, number, documentNumber, requestId: input.requestId, requestHash: hash, reasonCode: input.reasonCode, reasonText: input.reasonText, snapshot: snapshot as unknown as Prisma.InputJsonValue, subtotalCents: proposal.subtotalCents, taxCents: proposal.taxCents, totalCents: proposal.totalCents, tipRefundCents: tipRefundFor(source, input.reasonCode), createdById: userId, dianDocument: { create: { restaurantId, orderId: invoice.orderId, kind: 'credit_note', state: 'to_send' } } }, include: noteInclude });
+    await tx.auditEvent.create({ data: { restaurantId, ...await auditActor(tx, userId), kind: 'credit_note.create', targetType: 'CreditNote', targetId: note.id, summary: replaces ? `Credit note ${note.documentNumber} replaces ${replaces.documentNumber}` : `Credit note ${note.documentNumber}`, diff: { originalInvoiceId: invoice.id, totalCents: note.totalCents, tipRefundCents: note.tipRefundCents, ...(replaces ? { replacesCreditNoteId: replaces.id } : {}) } } });
     return note;
 }
 export async function createCreditNote(restaurantId: string, userId: string | null, input: CreditNoteInput): Promise<CreditNoteDto> {

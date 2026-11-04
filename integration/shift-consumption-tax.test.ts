@@ -81,7 +81,7 @@ describe("shift consumption tax on PostgreSQL", () => {
     await pay(a.id, { shiftId: closed.id });
     await pay(b.id, { shiftId: closed.id, method: "kushki_card_terminal", amountCents: 6850, tipCents: 500 });
     expect(await computeClosedShiftMetrics(closed.id)).toMatchObject({ ...t(1200), grossCents: 18650, tipCents: 1500, cashCents: 11800, payments: 2 });
-    expect((await buildShiftReport(closed.id))?.totals).toEqual({ ...t(1200), grossCents: 18650, tipCents: 1500, foodCents: 17150, paymentCount: 2, ordersClosed: 2 });
+    expect((await buildShiftReport(closed.id))?.totals).toEqual({ ...t(1200), grossCents: 18650, tipCents: 1500, foodCents: 17150, paymentCount: 2, ordersClosed: 2, tipNetCents: 1500, tipReturnedCents: 0, tipReturns: [] });
     expect((await listShiftsWithSummary(scope.restaurantId)).items[0]).toMatchObject({ id: closed.id, ...t(1200), grossCents: 18650 });
     expect((await getRecentShifts(scope.restaurantId))[0]).toMatchObject({ id: closed.id, ...t(1200), user: null });
     await db.restaurant.update({ where: { id: scope.restaurantId }, data: { salesTaxKind: "iva", salesTaxPct: 19 } });

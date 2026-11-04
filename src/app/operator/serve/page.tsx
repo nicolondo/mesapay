@@ -9,6 +9,7 @@ import { CASH_METHODS, isReplaceablePending } from "@/lib/payments/methods";
 import { terminalClaims } from "@/lib/payments/pendingRequests";
 import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
+import { toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { ServeBoard } from "./ServeBoard";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 
@@ -277,7 +278,10 @@ export default async function ServePage() {
         tipCents: p.tipCents,
         createdAt: p.createdAt.toISOString(),
         replaceable: isReplaceablePending(p, terminalClaimed.has(p.id)),
-        pushedAt: terminalClaimed.get(p.id)?.toISOString() ?? null,
+        pushedAt: terminalClaimed.get(p.id)?.createdAt.toISOString() ?? null,
+        // Ya enviado: ¿sigue en curso, el equipo contestó que no, o no hubo
+        // respuesta? Define si se ofrece reintentar / cancelar al instante.
+        terminalAttempt: toTerminalAttemptView(terminalClaimed.get(p.id), p.reconciliationRequired),
         order: {
           id: p.order.id,
           shortCode: p.order.shortCode,

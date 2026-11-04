@@ -13,7 +13,7 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/platformConfig", () => ({ getKushkiModeSync: () => "production" }));
 
-import { CLOUD_TERMINAL_VALIDATION_STATUSES, pushPaymentToCloudTerminal } from "./cloudTerminal";
+import { CLOUD_TERMINAL_VALIDATION_STATUSES, cloudTerminalAmount, pushPaymentToCloudTerminal } from "./cloudTerminal";
 
 const fetchMock = vi.fn();
 const respond = (status: number, body: unknown) =>
@@ -112,5 +112,36 @@ describe("pushPaymentToCloudTerminal: aprobado y rechazado del banco", () => {
   it("DECLINED → declined", async () => {
     respond(200, { rawResponse: { transaction_status: "DECLINED", transaction_reference: "tx-2" } });
     expect(await push()).toMatchObject({ status: "declined", providerRef: "tx-2" });
+  });
+});
+
+describe("pushPaymentToCloudTerminal: el monto que llega al datáfono", () => {
+  it("producción manda pesos enteros: $91.850 es 91850, no 9185000 (Son y Melona, 2026-11-04)", () => {
+    expect(cloudTerminalAmount(9_185_000, "production")).toBe(91_850);
+  });
+
+  it("UAT divide por 100, así que ahí siguen yendo los centavos", () => {
+    expect(cloudTerminalAmount(9_185_000, "sandbox")).toBe(9_185_000);
+  });
+
+  it("el cobro de producción sale con el monto en pesos", async () => {
+    respond(200, { approved: true, transaction_reference: "tx-1" });
+    await push();
+    expect(console.log).toHaveBeenCalledWith(
+      "[kushki/cloud-terminal] charge",
+      expect.objectContaining({ amountMinor: 65_890 }),
+    );
+  });
+
+  it("aprobado con el monto autorizado igual al de la cuenta → approved", async () => {
+    respond(200, { approved: true, rawResponse: { authorized_amount: 65_890, transaction_reference: "tx-3" } });
+    expect(await push()).toMatchObject({ status: "approved", providerRef: "tx-3" });
+  });
+
+  it("aprobado con OTRO monto autorizado → error (incierto, a conciliar), nunca approved", async () => {
+    respond(200, { approved: true, rawResponse: { authorized_amount: 6_589_000, transaction_reference: "tx-4" } });
+    const result = await push();
+    expect(result).toMatchObject({ status: "error", providerRef: "tx-4" });
+    expect(result.message).toContain("authorized_amount_mismatch");
   });
 });

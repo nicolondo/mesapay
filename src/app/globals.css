@@ -617,6 +617,36 @@ input[type="time"] {
   transform: translateY(-1px);
 }
 
+/* Botón dividido: acción principal + flechita que despliega más opciones
+   (descargas de la exógena). Las mitades comparten borde y radio
+   (--radius-btn por fuera, recto por dentro) y no se levantan por separado. */
+.mp-split {
+  position: relative;
+  display: inline-flex;
+}
+.mp-split > .mp-btn:hover,
+.mp-split > .mp-btn:active {
+  transform: none;
+}
+.mp-split > .mp-btn:hover,
+.mp-split > .mp-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+.mp-split__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.mp-split__toggle {
+  margin-left: -1px;
+  padding: 0 11px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.mp-split__toggle[aria-expanded="true"] {
+  background: var(--op-bg);
+}
+
 /* Control segmentado — riel hundido + pastilla activa elevada. */
 .mp-seg {
   display: inline-flex;

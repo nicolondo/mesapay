@@ -11,6 +11,7 @@
  */
 
 import { computeNitDv } from "../exogena";
+import type { FormatoConXml } from "./normativa";
 
 /* ────────────────────────────── Cabecera ────────────────────────────── */
 
@@ -180,78 +181,101 @@ export function terceroDoc(dianType: string, idNumber: string): {
 
 export type RecordData = Record<string, string | number>;
 
-function record(element: string, order: string[], data: RecordData): string {
-  const attrs: RecordData = {};
-  for (const key of order) attrs[key] = data[key] ?? "";
-  return el(element, attrs);
+export type RecordLayout = {
+  /** Elemento del registro en el XML. */
+  element: string;
+  /** Atributos en el orden del anexo técnico: son también las columnas del Excel. */
+  fields: readonly string[];
+};
+
+const SALDO_FIELDS = ["cpt", "tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "sal"] as const;
+
+/**
+ * Layout de cada formato: elemento + atributos en el orden del anexo. Es la
+ * ÚNICA definición de campos: el XML (`xmlRecord`) y el Excel de revisión
+ * (`excel.ts`) se arman con la misma lista, así no pueden divergir.
+ */
+export const RECORD_LAYOUTS: Record<FormatoConXml, RecordLayout> = {
+  /** 1001 v11: pagos/abonos y retenciones practicadas. */
+  "1001": {
+    element: "pagos",
+    fields: ["cpt", "tdoc", "nid", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "pago", "pnded", "ided", "inded", "retp", "reta", "comun", "ndom"],
+  },
+  /** 1005 v9: IVA descontable por tercero. */
+  "1005": { element: "impventas", fields: ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "vimp", "ivade"] },
+  /** 1006 v8: IVA generado e impoconsumo por tercero. */
+  "1006": { element: "impoventas", fields: ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "imp", "iva", "icon"] },
+  /** 1007 v9: ingresos recibidos (sin DV ni dirección). */
+  "1007": { element: "ingresos", fields: ["cpt", "tdoc", "nid", "apl1", "apl2", "nom1", "nom2", "raz", "pais", "ibru", "dred"] },
+  /** 1008 v7 / 1009 v7: saldos al 31-dic (mismo layout, distinto elemento). */
+  "1008": { element: "saldoscc", fields: SALDO_FIELDS },
+  "1009": { element: "saldoscp", fields: SALDO_FIELDS },
+  /** 1010 v9: socios y accionistas. */
+  "1010": {
+    element: "socios",
+    fields: ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "valnom", "valprm", "por", "dec"],
+  },
+  /** 1011 v6: declaraciones tributarias (concepto + valor). */
+  "1011": { element: "decl", fields: ["cpt", "sal"] },
+  /** 1012 v7: saldos de cuenta, inversiones y acciones/aportes. */
+  "1012": { element: "dectri", fields: ["cpt", "tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "pais", "val"] },
+};
+
+/** Los datos en el orden del layout; los campos que faltan van vacíos. */
+export function layoutRecord(fields: readonly string[], data: RecordData): RecordData {
+  const out: RecordData = {};
+  for (const key of fields) out[key] = data[key] ?? "";
+  return out;
+}
+
+function record(element: string, fields: readonly string[], data: RecordData): string {
+  return el(element, layoutRecord(fields, data));
+}
+
+/** Registro XML de un formato con su layout oficial. */
+export function xmlRecord(formato: FormatoConXml, d: RecordData): string {
+  const l = RECORD_LAYOUTS[formato];
+  return record(l.element, l.fields, d);
 }
 
 /** 1001 v11: pagos/abonos y retenciones practicadas. */
 export function rec1001(d: RecordData): string {
-  return record(
-    "pagos",
-    ["cpt", "tdoc", "nid", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "pago", "pnded", "ided", "inded", "retp", "reta", "comun", "ndom"],
-    d,
-  );
+  return xmlRecord("1001", d);
 }
 
 /** 1005 v9: IVA descontable por tercero. */
 export function rec1005(d: RecordData): string {
-  return record(
-    "impventas",
-    ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "vimp", "ivade"],
-    d,
-  );
+  return xmlRecord("1005", d);
 }
 
 /** 1006 v8: IVA generado e impoconsumo por tercero. */
 export function rec1006(d: RecordData): string {
-  return record(
-    "impoventas",
-    ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "imp", "iva", "icon"],
-    d,
-  );
+  return xmlRecord("1006", d);
 }
 
 /** 1007 v9: ingresos recibidos (sin DV ni dirección). */
 export function rec1007(d: RecordData): string {
-  return record(
-    "ingresos",
-    ["cpt", "tdoc", "nid", "apl1", "apl2", "nom1", "nom2", "raz", "pais", "ibru", "dred"],
-    d,
-  );
+  return xmlRecord("1007", d);
 }
 
 /** 1008 v7 / 1009 v7: saldos al 31-dic (mismo layout, distinto elemento). */
 export function recSaldo(element: "saldoscc" | "saldoscp", d: RecordData): string {
-  return record(
-    element,
-    ["cpt", "tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "sal"],
-    d,
-  );
+  return xmlRecord(element === "saldoscc" ? "1008" : "1009", d);
 }
 
 /** 1010 v9: socios y accionistas. */
 export function rec1010(d: RecordData): string {
-  return record(
-    "socios",
-    ["tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "dir", "dpto", "mun", "pais", "valnom", "valprm", "por", "dec"],
-    d,
-  );
+  return xmlRecord("1010", d);
 }
 
 /** 1011 v6: declaraciones tributarias (concepto + valor). */
 export function rec1011(d: RecordData): string {
-  return record("decl", ["cpt", "sal"], d);
+  return xmlRecord("1011", d);
 }
 
 /** 1012 v7: saldos de cuenta, inversiones y acciones/aportes. */
 export function rec1012(d: RecordData): string {
-  return record(
-    "dectri",
-    ["cpt", "tdoc", "nid", "dv", "apl1", "apl2", "nom1", "nom2", "raz", "pais", "val"],
-    d,
-  );
+  return xmlRecord("1012", d);
 }
 
 /* ─────────────── Porcentaje de participación (1010): entero × 10^dec ───── */

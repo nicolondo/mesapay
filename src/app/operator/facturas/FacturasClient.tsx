@@ -74,7 +74,7 @@ export function FacturasClient({
   }
 
   function setTab(next: Tab) {
-    router.push(`/operator/facturas?status=${next}`);
+    router.push(`/operator/facturas?status=${next}`, { scroll: false });
   }
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { displayOrderCode } from "@/lib/orderCode";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -91,8 +92,12 @@ export function ElectronicInvoicesClient({
         </div>
       ) : (
         <>
-          <InvoiceTable rows={list.rows} />
-          <InvoiceCards rows={list.rows} />
+          {/* Ancla de la paginación: «Anterior/Siguiente» deja la vista al
+              comienzo de la lista, no arriba de la página. */}
+          <div id="facturas-lista" className="scroll-mt-4">
+            <InvoiceTable rows={list.rows} />
+            <InvoiceCards rows={list.rows} />
+          </div>
         </>
       )}
 
@@ -201,6 +206,18 @@ function Filters({
   filtered: boolean;
 }) {
   const t = useTranslations("opEInvoices");
+  const router = useRouter();
+  // Cambiar un filtro recarga la lista, no la página: sin `scroll: false`
+  // Next lleva la vista arriba de todo y se pierde dónde estaba el usuario.
+  function applyFilters(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const qs = new URLSearchParams();
+    for (const [k, v] of new FormData(e.currentTarget)) {
+      if (typeof v === "string" && v.trim() !== "") qs.set(k, v.trim());
+    }
+    const query = qs.toString();
+    router.push(query ? `/operator/facturas?${query}` : "/operator/facturas", { scroll: false });
+  }
   return (
     <div className="flex flex-wrap items-end gap-3 mb-4">
       <div>
@@ -215,6 +232,7 @@ function Filters({
                 key={state}
                 href={invoiceListHref({ ...params, state, page: 1 })}
                 prefetch={false}
+                scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={
                   "px-3 h-7 rounded-full text-xs inline-flex items-center " +
@@ -228,7 +246,7 @@ function Filters({
         </div>
       </div>
 
-      <form action="/operator/facturas" className="flex flex-wrap items-end gap-2 w-full lg:w-auto lg:ml-auto">
+      <form action="/operator/facturas" onSubmit={applyFilters} className="flex flex-wrap items-end gap-2 w-full lg:w-auto lg:ml-auto">
         {params.state !== "all" && <input type="hidden" name="state" value={params.state} />}
         <label className="text-[11px] text-op-muted">
           <span className="block mb-1">{t("filterFrom")}</span>
@@ -263,7 +281,7 @@ function Filters({
           {t("filterApply")}
         </button>
         {filtered && (
-          <Link href="/operator/facturas" prefetch={false} className="h-9 px-3 inline-flex items-center text-sm text-op-muted underline">
+          <Link href="/operator/facturas" prefetch={false} scroll={false} className="h-9 px-3 inline-flex items-center text-sm text-op-muted underline">
             {t("filterClear")}
           </Link>
         )}
@@ -542,8 +560,8 @@ function RowActions({ row }: { row: InvoiceListRow }) {
 function Pagination({ params, list }: { params: InvoiceListParams; list: InvoiceListPage }) {
   const t = useTranslations("opEInvoices");
   if (list.total === 0) return null;
-  const prev = list.page > 1 ? invoiceListHref({ ...params, page: list.page - 1 }) : null;
-  const next = list.page < list.pageCount ? invoiceListHref({ ...params, page: list.page + 1 }) : null;
+  const prev = list.page > 1 ? `${invoiceListHref({ ...params, page: list.page - 1 })}#facturas-lista` : null;
+  const next = list.page < list.pageCount ? `${invoiceListHref({ ...params, page: list.page + 1 })}#facturas-lista` : null;
   return (
     <nav aria-label={t("paginationLabel")} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
       <span className="text-op-muted">

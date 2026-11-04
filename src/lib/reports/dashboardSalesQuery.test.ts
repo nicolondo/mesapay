@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ orders: vi.fn(), items: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { $queryRaw: m.orders, orderItem: { findMany: m.items } } }));
+const m = vi.hoisted(() => ({ orders: vi.fn(), items: vi.fn(), open: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db: {
+  $queryRaw: m.orders, orderItem: { findMany: m.items }, order: { findMany: m.open },
+} }));
 
-import { loadDashboardSales } from "./dashboardSalesQuery";
+import { loadDashboardSales, loadDashboardUncollected } from "./dashboardSalesQuery";
 
 const RANGE = { from: new Date("2026-10-14T10:00:00Z"), to: new Date("2026-10-21T10:00:00Z") };
 const INC8 = { kind: "inc" as const, pct: 8 };
@@ -17,6 +19,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   m.orders.mockResolvedValue([]);
   m.items.mockResolvedValue([]);
+  m.open.mockResolvedValue([]);
 });
 
 describe("dashboard sales loading", () => {
@@ -65,6 +68,65 @@ describe("dashboard sales loading", () => {
 
   it("does not query menu items for an empty period", async () => {
     expect(await loadDashboardSales("tenant", RANGE, INC8)).toEqual([]);
+    expect(m.items).not.toHaveBeenCalled();
+  });
+});
+
+describe("dashboard amount still to collect", () => {
+  const BUSINESS_DAY = new Date("2026-10-20T10:00:00Z"); // Bogotá 05:00 cutoff.
+  const LIVE_LINES = {
+    taxKind: null, cancelledAt: null, qty: { gt: 0 },
+    OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
+  };
+  const openOrder = (id: string, payments: { amountCents: number; tipCents: number }[] = []) => ({
+    id, subtotalCents: 3_000_000, taxCents: 0, discountCents: 0, payments,
+  });
+
+  it("reads only today's open accounts and their approved payments", async () => {
+    expect(await loadDashboardUncollected("tenant", BUSINESS_DAY, INC8)).toEqual({ netCents: 0, orderCount: 0 });
+    expect(m.open).toHaveBeenCalledWith({
+      where: {
+        restaurantId: "tenant",
+        status: { in: ["placed", "in_kitchen", "ready", "served", "paying"] },
+        // An account left open from an earlier business day is not today's service.
+        createdAt: { gte: BUSINESS_DAY },
+      },
+      select: {
+        id: true, subtotalCents: true, taxCents: true, discountCents: true,
+        // A pending cash or card-terminal request has not been collected yet.
+        payments: { where: { status: "approved" }, select: { amountCents: true, tipCents: true } },
+      },
+    });
+    expect(m.items).not.toHaveBeenCalled();
+  });
+
+  it("adds the unpaid part of each account, with live lines loaded in one batch", async () => {
+    m.open.mockResolvedValue([
+      openOrder("unpaid"),
+      openOrder("split", [{ amountCents: 1_300_000, tipCents: 300_000 }]),
+      openOrder("covered", [{ amountCents: 3_000_000, tipCents: 0 }]),
+      { ...openOrder("emptied"), subtotalCents: 0 },
+    ]);
+    m.items.mockResolvedValue([
+      { orderId: "unpaid", priceCentsSnapshot: 3_000_000, qty: 1 },
+      { orderId: "split", priceCentsSnapshot: 1_500_000, qty: 2 },
+      { orderId: "covered", priceCentsSnapshot: 3_000_000, qty: 1 },
+    ]);
+    expect(await loadDashboardUncollected("tenant", BUSINESS_DAY, INC8)).toEqual({
+      netCents: 2_777_778 + 1_851_852, orderCount: 2,
+    });
+    expect(m.items).toHaveBeenCalledOnce();
+    expect(m.items).toHaveBeenCalledWith({
+      where: { orderId: { in: ["unpaid", "split", "covered"] }, order: { restaurantId: "tenant" }, ...LIVE_LINES },
+      select: { orderId: true, priceCentsSnapshot: true, qty: true },
+    });
+  });
+
+  it("skips the menu lookup when the merchant has no embedded tax", async () => {
+    m.open.mockResolvedValue([openOrder("unpaid"), openOrder("split", [{ amountCents: 1_300_000, tipCents: 300_000 }])]);
+    expect(await loadDashboardUncollected("tenant", BUSINESS_DAY, { kind: "none", pct: 0 })).toEqual({
+      netCents: 5_000_000, orderCount: 2,
+    });
     expect(m.items).not.toHaveBeenCalled();
   });
 });

@@ -3984,6 +3984,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Vendas sem impostos nem gorjeta",
     "salesBasis": "Sem impostos nem gorjeta",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> a receber <nowrap>de {count, plural, one {# mesa} other {# mesas}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> a receber <nowrap>de {count, plural, one {# pedido} other {# pedidos}}</nowrap>",
     "noRestaurant": "Você não tem um restaurante atribuído. Fale com o admin.",
     "kpiSalesToday": "Vendas hoje",
     "kpiPaidOrders": "Pedidos pagos",

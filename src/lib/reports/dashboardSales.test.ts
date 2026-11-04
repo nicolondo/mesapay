@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   dashboardOrderNetSalesCents,
+  dashboardOrderUncollectedNetCents,
   summarizeDashboardSales,
+  summarizeDashboardUncollected,
+  type DashboardOpenOrder,
   type DashboardSalesOrder,
 } from "./dashboardSales";
 
@@ -124,5 +127,76 @@ describe("one sales series for daily detail, chart, today's sales and average ti
       { paidAt: new Date("2026-10-20T16:00:00Z"), netCents: 101 },
     ], { from, days: 7 });
     expect(summary.avgTicketNetCents).toBe(101);
+  });
+});
+
+describe("still to collect on open orders, on the same basis as today's sales", () => {
+  // One $30.000 dish with INC 8 % embedded: $2.222,22 of tax, $27.777,78 of sales.
+  const dish = { priceCentsSnapshot: 3_000_000, qty: 1 };
+  const open = (overrides: Partial<DashboardOpenOrder> = {}): DashboardOpenOrder => ({
+    subtotalCents: 3_000_000,
+    taxCents: 0,
+    discountCents: 0,
+    approvedPayments: [],
+    menuItems: [dish],
+    ...overrides,
+  });
+
+  it("counts an unpaid open order whole, without the embedded menu tax", () => {
+    expect(dashboardOrderUncollectedNetCents(open(), INC8)).toBe(2_777_778);
+    expect(dashboardOrderUncollectedNetCents(open(), NONE)).toBe(3_000_000);
+  });
+
+  it("is exactly what today's sales will count once the order is paid", () => {
+    const pending = dashboardOrderUncollectedNetCents(open(), INC8);
+    // Paid with a $3.000 tip: the order is stored with total = bill + tips.
+    const paid = dashboardOrderNetSalesCents({
+      totalCents: 3_300_000, tipCents: 300_000, taxCents: 0, invoice: null, menuItems: [dish],
+    }, INC8);
+    expect(pending).toBe(paid);
+  });
+
+  it("counts only the unpaid part of a partially paid order, and tips never reduce it", () => {
+    // A diner paid $10.000 of the bill plus a $3.000 tip: $20.000 of $30.000 is left.
+    const partial = open({ approvedPayments: [{ amountCents: 1_300_000, tipCents: 300_000 }] });
+    expect(dashboardOrderUncollectedNetCents(partial, INC8)).toBe(1_851_852);
+    expect(dashboardOrderUncollectedNetCents(partial, NONE)).toBe(2_000_000);
+  });
+
+  it("adds nothing once the payments cover the bill, even if the order is still closing", () => {
+    expect(dashboardOrderUncollectedNetCents(open({
+      approvedPayments: [{ amountCents: 1_500_000, tipCents: 0 }, { amountCents: 1_800_000, tipCents: 300_000 }],
+    }), INC8)).toBe(0);
+  });
+
+  it("removes the tax that free lines add on top", () => {
+    // A $100.000 service + 19 % IVA, no menu lines: $119.000 to charge, $100.000 of sales.
+    expect(dashboardOrderUncollectedNetCents(open({
+      subtotalCents: 10_000_000, taxCents: 1_900_000, menuItems: [],
+    }), INC8)).toBe(10_000_000);
+    // Half collected: half of the sales are still to collect.
+    expect(dashboardOrderUncollectedNetCents(open({
+      subtotalCents: 10_000_000, taxCents: 1_900_000, menuItems: [],
+      approvedPayments: [{ amountCents: 5_950_000, tipCents: 0 }],
+    }), INC8)).toBe(5_000_000);
+  });
+
+  it("keeps the diner discount, like the paid figure", () => {
+    expect(dashboardOrderUncollectedNetCents(open({ discountCents: 300_000 }), INC8)).toBe(2_477_778);
+  });
+
+  it("only charges live lines: cancelled or comped dishes are out of the subtotal and the tax split", () => {
+    // Two dishes ordered, one comped: subtotal and live lines already exclude it.
+    expect(dashboardOrderUncollectedNetCents(open({ subtotalCents: 3_000_000, menuItems: [dish] }), INC8))
+      .toBe(2_777_778);
+    // Everything cancelled: nothing to collect.
+    expect(dashboardOrderUncollectedNetCents(open({ subtotalCents: 0, menuItems: [] }), INC8)).toBe(0);
+  });
+
+  it("adds up only the accounts with something left to collect", () => {
+    expect(summarizeDashboardUncollected([2_777_778, 0, 1_851_852, 0])).toEqual({
+      netCents: 4_629_630, orderCount: 2,
+    });
+    expect(summarizeDashboardUncollected([])).toEqual({ netCents: 0, orderCount: 0 });
   });
 });

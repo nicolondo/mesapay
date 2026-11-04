@@ -1844,7 +1844,12 @@
     "payLinkErrOnlineUnavailable": "O estabelecimento não tem pagamentos on-line ativos.",
     "payLinkErrEmail": "Não foi possível enviar o e-mail. Copie o link e compartilhe por outro meio.",
     "payLinkErrInvalidEmail": "Confira o e-mail.",
-    "payLinkErrGeneric": "Não foi possível gerar o link. Tente de novo."
+    "payLinkErrGeneric": "Não foi possível gerar o link. Tente de novo.",
+    "compTitle": "Fechada sem cobrança",
+    "compBody": "Esta conta foi fechada como «{label}»: não foi cobrada. Valor oferecido: {amount}. Os pratos baixam o estoque, mas não contam como venda.",
+    "compDefaultLabel": "Cortesia",
+    "compNote": "Nota: {note}",
+    "compReportLink": "Ver o relatório de despesas de representação"
   },
   "opCustomers": {
     "title": "Clientes",

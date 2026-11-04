@@ -340,7 +340,7 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
   it("paginación: página y total, y el siguiente conserva los filtros", async () => {
     const html = await renderOn({ state: "accepted", q: "ana" });
     expect(html).toContain("Página 1 de 2 · 73 facturas");
-    expect(html).toContain('href="/operator/facturas?state=accepted&amp;q=ana&amp;page=2"');
+    expect(html).toContain('href="/operator/facturas?state=accepted&amp;q=ana&amp;page=2#facturas-lista"');
     expect(html).not.toContain(">Anterior<");
   });
 

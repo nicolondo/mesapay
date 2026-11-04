@@ -1844,7 +1844,12 @@
     "payLinkErrOnlineUnavailable": "This business doesn't have online payments active.",
     "payLinkErrEmail": "The email couldn't be sent. Copy the link and share it another way.",
     "payLinkErrInvalidEmail": "Check the email address.",
-    "payLinkErrGeneric": "The link couldn't be generated. Try again."
+    "payLinkErrGeneric": "The link couldn't be generated. Try again.",
+    "compTitle": "Closed without charge",
+    "compBody": "This bill was closed as «{label}»: it wasn't charged. Value given away: {amount}. The items reduce inventory but don't count as sales.",
+    "compDefaultLabel": "Courtesy",
+    "compNote": "Note: {note}",
+    "compReportLink": "See the entertainment expenses report"
   },
   "opCustomers": {
     "title": "Customers",

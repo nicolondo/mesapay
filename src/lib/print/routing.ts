@@ -56,8 +56,12 @@ export function invoiceDedupeKey(invoiceId: string): string {
  *   · "dian_accepted": la DIAN aceptó la factura electrónica — el intento
  *     inmediato del cobro, el barrido o la consulta diferida.
  *   · "reprint": alguien apretó "Reimprimir" en Pedidos.
+ *   · "pre_issue": el staff apretó "Imprimir factura" ANTES de cobrar
+ *     (`preInvoice.ts`). Es un pedido humano —imprime con o sin
+ *     automático— pero SÍ lleva la clave: si la DIAN la acepta por dos
+ *     rieles, sale una hoja.
  */
-export type InvoicePrintTrigger = "paid" | "dian_accepted" | "reprint";
+export type InvoicePrintTrigger = "paid" | "dian_accepted" | "reprint" | "pre_issue";
 
 /** Lo que vuelve a la tirilla una FACTURA ELECTRÓNICA: CUFE + QR. */
 export type InvoiceDianPrintData = {
@@ -130,6 +134,10 @@ export type InvoicePrintDecision =
  *   · Con `einvoicing`, el cobro no imprime: espera la aceptación de la
  *     DIAN ("dian_accepted"), que es la única que trae CUFE y QR.
  *   · Sin `einvoicing`, el cobro imprime el comprobante como siempre.
+ *   · La factura emitida ANTES de cobrar la pidió un humano: "pre_issue"
+ *     imprime siempre, y si la DIAN la acepta más tarde (el barrido, la
+ *     consulta diferida) también sale aunque el automático esté apagado —
+ *     el staff ya dijo "imprímela" y está esperando el papel.
  */
 export function invoicePrintDecision(args: {
   trigger: InvoicePrintTrigger;
@@ -137,8 +145,11 @@ export function invoicePrintDecision(args: {
   autoPrint: boolean;
   /** Módulo `einvoicing` activo en el comercio. */
   einvoicing: boolean;
+  /** La factura se emitió antes de cobrar (`snapshot.issuedBeforePayment`). */
+  issuedBeforePayment?: boolean;
 }): InvoicePrintDecision {
-  if (args.trigger === "reprint") return "print";
+  if (args.trigger === "reprint" || args.trigger === "pre_issue") return "print";
+  if (args.trigger === "dian_accepted" && args.issuedBeforePayment) return "print";
   if (!args.autoPrint) return "skip_auto_off";
   if (args.trigger === "paid" && args.einvoicing) return "skip_waits_dian";
   return "print";

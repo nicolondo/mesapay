@@ -1,7 +1,11 @@
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/mailer";
-import { renderInvoiceEmail, type InvoiceSnapshot } from "@/lib/invoice";
+import {
+  isIssuedBeforePayment,
+  renderInvoiceEmail,
+  type InvoiceSnapshot,
+} from "@/lib/invoice";
 import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
 import { embeddedMenuTax } from "@/lib/dian/emit";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
@@ -34,7 +38,7 @@ export type IssueSimpleInvoiceResult =
       locale: string | null;
       alreadyIssued: boolean;
     }
-  | { ok: false; error: "not_found" | "order_not_paid" };
+  | { ok: false; error: "not_found" | "order_not_paid" | "order_closed" };
 
 export function invoiceUrlFor(id: string): string {
   const base = env.APP_PUBLIC_BASE_URL ?? "https://mesapay.co";
@@ -52,12 +56,24 @@ export function invoiceUrlFor(id: string): string {
  * los flujos. Es best-effort: ver `print/invoiceQueue.ts`. Con el módulo
  * `einvoicing` la cola NO imprime desde acá (trigger "paid"): lo que sale
  * es la factura electrónica, cuando la DIAN la acepta.
+ *
+ * ── Factura ANTES de cobrar (`beforePayment`) ───────────────────────────
+ * "Imprimir factura" desde la mesa o el cobro, cuando el comensal la pide y
+ * todavía no se sabe cómo va a pagar (`src/lib/preInvoice.ts`). Emite sobre
+ * una cuenta abierta: numera y congela la cuenta TAL COMO ESTÁ (ítems
+ * cubiertos en `orderItemIds`, ver `orders/invoicedOrder.ts`) y no encola
+ * papel — de eso se encarga quien la pidió, que tiene que contarle al staff
+ * por dónde salió. Cuando después se cobra (con lo que sea), el riel del
+ * cobro llega acá, encuentra esta factura y la devuelve tal cual: ni otra
+ * factura, ni otro número, ni otra hoja.
  */
 export async function issueSimpleInvoice(opts: {
   tenantId: string;
   orderId: string;
   email?: string | null;
   customer?: InvoiceCustomer | null;
+  /** Emitir sobre la cuenta ABIERTA, antes de cobrar. Ver arriba. */
+  beforePayment?: boolean;
 }): Promise<IssueSimpleInvoiceResult> {
   const order = await db.order.findUnique({
     where: { id: opts.orderId },
@@ -84,11 +100,10 @@ export async function issueSimpleInvoice(opts: {
   if (!order || order.restaurantId !== opts.tenantId) {
     return { ok: false, error: "not_found" };
   }
-  if (order.status !== "paid") {
-    return { ok: false, error: "order_not_paid" };
-  }
 
-  // Idempotencia — ya emitida antes: devolvemos esa (no re-numeramos).
+  // Idempotencia — ya emitida antes: devolvemos esa (no re-numeramos). Va
+  // ANTES de mirar si está pagada: una factura emitida antes de cobrar es
+  // LA factura de la cuenta, y el cobro que llega después la reutiliza.
   if (order.simpleInvoice) {
     const snapshot = order.simpleInvoice
       .snapshot as unknown as InvoiceSnapshot;
@@ -96,10 +111,16 @@ export async function issueSimpleInvoice(opts: {
     // impresora de la caja no existía todavía (o el encolado falló), esta
     // llamada la imprime. El `dedupeKey` impide el duplicado en el caso
     // normal, que es el que importa.
-    await enqueueInvoicePrintSafe({
-      ...invoicePrintArgs(order.simpleInvoice, order),
-      trigger: "paid",
-    });
+    //
+    // Salvo con la factura emitida ANTES de cobrar: esa ya salió cuando el
+    // staff la pidió (o salió por el navegador). Cobrarla después no saca
+    // otra hoja sola — para otra copia está "Reimprimir".
+    if (!isIssuedBeforePayment(snapshot) && !opts.beforePayment) {
+      await enqueueInvoicePrintSafe({
+        ...invoicePrintArgs(order.simpleInvoice, order),
+        trigger: "paid",
+      });
+    }
     return {
       ok: true,
       invoiceId: order.simpleInvoice.id,
@@ -110,6 +131,15 @@ export async function issueSimpleInvoice(opts: {
       locale: order.locale,
       alreadyIssued: true,
     };
+  }
+  if (order.status === "cancelled") {
+    return { ok: false, error: "order_closed" };
+  }
+  // Sin pagar sólo se emite a pedido explícito del staff (`beforePayment`).
+  // Una cuenta que ya está pagada se factura normal aunque lo pidan así.
+  const beforePayment = opts.beforePayment === true && order.status !== "paid";
+  if (order.status !== "paid" && !beforePayment) {
+    return { ok: false, error: "order_not_paid" };
   }
 
   // Atomic increment del consecutivo. El default es 1 — la primera factura
@@ -157,6 +187,15 @@ export async function issueSimpleInvoice(opts: {
   // hoy. El reparto base/impuesto es el MISMO por línea que hace el XML
   // (`embeddedMenuTax` ⇒ `invoiceLineFor`), sobre el bruto de cada plato y
   // sin descontar el descuento del comensal, para coincidir al centavo.
+  // Emitida ANTES de cobrar: la factura es la VENTA, sin propina. La
+  // propina todavía no existe (o es la de un pago parcial que no es de toda
+  // la mesa), no va al XML y la elige el cliente al pagar; el papel la
+  // sugiere aparte. Al cobrar, la propina vive en los pagos y la orden.
+  const invoiceTipCents = beforePayment ? 0 : order.tipCents;
+  const invoiceTotalCents = beforePayment
+    ? Math.max(0, order.subtotalCents + order.taxCents - order.discountCents)
+    : order.totalCents;
+
   const salesTaxKind = r.salesTaxKind as SalesTaxKind;
   const salesTaxPct = salesTaxKind === "none" ? 0 : r.salesTaxPct;
   const embedded = embeddedMenuTax(order.items, {
@@ -190,7 +229,9 @@ export async function issueSimpleInvoice(opts: {
         ? (order.table.label ?? MANUAL_TABLE_LABEL)
         : `Mesa ${order.table.number}${order.table.label ? ` · ${order.table.label}` : ""}`
       : "Mostrador",
-    paidAtIso: (order.paidAt ?? new Date()).toISOString(),
+    // Emitida antes de cobrar: no hay `paidAt` todavía, la fecha de la
+    // factura es la de la emisión.
+    paidAtIso: (beforePayment ? new Date() : (order.paidAt ?? new Date())).toISOString(),
     // Una entrada por OrderItem (como el XML). Lo demás es para agrupar
     // los repetidos al mostrarla: ver src/lib/invoiceLines.ts.
     items: order.items.map((i) => ({
@@ -215,38 +256,74 @@ export async function issueSimpleInvoice(opts: {
     embeddedBaseCents: embedded.baseCents,
     discountCents: order.discountCents,
     discountPct: order.discountPct,
-    tipCents: order.tipCents,
-    totalCents: order.totalCents,
+    tipCents: invoiceTipCents,
+    totalCents: invoiceTotalCents,
     customer: opts.customer ?? null,
+    ...(beforePayment && {
+      issuedBeforePayment: true,
+      orderItemIds: order.items.map((i) => i.id),
+    }),
   };
 
-  const inv = await db.simpleInvoice.create({
-    data: {
-      restaurantId: opts.tenantId,
-      orderId: order.id,
-      email: opts.email ?? null,
-      invoiceNumber,
-      snapshot: snapshot as unknown as object,
-      totalCents: order.totalCents,
-    },
-  });
+  let inv: { id: string };
+  try {
+    inv = await db.simpleInvoice.create({
+      data: {
+        restaurantId: opts.tenantId,
+        orderId: order.id,
+        email: opts.email ?? null,
+        invoiceNumber,
+        snapshot: snapshot as unknown as object,
+        totalCents: invoiceTotalCents,
+      },
+    });
+  } catch (err) {
+    // Dos rieles a la vez (el staff emitiendo antes de cobrar justo cuando
+    // entra el pago, o dos rieles del cobro): `orderId` es único y el que
+    // llegó segundo choca acá. La factura de la cuenta es la del primero;
+    // el número que este alcanzó a tomar queda sin usar (se loguea).
+    if ((err as { code?: string })?.code === "P2002") {
+      const winner = await db.simpleInvoice.findUnique({ where: { orderId: order.id } });
+      if (winner) {
+        console.warn("[simple-invoice] carrera al emitir; se devuelve la factura existente", {
+          orderId: order.id,
+          unusedNumber: invoiceNumber,
+          invoiceId: winner.id,
+        });
+        return {
+          ok: true,
+          invoiceId: winner.id,
+          invoiceUrl: invoiceUrlFor(winner.id),
+          invoiceNumber: winner.invoiceNumber,
+          snapshot: winner.snapshot as unknown as InvoiceSnapshot,
+          email: winner.email,
+          locale: order.locale,
+          alreadyIssued: true,
+        };
+      }
+    }
+    throw err;
+  }
 
   // La tirilla sale por la impresora de la caja en el mismo momento del
   // cobro. Se AWAITEA (son dos queries y un insert) pero no puede fallar
-  // hacia afuera: la factura ya está emitida y numerada.
-  await enqueueInvoicePrintSafe({
-    ...invoicePrintArgs(
-      {
-        id: inv.id,
-        restaurantId: opts.tenantId,
-        orderId: order.id,
-        invoiceNumber,
-        snapshot,
-      },
-      order,
-    ),
-    trigger: "paid",
-  });
+  // hacia afuera: la factura ya está emitida y numerada. Antes de cobrar no:
+  // el papel lo pide (y lo reporta) `preInvoice.ts`.
+  if (!beforePayment) {
+    await enqueueInvoicePrintSafe({
+      ...invoicePrintArgs(
+        {
+          id: inv.id,
+          restaurantId: opts.tenantId,
+          orderId: order.id,
+          invoiceNumber,
+          snapshot,
+        },
+        order,
+      ),
+      trigger: "paid",
+    });
+  }
 
   return {
     ok: true,

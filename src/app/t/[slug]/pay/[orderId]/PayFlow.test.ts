@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string; restaurantId?: string } },
   activeId: "r1", tenant: vi.fn(), order: vi.fn(), invoiceRequest: vi.fn(), customers: vi.fn(), sync: vi.fn(),
-  claims: vi.fn(), terminalAvailable: true,
+  claims: vi.fn(), terminalAvailable: true, invoiceView: vi.fn(),
   devices: [{ id: "kd-1", label: "Caja" }] as Array<{ id: string; label: string }>,
 }));
 vi.mock("@/auth", () => ({ auth: async () => m.session }));
@@ -24,6 +24,7 @@ vi.mock("@/lib/customerCredit", () => ({ loadCustomerCreditSummary: vi.fn() }));
 vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not_found"); } }));
 vi.mock("./PayClient", () => ({ PayClient: () => null }));
+vi.mock("@/lib/orders/invoicedOrder", () => ({ loadOrderInvoiceView: m.invoiceView }));
 import { PayFlow } from "./PayFlow";
 
 const approved = { id: "cash-part", method: "cash", status: "approved", amountCents: 3300, tipCents: 300 };
@@ -38,6 +39,7 @@ beforeEach(() => {
   });
   m.invoiceRequest.mockResolvedValue(null); m.customers.mockResolvedValue(0);
   m.claims.mockResolvedValue([]); m.terminalAvailable = true; m.devices = [{ id: "kd-1", label: "Caja" }];
+  m.invoiceView.mockResolvedValue(null);
 });
 const flow = (op = "1") => PayFlow({ slug: "sample", orderId: "o1", op });
 
@@ -155,5 +157,28 @@ describe("factura manual pagada por link", () => {
     m.session = null;
     const page = await flow(undefined);
     expect(page.props).toMatchObject({ operatorMode: false, payLinkMode: false });
+  });
+});
+
+describe("factura emitida antes de cobrar", () => {
+  const view = {
+    invoiceId: "inv-1", documentNumber: "FESM-42", issuedBeforePayment: true,
+    dianState: "accepted", dianLastError: null, annulled: false,
+  };
+
+  it("el cobro recibe la factura ya emitida (no vuelve a preguntar) y sólo el administrador puede anularla", async () => {
+    m.invoiceView.mockResolvedValue(view);
+    const page = await flow();
+    expect(page.props).toMatchObject({ preInvoice: view, canAnnulInvoice: true });
+    m.session = { user: { id: "u2", role: "mesero", restaurantId: "r1" } };
+    expect((await flow()).props).toMatchObject({ preInvoice: view, canAnnulInvoice: false });
+  });
+
+  it("una cuenta ya pagada no la trae: su factura es la de siempre", async () => {
+    m.invoiceView.mockResolvedValue(view);
+    m.order.mockResolvedValue({ ...(await m.order()), status: "paid" });
+    const page = await flow();
+    expect(page.props.preInvoice).toBeNull();
+    expect(m.invoiceView).not.toHaveBeenCalled();
   });
 });

@@ -228,7 +228,7 @@
         "operator",
         "mesero"
       ],
-      "body": "La precuenta es el papel que llevas a la mesa para que el cliente revise lo que consumió antes de pagar. No es una factura: no usa la numeración de facturación ni cierra la cuenta, así que puedes imprimirla las veces que haga falta.\n\n## Imprímela\n\n1. En [Mesas](/operator/tables), abre la ficha de la mesa.\n2. Toca **Imprimir precuenta**. Verás **Enviando precuenta…** y después **Precuenta enviada a** con el nombre de la impresora.\n3. Para verla en pantalla, toca **Ver precuenta**. Desde ahí también puedes tocar **Imprimir**, y volver con **Volver a Mesas**.\n\nLos botones aparecen mientras la cuenta está abierta y tiene consumo. Los pueden usar los administradores y los meseros, también cuando el cobro está reservado al administrador.\n\n## Por dónde sale\n\n- Por la impresora de facturas del programa de impresión: la que elegiste en Configuración › Impresoras de red, en **Impresora para facturas**, o, si no elegiste ninguna, las impresoras de tipo factura activas. Ver [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Si no tienes impresora de facturas, verás **Sin impresora de facturas: se imprime desde el navegador.**\n- Si el programa de impresión no responde, verás **El agente de impresión no responde: se imprime desde el navegador.**\n- Un administrador ve además el enlace **Elegir impresora del agente** para dejarla configurada.\n\n## Qué trae\n\n- El nombre del comercio, el NIT, la dirección y el teléfono.\n- **PRECUENTA** y **Este documento no es una factura**.\n- La fecha, la mesa, el código de la cuenta y el mesero.\n- Los platos agrupados, el subtotal, el impuesto incluido, el descuento y el total.\n- Si ya hubo pagos: **Pagado** y **Pendiente por pagar**.\n- **Propina sugerida 10%** y **Total con propina**, calculados sobre lo pendiente, con una nota de que la propina es voluntaria.\n\nLa propina sugerida de la precuenta siempre es del 10 %. Al cobrar, el cliente puede elegir otra.\n\nLa precuenta sale en el idioma en que se hizo el pedido.\n\n## Casos frecuentes\n\n- **No veo Imprimir precuenta**: la cuenta ya se pagó, se canceló o no tiene platos.\n- **La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.**: pasa al abrir **Ver precuenta** de una cuenta cerrada o vacía.\n- **No se pudo imprimir la precuenta.**: revisa el programa de impresión. Ver [Qué hacer cuando no sale una comanda o una factura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **El navegador no dejó imprimir acá ni abrir la pestaña.**: permite las ventanas emergentes para MESAPAY en tu navegador y vuelve a intentar.\n- **El cliente quiere la factura**: la factura se genera al cobrar. Ver [Cobra una cuenta paso a paso](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n",
+      "body": "La precuenta es el papel que llevas a la mesa para que el cliente revise lo que consumió antes de pagar. No es una factura: no usa la numeración de facturación ni cierra la cuenta, así que puedes imprimirla las veces que haga falta.\n\n## Imprímela\n\n1. En [Mesas](/operator/tables), abre la ficha de la mesa.\n2. Toca **Imprimir precuenta**. Verás **Enviando precuenta…** y después **Precuenta enviada a** con el nombre de la impresora.\n3. Para verla en pantalla, toca **Ver precuenta**. Desde ahí también puedes tocar **Imprimir**, y volver con **Volver a Mesas**.\n\nLos botones aparecen mientras la cuenta está abierta y tiene consumo. Los pueden usar los administradores y los meseros, también cuando el cobro está reservado al administrador.\n\n## Por dónde sale\n\n- Por la impresora de facturas del programa de impresión: la que elegiste en Configuración › Impresoras de red, en **Impresora para facturas**, o, si no elegiste ninguna, las impresoras de tipo factura activas. Ver [Revisa tus impresoras desde el panel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Si no tienes impresora de facturas, verás **Sin impresora de facturas: se imprime desde el navegador.**\n- Si el programa de impresión no responde, verás **El agente de impresión no responde: se imprime desde el navegador.**\n- Un administrador ve además el enlace **Elegir impresora del agente** para dejarla configurada.\n\n## Qué trae\n\n- El nombre del comercio, el NIT, la dirección y el teléfono.\n- **PRECUENTA** y **Este documento no es una factura**.\n- La fecha, la mesa, el código de la cuenta y el mesero.\n- Los platos agrupados, el subtotal, el impuesto incluido, el descuento y el total.\n- Si ya hubo pagos: **Pagado** y **Pendiente por pagar**.\n- **Propina sugerida 10%** y **Total con propina**, calculados sobre lo pendiente, con una nota de que la propina es voluntaria.\n\nLa propina sugerida de la precuenta siempre es del 10 %. Al cobrar, el cliente puede elegir otra.\n\nLa precuenta sale en el idioma en que se hizo el pedido.\n\n## Casos frecuentes\n\n- **No veo Imprimir precuenta**: la cuenta ya se pagó, se canceló o no tiene platos.\n- **La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.**: pasa al abrir **Ver precuenta** de una cuenta cerrada o vacía.\n- **No se pudo imprimir la precuenta.**: revisa el programa de impresión. Ver [Qué hacer cuando no sale una comanda o una factura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **El navegador no dejó imprimir acá ni abrir la pestaña.**: permite las ventanas emergentes para MESAPAY en tu navegador y vuelve a intentar.\n- **El cliente quiere la factura y todavía no sabe cómo va a pagar**: imprímela sin esperar al cobro con **Imprimir factura**; también trae la propina sugerida. Ver [Imprime la factura antes de cobrar](/operator/ayuda/cobro-y-caja/factura-antes-de-cobrar).\n",
       "links": [
         {
           "label": "Ir a Mesas",
@@ -243,7 +243,44 @@
           "href": "/operator/settings/impresoras"
         }
       ],
-      "updated": "2026-10-31"
+      "updated": "2026-11-04"
+    },
+    {
+      "slug": "factura-antes-de-cobrar",
+      "title": "Imprime la factura antes de cobrar",
+      "summary": "Cuando el cliente pide la factura y todavía no dice cómo va a pagar: emítela desde la mesa o el cobro, sin método de pago, y cóbrala después con cualquier medio.",
+      "keywords": [
+        "factura antes de pagar",
+        "imprimir factura",
+        "factura sin metodo de pago",
+        "pendiente de pago",
+        "factura electronica",
+        "cuenta facturada",
+        "instrumento no definido",
+        "se fue sin pagar",
+        "nota credito",
+        "prefactura"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Cuando el cliente pide la factura, ya no hace falta preguntarle primero cómo va a pagar. Con **Imprimir factura** se emite la factura de la cuenta tal como está, sin método de pago, y se le lleva a la mesa. Después paga con lo que quiera.\n\n## Imprímela\n\n1. En [Mesas](/operator/tables) o en la app del mesero, abre la ficha de la mesa y toca **Imprimir factura**. También está en la pantalla de cobro, debajo de la pregunta por la factura.\n2. Revisa **Cliente de la factura**. Si no eliges a nadie, sale a **Consumidor final**. Con **A nombre del cliente** cargas el NIT o la cédula, o eliges un cliente registrado; con **Agregar correo** se la envías a un correo.\n3. Toca **Emitir e imprimir factura**.\n\nVerás por dónde salió: la impresora de facturas o, si no hay impresora o el programa de impresión no responde, el navegador de tu equipo.\n\n## Con facturación electrónica\n\n- La factura se envía a la DIAN en ese momento y sale por la impresora apenas la DIAN la acepta, con su CUFE y su QR.\n- Si la DIAN tarda, la ficha lo dice y no hay que hacer nada: la factura sale sola por la impresora cuando la acepte. Mientras, toca **Imprimir precuenta** para llevar el detalle a la mesa. Con **Consultar a la DIAN** ves si ya la aceptó.\n- Como todavía no se sabe cómo va a pagar el cliente, la factura va a la DIAN con el medio de pago «Instrumento no definido».\n\n## Qué dice el papel\n\n- Los platos, el subtotal, el impuesto incluido y el **TOTAL**, como cualquier factura.\n- **Pendiente de pago** en lugar de la forma de pago.\n- **Propina sugerida 10%** y **TOTAL CON PROPINA**, con la nota de que la propina es voluntaria. Así reemplaza a la precuenta.\n\n## Cóbrala\n\nCobra la cuenta como siempre: efectivo, datáfono, link de pago, dividida por persona o a crédito. Al cobrar **no sale otra factura ni otra hoja**: la que ya tiene el cliente es la de la cuenta. La propina que deje puede ser distinta de la sugerida; la propina no va en la factura.\n\n## La cuenta queda cerrada\n\nDesde que tiene factura, la ficha dice **Facturada · pendiente de pago** y la cuenta no cambia:\n\n- No se pueden agregar ni quitar platos, ni cambiar el descuento.\n- Si el cliente pide algo más, cobra esta cuenta y abre una nueva para lo adicional: tendrá su propia factura.\n- Si hay un error en la factura, un administrador la anula con **Anular con nota crédito**. Ver [Emite una nota crédito electrónica](/operator/ayuda/facturacion/notas-credito).\n\n> ⚠ Si el cliente todavía va a pedir algo, imprime la precuenta y deja la factura para el final.\n\n## Si el cliente se fue sin pagar\n\nLa cuenta queda abierta como **Facturada · pendiente de pago** y aparece en [Cierre](/operator/reports) entre las cuentas abiertas: no se puede cerrar el turno sin resolverla. Un administrador anula la factura con una nota crédito y, ya anulada, cierra la cuenta sin cobro desde el cobro, como cortesía. MESAPAY no la anula sola.\n\nEn [Impuestos del período](/operator/reportes/impuestos), **Revisar antes de declarar** lista como información las facturas emitidas antes de cobrar que siguen sin cobrar: la DIAN ya las tiene, pero su venta entra el día en que se cobran.\n\n## Casos frecuentes\n\n- **No veo Imprimir factura**: la cuenta ya se pagó, se canceló, no tiene consumo o ya tiene factura.\n- **Esta cuenta ya está facturada: no se le pueden agregar platos.**: pasa al intentar agregar algo a una cuenta facturada.\n- **Se acabó la numeración de la resolución DIAN.**: ver [Carga tu resolución de numeración](/operator/ayuda/facturacion/resolucion-de-facturacion).\n",
+      "links": [
+        {
+          "label": "Ir a Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir a Mesas (app del mesero)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir a Notas crédito",
+          "href": "/operator/facturas/notas-credito"
+        }
+      ],
+      "updated": "2026-11-04"
     },
     {
       "slug": "cobrar-a-credito",

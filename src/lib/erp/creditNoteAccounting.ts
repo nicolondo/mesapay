@@ -52,9 +52,28 @@ import type { MonthRange } from "./accountingData";
 
 type Client = Prisma.TransactionClient | typeof db;
 
-/** Notas que existen fiscalmente: aceptadas por la DIAN y no descartadas. */
+/**
+ * Notas que existen fiscalmente: aceptadas por la DIAN y no descartadas…
+ * y que ajustan una VENTA que entró a los libros.
+ *
+ * La venta entra por la cuenta COBRADA (`Order.paidAt`, ver posting.ts y
+ * los reportes de impuestos). Una factura emitida ANTES de cobrar cuya
+ * cuenta nunca se cobró (el cliente se fue y se anuló con nota crédito; la
+ * cuenta se cierra cancelada, sin `paidAt` — `compedAt` queda de red) no entró: ni la
+ * factura ni su anulación tocan libros, impuestos, exógena ni el libro de
+ * ventas — se netean entre ellas. Sin este filtro la nota debitaría
+ * devoluciones y acreditaría «reintegros por pagar» de una venta que
+ * nunca existió en los libros. Antes de la factura antes de cobrar no
+ * había notas así (toda factura electrónica era de una cuenta cobrada),
+ * así que esto no cambia nada de lo ya contabilizado.
+ */
 export function acceptedCreditNoteWhere(restaurantId: string): Prisma.CreditNoteWhereInput {
-  return { restaurantId, abandonedAt: null, dianDocument: { is: { state: "accepted" } } };
+  return {
+    restaurantId,
+    abandonedAt: null,
+    dianDocument: { is: { state: "accepted" } },
+    originalInvoice: { is: { order: { is: { paidAt: { not: null }, compedAt: null } } } },
+  };
 }
 
 /** Instante fiscal de una nota: el `issuedAt` firmado (fallback: creación). */

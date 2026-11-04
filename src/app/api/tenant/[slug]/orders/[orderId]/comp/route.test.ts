@@ -14,6 +14,9 @@ const h = vi.hoisted(() => ({
   session: { user: { id: "admin-1", role: "operator", email: "admin@sonymelona.co" } } as null | {
     user: { id: string; role: string; email: string };
   },
+  // Factura emitida antes de cobrar y cuánto la cubren las notas crédito.
+  invoice: null as null | { id: string; invoiceNumber: number; snapshot: unknown; totalCents: number },
+  creditedCents: 0,
 }));
 
 const TENANT = {
@@ -31,6 +34,10 @@ vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: vi.fn(async () => TENANT) },
     order: { findUnique: (a: never) => h.fake.tx.order.findUnique(a) },
+    // Sin factura emitida antes de cobrar (la cortesía de siempre), salvo
+    // en los casos que la siembran.
+    simpleInvoice: { findUnique: async () => h.invoice },
+    creditNote: { aggregate: async () => ({ _sum: { totalCents: h.creditedCents } }) },
     $transaction: (cb: never) => h.fake.$transaction(cb),
   },
 }));
@@ -80,6 +87,8 @@ async function comp() {
 
 beforeEach(() => {
   vi.stubEnv("DATABASE_URL", "postgresql://u:p@localhost:5432/test");
+  h.invoice = null;
+  h.creditedCents = 0;
 });
 
 describe("cortesía con pagos pendientes", () => {
@@ -112,3 +121,36 @@ describe("cortesía con pagos pendientes", () => {
     expect(h.fake.payment("req-cash")?.status).toBe("pending");
   });
 });
+
+describe("cortesía de una cuenta ya facturada (factura antes de cobrar)", () => {
+  const invoice = { id: "inv-1", invoiceNumber: 6490, snapshot: { invoicePrefix: "FESM" }, totalCents: 63_470_000 };
+
+  it("con la factura viva no se regala una venta facturada: 409 order_invoiced", async () => {
+    seed([]);
+    h.invoice = invoice;
+    const { status, json } = await comp();
+    expect(status).toBe(409);
+    expect(json).toEqual({ error: "order_invoiced", invoice: { invoiceId: "inv-1", documentNumber: "FESM6490" } });
+    expect(h.fake.order()).toMatchObject({ status: "paying", subtotalCents: 63_470_000 });
+  });
+
+  it("anulada entera con nota crédito (el cliente se fue): se cierra sin cobro, CANCELADA y sin paidAt", async () => {
+    // Sin `paidAt` ni la factura ni su anulación entran a libros ni a los
+    // reportes que cortan por la cuenta cobrada.
+    seed([]);
+    h.invoice = invoice;
+    h.creditedCents = 63_470_000;
+    const { status, json } = await comp();
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(h.fake.order()).toMatchObject({ status: "cancelled", paidAt: null, subtotalCents: 0 });
+  });
+
+  it("una nota parcial no alcanza: sigue siendo una venta facturada", async () => {
+    seed([]);
+    h.invoice = invoice;
+    h.creditedCents = 10_000_000;
+    expect((await comp()).status).toBe(409);
+  });
+});
+

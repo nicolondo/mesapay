@@ -58,6 +58,7 @@ async function GETHandler() {
       status: o.status,
       subtotalCents: o.subtotalCents,
       totalCents: o.totalCents,
+      invoiceDocumentNumber: o.invoiceDocumentNumber,
       tableLabel: o.table
         ? o.table.label ?? `Mesa ${o.table.number}`
         : "Para llevar",

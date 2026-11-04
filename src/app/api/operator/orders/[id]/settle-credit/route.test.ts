@@ -27,6 +27,8 @@ const m = vi.hoisted(() => {
       findUnique: vi.fn(async () => ({ ...order })),
       update: vi.fn(async (args: { data: Partial<typeof order> }) => Object.assign(order, args.data)),
     },
+    // Factura emitida antes de cobrar: ninguna por defecto.
+    simpleInvoice: { count: vi.fn(async () => 0) },
     $queryRaw: vi.fn(async () => []),
   };
   return {

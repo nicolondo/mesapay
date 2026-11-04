@@ -29,8 +29,10 @@
 
 import { displayOrderCode } from "@/lib/orderCode";
 import { groupInvoiceLines } from "@/lib/invoiceLines";
+import { DEFAULT_TIP_PCT, tipCentsFor } from "@/lib/prebill";
 import {
   formatInvoiceNumber,
+  isIssuedBeforePayment,
   taxLabelsFrom,
   taxRows,
   type InvoiceSnapshot,
@@ -128,6 +130,47 @@ export function paymentRowsFor(
   }));
 }
 
+/**
+ * Lo que falta cobrar de una factura emitida ANTES de cobrar, y la
+ * propina sugerida sobre eso (la misma regla que la precuenta: 10 %,
+ * `prebill.tipCentsFor`). Pura, para el papel y la vista del navegador.
+ *
+ * La factura no incluye propina (la propina no es venta: no va al XML), así
+ * que lo cobrado que cuenta es la porción de COMIDA de cada pago —
+ * `amountCents − tipCents`, el contrato de toda la app. null cuando la
+ * factura no se emitió antes de cobrar: esas se imprimen como siempre.
+ */
+export function pendingPaymentOf(
+  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents">,
+  payments: readonly InvoicePaymentLine[],
+  tipPct: number = DEFAULT_TIP_PCT,
+): {
+  outstandingCents: number;
+  paidFoodCents: number;
+  paidTipCents: number;
+  suggestedTipPct: number;
+  suggestedTipCents: number;
+  totalWithTipCents: number;
+} | null {
+  if (!isIssuedBeforePayment(snapshot)) return null;
+  let paidFoodCents = 0;
+  let paidTipCents = 0;
+  for (const p of payments) {
+    paidFoodCents += Math.max(0, p.amountCents - p.tipCents);
+    paidTipCents += Math.max(0, p.tipCents);
+  }
+  const outstandingCents = Math.max(0, snapshot.totalCents - paidFoodCents);
+  const suggestedTipCents = tipCentsFor(outstandingCents, tipPct);
+  return {
+    outstandingCents,
+    paidFoodCents,
+    paidTipCents,
+    suggestedTipPct: tipPct,
+    suggestedTipCents,
+    totalWithTipCents: outstandingCents + suggestedTipCents,
+  };
+}
+
 export function buildThermalInvoice(args: {
   snapshot: InvoiceSnapshot;
   invoiceNumber: number;
@@ -197,7 +240,41 @@ export function buildThermalInvoice(args: {
     strong: true,
   });
 
-  const paymentRows = paymentRowsFor(args.payments, t, money);
+  // Factura emitida ANTES de cobrar: el TOTAL de arriba es la venta (sin
+  // propina). Lo cobrado se lista por su porción de comida, así las filas
+  // suman contra ese TOTAL; la propina que dejaron va en su propio renglón.
+  // Mientras falte plata: "Pendiente de pago" en vez de la forma de pago, y
+  // el bloque de propina sugerida de la precuenta (voluntaria), para que
+  // esta hoja pueda reemplazarla.
+  const pending = pendingPaymentOf(s, args.payments);
+  const paymentRows = paymentRowsFor(
+    pending
+      ? args.payments.map((p) => ({ ...p, amountCents: Math.max(0, p.amountCents - p.tipCents), tipCents: 0 }))
+      : args.payments,
+    t,
+    money,
+  );
+  if (pending && pending.paidTipCents > 0) {
+    paymentRows.push({ label: t("tip"), amount: money(pending.paidTipCents) });
+  }
+  const pendingRow: ThermalInvoiceRow | null =
+    pending && pending.outstandingCents > 0
+      ? { label: t("paymentPending"), amount: money(pending.outstandingCents), strong: true }
+      : null;
+  const tipRows: ThermalInvoiceRow[] =
+    pendingRow && pending && pending.suggestedTipCents > 0
+      ? [
+          {
+            label: t("prebillSuggestedTip", { pct: pending.suggestedTipPct }),
+            amount: money(pending.suggestedTipCents),
+          },
+          {
+            label: t("prebillTotalWithTip"),
+            amount: money(pending.totalWithTipCents),
+            strong: true,
+          },
+        ]
+      : [];
 
   // La resolución DIAN (número, rango y fecha) va en UN párrafo, "·" de
   // por medio: son tres datos cortos que en renglones separados gastaban
@@ -257,6 +334,11 @@ export function buildThermalInvoice(args: {
     totals,
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
     paymentRows,
+    ...(pending && {
+      pendingRow,
+      tipRows,
+      tipNotice: tipRows.length > 0 ? t("prebillTipVoluntary") : null,
+    }),
     footerLines,
     fiscal,
   };

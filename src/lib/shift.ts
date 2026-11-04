@@ -12,6 +12,7 @@
 
 import type { Payment, PaymentMethod } from "@prisma/client";
 import { db } from "@/lib/db";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { shiftCashToNumbers, type CashShift } from "@/lib/shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 import { loadShiftConsumptionTax, loadShiftPaymentSummaries } from "@/lib/reports/shiftConsumptionTaxQuery";
@@ -194,11 +195,15 @@ function rollUp(
  * abiertas hides revenue.
  */
 export async function listOpenOrders(restaurantId: string, since: Date) {
-  return db.order.findMany({
+  const rows = await db.order.findMany({
     where: {
       restaurantId,
       status: { notIn: ["paid", "cancelled"] },
-      createdAt: { gte: since },
+      // Las del turno… y toda cuenta FACTURADA sin cobrar, aunque venga de
+      // un turno anterior: una factura emitida que nadie cobró (el cliente
+      // se fue) no puede quedar olvidada en una mesa. Se cobra o se anula
+      // con nota crédito; MESAPAY no la anula sola.
+      OR: [{ createdAt: { gte: since } }, { simpleInvoice: { isNot: null } }],
     },
     select: {
       id: true,
@@ -208,7 +213,20 @@ export async function listOpenOrders(restaurantId: string, since: Date) {
       status: true,
       createdAt: true,
       table: { select: { number: true, label: true } },
+      // Factura emitida ANTES de cobrar: la cuenta está "facturada,
+      // pendiente de pago" — se cobra, o se anula con nota crédito si el
+      // cliente se fue. El cierre la nombra para que no pase de largo.
+      simpleInvoice: { select: { invoiceNumber: true, snapshot: true } },
     },
     orderBy: { createdAt: "asc" },
   });
+  return rows.map(({ simpleInvoice, ...o }) => ({
+    ...o,
+    invoiceDocumentNumber: simpleInvoice
+      ? formatInvoiceNumber(
+          simpleInvoice.snapshot as unknown as InvoiceSnapshot,
+          simpleInvoice.invoiceNumber,
+        )
+      : null,
+  }));
 }

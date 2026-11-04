@@ -10,6 +10,7 @@ vi.mock("./rateLimit", () => ({ rateLimit: h.rate }));
 import { secureApi } from "./secureApi";
 import { PendingPaymentInFlightError } from "./payments/paymentInFlight";
 import { CancellationPermissionError } from "./orders/cancellationPolicy";
+import { OrderInvoicedError } from "./orders/orderInvoicedError";
 import { staffForRestaurant, COLLECTOR_ROLES } from "./staffAccess";
 beforeEach(() => {
   vi.clearAllMocks(); h.rate.mockResolvedValue(true); h.context.mockResolvedValue(null);
@@ -89,6 +90,13 @@ describe("errores de cobro", () => {
     const body = await response.json();
     expect(body).toMatchObject({ error: "pending_payment_in_flight", pending });
     expect(response.headers.get("X-Request-Id")).toBe(body.requestId);
+  });
+  it("una cuenta ya facturada sale como 409 order_invoiced con qué factura la cierra", async () => {
+    const invoice = { invoiceId: "inv-1", documentNumber: "FESM6490" };
+    const handler = vi.fn(async () => { throw new OrderInvoicedError(invoice); });
+    const response = await secureApi(handler)(new Request("http://localhost/api/operator/order-items", { method: "GET" }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "order_invoiced", invoice });
   });
   it("el trigger de reserva sigue siendo un operation_conflict genérico", async () => {
     const handler = vi.fn(async () => { throw new Error("ERROR: amount_exceeds_outstanding"); });

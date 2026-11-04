@@ -157,7 +157,6 @@ describe("revisiones con gastos", () => {
     entries: [],
     dianInvoices: new Map(),
     dianCreditNotes: [],
-    freeLineTaxByInvoice: new Map(),
     ...over,
   });
   const get = (i: ChecksInput, k: CheckKey) => runTaxChecks(i).find((c) => c.key === k)!;

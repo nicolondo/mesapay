@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe("computeTaxSummary — gastos con impuestos", () => {
-  it("suma el IVA DESCONTABLE de los gastos (no el que es costo), su INC y sus retenciones; filtra por mes calendario", async () => {
+  it("suma el IVA de los gastos (y aparte sólo el DESCONTABLE), su INC y sus retenciones; filtra por mes calendario", async () => {
     m.expenses.mockResolvedValue([
       { ivaCents: 38_000, ivaDeductible: true, incCents: 0, retefuenteCents: 8_000, reteIvaCents: 5_700, reteIcaCents: 1_400 },
       { ivaCents: 19_000, ivaDeductible: false, incCents: 8_000, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0 },
@@ -89,7 +89,9 @@ describe("computeTaxSummary — gastos con impuestos", () => {
     const calendar = { from: new Date("2026-09-01T00:00:00Z"), to: new Date("2026-10-01T00:00:00Z") };
     const tax = await computeTaxSummary("r1", { ...RANGE, calendar });
     expect(tax.purchases).toEqual({
-      ivaCents: 38_000,
+      // Registrado: 38.000 descontable + 19.000 que es costo del gasto.
+      ivaCents: 57_000,
+      ivaDeductibleCents: 38_000,
       incCents: 8_000,
       retefuenteCents: 8_000,
       reteIvaCents: 5_700,

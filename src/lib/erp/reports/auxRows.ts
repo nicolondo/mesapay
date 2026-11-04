@@ -15,6 +15,7 @@
  * Pensado para que el estado de resultado y el balance adopten el mismo
  * despliegue: cualquier cifra del libro se explica con filas `ledger`.
  */
+import { expenseHref } from "../expenseTax";
 import type { DocFact, DocKind, DrillTaxKey, LedgerFact } from "./taxesDrill";
 import type { ReconDayRow } from "./taxesReconcile";
 
@@ -150,9 +151,14 @@ export function auxTotals(rows: readonly AuxRow[]): { count: number; amountCents
 /**
  * Enlace al documento fuente. Las rutas son las de la operación: la
  * factura (`/factura/[id]`), el pedido, la lista de notas crédito, la
- * compra (Compras abre su detalle con `?oc=`) y los gastos de Contabilidad.
+ * compra (Compras abre su detalle con `?oc=`) y el gasto (Contabilidad ›
+ * Gastos abierto en ese gasto, en el mes de su fecha contable `dateIso`).
  */
-export function docHref(kind: DocKind | undefined, id: string | null | undefined): string | null {
+export function docHref(
+  kind: DocKind | undefined,
+  id: string | null | undefined,
+  dateIso?: string | null,
+): string | null {
   if (!kind || !id) return null;
   switch (kind) {
     case "invoice":
@@ -164,7 +170,9 @@ export function docHref(kind: DocKind | undefined, id: string | null | undefined
     case "purchase":
       return `/operator/compras?oc=${encodeURIComponent(id)}`;
     case "expense":
-      return "/operator/contabilidad?tab=expenses";
+      return dateIso
+        ? expenseHref(id, dateIso)
+        : `/operator/contabilidad?tab=expenses&expense=${encodeURIComponent(id)}`;
     case "refund":
       return null;
   }

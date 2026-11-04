@@ -56,6 +56,15 @@ describe("POST /api/operator/expenses/[id]/payments", () => {
     });
   });
 
+  it("con impuestos, el saldo es el TOTAL A PAGAR (lo retenido no se le paga al proveedor)", async () => {
+    // Costo $10.000 + IVA descontable $1.900 − retefuente $400 = $11.500 a pagar.
+    m.findUnique.mockResolvedValue({ restaurantId: "r1", amountCents: 1_000_000, payableCents: 1_150_000, paidCents: 0, recurring: false });
+    expect((await pay({ amountCents: 1_150_001, accountCode: "110505" })).status).toBe(400);
+    const res = await pay({ amountCents: 1_150_000, paidAt: "2026-10-21T17:00:00.000Z", accountCode: "110505" });
+    expect(res.status).toBe(201);
+    expect(m.update.mock.calls[0]![0].data).toEqual({ paidCents: 1_150_000, paidAt: new Date("2026-10-21T17:00:00.000Z") });
+  });
+
   it("rechaza un pago mayor que el saldo y una cuenta que no está en el plan", async () => {
     expect((await pay({ amountCents: 300_001, accountCode: "110505" })).status).toBe(400);
     const res = await pay({ amountCents: 1_000, accountCode: "999999" });

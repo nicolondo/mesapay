@@ -70,6 +70,54 @@ describe("cron de gastos recurrentes", () => {
   });
 });
 
+describe("cron: plantillas con impuestos", () => {
+  it("la copia repite base e IVA y RECALCULA la retención con la UVT del año de la copia", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-05T10:30:00Z"));
+    m.findMany.mockResolvedValue([
+      template({
+        amountCents: 300_000_000,
+        baseCents: 300_000_000,
+        discountCents: 0,
+        ivaPct: 19,
+        ivaCents: 57_000_000,
+        ivaDeductible: true,
+        incCents: 0,
+        payableCents: 346_500_000,
+        documentType: "e_invoice",
+        restaurant: { enabledModules: ["accounting"], accountingConfig: { uvtCents: 5_237_400 } },
+        retentions: [
+          {
+            id: "l1",
+            conceptId: "arr",
+            kind: "retefuente",
+            name: "Arrendamientos (3,5%)",
+            rateBps: 350,
+            base: "subtotal",
+            accountCode: "236505",
+            baseCents: 300_000_000,
+            amountCents: 10_500_000,
+            concept: { id: "arr", kind: "retefuente", name: "Arrendamientos (3,5%)", rateBps: 350, base: "subtotal", thresholdUvt: 27, accountCode: "236505", active: true },
+          },
+        ],
+      }),
+    ]);
+    await call();
+    const data = m.create.mock.calls[0]![0].data;
+    expect(data).toMatchObject({
+      amountCents: 300_000_000,
+      ivaCents: 57_000_000,
+      ivaDeductible: true,
+      retefuenteCents: 10_500_000,
+      payableCents: 346_500_000,
+      documentType: "e_invoice",
+      templateId: "t1",
+    });
+    expect(data.retentions.create).toEqual([expect.objectContaining({ conceptId: "arr", amountCents: 10_500_000 })]);
+    vi.useRealTimers();
+  });
+});
+
 describe("materializeRecurring", () => {
   const today = new Date("2026-10-08T10:30:00Z");
   it("toca las plantillas cuyo día ya llegó este mes y no tienen copia", () => {

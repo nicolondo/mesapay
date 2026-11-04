@@ -496,7 +496,8 @@ export async function computeTaxSummary(
   restaurantId: string,
   range: MonthRange,
 ): Promise<TaxSummary> {
-  const [sales, poHeaders] = await Promise.all([
+  const calendar = calendarRangeOf(range);
+  const [sales, poHeaders, expenseTax] = await Promise.all([
     computeSalesTaxSummary(restaurantId, range),
     // Impuestos documentales y acumulados: misma fuente que pagos y libros.
     db.purchaseOrder.findMany({
@@ -510,6 +511,9 @@ export async function computeTaxSummary(
         movements: PURCHASE_IN_MOVEMENTS_SELECT,
       },
     }),
+    // Gastos con impuestos: misma convención que las compras. `date` es una
+    // FECHA contable → mes calendario (como el PYG y el asiento del gasto).
+    loadExpenseTaxTotals(restaurantId, calendar),
   ]);
 
   const purchaseAmounts = poHeaders.map((order) => purchaseOrderTotals(order, "received"));
@@ -523,13 +527,54 @@ export async function computeTaxSummary(
   return {
     sales,
     purchases: {
-      ivaCents,
-      ivaDeductibleCents: ivaCents - nonDeductibleCents,
-      incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0),
-      retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0),
-      reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0),
-      reteIcaCents: poHeaders.reduce((sum, order) => sum + order.reteIcaCents, 0),
+      // Gastos: todo su IVA es «registrado»; sólo el DESCONTABLE (foto del
+      // gasto) cruza contra el generado: el resto ya es costo del gasto.
+      ivaCents: ivaCents + expenseTax.ivaCents,
+      ivaDeductibleCents: ivaCents - nonDeductibleCents + expenseTax.deductibleIvaCents,
+      incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0) + expenseTax.incCents,
+      retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0) + expenseTax.retefuenteCents,
+      reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0) + expenseTax.reteIvaCents,
+      reteIcaCents: poHeaders.reduce((sum, order) => sum + order.reteIcaCents, 0) + expenseTax.reteIcaCents,
     },
+    expenses: expenseTax,
+  };
+}
+
+/** Impuestos de los gastos (no plantillas) con fecha contable en el rango. */
+async function loadExpenseTaxTotals(
+  restaurantId: string,
+  range: { from: Date; to: Date },
+): Promise<NonNullable<TaxSummary["expenses"]>> {
+  const rows = await db.expense.findMany({
+    where: {
+      restaurantId,
+      recurring: false,
+      date: { gte: range.from, lt: range.to },
+      OR: [
+        { ivaCents: { gt: 0 } },
+        { incCents: { gt: 0 } },
+        { retefuenteCents: { gt: 0 } },
+        { reteIvaCents: { gt: 0 } },
+        { reteIcaCents: { gt: 0 } },
+      ],
+    },
+    select: {
+      ivaCents: true,
+      ivaDeductible: true,
+      incCents: true,
+      retefuenteCents: true,
+      reteIvaCents: true,
+      reteIcaCents: true,
+    },
+  });
+  const sum = (pick: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0);
+  return {
+    ivaCents: sum((r) => r.ivaCents),
+    deductibleIvaCents: sum((r) => (r.ivaDeductible ? r.ivaCents : 0)),
+    incCents: sum((r) => r.incCents),
+    retefuenteCents: sum((r) => r.retefuenteCents),
+    reteIvaCents: sum((r) => r.reteIvaCents),
+    reteIcaCents: sum((r) => r.reteIcaCents),
   };
 }
 

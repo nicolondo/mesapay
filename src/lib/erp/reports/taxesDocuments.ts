@@ -17,6 +17,11 @@
  *    fecha fiscal en el período restan del tramo de cada línea lo que
  *    declararon (base e impuesto por tarifa, de su snapshot). El tramo
  *    guarda aparte cuánto restaron, así el contador ve bruto, notas y neto.
+ *  · GASTOS (origen aparte de las compras): IVA por la tarifa del gasto,
+ *    INC y retenciones practicadas que el operador capturó en el gasto
+ *    (`Expense.ivaCents`/`incCents`/`retefuenteCents`…). Sólo el IVA
+ *    DESCONTABLE (foto `ivaDeductible`) cruza contra el generado; el resto
+ *    ya es costo del gasto, como en su asiento.
  *  · DEVOLUCIONES: los reembolsos de la pasarela SIN nota crédito no
  *    tienen documento que los congele; el motor les calcula el impuesto
  *    embebido con el tramo dominante del período (`posting.ts`, asiento
@@ -76,6 +81,43 @@ export type PurchaseTaxInput = {
   reteIcaCents: number;
 };
 
+/** Un gasto con impuestos o retenciones en el período (origen «gastos»). */
+export type ExpenseTaxInput = {
+  expenseId: string;
+  /** Número del documento soporte; si no tiene, la categoría del gasto. */
+  document: string;
+  /** Fecha contable del gasto, ISO (mediodía de Colombia). */
+  dateIso: string;
+  category: string;
+  /** e_invoice | charge_account | equivalent | none. */
+  documentType: string;
+  supplierName: string | null;
+  supplierTaxId: string | null;
+  /** Base gravable (neta de descuento). */
+  baseCents: number;
+  ivaPct: number;
+  ivaCents: number;
+  /** Parte del IVA que NO es descontable (mayor valor del gasto). */
+  nonDeductibleIvaCents: number;
+  incCents: number;
+  retefuenteCents: number;
+  reteIvaCents: number;
+  reteIcaCents: number;
+  /**
+   * Retenciones del gasto, una por concepto (foto guardada en el gasto).
+   * Opcional: sin ellas, el despliegue cae a los totales por tipo.
+   */
+  retentions?: readonly {
+    kind: string;
+    name: string;
+    rateBps: number;
+    baseCents: number;
+    amountCents: number;
+  }[];
+  /** Pantalla del gasto (Contabilidad › Gastos, abierto en ese gasto). */
+  href: string;
+};
+
 export type CurrentSalesTax = { kind: SalesTaxKind; pct: number };
 
 /** Una nota crédito aceptada, con fecha fiscal en el período. */
@@ -124,6 +166,16 @@ export type DocumentTaxTotals = {
   /** IVA de compras que el motor lleva al descontable (24081001). */
   ivaDescontableCents: number;
   incComprasCents: number;
+  /** IVA registrado en GASTOS (todas sus tarifas). */
+  ivaGastosCents: number;
+  /** Parte del IVA de gastos que NO es descontable (costo del gasto). */
+  ivaGastosNoDescontableCents: number;
+  /** IVA de gastos que el motor lleva al descontable (240810). */
+  ivaGastosDescontableCents: number;
+  incGastosCents: number;
+  /** Retenciones practicadas en gastos (ya sumadas en retefuente/reteIva/reteIca). */
+  retencionesGastosCents: number;
+  /** Retenciones practicadas en compras Y gastos. */
   retefuenteCents: number;
   reteIvaCents: number;
   reteIcaCents: number;
@@ -138,9 +190,12 @@ export type DocumentTaxTotals = {
 export type DocumentTaxes = {
   sales: TaxBucket[];
   purchases: TaxBucket[];
+  /** Origen «gastos»: IVA por tarifa e INC de los gastos del período. */
+  expenses: TaxBucket[];
+  /** Retenciones practicadas (compras y gastos). */
   retentions: TaxBucket[];
   totals: DocumentTaxTotals;
-  /** IVA generado en ventas − IVA registrado en compras (referencia, no la declaración). */
+  /** IVA generado en ventas − IVA registrado en compras y gastos (referencia, no la declaración). */
   ivaDiferenciaDocumentalCents: number;
 };
 
@@ -216,9 +271,12 @@ export function aggregateDocumentTaxes({
   refundsCents = 0,
   currentTax = { kind: "none", pct: 0 },
   creditNotes = [],
+  expenses = [],
 }: {
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
+  /** Gastos con impuestos o retenciones del período (origen aparte). */
+  expenses?: readonly ExpenseTaxInput[];
   /** Σ reembolsos de la pasarela del período SIN nota crédito ligada. */
   refundsCents?: number;
   /** Tarifa vigente del comercio (para devoluciones sin ventas en el período). */
@@ -316,8 +374,36 @@ export function aggregateDocumentTaxes({
     addRetention("reteica", netTotal, p.reteIcaCents);
   }
 
+  // ── Gastos: IVA por la tarifa del gasto, INC y sus retenciones ───────
+  const expenseBuckets = new Map<string, TaxBucket>();
+  let ivaGastosNoDescontable = 0;
+  let incGastos = 0;
+  let retencionesGastos = 0;
+  for (const e of expenses) {
+    if (e.ivaCents !== 0) {
+      const key = bucketKey("iva", e.ivaPct);
+      const b = expenseBuckets.get(key) ?? newBucket("iva", e.ivaPct);
+      b.baseCents += e.baseCents;
+      b.taxCents += e.ivaCents;
+      expenseBuckets.set(key, b);
+      ivaGastosNoDescontable += Math.max(0, Math.min(e.ivaCents, e.nonDeductibleIvaCents));
+    }
+    if (e.incCents !== 0) {
+      const b = expenseBuckets.get(bucketKey("inc", null)) ?? newBucket("inc", null);
+      b.baseCents += e.baseCents;
+      b.taxCents += e.incCents;
+      expenseBuckets.set(b.key, b);
+      incGastos += e.incCents;
+    }
+    addRetention("retefuente", e.baseCents, e.retefuenteCents);
+    addRetention("reteiva", e.ivaCents, e.reteIvaCents);
+    addRetention("reteica", e.baseCents, e.reteIcaCents);
+    retencionesGastos += e.retefuenteCents + e.reteIvaCents + e.reteIcaCents;
+  }
+
   const salesRows = sortBuckets(salesBuckets.values());
   const purchaseRows = sortBuckets(purchaseBuckets.values());
+  const expenseRows = sortBuckets(expenseBuckets.values());
   const retentionRows = sortBuckets(retentionBuckets.values());
 
   const sumKind = (rows: TaxBucket[], kind: DocTaxKind) =>
@@ -325,6 +411,7 @@ export function aggregateDocumentTaxes({
   const ivaGenerado = sumKind(salesRows, "iva");
   const incGenerado = sumKind(salesRows, "inc");
   const ivaCompras = sumKind(purchaseRows, "iva");
+  const ivaGastos = sumKind(expenseRows, "iva");
 
   const totals: DocumentTaxTotals = {
     generadosCents: ivaGenerado + incGenerado,
@@ -334,6 +421,11 @@ export function aggregateDocumentTaxes({
     ivaNoDescontableCents: ivaNoDescontable,
     ivaDescontableCents: ivaCompras - ivaNoDescontable,
     incComprasCents: incCompras,
+    ivaGastosCents: ivaGastos,
+    ivaGastosNoDescontableCents: ivaGastosNoDescontable,
+    ivaGastosDescontableCents: ivaGastos - ivaGastosNoDescontable,
+    incGastosCents: incGastos,
+    retencionesGastosCents: retencionesGastos,
     retefuenteCents: sumKind(retentionRows, "retefuente"),
     reteIvaCents: sumKind(retentionRows, "reteiva"),
     reteIcaCents: sumKind(retentionRows, "reteica"),
@@ -346,16 +438,17 @@ export function aggregateDocumentTaxes({
   return {
     sales: salesRows,
     purchases: purchaseRows,
+    expenses: expenseRows,
     retentions: retentionRows,
     totals,
-    ivaDiferenciaDocumentalCents: ivaGenerado - ivaCompras,
+    ivaDiferenciaDocumentalCents: ivaGenerado - ivaCompras - ivaGastos,
   };
 }
 
 /** Familias documentales presentes (IVA siempre primero; INC si hubo). */
 export function documentFamilies(docs: DocumentTaxes): ("iva" | "inc")[] {
   const present = new Set<"iva" | "inc">(["iva"]);
-  for (const b of [...docs.sales, ...docs.purchases]) {
+  for (const b of [...docs.sales, ...docs.purchases, ...(docs.expenses ?? [])]) {
     if (b.kind === "inc") present.add("inc");
   }
   return [...present];

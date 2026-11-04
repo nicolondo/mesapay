@@ -152,7 +152,7 @@ export function AuxiliariesPanel({
       </span>
     ) : null;
   const docCell = (r: AuxRow) => {
-    const href = docHref(r.docKind, r.docId);
+    const href = docHref(r.docKind, r.docId, r.dateIso);
     const label = r.document || t(`docKind_${r.docKind ?? "refund"}`);
     return (
       <span className="block min-w-0">

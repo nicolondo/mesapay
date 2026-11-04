@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
 import { materializeRecurring, monthRange, recurringCopyDate } from "@/lib/erp/accounting";
+import { templateCopyTaxes } from "@/lib/erp/expenseShared";
+import { uvtCentsForDate } from "@/lib/erp/expenseTax";
+import { UVT_DEFAULT_CENTS } from "@/lib/erp/retencionesCore";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +13,10 @@ export const dynamic = "force-dynamic";
  * Cron diario de gastos recurrentes (ERP B2): materializa cada plantilla
  * (Expense.recurring + recurringDay) como gasto normal del mes cuando
  * llega su día (o el primer día que corra después, dentro del mes). La copia
- * hereda categoría, descripción, monto, proveedor, cuenta del PUC y centro
- * de costos. Idempotente: la copia lleva templateId y no se re-crea si ya
+ * hereda categoría, descripción, monto, proveedor, cuenta del PUC, centro
+ * de costos y los impuestos (base, IVA, INC, tipo de documento). Las
+ * retenciones se RECALCULAN con el umbral UVT del año de la copia y la
+ * tarifa vigente de su concepto (ver `templateCopyTaxes`). Idempotente: la copia lleva templateId y no se re-crea si ya
  * existe una en el mes — correrlo N veces al día no duplica.
  *
  * Solo comercios con el módulo accounting activo (una plantilla creada
@@ -36,12 +41,28 @@ async function POSTHandler(req: Request) {
       category: true,
       description: true,
       amountCents: true,
+      baseCents: true,
+      discountCents: true,
+      ivaPct: true,
+      ivaCents: true,
+      ivaDeductible: true,
+      incCents: true,
+      payableCents: true,
+      documentType: true,
+      retentions: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          concept: {
+            select: { id: true, kind: true, name: true, rateBps: true, base: true, thresholdUvt: true, accountCode: true, active: true },
+          },
+        },
+      },
       supplierId: true,
       accountCode: true,
       costCenterId: true,
       recurringDay: true,
       createdAt: true,
-      restaurant: { select: { enabledModules: true } },
+      restaurant: { select: { enabledModules: true, accountingConfig: { select: { uvtCents: true } } } },
       copies: {
         where: { date: { gte: range.from, lt: range.to } },
         select: { id: true },
@@ -67,21 +88,26 @@ async function POSTHandler(req: Request) {
   let created = 0;
   for (const t of eligible) {
     if (!dueIds.has(t.id)) continue;
+    // Fecha contable = el día de la plantilla en este mes (aunque el cron
+    // lo cree días después).
+    const date = recurringCopyDate(today, t.recurringDay!);
+    const uvt = uvtCentsForDate(date, t.restaurant.accountingConfig?.uvtCents ?? UVT_DEFAULT_CENTS);
+    const taxes = templateCopyTaxes(t, uvt);
     await db.expense.create({
       data: {
         restaurantId: t.restaurantId,
         category: t.category,
         description: t.description,
-        amountCents: t.amountCents,
-        // Fecha contable = el día de la plantilla en este mes (aunque el
-        // cron lo cree días después).
-        date: recurringCopyDate(today, t.recurringDay!),
+        ...taxes.fields,
+        documentType: t.documentType ?? "none",
+        date,
         supplierId: t.supplierId,
         // Sin esto la copia caía en la cuenta que adivina la categoría y
         // sin centro de costos, aunque la plantilla los tuviera fijados.
         accountCode: t.accountCode,
         costCenterId: t.costCenterId,
         templateId: t.id,
+        ...(taxes.retentions.length > 0 ? { retentions: { create: taxes.retentions } } : {}),
       },
     });
     created++;

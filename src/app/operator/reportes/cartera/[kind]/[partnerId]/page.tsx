@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
+import { expenseHref } from "@/lib/erp/expenseTax";
 import { formatMoney } from "@/lib/format";
 import {
   buildStatement,
@@ -54,12 +55,13 @@ const SOURCE_KEY: Record<CarteraDocSource, "srcPurchaseOrder" | "srcExpense" | "
  * se filtran por cliente en su reporte; las ventas a crédito abren
  * Clientes, donde están el estado de cuenta y los abonos.
  */
-function docHref(source: CarteraDocSource, partnerId: string): { href: string; key: "openInPurchases" | "openInAccounting" | "openInVouchers" | "openInCustomers" } {
+function docHref(source: CarteraDocSource, partnerId: string, doc?: { id: string; date: string }): { href: string; key: "openInPurchases" | "openInAccounting" | "openInVouchers" | "openInCustomers" } {
   switch (source) {
     case "purchase_order":
       return { href: "/operator/compras", key: "openInPurchases" };
     case "expense":
-      return { href: "/operator/contabilidad", key: "openInAccounting" };
+      // El gasto abierto en su mes (Contabilidad › Gastos).
+      return { href: doc ? expenseHref(doc.id, doc.date) : "/operator/contabilidad", key: "openInAccounting" };
     case "voucher_statement":
       return { href: `/operator/bonos/reporte?customer=${encodeURIComponent(partnerId)}`, key: "openInVouchers" };
     case "customer_credit":
@@ -287,7 +289,7 @@ async function EntryRow({
   locale: Locale;
 }) {
   const t = await getTranslations("opCartera");
-  const link = e.kind === "cargo" ? docHref(e.source, partnerId) : null;
+  const link = e.kind === "cargo" ? docHref(e.source, partnerId, { id: e.docId, date: e.date }) : null;
   return (
     <tr className="border-b border-op-border/60 last:border-b-0">
       <td className="px-3 py-2 whitespace-nowrap">{fmtIsoDate(e.date, locale)}</td>
@@ -328,7 +330,7 @@ async function EntryCard({
   locale: Locale;
 }) {
   const t = await getTranslations("opCartera");
-  const link = e.kind === "cargo" ? docHref(e.source, partnerId) : null;
+  const link = e.kind === "cargo" ? docHref(e.source, partnerId, { id: e.docId, date: e.date }) : null;
   return (
     <div className="px-3 py-2.5">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

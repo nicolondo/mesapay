@@ -16,6 +16,7 @@ import {
 import {
   loadCreditNoteTaxDocs,
   loadCurrentSalesTax,
+  loadExpenseTaxDocs,
   loadPurchaseTaxDocs,
   loadRefundsCents,
   loadRetentionConceptRows,
@@ -54,16 +55,17 @@ export async function loadTaxesReport(
   const { from, to } = periodToUtcRange(period);
   const concepts = await loadRetentionConceptRows(restaurantId);
   const { conceptKindByCode, codes } = conceptMaps(concepts);
-  const [sales, purchases, creditNotes, refundsCents, currentTax, accounts, lines] = await Promise.all([
+  const [sales, purchases, expenses, creditNotes, refundsCents, currentTax, accounts, lines] = await Promise.all([
     loadSaleTaxDocs(restaurantId, from, to),
     loadPurchaseTaxDocs(restaurantId, from, to),
+    loadExpenseTaxDocs(restaurantId, from, to),
     loadCreditNoteTaxDocs(restaurantId, period.desde, period.hasta),
     loadRefundsCents(restaurantId, from, to),
     loadCurrentSalesTax(restaurantId),
     loadTaxAccounts(restaurantId, TAX_ACCOUNT_PREFIXES, codes),
     loadTaxLedgerLines(restaurantId, from, to, TAX_ACCOUNT_PREFIXES, codes),
   ]);
-  const documental = aggregateDocumentTaxes({ sales, purchases, refundsCents, currentTax, creditNotes });
+  const documental = aggregateDocumentTaxes({ sales, purchases, expenses, refundsCents, currentTax, creditNotes });
   const book = buildTaxAccountReport(lines, accounts, { conceptKindByCode });
   const cross = buildTaxCross(documental, book);
   return {
@@ -86,12 +88,13 @@ export async function loadTaxesDetailReport(
   const { from, to } = periodToUtcRange(period);
   const concepts = await loadRetentionConceptRows(restaurantId);
   const { conceptsByCode, codes } = conceptMaps(concepts);
-  const [sales, purchases, creditNotes, accounts, ledgerLines] = await Promise.all([
+  const [sales, purchases, expenses, creditNotes, accounts, ledgerLines] = await Promise.all([
     loadSaleTaxDocs(restaurantId, from, to),
     loadPurchaseTaxDocs(restaurantId, from, to),
+    loadExpenseTaxDocs(restaurantId, from, to),
     loadCreditNoteTaxDocs(restaurantId, period.desde, period.hasta),
     loadTaxAccounts(restaurantId, RETENTION_PREFIXES, codes),
     loadTaxLedgerLines(restaurantId, from, to, RETENTION_PREFIXES, codes),
   ]);
-  return buildTaxesDetail({ sales, purchases, ledgerLines, accounts, conceptsByCode, creditNotes });
+  return buildTaxesDetail({ sales, purchases, expenses, ledgerLines, accounts, conceptsByCode, creditNotes });
 }

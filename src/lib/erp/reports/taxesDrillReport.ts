@@ -24,6 +24,7 @@ import { runTaxChecks, type ChecksInput, type CheckResult } from "./taxesChecks"
 import {
   buildTaxDrill,
   creditNoteFacts,
+  expenseFacts,
   ledgerFacts,
   ORIGIN_SOURCE,
   purchaseFacts,
@@ -32,6 +33,7 @@ import {
   selectAux,
   type DocFact,
   type DrillFacts,
+  type RetentionConceptRate,
   type TaxDrill,
 } from "./taxesDrill";
 import {
@@ -44,11 +46,12 @@ import {
   loadSaleTaxTrendDocs,
   type DrillTenant,
 } from "./taxesDrillQueries";
-import type { CurrentSalesTax } from "./taxesDocuments";
+import type { CurrentSalesTax, ExpenseTaxInput } from "./taxesDocuments";
 import { TAX_ACCOUNT_PREFIXES } from "./taxesModel";
 import {
   loadCreditNoteTaxDocs,
   loadCurrentSalesTax,
+  loadExpenseTaxDocs,
   loadPurchaseTaxDocs,
   loadRefundsCents,
   loadSaleTaxDocs,
@@ -70,16 +73,14 @@ export type TaxesDrillBase = {
 };
 
 /**
- * Hechos documentales de orígenes que el reporte todavía no trae.
- * EXTENSIÓN «gastos»: cuando `taxesQueries` exponga los gastos con impuesto
- * y retenciones (rama `feat/gastos-impuestos`), se cargan junto a las
- * compras y se mapean con `purchaseFacts(gastos, concepts, "gastos")` (o un
- * mapeo propio con `origin: "gastos"`); el árbol, la reconciliación (fuente
- * `expense`, por fecha contable) y las revisiones ya los tratan como un
- * origen más.
+ * Hechos documentales de los orígenes que no son ventas ni compras: los
+ * GASTOS con IVA, INC o retenciones (`loadExpenseTaxDocs`, por su fecha
+ * contable), mapeados con `expenseFacts`. El árbol, la reconciliación
+ * (fuente `expense`, por fecha contable) y las revisiones los tratan como
+ * un origen más.
  */
-function extraDocFacts(): DocFact[] {
-  return [];
+function extraDocFacts(expenses: readonly ExpenseTaxInput[], rates: readonly RetentionConceptRate[]): DocFact[] {
+  return expenseFacts(expenses, rates);
 }
 
 const CACHE_TTL_MS = 60_000;
@@ -124,10 +125,12 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
   for (const c of concepts) if (!conceptKindByCode.has(c.accountCode)) conceptKindByCode.set(c.accountCode, c.kind);
   const codes = [...conceptKindByCode.keys()];
 
-  const [windowSales, windowPurchases, creditNotes, refundsCents, currentTax, accounts, lines, engine, entries, dianCreditNotes] =
+  const [windowSales, windowPurchases, expenses, creditNotes, refundsCents, currentTax, accounts, lines, engine, entries, dianCreditNotes] =
     await Promise.all([
       loadSaleTaxDocs(restaurantId, from, windowTo),
       loadPurchaseTaxDocs(restaurantId, from, windowTo),
+      // Gastos: FECHA contable dentro del período (el motor los asienta ese día).
+      loadExpenseTaxDocs(restaurantId, from, to),
       loadCreditNoteTaxDocs(restaurantId, period.desde, period.hasta),
       loadRefundsCents(restaurantId, from, to),
       loadCurrentSalesTax(restaurantId),
@@ -147,7 +150,7 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
     ...creditNoteFacts(creditNotes),
     ...refundFacts(refundsCents, sales, currentTax, `${period.hasta}T12:00:00.000Z`),
     ...purchaseFacts(purchases, rates),
-    ...extraDocFacts(),
+    ...extraDocFacts(expenses, rates),
   ];
   const ledger = ledgerFacts(lines, accounts, conceptKindByCode);
   const facts = { docs, ledger };
@@ -169,6 +172,7 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
     recon,
     sales,
     purchases,
+    expenses,
     docs,
     currentTax,
     purchaseIvaDeductible: tenant.purchaseIvaDeductible,
@@ -188,10 +192,11 @@ export async function loadTaxesTrend(restaurantId: string, period: ReportPeriod)
   const first = periods[0]!;
   const { from } = periodToUtcRange(first);
   const { to } = periodToUtcRange(period);
-  const [currentTax, sales, purchases, creditNotes, ...refunds] = await Promise.all([
+  const [currentTax, sales, purchases, expenses, creditNotes, ...refunds] = await Promise.all([
     loadCurrentSalesTax(restaurantId),
     loadSaleTaxTrendDocs(restaurantId, from, to),
     loadPurchaseTaxDocs(restaurantId, from, to),
+    loadExpenseTaxDocs(restaurantId, from, to),
     loadCreditNoteTaxDocs(restaurantId, first.desde, period.hasta),
     ...periods.map((p) => {
       const r = periodToUtcRange(p);
@@ -202,6 +207,7 @@ export async function loadTaxesTrend(restaurantId: string, period: ReportPeriod)
     buckets: periods.map((p, i) => ({ period: p, refundsCents: (refunds[i] as number | undefined) ?? 0 })),
     sales,
     purchases,
+    expenses,
     creditNotes,
     currentTax,
   });

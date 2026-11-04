@@ -88,7 +88,12 @@ async function PATCHHandler(
     where: { id },
     data: {
       ...(b.name !== undefined ? { name: b.name } : {}),
-      ...(b.taxId !== undefined ? { taxId: b.taxId || null } : {}),
+      // Editar el documento como texto libre (ajustes de proveedores) le
+      // quita el tipo explícito del alta rápida: la exógena lo vuelve a
+      // inferir del texto, como con cualquier otro proveedor.
+      ...(b.taxId !== undefined && b.taxId !== sup.taxId
+        ? { taxId: b.taxId || null, taxIdType: null }
+        : {}),
       ...(b.contactName !== undefined
         ? { contactName: b.contactName || null }
         : {}),

@@ -170,13 +170,15 @@ export const USER_OWNED_MODELS: ReadonlySet<string> = new Set([
  * El test exige que toda columna `*Url` del esquema esté acá o en
  * FOREIGN_UPLOAD_COLUMNS.
  */
-export const UPLOAD_COLUMNS: readonly { model: string; field: string; archive: false | "purchase-invoices" | "onboarding" }[] = [
+export const UPLOAD_COLUMNS: readonly { model: string; field: string; archive: false | "purchase-invoices" | "expense-documents" | "onboarding" }[] = [
   { model: "Restaurant", field: "logoUrl", archive: false },
   { model: "MenuItem", field: "photoUrl", archive: false },
   { model: "StaffShift", field: "checkInPhotoUrl", archive: false },
   { model: "StaffShift", field: "checkOutPhotoUrl", archive: false },
   // Facturas de compra: soporte contable del comercio → se conservan.
   { model: "PurchaseInvoiceUpload", field: "fileUrl", archive: "purchase-invoices" },
+  // Soportes de gastos (factura, cuenta de cobro, recibo): también contables.
+  { model: "Expense", field: "attachmentUrl", archive: "expense-documents" },
   // Documentos del alta (RUT, cámara de comercio, certificación bancaria…).
   { model: "KushkiDocument", field: "fileUrl", archive: "onboarding" },
 ];

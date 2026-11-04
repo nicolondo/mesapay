@@ -267,7 +267,6 @@ const AMOUNT_HEAD: Partial<Record<CheckResult["key"], string>> = {
   corte: "colDelta",
   sinFactura: "colEstimatedTax",
   retencionOmitida: "colExpectedRet",
-  lineasLibres: "colFreeLineTax",
   ivaNoDescontable: "colDeductible",
   desactualizado: "colDifference",
   sinDocumento: "colMovement",

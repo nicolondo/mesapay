@@ -178,7 +178,6 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
     entries,
     dianInvoices,
     dianCreditNotes,
-    freeLineTaxByInvoice: engine.freeLineTaxByInvoice,
   };
   return { period, tenant, currentTax, facts, drill: buildTaxDrill(facts), recon, checksInput };
 }

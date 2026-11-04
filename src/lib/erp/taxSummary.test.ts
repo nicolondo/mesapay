@@ -158,6 +158,7 @@ describe("computeTaxSummary — ventas", () => {
       taxCents: 0,
       baseCents: 0,
       byRate: [],
+      freeLines: { taxCents: 0, byRate: [] },
       creditNotes: { count: 0, grossCents: 0, baseCents: 0, taxCents: 0 },
       refunds: { grossCents: 0, baseCents: 0, taxCents: 0 },
       net: { baseCents: 0, taxCents: 0, byRate: [] },

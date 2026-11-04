@@ -5,9 +5,10 @@
  *
  *  · VENTAS: cada `SimpleInvoice` congela en su snapshot la tarifa del
  *    comercio al emitir (`frozenSalesTax`) y el impuesto embebido de los
- *    platos (`embeddedTaxCents` / `embeddedBaseCents`). Es la MISMA cifra
+ *    platos (`embeddedTaxCents` / `embeddedBaseCents`), más el impuesto que
+ *    sus LÍNEAS LIBRES suman encima (`freeLineSlices`). Es la MISMA cifra
  *    que declara el XML a la DIAN y que asienta el motor (`posting.ts`,
- *    vía `computeTaxSummary`): se agrupa por `kind:tarifa`.
+ *    vía `salesTaxSlices`): se agrupa por `kind:tarifa`.
  *  · COMPRAS: IVA por línea recibida (`taxPct` × neto recibido, como
  *    `computeTaxSummary`), agrupado por tarifa; INC de cabecera sin
  *    tarifa; retenciones practicadas de cabecera por concepto
@@ -41,6 +42,13 @@ export type SaleTaxInput = {
   baseCents: number;
   /** Impuesto embebido congelado. */
   taxCents: number;
+  /**
+   * Impuesto que las LÍNEAS LIBRES de la factura suman ENCIMA, por tramo
+   * (`salesTaxSlices.orderFreeLineTaxSlices`): base = precio de las líneas,
+   * impuesto = lo sumado. Va a su propio `kind:tarifa`, como lo asienta el
+   * motor. Opcional: ausente o vacío en una factura sólo de carta.
+   */
+  freeLineSlices?: readonly { kind: SalesTaxKind; pct: number; baseCents: number; taxCents: number }[];
   /** Adquiriente si la factura es NOMINATIVA; null = consumidor final. */
   customer: { name: string; docType: string; docNumber: string } | null;
 };
@@ -220,14 +228,19 @@ export function aggregateDocumentTaxes({
 }): DocumentTaxes {
   // ── Ventas por `kind:tarifa` (lo que cada factura congeló) ──────────────
   const salesBuckets = new Map<string, TaxBucket>();
-  for (const s of sales) {
-    if (s.taxKind === "none") continue;
-    if (s.taxCents === 0 && s.baseCents === 0) continue;
-    const key = bucketKey(s.taxKind, s.taxPct);
-    const b = salesBuckets.get(key) ?? newBucket(s.taxKind, s.taxPct);
-    b.baseCents += s.baseCents;
-    b.taxCents += s.taxCents;
+  const addSale = (kind: SalesTaxKind, pct: number, baseCents: number, taxCents: number) => {
+    if (kind === "none") return;
+    if (taxCents === 0 && baseCents === 0) return;
+    const key = bucketKey(kind, pct);
+    const b = salesBuckets.get(key) ?? newBucket(kind, pct);
+    b.baseCents += baseCents;
+    b.taxCents += taxCents;
     salesBuckets.set(key, b);
+  };
+  for (const s of sales) {
+    addSale(s.taxKind, s.taxPct, s.baseCents, s.taxCents);
+    // Lo que las líneas libres suman encima: su propio tramo.
+    for (const f of s.freeLineSlices ?? []) addSale(f.kind, f.pct, f.baseCents, f.taxCents);
   }
 
   // ── Notas crédito: restan del tramo de cada línea lo que declararon ─────

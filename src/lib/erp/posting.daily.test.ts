@@ -112,6 +112,7 @@ function order(paidAt: Date, grossCents: number, over: Partial<SalesPostingOrder
       embeddedTaxCents: taxCents,
       embeddedBaseCents: grossCents - taxCents,
     } as SalesPostingOrder["invoiceSnapshot"],
+    freeLines: [],
     payments: [{ method: "cash", amountCents: grossCents }],
     ...over,
   };

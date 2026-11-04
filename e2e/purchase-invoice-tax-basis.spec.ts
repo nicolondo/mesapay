@@ -137,9 +137,9 @@ for (const mode of ["draft", "receive"] as const) {
       await included(card).uncheck();
       const matchResponse = page.waitForResponse(r => new URL(r.url()).pathname.endsWith(`/purchase-invoices/${f.upload.id}`) && new URL(r.url()).searchParams.get("supplierId") === f.otherSupplier.id);
       const dialog = page.getByRole("dialog", { name: t.invReviewTitle, exact: true });
-      await dialog.getByRole("button", { name: t.changeSupplier, exact: true }).click();
-      await dialog.getByPlaceholder(t.supplierSearchPlaceholder).fill(f.otherSupplier.name);
-      await dialog.getByRole("button", { name: f.otherSupplier.name, exact: true }).click();
+      // Supplier field with autocomplete: type over the matched supplier and pick.
+      await dialog.getByRole("combobox", { name: t.invReviewSupplierSection, exact: true }).fill(f.otherSupplier.name);
+      await dialog.getByRole("option", { name: new RegExp(`^${f.otherSupplier.name}`) }).click();
       expect((await matchResponse).status()).toBe(200);
       await expect(page.getByText(t.invAliasLoading, { exact: true })).toHaveCount(0);
       await expect(included(card)).not.toBeChecked();

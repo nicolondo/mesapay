@@ -618,6 +618,12 @@ const PurchaseInvoiceLine = z.object({
   // Hay consumo impreso pero no se pudo resolver su monto TOTAL de línea.
   // La revisión debe pedir confirmación antes de convertir bruto a neto.
   lineIncAmbiguous: z.boolean().optional(),
+  // Descuento del proveedor impreso en la línea, TAL CUAL (ausente en
+  // extracciones viejas). La revisión decide con aritmética si el importe
+  // leído ya lo trae (invoiceDiscount.ts); aquí nada se resta.
+  listUnitPriceCents: z.number().int().nonnegative().nullable().optional().catch(null),
+  lineDiscountPct: z.number().positive().max(100).nullable().optional().catch(null),
+  lineDiscountCents: z.number().int().nonnegative().nullable().optional().catch(null),
   // Tarifa de impuesto como texto ("0", "5", "19"), null si no se ve.
   taxPct: z.string().nullable(),
   confidence: z.number().min(0).max(1),
@@ -679,6 +685,9 @@ const RawInvoiceLine = z.object({
   // distinguish it from a genuinely missing column instead of dropping it.
   lineInc: z.union([z.string(), z.number()]).nullable().optional().catch("?"),
   lineIncAmountKind: z.enum(["unit", "line", "unknown"]).catch("unknown"),
+  listUnitPrice: numText,
+  lineDiscountPct: numText,
+  lineDiscount: numText,
   taxPct: z.string().nullable(),
   confidence: z.number().min(0).max(1),
 });
@@ -740,6 +749,23 @@ function moneyToCents(raw: string | number | null): number | null {
   if (n == null || n < 0) return null;
   const cents = Math.round(n * 100);
   return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/** % de descuento impreso ("10", "12,5 %", "-10%") → número en (0, 100]. */
+function discountPctValue(raw: string | number | null): number | null {
+  const n = parseInvoiceNumber(typeof raw === "string" ? raw.replace(/%/g, "") : raw);
+  if (n == null) return null;
+  const pct = Math.abs(n);
+  return pct > 0 && pct <= 100 ? pct : null;
+}
+
+/** Valor de descuento impreso: suele venir con signo ("-$1.000"); se guarda positivo. */
+function discountValueCents(raw: string | number | null): number | null {
+  if (typeof raw === "string" && raw.includes("%")) return null;
+  const n = parseInvoiceNumber(raw);
+  if (n == null) return null;
+  const cents = Math.round(Math.abs(n) * 100);
+  return Number.isSafeInteger(cents) && cents > 0 ? cents : null;
 }
 
 function lineConsumption(l: z.infer<typeof RawInvoiceLine>, quantity: number | null) {
@@ -815,12 +841,15 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
       "lineTax": string | null,          // valor TOTAL de IVA de esta línea, solo si está impreso; no la tarifa
       "lineInc": string | null,          // valor de CONSUMO impreso en esta línea; no lo multipliques
       "lineIncAmountKind": "unit" | "line" | "unknown", // si ese consumo es unitario, total de la línea, o ambiguo
+      "listUnitPrice": string | null,    // precio UNITARIO ANTES del descuento y sin impuestos, TEXTO tal cual; solo si la línea trae descuento
+      "lineDiscountPct": string | null,  // % de descuento de la línea TAL CUAL ("10", "12,5 %"), null si no se ve
+      "lineDiscount": string | null,     // VALOR TOTAL del descuento de la línea, TEXTO tal cual, null si no se ve
       "taxPct": string | null,           // tarifa de impuesto de la línea ("0","5","19"), null si no se ve
       "confidence": number               // 0..1 qué tan seguro de ESTA línea
     }
   ],
   "invoiceSubtotal": string | null,       // SUBTOTAL impreso (sin impuestos), TEXTO tal cual, null si no se ve
-  "invoiceDiscount": string | null,       // DESCUENTOS totales impresos, por separado, sin restarlos al subtotal
+  "invoiceDiscount": string | null,       // DESCUENTOS totales impresos ("Total descuentos", "Descuento"), por separado, sin restarlos al subtotal
   "invoiceTax": string | null,            // IVA total impreso, TEXTO tal cual, null si no se ve
   "invoiceInc": string | null,            // Impuesto al consumo / IMPOCONSUMO / INC total impreso, TEXTO tal cual, null si no se ve
   "invoiceIncComponents": [              // desglose de consumo del RESUMEN: una entrada por ADV/ICL, sin IVA
@@ -848,6 +877,11 @@ Reglas estrictas:
 - lineTotal: transcribe el TOTAL impreso de la línea y conserva su encabezado en lineTotalLabel. Nunca copies aquí un precio unitario como "P. FINAL UNIT": si no existe un total de línea impreso, lineTotal=null. "TOTAL CON IMPUESTOS" indica "gross". "VLR NETO FINAL", "valor neto", "total" o "final" por sí solos NO identifican una base: pueden significar después de descuentos y antes de IVA. Sin una indicación impresa explícita de impuestos incluidos o excluidos, usa "unknown"; el código conciliará cantidades, IVA, consumo y totales. Es válido tener unitPriceTaxBasis="net" y lineTotalTaxBasis="gross" en la MISMA línea. Ejemplo de columnas: cantidad "2", "P. UNIT ANTES IMPTO" "$42.417", IVA "5 %", IVA TOTAL DE LÍNEA "$4.242", CONSUMO TOTAL DE LÍNEA "$49.774", "P. FINAL UNIT" "$69.425", "VLR NETO FINAL" "$138.850,00": transcribe unitPrice="$42.417" con base net, lineTotal="$138.850,00" con base unknown si no dice que incluye impuestos, lineTax="$4.242", lineInc="$49.774" y lineIncAmountKind="line". El código puede confirmar que el total incluye impuestos con esos montos; nunca registres ese consumo como IVA ni como porcentaje.
 - lineTax: solo el MONTO TOTAL de IVA de la línea si está impreso. Si únicamente aparece "5 %" o "19 %", lineTax=null y conserva la tarifa en taxPct. No derives el IVA multiplicando.
 - lineInc: transcribe el valor de la columna "CONSUMO", "INC" o "IMPOCONSUMO" de la línea. lineIncAmountKind="unit" SOLO si el documento indica explícitamente que el consumo es POR UNIDAD; "line" si está identificado como total de esa línea; "unknown" si no queda claro. NO asumas unitario por estar junto a un precio unitario, NO multipliques y NO inventes un total. Si hay duda conserva el monto, usa unknown y baja confidence para que el operador lo revise.
+- DESCUENTOS DEL PROVEEDOR: transcribe, NO calcules ni restes nada; el código decide si un importe ya trae el descuento.
+  · Por línea: si la línea muestra un descuento ("% Desc", "Dcto", "Descuento", "Vr. descuento"), copia el porcentaje en lineDiscountPct y/o el valor en lineDiscount, tal como aparecen (el signo no importa). Si hay un precio unitario ANTES del descuento ("P. BASE UNIT", "Precio lista", "Valor unitario", "Precio bruto"), cópialo en listUnitPrice. unitPrice sigue su regla: el unitario neto DESPUÉS del descuento si esa columna existe; si la línea solo imprime un unitario y es el de antes del descuento, cópialo en unitPrice Y en listUnitPrice. lineTotal es el total impreso de la línea, tal cual.
+  · Si la línea no trae descuento: listUnitPrice, lineDiscountPct y lineDiscount = null. No inventes un precio de lista ni un descuento que no estén impresos.
+  · Descuento sobre el total o "Total descuentos" del resumen: va en invoiceDiscount, aunque sea la suma de los descuentos de las líneas.
+  · No son descuentos: anticipos, abonos, retenciones, notas crédito, ni un descuento por pronto pago CONDICIONADO que la factura no resta del total.
 - invoiceSubtotal/invoiceTax/invoiceTotal: copia los TOTALES impresos (no los sumes tú) como TEXTO tal cual, null si no se ven. invoiceSubtotal puede llamarse "Total Bruto" antes de descuentos: conserva ese valor sin restarle nada. invoiceDiscount copia "Total Descuentos" por separado. Si solo hay subtotal después de descuentos, cópialo tal cual; no reconstruyas un subtotal anterior.
 - IMPUESTOS ADICIONALES a nivel documento (además del IVA): busca en la sección de totales/resumen y cópialos como TEXTO tal cual si aparecen, si no null:
   · invoiceInc = TOTAL combinado impreso de "Impuesto al consumo", "IMPOCONSUMO", "INC", "Imp. Consumo". En facturas de licores también puede figurar como "Total Imptos en Valor" cuando corresponde al conjunto ADV (ad valorem) + ICL (consumo de licores). No lo confundas con "Total Imptos en Porcentaje" ni con el IVA. Si no hay un total combinado claramente identificado, invoiceInc=null.
@@ -918,7 +952,9 @@ export async function extractPurchaseInvoice(
 
   const resp = await c.messages.create({
     model: env.ANTHROPIC_MODEL,
-    max_tokens: 4096,
+    // Each line now also carries its printed discount; leave room so long
+    // invoices are not truncated into invalid JSON.
+    max_tokens: 8192,
     system: [
       {
         type: "text",
@@ -976,13 +1012,17 @@ export async function extractPurchaseInvoice(
           lineTotalLabel: l.lineTotalLabel,
           lineTaxCents: moneyToCents(l.lineTax),
           ...lineConsumption(l, quantity),
+          listUnitPriceCents: moneyToCents(l.listUnitPrice),
+          lineDiscountPct: discountPctValue(l.lineDiscountPct),
+          lineDiscountCents: discountValueCents(l.lineDiscount),
           taxPct: l.taxPct,
           confidence: l.confidence,
         };
       })
       .filter((l) => l.quantity != null && l.quantity > 0),
     invoiceSubtotalCents: moneyToCents(r.invoiceSubtotal),
-    invoiceDiscountCents: moneyToCents(r.invoiceDiscount),
+    // Discounts are often printed with a minus sign; keep the positive amount.
+    invoiceDiscountCents: discountValueCents(r.invoiceDiscount),
     invoiceTaxCents: moneyToCents(r.invoiceTax),
     invoiceTotalCents: moneyToCents(r.invoiceTotal),
     invoiceIncCents: documentConsumption(r),

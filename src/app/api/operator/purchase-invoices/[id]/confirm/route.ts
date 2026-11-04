@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { InvoiceAliasError, rememberInvoiceAliases } from "@/lib/erp/invoiceAliases";
+import { discountsReproduceNet } from "@/lib/erp/purchaseDiscount";
 import {
   createPurchaseOrder,
   receivePurchaseOrder,
@@ -33,6 +34,12 @@ const lineSchema = z.object({
   expectedIncCents: z.number().int().min(0).max(2_000_000_000).optional(),
   sourceLineIndex: z.number().int().min(0).optional(),
   rememberMatch: z.boolean().optional(),
+  // Descuento del proveedor (#393): neto de LISTA antes de descuentos y el
+  // descuento de la línea (% o valor). expectedCostCents sigue siendo el
+  // neto revisado; estos solo dicen cómo se llegó a él y se verifican.
+  listCostCents: z.number().int().min(0).max(2_000_000_000).optional(),
+  discountPct: z.number().int().min(0).max(100).nullish(),
+  discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
 });
 
 const cents = z.number().int().min(0).max(2_000_000_000).optional();
@@ -50,6 +57,9 @@ const confirmSchema = z.object({
   retefuenteCents: cents,
   reteIvaCents: cents,
   reteIcaCents: cents,
+  // Descuento sobre el total de la factura, prorrateado entre las líneas.
+  discountPct: z.number().int().min(0).max(100).nullish(),
+  discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
 });
 
 async function POSTHandler(
@@ -71,6 +81,18 @@ async function POSTHandler(
   // Every new documentary consumption must reach its stock/expense line.
   // Header-only legacy amounts remain readable, but are not created here.
   if (invoiceIncCents !== allocatedIncCents || invoiceIncCents > 2_000_000_000) {
+    return NextResponse.json({ error: "invalid" }, { status: 400 });
+  }
+  // Discounts never transform the reviewed net. They are accepted only when
+  // list − line discount − share of the total discount reproduces it exactly
+  // (same proration as purchase orders), so nothing is discounted twice.
+  const orderDiscount = { pct: b.discountPct ?? null, cents: b.discountCents ?? null };
+  const discountLines = b.lines.map((line) => ({
+    netCents: line.expectedCostCents,
+    listCents: line.listCostCents ?? line.expectedCostCents,
+    discount: { pct: line.discountPct ?? null, cents: line.discountCents ?? null },
+  }));
+  if (!discountsReproduceNet(discountLines, orderDiscount)) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
@@ -158,7 +180,11 @@ async function POSTHandler(
         poLines.push({
           ingredientId,
           qtyBase: line.qtyBase,
-          expectedCostCents: line.expectedCostCents,
+          // createPurchaseOrder recibe la LISTA y aplica los descuentos con
+          // resolveOrderDiscounts: llega al neto ya verificado arriba.
+          expectedCostCents: line.listCostCents ?? line.expectedCostCents,
+          discountPct: line.discountPct ?? null,
+          discountCents: line.discountCents ?? null,
           taxPct: line.taxPct,
           expectedTaxCents: line.expectedTaxCents,
           expectedIncCents: line.expectedIncCents,
@@ -170,6 +196,8 @@ async function POSTHandler(
         restaurantId: ctx.restaurantId,
         supplierId,
         lines: poLines,
+        discountPct: orderDiscount.pct,
+        discountCents: orderDiscount.cents,
         notes: b.supplierInvoiceNumber
           ? `Factura ${b.supplierInvoiceNumber}`
           : null,

@@ -170,7 +170,9 @@ describe("nullable monetary parsing and extraction instructions", () => {
     const result = await extract({ invoiceDiscount: value,
       lines: [line({ lineTax: value, unitPrice: value, lineTotal: "100" })] });
     expect(result.lines[0]).toMatchObject({ unitPriceCents: null, lineTotalCents: 10_000, lineTaxCents: null });
-    expect(result.invoiceDiscountCents).toBeNull();
+    // A discount is a subtraction by definition: suppliers print it as
+    // "-$1" or "$1" and both mean the same positive discount.
+    expect(result.invoiceDiscountCents).toBe(value === "-1" ? 100 : null);
   });
 
   it("returns empty nullable totals for malformed model responses", async () => {
@@ -251,5 +253,47 @@ describe("deterministic purchase invoice tax detection", () => {
     const { inferPurchaseInvoiceTaxBases } = await import("./erp/invoiceTaxBasis");
     expect(inferPurchaseInvoiceTaxBases(PurchaseInvoiceSchema.parse(result)).lines[0])
       .toMatchObject({ lineTotalTaxBasis: "unknown", lineTotalTaxBasisConflict: true });
+  });
+});
+
+describe("supplier discounts are transcribed, never applied by the extractor", () => {
+  it("keeps the printed list price, line % and line value as positive amounts", async () => {
+    const result = await extract({ lines: [line({
+      quantity: "2", unitPrice: "$9.000", unitPriceLabel: "P. UNIT ANTES IMPTO", lineTotal: "$18.000",
+      listUnitPrice: "$10.000", lineDiscountPct: "10 %", lineDiscount: "-$2.000", taxPct: "19",
+    })], invoiceDiscount: "-$2.000" });
+    expect(result.lines[0]).toMatchObject({
+      unitPriceCents: 900_000, lineTotalCents: 1_800_000,
+      listUnitPriceCents: 1_000_000, lineDiscountPct: 10, lineDiscountCents: 200_000,
+    });
+    expect(result.invoiceDiscountCents).toBe(200_000);
+  });
+
+  it.each([
+    ["12,5", 12.5], ["12.5%", 12.5], ["-5%", 5], ["0", null], ["150", null], ["n/a", null],
+  ])("reads the printed discount %s as %s", async (lineDiscountPct, expected) => {
+    const result = await extract({ lines: [line({ lineDiscountPct })] });
+    expect(result.lines[0]?.lineDiscountPct).toBe(expected);
+  });
+
+  it("keeps responses without discount fields (older prompt) valid with null discounts", async () => {
+    const result = await extract();
+    expect(result.lines[0]).toMatchObject({ listUnitPriceCents: null, lineDiscountPct: null, lineDiscountCents: null });
+    const { PurchaseInvoiceSchema } = await import("./anthropic");
+    const legacy = { ...result, lines: result.lines.map((l) => {
+      const { listUnitPriceCents: _list, lineDiscountPct: _pct, lineDiscountCents: _value, ...rest } = l;
+      void _list; void _pct; void _value;
+      return rest;
+    }) };
+    expect(PurchaseInvoiceSchema.safeParse(legacy).success).toBe(true);
+  });
+
+  it("asks only for transcription of discounts and excludes conditional prompt-payment discounts", async () => {
+    await extract();
+    const prompt = mock.create.mock.calls[0][0].system[0].text as string;
+    expect(prompt).toContain("listUnitPrice");
+    expect(prompt).toContain("lineDiscountPct");
+    expect(prompt).toContain("NO calcules ni restes");
+    expect(prompt).toContain("pronto pago");
   });
 });

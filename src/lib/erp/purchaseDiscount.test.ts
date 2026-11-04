@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   discountAmountCents,
+  discountsReproduceNet,
+  parseDiscountInput,
   prorateDiscount,
   resolveOrderDiscounts,
+  toPersistedDiscount,
 } from "./purchaseDiscount";
 
 describe("discountAmountCents", () => {
@@ -94,5 +97,56 @@ describe("resolveOrderDiscounts", () => {
     );
     expect(r.discountCents).toBe(0);
     expect(r.lines.map((l) => l.netCents)).toEqual([5_000, 7_000]);
+  });
+});
+
+describe("parseDiscountInput", () => {
+  it.each([
+    ["10", true, { pct: 10, cents: null }],
+    ["12,5", true, { pct: 12.5, cents: null }],
+    ["12.5", true, { pct: 12.5, cents: null }],
+    ["250", true, { pct: 100, cents: null }],
+    ["2500", false, { pct: null, cents: 250_000 }],
+    ["2500,55", false, { pct: null, cents: 250_055 }],
+    [",5", true, { pct: 0.5, cents: null }],
+  ])("lee %s (pct=%s)", (raw, isPct, expected) => {
+    expect(parseDiscountInput(raw, isPct)).toEqual(expected);
+  });
+  it.each(["", "0", "0,0", "abc", "-5", "1.2.3", " "])("ignora %j", (raw) => {
+    expect(parseDiscountInput(raw, true)).toEqual({ pct: null, cents: null });
+  });
+});
+
+describe("toPersistedDiscount", () => {
+  it("guarda el % entero tal cual", () => {
+    expect(toPersistedDiscount(100_000, { pct: 10 })).toEqual({ pct: 10, cents: null });
+  });
+  it("un % con decimales viaja como su valor (la columna es entera)", () => {
+    expect(toPersistedDiscount(99_999, { pct: 12.5 })).toEqual({ pct: null, cents: 12_500 });
+    // Y el servidor llega al mismo neto que la pantalla.
+    const screen = 99_999 - discountAmountCents(99_999, { pct: 12.5 });
+    const server = resolveOrderDiscounts([{ listCents: 99_999, discount: toPersistedDiscount(99_999, { pct: 12.5 }) }], {});
+    expect(server.lines[0]!.netCents).toBe(screen);
+  });
+  it("valor fijo y vacío", () => {
+    expect(toPersistedDiscount(100_000, { cents: 2_500 })).toEqual({ pct: null, cents: 2_500 });
+    expect(toPersistedDiscount(100_000, {})).toEqual({ pct: null, cents: null });
+  });
+});
+
+describe("discountsReproduceNet", () => {
+  it("acepta lista + descuentos que llevan exactamente al neto revisado", () => {
+    expect(discountsReproduceNet([
+      { netCents: 85_500, listCents: 100_000, discount: { pct: 10 } },
+      { netCents: 47_500, listCents: 50_000, discount: {} },
+    ], { pct: 5 })).toBe(true);
+  });
+  it("rechaza un neto que ya traía el descuento (se descontaría dos veces)", () => {
+    expect(discountsReproduceNet([{ netCents: 90_000, listCents: 90_000, discount: { pct: 10 } }], {})).toBe(false);
+    expect(discountsReproduceNet([{ netCents: 90_000, listCents: 100_000, discount: { pct: 10 } }], { cents: 1 })).toBe(false);
+  });
+  it("sin descuentos, la lista es el neto", () => {
+    expect(discountsReproduceNet([{ netCents: 12_345, listCents: 12_345, discount: {} }], {})).toBe(true);
+    expect(discountsReproduceNet([{ netCents: 12_345, listCents: 12_346, discount: {} }], {})).toBe(false);
   });
 });

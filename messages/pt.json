@@ -7736,7 +7736,20 @@
     "invLineTaxIncludedHint": "O IVA e o imposto de consumo são separados deste valor, sem somá-los novamente.",
     "invLineTaxExcludedHint": "Este valor é a base. O IVA e o imposto de consumo são somados ao total.",
     "invLineConfirmNet": "Confirmar que não inclui impostos",
-    "fiscalDrillLink": "Ver o que gerou cada imposto e o que revisar antes de declarar →"
+    "fiscalDrillLink": "Ver o que gerou cada imposto e o que revisar antes de declarar →",
+    "invDiscLineLabel": "Desconto da linha",
+    "invDiscLineHint": "É subtraído do valor acima, antes dos impostos. O IVA automático é calculado sobre a base com desconto.",
+    "invDiscLineHintGross": "Este valor inclui impostos: o desconto é subtraído dele e a base sem impostos é recalculada.",
+    "invDiscLineFromInvoice": "Preço de tabela e desconto lidos da fatura.",
+    "invDiscLineUnmatched": "A fatura mostra um desconto nesta linha que não bate com o preço, por isso não foi aplicado. Se o valor não o inclui, digite-o aqui.",
+    "invDiscLineTaxBeforeDiscount": "O IVA impresso nesta linha foi calculado antes do desconto. O da fatura é mantido.",
+    "invDiscLineList": "Valor antes do desconto",
+    "invDiscOrderFromInvoice": "Lido da fatura: é o desconto que não está nas linhas.",
+    "invDiscUnplaced": "A fatura mostra descontos de {amount} que não foram aplicados: os totais impressos não confirmam se os preços das linhas já os incluem. Se não incluem, digite-os no desconto da linha ou em “Desconto sobre o total”.",
+    "invDiscTaxBeforeDiscount": "O IVA impresso na fatura foi calculado antes do desconto. O IVA impresso é mantido; se for um erro, peça ao fornecedor que corrija a fatura.",
+    "invDiscTaxMismatch": "O IVA calculado ({computed}) não coincide com o impresso ({printed}). Com desconto, o IVA incide sobre a base já descontada; se a fatura o calcula de outra forma, digite o IVA de cada linha como aparece nela.",
+    "receiveCostHint": "Sem impostos, antes do desconto da fatura",
+    "receiveDiscIncluded": "O custo já traz o desconto do pedido. Aqui vai apenas um desconto adicional da fatura."
   },
   "opDian": {
     "title": "Faturação eletrónica DIAN",

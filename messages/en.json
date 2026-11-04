@@ -7736,7 +7736,20 @@
     "invLineTaxIncludedHint": "VAT and consumption tax are separated from this amount without adding them again.",
     "invLineTaxExcludedHint": "This amount is the taxable base. VAT and consumption tax are added to the total.",
     "invLineConfirmNet": "Confirm taxes are not included",
-    "fiscalDrillLink": "See what generated each tax and what to review before filing →"
+    "fiscalDrillLink": "See what generated each tax and what to review before filing →",
+    "invDiscLineLabel": "Line discount",
+    "invDiscLineHint": "Subtracted from the amount above, before taxes. Automatic VAT is calculated on the discounted base.",
+    "invDiscLineHintGross": "This amount includes taxes: the discount is subtracted from it and the pre-tax base is recalculated.",
+    "invDiscLineFromInvoice": "List price and discount read from the invoice.",
+    "invDiscLineUnmatched": "The invoice shows a discount on this line that doesn't match its price, so it wasn't applied. If the amount doesn't include it, enter it here.",
+    "invDiscLineTaxBeforeDiscount": "The VAT printed on this line was calculated before the discount. The invoice's VAT is kept.",
+    "invDiscLineList": "Amount before discount",
+    "invDiscOrderFromInvoice": "Read from the invoice: it's the discount that isn't on the lines.",
+    "invDiscUnplaced": "The invoice shows discounts of {amount} that weren't applied: the printed totals don't confirm whether the line prices already include them. If they don't, enter them in the line discount or in “Discount on the total”.",
+    "invDiscTaxBeforeDiscount": "The VAT printed on the invoice was calculated before the discount. The printed VAT is kept; if it's a mistake, ask the supplier to correct the invoice.",
+    "invDiscTaxMismatch": "The calculated VAT ({computed}) doesn't match the printed VAT ({printed}). With a discount, VAT applies to the discounted base; if the invoice calculates it differently, enter each line's VAT as it appears on it.",
+    "receiveCostHint": "Before taxes and before the invoice discount",
+    "receiveDiscIncluded": "The cost already includes the order discount. Enter only an additional invoice discount here."
   },
   "opDian": {
     "title": "DIAN electronic invoicing",

@@ -211,9 +211,9 @@ async function confirm(page: Page, uploadId: string, mode: "draft" | "receive" =
 
 async function selectSupplier(page: Page, supplier: { id: string; name: string }) {
   const dialog = page.getByRole("dialog", { name: t.invReviewTitle, exact: true });
-  await dialog.getByRole("button", { name: t.changeSupplier, exact: true }).click();
-  await dialog.getByPlaceholder(t.supplierSearchPlaceholder).fill(supplier.name);
-  await dialog.getByRole("button", { name: supplier.name, exact: true }).click();
+  // Supplier field with autocomplete: type over the current supplier and pick.
+  await dialog.getByRole("combobox", { name: t.invReviewSupplierSection, exact: true }).fill(supplier.name);
+  await dialog.getByRole("option", { name: new RegExp(`^${supplier.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) }).click();
 }
 
 async function changeSupplier(page: Page, uploadId: string, supplier: { id: string; name: string }) {

@@ -4,6 +4,7 @@
 // gastos, compras) y acá se arma el P&L, se serializa el CSV y se decide
 // qué plantillas de gasto recurrente materializar. Todo en centavos
 // enteros; los % con 1 decimal.
+import { expensePayableCents } from "./expenseTax";
 
 /** [desde, hasta) en UTC para un mes "YYYY-MM". null si el input no es válido. */
 export function monthRange(month: string): { from: Date; to: Date } | null {
@@ -172,15 +173,29 @@ export type TaxSummary = {
     };
   };
   purchases: {
-    /** IVA pagado en compras (Σ por línea desde taxPct). */
+    /**
+     * IVA registrado en compras (Σ por línea desde taxPct) y en gastos,
+     * descontable o no.
+     */
     ivaCents: number;
     /**
      * Parte de `ivaCents` que es DESCONTABLE (la que el motor lleva a 2408):
      * sin el IVA que es mayor valor del costo o del gasto (comercio con IVA
-     * de compras no descontable, o recepciones no inventariables).
+     * de compras no descontable, recepciones no inventariables, gastos con
+     * la foto «no descontable»).
      */
     ivaDeductibleCents: number;
-    /** INC/impoconsumo pagado en compras. */
+    /** INC/impoconsumo pagado en compras y gastos. */
+    incCents: number;
+    /** Retenciones practicadas en compras y gastos. */
+    retefuenteCents: number;
+    reteIvaCents: number;
+    reteIcaCents: number;
+  };
+  /** La parte de los GASTOS que ya va sumada en `purchases` (desglose). */
+  expenses?: {
+    ivaCents: number;
+    deductibleIvaCents: number;
     incCents: number;
     retefuenteCents: number;
     reteIvaCents: number;
@@ -433,16 +448,19 @@ export function centsToAmount(cents: number): number {
 // ── Gastos por pagar ────────────────────────────────────────────────────────
 
 /**
- * Saldo por pagar de un gasto: monto − abonado. Las plantillas recurrentes
- * no son un gasto real y no tienen saldo.
+ * Saldo por pagar de un gasto: TOTAL A PAGAR − abonado. El total a pagar
+ * (`payableCents`) es base + IVA + INC − retenciones; en un gasto sin
+ * impuestos es su valor (ver `expensePayableCents`). Las plantillas
+ * recurrentes no son un gasto real y no tienen saldo.
  */
 export function expenseOutstandingCents(e: {
   amountCents: number;
+  payableCents?: number | null;
   paidCents?: number | null;
   recurring: boolean;
 }): number {
   if (e.recurring) return 0;
-  return Math.max(0, e.amountCents - (e.paidCents ?? 0));
+  return Math.max(0, expensePayableCents(e) - (e.paidCents ?? 0));
 }
 
 // ── Gastos recurrentes ──────────────────────────────────────────────────────

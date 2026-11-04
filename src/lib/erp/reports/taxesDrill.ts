@@ -24,10 +24,9 @@
  * compras RESTAN); la base va siempre positiva, como en el formulario de la
  * DIAN, donde la sección dice si suma o resta.
  *
- * ORÍGENES: «gastos» es un origen más. Cuando las compras sin inventario /
- * gastos traigan impuesto (rama `feat/gastos-impuestos`), basta mapear sus
- * documentos a `DocFact` con `origin: "gastos"` (ver `taxesDrillReport.ts`,
- * `extraDocFacts`); el libro ya trae sus líneas por la fuente `expense`.
+ * ORÍGENES: «gastos» es un origen más: los gastos con IVA, INC o
+ * retenciones se mapean con `expenseFacts` (ver `taxesDrillReport.ts`,
+ * `extraDocFacts`); el libro trae sus líneas por la fuente `expense`.
  */
 import { embeddedTaxCents } from "../accounting";
 import { formatVoucherNumber, isAnnulled } from "./generalLedger";
@@ -37,6 +36,7 @@ import {
   purchaseLineTaxCents,
   type CreditNoteTaxInput,
   type CurrentSalesTax,
+  type ExpenseTaxInput,
   type PurchaseTaxInput,
   type SaleTaxInput,
 } from "./taxesDocuments";
@@ -370,6 +370,106 @@ export function purchaseFacts(
     ret("retefuente", p.retefuenteCents, netTotal);
     ret("reteiva", p.reteIvaCents, ivaTotal);
     ret("reteica", p.reteIcaCents, netTotal);
+  }
+  return out;
+}
+
+/**
+ * Gastos con impuestos → hechos del origen «gastos» (lo que asienta el
+ * motor en el asiento `expense` por la fecha contable del gasto):
+ *
+ *  · IVA: uno por gasto, con el DESCONTABLE como aporte negativo (D 2408)
+ *    y el no descontable aparte (`nonDeductibleCents`: va al costo, el
+ *    aporte es 0). Tarifa del gasto; IVA impreso sin tarifa → la efectiva.
+ *  · INC: uno por gasto, aporte 0 (el INC de un gasto es costo, nunca
+ *    impuesto a pagar), con el valor en `grossTaxCents` para verlo.
+ *  · Retenciones: una por concepto practicado (la foto guardada en el
+ *    gasto: nombre y tarifa), positiva (C 2365/2367/2368). Sin líneas
+ *    (datos sueltos), una por tipo con la tarifa que calce.
+ */
+export function expenseFacts(
+  expenses: readonly ExpenseTaxInput[],
+  concepts: readonly RetentionConceptRate[] = [],
+): DocFact[] {
+  const out: DocFact[] = [];
+  for (const e of expenses) {
+    const base = (key: string) => ({
+      origin: "gastos" as const,
+      docKind: "expense" as const,
+      docId: e.expenseId,
+      document: e.document,
+      reference: null,
+      dateIso: e.dateIso,
+      party: e.supplierName,
+      nit: e.supplierTaxId,
+      key: `gastos:${e.expenseId}:${key}`,
+    });
+    if (e.ivaCents !== 0 || e.ivaPct > 0) {
+      const nonDed = Math.max(0, Math.min(e.ivaCents, e.nonDeductibleIvaCents));
+      const effective = e.ivaPct === 0 && e.ivaCents > 0 && e.baseCents > 0
+        ? Math.round((e.ivaCents * 10_000) / e.baseCents)
+        : null;
+      out.push({
+        ...base(`iva:${e.ivaPct}`),
+        tax: "iva",
+        rateKey: effective != null ? `e${effective}` : String(e.ivaPct),
+        pct: effective != null ? effective / 100 : e.ivaPct,
+        conceptName: null,
+        baseCents: e.baseCents,
+        taxCents: signOf("iva", "gastos") * (e.ivaCents - nonDed) || 0,
+        grossTaxCents: e.ivaCents,
+        nonDeductibleCents: nonDed,
+      });
+    }
+    if (e.incCents > 0) {
+      out.push({
+        ...base("inc"),
+        tax: "inc",
+        rateKey: "x",
+        pct: null,
+        conceptName: null,
+        baseCents: e.baseCents,
+        taxCents: 0,
+        grossTaxCents: e.incCents,
+        nonDeductibleCents: e.incCents,
+      });
+    }
+    const lines = e.retentions ?? [];
+    const kinds = ["retefuente", "reteiva", "reteica"] as const;
+    const totalOf = (k: (typeof kinds)[number]) =>
+      k === "retefuente" ? e.retefuenteCents : k === "reteiva" ? e.reteIvaCents : e.reteIcaCents;
+    for (const kind of kinds) {
+      const mine = lines.filter((l) => l.kind === kind && l.amountCents !== 0);
+      const listed = mine.reduce((s, l) => s + l.amountCents, 0);
+      mine.forEach((l, i) => {
+        out.push({
+          ...base(`${kind}:${i}`),
+          tax: kind,
+          rateKey: String(l.rateBps),
+          pct: l.rateBps / 100,
+          conceptName: l.name,
+          baseCents: l.baseCents,
+          taxCents: signOf(kind, "gastos") * l.amountCents,
+          grossTaxCents: null,
+          nonDeductibleCents: null,
+        });
+      });
+      // Lo que los totales del gasto dicen y las líneas no explican (datos
+      // sin líneas): un hecho con la tarifa que calce, para que Σ cuadre.
+      const rest = totalOf(kind) - listed;
+      if (rest !== 0) {
+        const b = kind === "reteiva" ? e.ivaCents : e.baseCents;
+        out.push({
+          ...base(kind),
+          tax: kind,
+          ...retentionRate(kind, b, rest, concepts),
+          baseCents: b,
+          taxCents: signOf(kind, "gastos") * rest,
+          grossTaxCents: null,
+          nonDeductibleCents: null,
+        });
+      }
+    }
   }
   return out;
 }

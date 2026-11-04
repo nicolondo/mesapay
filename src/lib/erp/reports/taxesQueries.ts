@@ -25,8 +25,9 @@
  *    por reversa conserva sus líneas y la reversa las netea (ver
  *    `queries.ts`).
  *
- * Gastos (`Expense`): NO llevan impuesto en el modelo (categoría, monto y
- * cuenta del PUC nada más), así que no aportan al documental.
+ *  · GASTOS: `Expense` (no plantillas) con fecha contable en el rango e
+ *    IVA, INC o retenciones capturados — origen aparte de las compras
+ *    (`loadExpenseTaxDocs`). Los gastos sin impuestos no aportan nada.
  *
  * Fechas: límites UTC (`from` inclusivo, `to` EXCLUSIVO), ver `period.ts`.
  * Consultas parametrizadas (`Prisma.sql`), nunca por interpolación.
@@ -57,9 +58,13 @@ import { creditNoteFiscalDate } from "../creditNoteLedger";
 import type {
   CreditNoteTaxInput,
   CurrentSalesTax,
+  ExpenseTaxInput,
   PurchaseTaxInput,
   SaleTaxInput,
 } from "./taxesDocuments";
+import { expenseBaseCents, expenseHref } from "../expenseTax";
+
+export { expenseHref };
 import { centsToNumber, type StoredCents } from "../ledgerCents";
 // Las mismas definiciones que el motor (`posting.ts`) para el impuesto de
 // las líneas libres.
@@ -228,6 +233,73 @@ export async function loadPurchaseTaxDocs(
     retefuenteCents: p.retefuenteCents,
     reteIvaCents: p.reteIvaCents,
     reteIcaCents: p.reteIcaCents,
+  }));
+}
+
+/**
+ * Gastos del rango con impuestos o retenciones (origen «gastos»). `date`
+ * es una FECHA contable (mediodía de Colombia): cae en el día que eligió
+ * el operador con los límites UTC del período.
+ */
+export async function loadExpenseTaxDocs(
+  restaurantId: string,
+  from: Date,
+  to: Date,
+): Promise<ExpenseTaxInput[]> {
+  const rows = await db.expense.findMany({
+    where: {
+      restaurantId,
+      recurring: false,
+      date: { gte: from, lt: to },
+      OR: [
+        { ivaCents: { gt: 0 } },
+        { incCents: { gt: 0 } },
+        { retefuenteCents: { gt: 0 } },
+        { reteIvaCents: { gt: 0 } },
+        { reteIcaCents: { gt: 0 } },
+      ],
+    },
+    orderBy: { date: "asc" },
+    select: {
+      id: true,
+      date: true,
+      category: true,
+      documentType: true,
+      documentNumber: true,
+      amountCents: true,
+      baseCents: true,
+      ivaPct: true,
+      ivaCents: true,
+      ivaDeductible: true,
+      incCents: true,
+      retefuenteCents: true,
+      reteIvaCents: true,
+      reteIcaCents: true,
+      retentions: {
+        orderBy: { createdAt: "asc" },
+        select: { kind: true, name: true, rateBps: true, baseCents: true, amountCents: true },
+      },
+      supplier: { select: { name: true, taxId: true } },
+    },
+  });
+  return rows.map((e) => ({
+    expenseId: e.id,
+    document: e.documentNumber?.trim() || e.category,
+    dateIso: e.date.toISOString(),
+    category: e.category,
+    documentType: e.documentType,
+    supplierName: e.supplier?.name ?? null,
+    supplierTaxId: e.supplier?.taxId ?? null,
+    baseCents: expenseBaseCents(e),
+    ivaPct: e.ivaPct,
+    ivaCents: e.ivaCents,
+    nonDeductibleIvaCents: e.ivaDeductible ? 0 : e.ivaCents,
+    incCents: e.incCents,
+    retefuenteCents: e.retefuenteCents,
+    reteIvaCents: e.reteIvaCents,
+    reteIcaCents: e.reteIcaCents,
+    retentions: e.retentions,
+    href: expenseHref(e.id, e.date),
   }));
 }
 

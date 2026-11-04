@@ -61,6 +61,7 @@ async function GETHandler(req: Request) {
         sections: {
           sales: t("secSales"),
           purchases: t("secPurchases"),
+          expenses: t("secExpenses"),
           practicadas: t("secRetPracticed"),
           aFavor: t("secRetFavor"),
         },
@@ -79,6 +80,7 @@ async function GETHandler(req: Request) {
     period: { desde: period.desde, hasta: period.hasta },
     sales: detail.sales,
     purchases: detail.purchases,
+    expenses: detail.expenses,
     practicadas: detail.practicadas,
     aFavor: detail.aFavor,
     stats: detail.stats,

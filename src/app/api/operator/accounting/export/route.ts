@@ -14,6 +14,7 @@ import {
   loadSalesBook,
 } from "@/lib/erp/accountingData";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
+import { expenseBaseCents, expensePayableCents, isExpenseDocumentType } from "@/lib/erp/expenseTax";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -144,9 +145,15 @@ async function GETHandler(req: Request) {
         date: { gte: calendar.from, lt: calendar.to },
       },
       orderBy: { date: "asc" },
-      include: { supplier: { select: { name: true } } },
+      include: { supplier: { select: { name: true, taxId: true } } },
     });
     const purchases = await loadPurchasesBook(ctx.restaurantId, range);
+    // «Monto» sigue siendo el COSTO del gasto (lo del PYG); a la derecha,
+    // el documento y los impuestos, y el total a pagar al proveedor.
+    const docLabel = (type: string, number: string | null) => {
+      const kind = isExpenseDocumentType(type) && type !== "none" ? t(`expenseDocType_${type}`) : "";
+      return [kind, number ?? ""].filter(Boolean).join(" ");
+    };
     csv = toCsv(
       [
         t("csvDate"),
@@ -154,6 +161,15 @@ async function GETHandler(req: Request) {
         t("csvDescription"),
         t("csvSupplier"),
         t("csvAmount"),
+        t("csvSupplierTaxId"),
+        t("csvDocument"),
+        t("csvNet"),
+        t("csvIva"),
+        t("csvInc"),
+        t("csvRetefuente"),
+        t("csvReteIva"),
+        t("csvReteIca"),
+        t("csvPayable"),
       ],
       [...expenses.map((e) => [
         isoDate(e.date),
@@ -161,11 +177,21 @@ async function GETHandler(req: Request) {
         e.description ?? "",
         e.supplier?.name ?? "",
         centsToCsvAmount(e.amountCents),
+        e.supplier?.taxId ?? "",
+        docLabel(e.documentType, e.documentNumber),
+        centsToCsvAmount(expenseBaseCents(e)),
+        centsToCsvAmount(e.ivaCents),
+        centsToCsvAmount(e.incCents),
+        centsToCsvAmount(e.retefuenteCents),
+        centsToCsvAmount(e.reteIvaCents),
+        centsToCsvAmount(e.reteIcaCents),
+        centsToCsvAmount(expensePayableCents(e)),
       ]), ...purchases.rows
         .filter((p) => p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents > 0)
         .map((p) => [isoDate(p.receivedAt), t("nonInventoryPurchases"),
           `${p.supplierInvoiceNumber ?? p.number} · ${t("nonInventoryPurchasesTiming")}`, p.supplierName,
-          centsToCsvAmount(p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents)])],
+          centsToCsvAmount(p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents),
+          "", "", "", "", "", "", "", "", ""])],
     );
   }
 

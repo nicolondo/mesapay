@@ -38,7 +38,7 @@ export type ArchivedData = {
   platform: Record<string, SnapshotRow[]>;
 };
 
-export type UploadRef = { url: string; archive: false | "purchase-invoices" | "onboarding" };
+export type UploadRef = { url: string; archive: false | "purchase-invoices" | "expense-documents" | "onboarding" };
 
 /**
  * Archivos subidos que referencian las filas del comercio (las que se van a

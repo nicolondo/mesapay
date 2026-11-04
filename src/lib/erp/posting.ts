@@ -102,6 +102,13 @@ function cashAccountForMethod(method: string): string {
  */
 export const EXPENSE_PAYABLE_CODE = ENGINE.GASTOS_POR_PAGAR;
 
+/** Cuenta de una retención de gasto sin cuenta guardada: la del motor por tipo (como las compras). */
+const EXPENSE_RETENTION_FALLBACK: Record<string, string> = {
+  retefuente: ENGINE.RETEFUENTE,
+  reteiva: ENGINE.RETEIVA,
+  reteica: ENGINE.RETEICA,
+};
+
 /** Categoría del gasto → cuenta PUC (heurística por palabras clave). */
 export function expenseAccountFor(category: string): string {
   const c = category.toLowerCase();
@@ -220,7 +227,16 @@ async function buildMonthEntries(
           recurring: false, // las plantillas no son gasto (igual que el P&L)
           date: { gte: range.from, lt: range.to },
         },
-        select: { amountCents: true, category: true, accountCode: true, costCenterId: true, date: true },
+        select: {
+          amountCents: true,
+          ivaCents: true,
+          ivaDeductible: true,
+          category: true,
+          accountCode: true,
+          costCenterId: true,
+          date: true,
+          retentions: { select: { kind: true, accountCode: true, amountCents: true } },
+        },
       }),
       db.expensePayment.findMany({
         where: { restaurantId, paidAt: tsRange },
@@ -421,12 +437,17 @@ async function buildMonthEntries(
     }
   }
 
-  // 5) GASTOS — por día calendario de `Expense.date`. D la cuenta del gasto ·
-  // C costos y gastos por pagar.
+  // 5) GASTOS — por día calendario de `Expense.date`. D la cuenta del gasto
+  // (el COSTO: base + INC + IVA no descontable) + IVA descontable (240810,
+  // la misma cuenta de las compras, sólo si el gasto lo descuenta) · C cada
+  // retención a la cuenta de su concepto (2365/2367/2368) · C costos y
+  // gastos por pagar por el TOTAL A PAGAR (base + IVA + INC − retenciones).
   //
   // Un gasto que se debe no puede sacar plata del banco: nace como pasivo y
-  // se cancela con el asiento 5b cuando se paga. La cuenta del débito sale
-  // del gasto si el operador la fijó; si no, de la heurística por categoría.
+  // se cancela con el asiento 5b cuando se paga (el «pagado de contado» es
+  // un abono por el total a pagar en la misma fecha). La cuenta del débito
+  // sale del gasto si el operador la fijó; si no, de la heurística por
+  // categoría. Un gasto sin impuestos queda exactamente como antes.
   for (const [day, rows] of groupByDay(expenses, (e) => calendarDayOf(e.date))) {
     // Por cuenta Y centro de costos: agrupar sólo por cuenta perdía el
     // centro y el presupuesto por centro no veía los gastos.
@@ -443,15 +464,38 @@ async function buildMonthEntries(
         memo: cur?.memo ?? e.category,
       });
     }
-    const total = [...byAccount.values()].reduce((s, v) => s + v.amount, 0);
-    if (total <= 0) continue;
+    const costTotal = [...byAccount.values()].reduce((s, v) => s + v.amount, 0);
+    if (costTotal <= 0) continue;
+    const valid = rows.filter((e) => e.amountCents > 0);
+    const deductibleVat = valid.reduce((s, e) => s + (e.ivaDeductible ? Math.max(0, e.ivaCents ?? 0) : 0), 0);
+    const retentionByCode = sumByKey(
+      valid.flatMap((e) => e.retentions ?? []),
+      (r) => r.accountCode || EXPENSE_RETENTION_FALLBACK[r.kind] || ENGINE.RETEFUENTE,
+      (r) => r.amountCents,
+    );
+    const retentions = sumValues(retentionByCode);
+    // Cuentas por pagar = débitos − retenciones (cuadra por construcción;
+    // coincide con Σ payableCents de los gastos del día).
+    const payable = costTotal + deductibleVat - retentions;
+    if (payable < 0) {
+      console.error("[posting] gastos con por-pagar negativo — día omitido", {
+        restaurantId,
+        day,
+        costTotal,
+        deductibleVat,
+        retentions,
+      });
+      continue;
+    }
     const lines: Line[] = [...byAccount.values()].map((v) => ({
       code: v.code,
       debit: v.amount,
       memo: v.memo,
       costCenterId: v.costCenterId,
     }));
-    lines.push({ code: EXPENSE_PAYABLE_CODE, credit: total });
+    if (deductibleVat > 0) lines.push({ code: ENGINE.IVA_DESCONTABLE, debit: deductibleVat });
+    for (const [code, amount] of retentionByCode) lines.push({ code, credit: amount });
+    if (payable > 0) lines.push({ code: EXPENSE_PAYABLE_CODE, credit: payable });
     entries.push({ source: "expense", memo: "Gastos del día", date: dateOf(day), day, lines });
   }
 

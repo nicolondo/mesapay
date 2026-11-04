@@ -501,9 +501,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "registrar-gastos",
-      title: "Registra gastos y gastos recurrentes",
+      title: "Registra gastos con impuestos, retenciones y gastos recurrentes",
       covers:
-        "\"Nuevo gasto\": categoría, cuenta automática o elegida, proveedor, centro de costos, \"Ya está pagado\" o vencimiento, \"Gasto recurrente\" (día 1 a 28), la lista de recurrentes y cómo entran a los asientos del mes.",
+        "\"Nuevo gasto\" simple (categoría, monto, fecha), proveedor con autocompletado y \"Crear proveedor\" sin salir del gasto (NIT con DV, tipo de persona, duplicados), \"Documento soporte\" (tipo, número, foto/PDF, \"Leer con IA\"), \"Impuestos y retenciones\" (descuento, IVA impreso o por tarifa, INC, retenciones sugeridas con UVT, Total a pagar y Costo del gasto, IVA descontable o no), cuenta y centro de costos, \"Ya está pagado\" o vencimiento, recurrentes que recalculan retenciones, y cómo entran a los asientos, la cartera, impuestos y exógena.",
     },
     {
       slug: "pyg-y-libros-del-mes",

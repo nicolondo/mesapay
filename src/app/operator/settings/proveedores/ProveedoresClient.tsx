@@ -421,7 +421,9 @@ function SupplierSheet({
       setErr(
         j.error === "name_taken"
           ? t("errSupplierNameTaken")
-          : t("errSaveFailed"),
+          : j.error === "tax_id_taken" && j.existing?.name
+            ? t("errSupplierTaxIdTaken", { name: j.existing.name })
+            : t("errSaveFailed"),
       );
       return;
     }

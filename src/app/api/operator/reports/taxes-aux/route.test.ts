@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RetentionLedgerLine } from "@/lib/erp/reports/taxesDetail";
-import type { PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
+import type { ExpenseTaxInput, PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
 import type { TaxAccount } from "@/lib/erp/reports/taxesModel";
 import type { EngineEntry, EngineOrder } from "@/lib/erp/reports/taxesReconcile";
 
@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
       | { error: string; status: number },
     sales: [] as SaleTaxInput[],
     purchases: [] as PurchaseTaxInput[],
+    expenses: [] as ExpenseTaxInput[],
     lines: [] as RetentionLedgerLine[],
     accounts: [] as TaxAccount[],
     orders: [] as EngineOrder[],
@@ -39,6 +40,10 @@ const h = vi.hoisted(() => {
       track("purchases", from, to);
       return state.purchases;
     }),
+    loadExpenseTaxDocs: vi.fn(async (_r: string, from: Date, to: Date) => {
+      track("expenses", from, to);
+      return state.expenses;
+    }),
     loadTaxLedgerLines: vi.fn(async (_r: string, from: Date, to: Date) => {
       track("ledger", from, to);
       return state.lines;
@@ -55,6 +60,7 @@ vi.mock("@/lib/erp/access", () => ({
 vi.mock("@/lib/erp/reports/taxesQueries", () => ({
   loadSaleTaxDocs: h.loadSaleTaxDocs,
   loadPurchaseTaxDocs: h.loadPurchaseTaxDocs,
+  loadExpenseTaxDocs: h.loadExpenseTaxDocs,
   loadCreditNoteTaxDocs: vi.fn(async () => []),
   loadRefundsCents: vi.fn(async () => 0),
   loadCurrentSalesTax: vi.fn(async () => ({ kind: "inc", pct: 8 })),
@@ -113,6 +119,7 @@ beforeEach(() => {
   h.state.calls = [];
   h.state.sales = Array.from({ length: 7 }, (_, i) => sale(i + 1, `2026-08-${String(i + 2).padStart(2, "0")}`, 800 * (i + 1)));
   h.state.purchases = [];
+  h.state.expenses = [];
   h.state.accounts = [{ code: "241205", name: "INC", type: "pasivo" }];
   h.state.lines = [
     {
@@ -174,6 +181,41 @@ describe("JSON paginado", () => {
     expect(j.rows.map((x: { docId: string }) => x.docId)).toEqual(["i1", "i2", "i3"]);
     expect(j.rows[0]).toMatchObject({ kind: "doc", entryId: "e-2026-08-02", document: "FE1" });
     expect(j.rows[1].flags).toEqual(["dianRejected", "noEntry"]);
+  });
+
+  it("gastos: su IVA descontable y su retención por concepto, con enlace al gasto y el asiento del día", async () => {
+    h.state.expenses = [
+      {
+        expenseId: "g1",
+        document: "FE-901",
+        dateIso: "2026-08-15T17:00:00.000Z",
+        category: "Mantenimiento",
+        documentType: "e_invoice",
+        supplierName: "Refrigeración Andina",
+        supplierTaxId: "901944469-1",
+        baseCents: 100_000,
+        ivaPct: 19,
+        ivaCents: 19_000,
+        nonDeductibleIvaCents: 0,
+        incCents: 0,
+        retefuenteCents: 4_000,
+        reteIvaCents: 0,
+        reteIcaCents: 0,
+        retentions: [{ kind: "retefuente", name: "Servicios (4%)", rateBps: 400, baseCents: 100_000, amountCents: 4_000 }],
+        href: "/operator/contabilidad?tab=expenses&month=2026-08&expense=g1",
+      },
+    ];
+    h.state.entries = [...h.state.entries, { id: "e-gastos-15", source: "expense", day: "2026-08-15", voucher: null }];
+    const iva = await (await get("?desde=2026-08-01&hasta=2026-08-31&nodo=iva-gastos-19")).json();
+    expect(iva).toMatchObject({ kind: "docs", total: 1, totals: { amountCents: -19_000 } });
+    expect(iva.rows[0]).toMatchObject({ docKind: "expense", docId: "g1", document: "FE-901", entryId: "e-gastos-15", grossTaxCents: 19_000, nonDeductibleCents: 0 });
+    const ret = await (await get("?desde=2026-08-01&hasta=2026-08-31&nodo=retefuente-gastos-400")).json();
+    expect(ret.rows[0]).toMatchObject({ conceptName: "Servicios (4%)", amountCents: 4_000, baseCents: 100_000 });
+    expect(h.state.calls.find((c) => c.fn === "expenses")).toEqual({
+      fn: "expenses",
+      from: "2026-08-01T00:00:00.000Z",
+      to: "2026-09-01T00:00:00.000Z",
+    });
   });
 
   it("la página pedida de más se acota a la última", async () => {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RetentionLedgerLine } from "@/lib/erp/reports/taxesDetail";
-import type { CreditNoteTaxInput, PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
+import type { CreditNoteTaxInput, ExpenseTaxInput, PurchaseTaxInput, SaleTaxInput } from "@/lib/erp/reports/taxesDocuments";
 import type { TaxAccount } from "@/lib/erp/reports/taxesModel";
 
 /**
@@ -23,6 +23,7 @@ const h = vi.hoisted(() => {
       | { error: string; status: number },
     sales: [] as SaleTaxInput[],
     purchases: [] as PurchaseTaxInput[],
+    expenses: [] as ExpenseTaxInput[],
     creditNotes: [] as CreditNoteTaxInput[],
     creditNoteCalls: [] as { desde: string; hasta: string }[],
     accounts: [] as TaxAccount[],
@@ -42,6 +43,10 @@ const h = vi.hoisted(() => {
     loadPurchaseTaxDocs: vi.fn(async (r: string, from: Date, to: Date) => {
       track("purchases")(r, from, to);
       return state.purchases;
+    }),
+    loadExpenseTaxDocs: vi.fn(async (r: string, from: Date, to: Date) => {
+      track("expenses")(r, from, to);
+      return state.expenses;
     }),
     loadCreditNoteTaxDocs: vi.fn(async (_r: string, desde: string, hasta: string) => {
       state.creditNoteCalls.push({ desde, hasta });
@@ -68,6 +73,7 @@ vi.mock("@/lib/erp/access", () => ({
 vi.mock("@/lib/erp/reports/taxesQueries", () => ({
   loadSaleTaxDocs: h.loadSaleTaxDocs,
   loadPurchaseTaxDocs: h.loadPurchaseTaxDocs,
+  loadExpenseTaxDocs: h.loadExpenseTaxDocs,
   loadCreditNoteTaxDocs: h.loadCreditNoteTaxDocs,
   loadTaxAccounts: h.loadTaxAccounts,
   loadTaxLedgerLines: h.loadTaxLedgerLines,
@@ -96,6 +102,7 @@ beforeEach(() => {
   h.state.calls = [];
   h.state.creditNoteCalls = [];
   h.state.creditNotes = [];
+  h.state.expenses = [];
   h.loadSaleTaxDocs.mockClear();
   h.state.sales = [
     {
@@ -223,6 +230,63 @@ describe("JSON", () => {
     expect(body.period.desde.endsWith("-01")).toBe(true);
     expect([ym, body.period.desde.slice(0, 7)]).toContain(body.period.desde.slice(0, 7));
     expect(body.period.hasta.slice(0, 7)).toBe(body.period.desde.slice(0, 7));
+  });
+});
+
+describe("gastos (origen aparte)", () => {
+  it("cada gasto con IVA o INC sale en su sección con enlace; sólo su IVA descontable suma al stat", async () => {
+    h.state.expenses = [
+      {
+        expenseId: "e1",
+        document: "FE-901",
+        dateIso: "2026-08-15T17:00:00.000Z",
+        category: "Mantenimiento",
+        documentType: "e_invoice",
+        supplierName: "Refrigeración Andina",
+        supplierTaxId: "900123456-7",
+        baseCents: 200_000,
+        ivaPct: 19,
+        ivaCents: 38_000,
+        nonDeductibleIvaCents: 0,
+        incCents: 0,
+        retefuenteCents: 8_000,
+        reteIvaCents: 0,
+        reteIcaCents: 0,
+        href: "/operator/contabilidad?tab=expenses&month=2026-08&expense=e1",
+      },
+      {
+        expenseId: "e2",
+        document: "Almuerzo",
+        dateIso: "2026-08-16T17:00:00.000Z",
+        category: "Representación",
+        documentType: "e_invoice",
+        supplierName: "Otro restaurante",
+        supplierTaxId: null,
+        baseCents: 100_000,
+        ivaPct: 0,
+        ivaCents: 0,
+        nonDeductibleIvaCents: 0,
+        incCents: 8_000,
+        retefuenteCents: 0,
+        reteIvaCents: 0,
+        reteIcaCents: 0,
+        href: "/operator/contabilidad?tab=expenses&month=2026-08&expense=e2",
+      },
+    ];
+    const json = await (await get("?desde=2026-08-01&hasta=2026-08-31")).json();
+    expect(h.state.calls).toEqual(
+      expect.arrayContaining([{ fn: "expenses", from: "2026-08-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z" }]),
+    );
+    expect(json.expenses).toEqual([
+      expect.objectContaining({ key: "exp:e1:iva", document: "FE-901", kind: "iva", pct: 19, baseCents: 200_000, valorCents: 38_000, href: expect.stringContaining("expense=e1") }),
+      expect.objectContaining({ key: "exp:e2:inc", kind: "inc", valorCents: 8_000 }),
+    ]);
+    // Compras 19.000 + IVA descontable del gasto 38.000.
+    expect(json.stats.ivaDescontableCents).toBe(19_000 + 38_000);
+    const csv = new TextDecoder().decode(
+      new Uint8Array(await (await get("?desde=2026-08-01&hasta=2026-08-31&format=csv")).arrayBuffer()),
+    );
+    expect(csv).toContain("[opImpuestosRep.secExpenses];2026-08-15;FE-901;900123456-7;Refrigeración Andina;[opImpuestosRep.famIva];19 %;2000,00;380,00");
   });
 });
 

@@ -152,7 +152,7 @@ export function AuxiliariesPanel({
       </span>
     ) : null;
   const docCell = (r: AuxRow) => {
-    const href = docHref(r.docKind, r.docId);
+    const href = docHref(r.docKind, r.docId, r.dateIso);
     const label = r.document || t(`docKind_${r.docKind ?? "refund"}`);
     return (
       <span className="block min-w-0">
@@ -192,6 +192,16 @@ export function AuxiliariesPanel({
       {flags(r)}
     </span>
   );
+  /**
+   * Compras y gastos: la parte del impuesto que NO se descuenta (es costo)
+   * no aporta al renglón, pero se muestra para que el $0 no confunda.
+   */
+  const nonDeductible = (r: AuxRow) =>
+    r.nonDeductibleCents ? (
+      <span className="block font-sans text-[10px] font-normal text-op-muted">
+        {t("nonDeductibleNote", { amount: money(r.nonDeductibleCents) })}
+      </span>
+    ) : null;
   /** Origen de un día, con su impuesto si la fila lo trae («Compras · IVA»). */
   const dayOrigin = (r: AuxRow) => {
     const src = r.source ? sourceLabel(r.source) : "—";
@@ -251,7 +261,10 @@ export function AuxiliariesPanel({
                     <td className={TD}>{partyCell(r)}</td>
                     <td className={NUM}>{r.baseCents == null ? "—" : money(r.baseCents)}</td>
                     <td className={`${NUM} font-sans text-xs`}>{rateOf(r)}</td>
-                    <td className={`${NUM} font-medium`}>{money(r.amountCents)}</td>
+                    <td className={`${NUM} font-medium`}>
+                      {money(r.amountCents)}
+                      {nonDeductible(r)}
+                    </td>
                     <td className={TD}>{entryCell(r)}</td>
                   </>
                 )}
@@ -295,7 +308,10 @@ export function AuxiliariesPanel({
               <span className="font-mono text-[11px] text-op-muted">
                 {r.kind === "day" ? (r.dateIso ? fmtIsoDate(r.dateIso, locale) : t("wholePeriod")) : dateOf(r)}
               </span>
-              <span className="font-mono tabular text-[13px] font-semibold">{money(r.amountCents)}</span>
+              <span className="font-mono tabular text-[13px] font-semibold">
+                {money(r.amountCents)}
+                {r.kind === "doc" && nonDeductible(r)}
+              </span>
             </div>
             <div className="mt-1 min-w-0">
               {r.kind === "doc" && (

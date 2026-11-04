@@ -30,6 +30,7 @@
 import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, type PurchaseLineAmountsInput } from "@/lib/erp/purchaseTax";
+import { expensePayableCents } from "@/lib/erp/expenseTax";
 import {
   allocateFifo,
   chargeDebtCents,
@@ -125,6 +126,9 @@ type ExpenseRow = {
   category: string;
   description: string | null;
   amountCents: number;
+  /** Total a pagar (base + IVA + INC − retenciones); 0 en gastos viejos = su valor. */
+  payableCents?: number | null;
+  documentNumber?: string | null;
   date: Date;
   dueAt: Date | null;
   supplier: { id: string; name: string; taxId: string | null } | null;
@@ -139,11 +143,12 @@ function expenseToDoc(e: ExpenseRow): CarteraDoc {
     partnerId: e.supplier?.id ?? NO_SUPPLIER_ID,
     partnerName: e.supplier?.name ?? "",
     partnerTaxId: e.supplier?.taxId ?? null,
-    number: e.description || e.category,
+    number: e.documentNumber || e.description || e.category,
     date,
     dueDate: e.dueAt ? isoDateUtc(e.dueAt) : date,
-    totalCents: e.amountCents,
-    outstandingCents: e.amountCents - sum(e.payments),
+    // Lo que se le debe al PROVEEDOR: lo retenido se le debe a la DIAN.
+    totalCents: expensePayableCents(e),
+    outstandingCents: expensePayableCents(e) - sum(e.payments),
   };
 }
 
@@ -200,6 +205,8 @@ export async function loadPayablesDocs(restaurantId: string, hasta: string): Pro
         category: true,
         description: true,
         amountCents: true,
+        payableCents: true,
+        documentNumber: true,
         date: true,
         dueAt: true,
         supplier: { select: { id: true, name: true, taxId: true } },
@@ -638,6 +645,8 @@ export async function loadPartnerMovements(
         category: true,
         description: true,
         amountCents: true,
+        payableCents: true,
+        documentNumber: true,
         date: true,
         dueAt: true,
         supplier: { select: { id: true, name: true, taxId: true } },

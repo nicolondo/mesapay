@@ -3005,6 +3005,20 @@
     "clear": "Quitar",
     "daneCode": "Código DANE {code}"
   },
+  "supplierCombobox": {
+    "placeholder": "Escribe el nombre o NIT del proveedor",
+    "listLabel": "Proveedores",
+    "clear": "Quitar proveedor",
+    "nit": "NIT {taxId}",
+    "current": "actual",
+    "noMatches": "Ningún proveedor coincide con «{query}»",
+    "empty": "Todavía no tienes proveedores",
+    "create": "Crear proveedor «{query}»",
+    "createNew": "Crear proveedor nuevo",
+    "moreHint": "Escribe para buscar entre los {count} proveedores",
+    "results": "{count, plural, =0 {Ningún proveedor coincide} one {# proveedor} other {# proveedores}}",
+    "pickOne": "Elige un proveedor de la lista"
+  },
   "opImpuestosRep": {
     "title": "Impuestos del período",
     "subtitle": "Ventas y compras por impuesto y tarifa, con devoluciones, retenciones desde el libro y cruce contra la contabilidad.",
@@ -3992,6 +4006,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",
     "salesBasis": "Sin impuestos ni propina",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# mesa} other {# mesas}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# orden} other {# órdenes}}</nowrap>",
     "noRestaurant": "No tienes restaurante asignado. Contacta al admin.",
     "kpiSalesToday": "Ventas hoy",
     "kpiPaidOrders": "Órdenes pagadas",
@@ -6239,7 +6255,7 @@
     "proveedoresTitle": "Proveedores",
     "proveedoresIntro": "A quién le compras: datos de contacto, condiciones de pago y la lista de precios de cada proveedor.",
     "newSupplier": "Nuevo proveedor",
-    "searchSuppliersPlaceholder": "Buscar por nombre o contacto…",
+    "searchSuppliersPlaceholder": "Buscar por nombre, NIT o contacto…",
     "emptySuppliersTitle": "Aún no hay proveedores",
     "emptySuppliersBody": "Agrega el primero: con el nombre y un teléfono basta para empezar.",
     "emptyFilteredSuppliers": "Ningún proveedor coincide con la búsqueda.",

@@ -43,7 +43,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conocer-el-panel",
       title: "Conoce el panel del restaurante",
       covers:
-        "Resumen (\"Ventas hoy\", \"Órdenes pagadas\", \"Ticket promedio\", \"Abiertas ahora\", caja, ventas de 7 días, top platos, mesas activas), el menú lateral y sus grupos, la barra de arriba (\"Buscar orden\", \"Cierre de turno\", \"Nueva orden\"), \"Ir a una sección\" (⌘ K) y por qué algunos ítems no aparecen (módulos).",
+        "Resumen (\"Ventas hoy\" y lo que falta por cobrar de las mesas abiertas, \"Órdenes pagadas\", \"Ticket promedio\", \"Abiertas ahora\", caja, ventas de 7 días, top platos, mesas activas), el menú lateral y sus grupos, la barra de arriba (\"Buscar orden\", \"Cierre de turno\", \"Nueva orden\"), \"Ir a una sección\" (⌘ K) y por qué algunos ítems no aparecen (módulos).",
     },
     {
       slug: "identidad-del-comercio",

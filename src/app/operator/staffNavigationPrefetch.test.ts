@@ -19,9 +19,12 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 vi.mock("next/link", () => ({
-  default: ({ href, prefetch, children, ...props }: ComponentProps<"a"> & {
+  // `scroll` es de Next, no del <a>: se descarta.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  default: ({ href, prefetch, scroll: _scroll, children, ...props }: ComponentProps<"a"> & {
     href: string;
     prefetch?: boolean | null;
+    scroll?: boolean;
   }) => {
     h.links.push({ href, prefetch });
     return createElement("a", { href, ...props }, children);
@@ -36,7 +39,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/headers", () => ({ cookies: async () => ({
   get: (name: string) => name === "mp_shell" ? { value: "classic" } : undefined,
 }) }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key, useLocale: () => "es" }));
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => key,
   getLocale: async () => "es",
@@ -57,6 +60,7 @@ vi.mock("@/lib/db", () => ({ db: {
   }) },
   order: {
     findMany: h.orderFindMany,
+    groupBy: async () => [{ status: "placed", _count: { _all: 1 }, _sum: { totalCents: 1000 } }],
     count: async () => 2,
     aggregate: async () => ({ _avg: { totalCents: 0 }, _sum: { totalCents: 0 } }),
   },
@@ -119,11 +123,19 @@ beforeEach(() => {
   h.links = [];
   vi.stubGlobal("localStorage", { getItem: () => null });
   h.orderFindMany.mockReset();
-  h.orderFindMany.mockImplementation(async (args: { select?: { paidAt?: boolean } }) => args.select?.paidAt ? [] : [{
-    id: "order-1", shortCode: "ABC123", status: "placed", createdAt: new Date("2026-10-14T12:00:00Z"),
-    paidAt: null, subtotalCents: 1000, totalCents: 1000, discountCents: 0,
-    table: { number: 1, kind: "regular" }, items: [{ qty: 1 }], payments: [], simpleInvoice: null,
-  }]);
+  h.orderFindMany.mockImplementation(async (args: { select?: Record<string, boolean>; where?: { paidAt?: unknown } }) => {
+    const createdAt = new Date("2026-10-14T12:00:00Z");
+    // Claves de la página de Órdenes (`historyKeyQueries`): la cuenta abierta
+    // va en el flujo sin fecha de cobro.
+    if (args.select && Object.keys(args.select).sort().join() === "createdAt,id,paidAt") {
+      return args.where?.paidAt === null ? [{ id: "order-1", paidAt: null, createdAt }] : [];
+    }
+    return args.select?.paidAt ? [] : [{
+      id: "order-1", shortCode: "ABC123", status: "placed", createdAt,
+      paidAt: null, subtotalCents: 1000, totalCents: 1000, discountCents: 0, taxCents: 0,
+      table: { number: 1, kind: "regular" }, items: [{ qty: 1 }], payments: [], simpleInvoice: null,
+    }];
+  });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -181,7 +193,17 @@ describe("staff navigation does not refetch every visible route on live refresh"
     const stream = await renderToReadableStream(await OrdersPage({ searchParams: Promise.resolve({ period: "all" }) }));
     await stream.allReady;
     const html = await new Response(stream).text();
-    expectNavigationOnly(html, ["/operator/orders/order-1", "/operator/orders?period=all&q=&status=open"]);
+    // `period=all` (enlace viejo) = todas las fechas: chips de estado y detalle.
+    expectNavigationOnly(html, ["/operator/orders/order-1", "/operator/orders?status=open&fechas=todas"]);
+  });
+
+  it("does not prefetch the period navigator, status chips or pagination", async () => {
+    const stream = await renderToReadableStream(await OrdersPage({ searchParams: Promise.resolve({}) }));
+    await stream.allReady;
+    const html = await new Response(stream).text();
+    expectNavigationOnly(html, ["/operator/orders/order-1", "/operator/orders?status=paid"]);
+    // Día · Semana · Mes y las flechas también son enlaces sin prefetch.
+    expect(h.links.filter((link) => link.href.includes("desde=")).length).toBeGreaterThanOrEqual(3);
   });
 
   it.each(["/bar", "/operator/bar"])("keeps %s substation destinations on the authorized board", pathname => {

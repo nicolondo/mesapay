@@ -4,8 +4,8 @@ import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, localeTag } from "@/lib/format";
 import { isoWeekNumber } from "@/lib/isoWeek";
+import { unitLabel } from "@/lib/erp/reports/periodLabel";
 import {
   periodKind,
   shiftPeriod,
@@ -208,38 +208,4 @@ export function ReportPeriod({
       )}
     </div>
   );
-}
-
-/**
- * Rótulo de una unidad completa: «2026», «Octubre de 2026», «26 oct – 1
- * nov 2026». Las fechas del período son UTC (ver `period.ts`), así que se
- * formatean en UTC para que el 1 del mes no retroceda al día anterior.
- */
-function unitLabel(kind: PeriodStep, period: Period, locale: Locale): string {
-  if (kind === "año") return period.desde.slice(0, 4);
-  const a = new Date(`${period.desde}T00:00:00Z`);
-  const b = new Date(`${period.hasta}T00:00:00Z`);
-  const tag = localeTag(locale);
-  if (kind === "mes") {
-    // `formatDate` trae dateStyle/timeStyle por defecto e Intl no admite
-    // mezclarlos con componentes sueltos: se anulan explícitamente.
-    const s = formatDate(a, {
-      locale,
-      timeZone: "UTC",
-      dateStyle: undefined,
-      timeStyle: undefined,
-      month: "long",
-      year: "numeric",
-    });
-    return s.charAt(0).toLocaleUpperCase(tag) + s.slice(1);
-  }
-  const f = new Intl.DateTimeFormat(tag, {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return typeof f.formatRange === "function"
-    ? f.formatRange(a, b)
-    : `${f.format(a)} – ${f.format(b)}`;
 }

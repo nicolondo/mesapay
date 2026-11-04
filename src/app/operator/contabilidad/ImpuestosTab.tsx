@@ -282,7 +282,11 @@ type Filing = {
   period: string;
   declaredCents: number;
   paidAt: string;
+  /** Cuenta de dinero de donde salió el pago (línea crédito del asiento). */
+  paidFromAccountCode: string | null;
 };
+
+type MoneyAccount = { code: string; name: string };
 
 const labelCls = "font-mono text-[10px] tracking-wider uppercase text-op-muted";
 const filingInputCls =
@@ -297,7 +301,7 @@ const FORM_KEYS: Record<string, string> = {
 
 /**
  * Declaraciones y pagos de impuestos del año: registrar el pago crea el
- * asiento (D cuenta del impuesto · C banco, fuente taxpay).
+ * asiento (D cuenta del impuesto · C la cuenta de dinero elegida, fuente taxpay).
  */
 function DeclaracionesCard({
   month,
@@ -310,6 +314,8 @@ function DeclaracionesCard({
   const locale = useLocale() as Locale;
   const year = month.slice(0, 4);
   const [filings, setFilings] = useState<Filing[] | null>(null);
+  const [accounts, setAccounts] = useState<MoneyAccount[]>([]);
+  const [payFrom, setPayFrom] = useState("");
   const [form, setForm] = useState("iva");
   const [amountPesos, setAmountPesos] = useState("");
   const [paidDate, setPaidDate] = useState("");
@@ -321,7 +327,10 @@ function DeclaracionesCard({
     fetch(`/api/operator/accounting/declaraciones?year=${year}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
       .then((j) => {
-        if (alive) setFilings(j.filings as Filing[]);
+        if (!alive) return;
+        setFilings(j.filings as Filing[]);
+        setAccounts((j.accounts as MoneyAccount[] | undefined) ?? []);
+        setPayFrom((prev) => prev || ((j.defaultAccountCode as string | null) ?? ""));
       })
       .catch(() => {
         if (alive) setFilings([]);
@@ -335,13 +344,13 @@ function DeclaracionesCard({
 
   async function register() {
     const declaredCents = Number(amountPesos.replace(/\D/g, "")) * 100;
-    if (!paidDate || declaredCents <= 0) return;
+    if (!paidDate || declaredCents <= 0 || !payFrom) return;
     setBusy(true);
     setMsg(null);
     const r = await fetch("/api/operator/accounting/declaraciones", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ form, period: month, declaredCents, paidDate }),
+      body: JSON.stringify({ form, period: month, declaredCents, paidDate, payFromAccountCode: payFrom }),
     });
     setBusy(false);
     if (!r.ok) {
@@ -351,7 +360,9 @@ function DeclaracionesCard({
           ? t("filingAlready")
           : j.error === "month_closed"
             ? t("bankMonthClosed")
-            : t("errSaveFailed"),
+            : j.error === "pay_account_invalid"
+              ? t("errExpensePayAccount")
+              : t("errSaveFailed"),
       );
       return;
     }
@@ -365,9 +376,10 @@ function DeclaracionesCard({
     <Section title={t("filingsTitle")}>
       <div className="p-4 space-y-3">
         <p className="text-xs text-op-muted">{t("filingsIntro")}</p>
-        {/* Celular: un campo por fila con su rótulo (tres a 95px no se
-            leían y la fecha quedaba cortada); en sm+ los tres en una fila. */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {/* Celular: un campo por fila con su rótulo (varios a 95px no se
+            leían y la fecha quedaba cortada); en sm+ dos por fila y en lg
+            los cuatro en una. */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block">
             <span className={labelCls}>{t("filingForm")}</span>
             <select
@@ -401,11 +413,29 @@ function DeclaracionesCard({
               className={filingInputCls}
             />
           </label>
+          <label className="block">
+            <span className={labelCls}>{t("fieldPayFromAccount")}</span>
+            <select
+              value={payFrom}
+              onChange={(e) => setPayFrom(e.target.value)}
+              className={filingInputCls}
+              aria-describedby="filing-pay-from-hint"
+            >
+              {accounts.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.code} · {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
+        <p id="filing-pay-from-hint" className="text-xs text-op-muted">
+          {t("payFromAccountHint")}
+        </p>
         <button
           type="button"
           onClick={register}
-          disabled={busy || !paidDate || amountPesos.trim() === ""}
+          disabled={busy || !paidDate || !payFrom || amountPesos.trim() === ""}
           className="mp-btn mp-btn--secondary mp-btn--block"
         >
           {busy ? t("saving") : t("filingRegister", { month })}
@@ -423,6 +453,12 @@ function DeclaracionesCard({
                   <span className="font-mono text-xs text-op-muted">
                     {f.period}
                   </span>
+                  {f.paidFromAccountCode && (
+                    <span className="font-mono text-xs text-op-muted">
+                      {" · "}
+                      {f.paidFromAccountCode}
+                    </span>
+                  )}
                 </span>
                 <span className="font-mono tabular shrink-0">
                   {money(f.declaredCents)}

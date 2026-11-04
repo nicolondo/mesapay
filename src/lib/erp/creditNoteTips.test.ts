@@ -7,8 +7,8 @@ import {
   collectedTipCents,
   creditNoteTipRefundCents,
   invoiceTipCents,
+  collectedAmountCents,
   isAnnulmentReason,
-  snapshotTipCents,
 } from "./creditNoteTips";
 import {
   creditNotePosting,
@@ -26,57 +26,56 @@ const paid = (tipCents: number, over: Partial<{ status: string; collectedByUserI
 
 describe("propina de la factura (regla de origen)", () => {
   it("una factura, un cobro: la propina de la cuenta (caso Son y Melona, $61.830)", () => {
-    expect(invoiceTipCents({ invoiceTipCents: 6_183_000, orderTipCents: 6_183_000, payments: [paid(6_183_000)] })).toBe(6_183_000);
+    expect(invoiceTipCents({ orderTipCents: 6_183_000, payments: [paid(6_183_000)] })).toBe(6_183_000);
   });
 
   it("cuenta dividida: suma la propina de todos los cobros aprobados, efectivo o tarjeta", () => {
-    const payments = [paid(2_000_000), paid(3_000_000, { status: "approved" }), paid(1_183_000)];
+    const payments = [paid(2_000_000), paid(3_000_000), paid(1_183_000)];
     expect(collectedTipCents(payments)).toBe(6_183_000);
-    expect(invoiceTipCents({ invoiceTipCents: 6_183_000, orderTipCents: 6_183_000, payments })).toBe(6_183_000);
+    expect(invoiceTipCents({ orderTipCents: 6_183_000, payments })).toBe(6_183_000);
   });
 
-  it("un cobro reembolsado sí se cobró; pendientes, rechazados y anulados no", () => {
+  it("un cobro reembolsado sí se cobró; pendientes y rechazados no", () => {
     const payments = [
       paid(1_000_000, { status: "refunded" }),
       paid(500_000, { status: "pending" }),
       paid(700_000, { status: "declined" }),
-      paid(300_000, { status: "cancelled" }),
     ];
     expect(collectedTipCents(payments)).toBe(1_000_000);
   });
 
-  it("nunca devuelve más de lo cobrado: el mínimo entre factura, cuenta y cobros", () => {
-    // Factura emitida con 61.830 pero un cobro de propina se anuló después.
-    expect(invoiceTipCents({ invoiceTipCents: 6_183_000, orderTipCents: 6_183_000, payments: [paid(4_000_000)] })).toBe(4_000_000);
-    // La cuenta quedó con menos propina que la congelada en la factura.
-    expect(invoiceTipCents({ invoiceTipCents: 6_183_000, orderTipCents: 5_000_000, payments: [paid(6_183_000)] })).toBe(5_000_000);
-    // La factura congeló menos que lo cobrado.
-    expect(invoiceTipCents({ invoiceTipCents: 1_000_000, orderTipCents: 6_183_000, payments: [paid(6_183_000)] })).toBe(1_000_000);
+  it("nunca devuelve más de lo cobrado: el mínimo entre la cuenta y los cobros", () => {
+    // La cuenta dice 61.830 pero un cobro con propina se rechazó.
+    expect(invoiceTipCents({ orderTipCents: 6_183_000, payments: [paid(4_000_000), paid(2_183_000, { status: "declined" })] })).toBe(4_000_000);
+    // La cuenta quedó con menos propina que la de los cobros.
+    expect(invoiceTipCents({ orderTipCents: 5_000_000, payments: [paid(6_183_000)] })).toBe(5_000_000);
   });
 
-  it("sin propina (o sin datos de la factura): 0", () => {
-    expect(invoiceTipCents({ invoiceTipCents: 0, orderTipCents: 0, payments: [paid(0)] })).toBe(0);
-    expect(invoiceTipCents({ invoiceTipCents: null, orderTipCents: undefined, payments: [] })).toBe(0);
-    // Factura vieja sin `tipCents` en el snapshot: cuenta y cobros deciden.
-    expect(invoiceTipCents({ invoiceTipCents: snapshotTipCents({}), orderTipCents: 800_000, payments: [paid(800_000)] })).toBe(800_000);
+  it("sin propina (o sin cobros): 0", () => {
+    expect(invoiceTipCents({ orderTipCents: 0, payments: [paid(0)] })).toBe(0);
+    expect(invoiceTipCents({ orderTipCents: undefined, payments: [] })).toBe(0);
+    expect(invoiceTipCents({ orderTipCents: 6_183_000, payments: [] })).toBe(0);
   });
 
   it("varias facturas por cuenta no existen: SimpleInvoice.orderId es único, la factura cubre la cuenta entera", () => {
-    // Por eso la parte de la factura es toda la propina de la cuenta; si la
-    // cuenta tuviera más cobros que la propina congelada, manda la factura.
-    expect(invoiceTipCents({ invoiceTipCents: 3_000_000, orderTipCents: 6_000_000, payments: [paid(3_000_000), paid(3_000_000)] })).toBe(3_000_000);
+    // Por eso la parte de la factura es toda la propina de la cuenta, aunque
+    // la factura se haya emitido antes de cobrar (sin saber la propina).
+    expect(invoiceTipCents({ orderTipCents: 6_000_000, payments: [paid(3_000_000), paid(3_000_000)] })).toBe(6_000_000);
   });
 
-  it("snapshotTipCents lee la propina congelada y descarta basura", () => {
-    expect(snapshotTipCents({ tipCents: 6_183_000 })).toBe(6_183_000);
-    expect(snapshotTipCents({ tipCents: "6183000" })).toBeNull();
-    expect(snapshotTipCents(null)).toBeNull();
-    expect(snapshotTipCents({ tipCents: -5 })).toBe(0);
+  it("lo cobrado (con propina) suma los cobros aprobados o reembolsados", () => {
+    expect(
+      collectedAmountCents([
+        { status: "approved", tipCents: 4_000_000, amountCents: 44_000_000 },
+        { status: "refunded", tipCents: 2_183_000, amountCents: 24_013_000 },
+        { status: "declined", tipCents: 0, amountCents: 9_999 },
+      ]),
+    ).toBe(68_013_000);
   });
 });
 
 describe("sólo la ANULACIÓN (motivo DIAN 2) devuelve la propina", () => {
-  const source = { invoiceTipCents: 6_183_000, orderTipCents: 6_183_000, payments: [paid(6_183_000)] };
+  const source = { orderTipCents: 6_183_000, payments: [paid(6_183_000)] };
   it("anulación: toda la propina de la factura", () => {
     expect(isAnnulmentReason("2")).toBe(true);
     expect(creditNoteTipRefundCents("2", source)).toBe(6_183_000);

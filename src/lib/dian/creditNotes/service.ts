@@ -8,7 +8,7 @@ import { documentErrors } from '../config';
 import { formatInvoiceNumber, type InvoiceSnapshot } from '@/lib/invoice';
 import { buildProposal, canAbandon, chooseCreditNotePrefix, CreditNoteError, reissueCreditNoteInput, reissueRequestId, remainingLines, requestHash, seriesInConflict, sourceVersion, type CreditNoteSeriesUsage } from './domain';
 import type { CreditNoteDto, CreditNoteInput, CreditNotePreviewInput, CreditNoteReview, CreditNoteSnapshot, CreditNoteSource, OriginalInvoiceSnapshot } from './types';
-import { invoiceTipCents, isAnnulmentReason, snapshotTipCents } from '@/lib/erp/creditNoteTips';
+import { collectedAmountCents, invoiceTipCents, isAnnulmentReason } from '@/lib/erp/creditNoteTips';
 import { isModuleEnabled } from '@/lib/modules';
 import { getAccountingConfig } from '@/lib/erp/cierre';
 import { creditNoteInstant, ensureCreditNoteStamps } from '@/lib/erp/creditNoteAccounting';
@@ -25,7 +25,7 @@ export function creditNoteDto(note: Note): CreditNoteDto {
     return { accounting: null, id: note.id, publicToken: note.publicToken, originalInvoiceId: note.originalInvoiceId, documentNumber: note.documentNumber, number: note.number, reasonCode: note.reasonCode, reasonText: note.reasonText, subtotalCents: note.subtotalCents, taxCents: note.taxCents, totalCents: note.totalCents, tipRefundCents: note.tipRefundCents, environment: note.series.environment as '1' | '2', createdAt: note.createdAt.toISOString(), abandonedAt: note.abandonedAt?.toISOString() ?? null, snapshot: note.snapshot as unknown as CreditNoteSnapshot, canAbandon: canAbandon(d, note.abandonedAt), failure: creditNoteFailure(d), canRetry: !note.abandonedAt && !!d && !isCreditNoteIdentityError(d.lastError) && !documentErrors(d.errors).some(isCreditNoteIdentityError) && ['to_send', 'error', 'pending'].includes(d.state) && (!d.leaseExpiresAt || d.leaseExpiresAt <= new Date()), document: d ? { id: d.id, state: d.state, cufe: d.cufe, trackId: d.trackId, errors: documentErrors(d.errors), lastError: d.lastError, issuedAt: d.issuedAt?.toISOString() ?? null, emailedAt: d.emailedAt?.toISOString() ?? null, emailError: d.emailError } : null };
 }
 async function sourceData(client: Client, restaurantId: string, invoiceId: string) {
-    const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true, tipCents: true, payments: { select: { status: true, tipCents: true } } } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });
+    const invoice = await client.simpleInvoice.findFirst({ where: { id: invoiceId, restaurantId }, include: { dianDocument: true, order: { select: { locale: true, tipCents: true, payments: { select: { status: true, tipCents: true, amountCents: true } } } }, restaurant: { select: { name: true, taxId: true, invoicePrefix: true, legalEntityId: true, dianConfig: true, legalEntity: { select: { taxId: true, invoicePrefix: true, dianConfig: true } } } } } });
     const document = invoice?.dianDocument;
     if (!invoice || !document || document.kind !== 'invoice' || document.state !== 'accepted' || !document.xmlZip || !document.cufe)
         throw new CreditNoteError('accepted_invoice_required', 404);
@@ -62,8 +62,11 @@ async function sourceData(client: Client, restaurantId: string, invoiceId: strin
     const scope = { issuerNit: original.supplier.companyId, environment: original.environment, prefix };
     // La propina NO está en el XML (la factura electrónica es la comida): sale
     // de la factura y los cobros de la cuenta (regla en erp/creditNoteTips.ts).
-    const tipCents = invoiceTipCents({ invoiceTipCents: snapshotTipCents(invoice.snapshot), orderTipCents: invoice.order?.tipCents, payments: invoice.order?.payments ?? [] });
-    const charge = { fiscalTotalCents: original.totals?.payableCents ?? 0, tipCents, chargedCents: typeof invoice.totalCents === 'number' ? invoice.totalCents : (original.totals?.payableCents ?? 0) + tipCents };
+    // «Cobrado» = lo cobrado en los cobros de la cuenta (con propina); sin cobros, factura + propina.
+    const payments = invoice.order?.payments ?? [];
+    const tipCents = invoiceTipCents({ orderTipCents: invoice.order?.tipCents, payments });
+    const fiscalTotalCents = original.totals?.payableCents ?? 0;
+    const charge = { fiscalTotalCents, tipCents, chargedCents: collectedAmountCents(payments) || fiscalTotalCents + tipCents };
     const source: CreditNoteSource = { originalInvoiceId: invoiceId, original, lines, remainingTotalCents: lines.reduce((s, l) => s + l.remainingGrossCents, 0), charge, sourceVersion: version, prefix, nextNumber: series.nextNumber, conflictPrefix: series.conflictPrefix, notes: notes.map(creditNoteDto) };
     return { source, scope, invoice, seriesBlocked: series.blocked };
 }

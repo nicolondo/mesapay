@@ -115,7 +115,7 @@ export type CreditNoteSource = {
     /**
      * Lo cobrado de la cuenta, separado: la factura electrónica (comida e
      * impuestos, lo que dice el XML), la propina (que no va en la factura
-     * electrónica) y el total cobrado en MESAPAY (`SimpleInvoice.totalCents`).
+     * electrónica) y lo cobrado en los cobros de la cuenta, con propina.
      */
     charge: {
         fiscalTotalCents: number;

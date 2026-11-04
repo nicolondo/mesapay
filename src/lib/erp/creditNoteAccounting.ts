@@ -47,7 +47,7 @@ import {
   type CreditNoteSlicesResult,
   type OrderMatch,
 } from "./creditNoteLedger";
-import { creditNoteTipRefundCents, invoiceTipCents, snapshotTipCents, type InvoiceTipSource } from "./creditNoteTips";
+import { creditNoteTipRefundCents, invoiceTipCents, type InvoiceTipSource } from "./creditNoteTips";
 import type { MonthRange } from "./accountingData";
 
 type Client = Prisma.TransactionClient | typeof db;
@@ -116,9 +116,8 @@ export function logInvalidCreditNote(id: string, documentNumber: string, reason:
 // ── Propina de la factura ─────────────────────────────────────────────────
 
 /**
- * Lo que la regla de la propina necesita de la factura: la propina
- * congelada al emitirla, la de la cuenta y los cobros. null = la factura no
- * es de este comercio.
+ * Lo que la regla de la propina necesita de la factura: la propina de la
+ * cuenta y sus cobros. null = la factura no es de este comercio.
  */
 export async function loadInvoiceTipSource(
   client: Client,
@@ -127,17 +126,10 @@ export async function loadInvoiceTipSource(
 ): Promise<InvoiceTipSource | null> {
   const invoice = await client.simpleInvoice.findFirst({
     where: { id: invoiceId, restaurantId },
-    select: {
-      snapshot: true,
-      order: { select: { tipCents: true, payments: { select: { status: true, tipCents: true } } } },
-    },
+    select: { order: { select: { tipCents: true, payments: { select: { status: true, tipCents: true } } } } },
   });
   if (!invoice) return null;
-  return {
-    invoiceTipCents: snapshotTipCents(invoice.snapshot),
-    orderTipCents: invoice.order.tipCents,
-    payments: invoice.order.payments,
-  };
+  return { orderTipCents: invoice.order.tipCents, payments: invoice.order.payments };
 }
 
 /** Propina de la factura (0 si no hay datos): la que devolvería una anulación. */
@@ -188,7 +180,7 @@ export async function stampCreditNoteAccounting(
         receivableCents: true,
         accountingStampedAt: true,
         tipRefundCents: true,
-        originalInvoice: { select: { orderId: true, snapshot: true, order: { select: { tipCents: true } } } },
+        originalInvoice: { select: { orderId: true, order: { select: { tipCents: true } } } },
       },
     });
     if (!note) return false;
@@ -202,7 +194,6 @@ export async function stampCreditNoteAccounting(
     const tipRefundCents =
       note.tipRefundCents ??
       creditNoteTipRefundCents(note.reasonCode, {
-        invoiceTipCents: snapshotTipCents(note.originalInvoice.snapshot),
         orderTipCents: note.originalInvoice.order?.tipCents,
         payments,
       });

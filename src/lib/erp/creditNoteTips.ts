@@ -12,22 +12,23 @@
 //
 // DE DÓNDE SALE LA PROPINA («la propina de la factura»):
 //   Una factura (`SimpleInvoice`) es SIEMPRE de una cuenta entera: la tabla
-//   tiene `orderId @unique` y la factura sólo se emite con la cuenta pagada.
-//   No hay facturas por parte de una cuenta dividida: la cuenta dividida
-//   tiene varios cobros pero una sola factura. Por eso la parte de la
-//   propina que le toca a la factura es la propina de la cuenta, y se toma
-//   el MÍNIMO de tres cifras, para no devolver nunca más de lo cobrado:
-//     1. la propina congelada en la factura al emitirla
-//        (`SimpleInvoice.snapshot.tipCents`);
-//     2. la propina de la cuenta (`Order.tipCents`): lo que el asiento de
+//   tiene `orderId @unique`. No hay facturas por parte de una cuenta: la
+//   cuenta dividida tiene varios cobros pero una sola factura. Por eso la
+//   parte de la propina que le toca a la factura es la propina de la cuenta,
+//   y se toma el MÍNIMO de dos cifras, para no devolver nunca más de lo
+//   cobrado:
+//     1. la propina de la cuenta (`Order.tipCents`): lo que el asiento de
 //        ventas acreditó a «propinas por pagar»;
-//     3. lo cobrado de propina en los cobros de la cuenta
+//     2. lo cobrado de propina en los cobros de la cuenta
 //        (`Payment.tipCents` de los cobros aprobados o reembolsados — un
 //        cobro reembolsado sí se cobró; lo que ya salió por la pasarela lo
 //        cruza la contabilidad como «reembolso anterior»). Efectivo, tarjeta,
 //        datáfono y crédito de cliente cuentan igual: todos son propina
-//        cobrada. Los cobros pendientes, rechazados o anulados no.
-//   Sin propina en cualquiera de las tres ⇒ 0.
+//        cobrada. Los cobros pendientes o rechazados no.
+//   La propina congelada en la factura (`snapshot.tipCents`) NO se usa: una
+//   factura emitida antes de cobrar no sabe todavía cuánta propina deja el
+//   cliente, y la propina sigue siendo de esa cuenta.
+//   Sin propina en cualquiera de las dos ⇒ 0.
 
 /** Motivo DIAN de la anulación de factura electrónica. */
 export const ANNULMENT_REASON_CODE = "2";
@@ -42,13 +43,13 @@ export const TIP_COLLECTED_STATUSES = ["approved", "refunded"] as const;
 export type TipPayment = {
   status: string;
   tipCents: number;
+  /** Monto del cobro con propina (para «Cobrado»). */
+  amountCents?: number;
   /** Quién cobró (mesero/operador); null = el comensal desde su QR. */
   collectedByUserId?: string | null;
 };
 
 export type InvoiceTipSource = {
-  /** Propina congelada en la factura (`SimpleInvoice.snapshot.tipCents`). */
-  invoiceTipCents: number | null | undefined;
   /** Propina de la cuenta (`Order.tipCents`). */
   orderTipCents: number | null | undefined;
   /** Cobros de la cuenta. */
@@ -58,32 +59,32 @@ export type InvoiceTipSource = {
 const cents = (n: unknown): number | null =>
   typeof n === "number" && Number.isSafeInteger(n) ? Math.max(0, n) : null;
 
-const collected = (p: TipPayment) =>
-  (TIP_COLLECTED_STATUSES as readonly string[]).includes(p.status) && (cents(p.tipCents) ?? 0) > 0;
+const isCollected = (p: TipPayment) => (TIP_COLLECTED_STATUSES as readonly string[]).includes(p.status);
+const collected = (p: TipPayment) => isCollected(p) && (cents(p.tipCents) ?? 0) > 0;
 
 /** Propina efectivamente cobrada en los cobros de la cuenta. */
 export function collectedTipCents(payments: readonly TipPayment[]): number {
   return payments.filter(collected).reduce((s, p) => s + (cents(p.tipCents) ?? 0), 0);
 }
 
+/** Lo cobrado en la cuenta (con propina): Σ cobros aprobados o reembolsados. */
+export function collectedAmountCents(payments: readonly TipPayment[]): number {
+  return payments.filter(isCollected).reduce((s, p) => s + (cents(p.amountCents) ?? 0), 0);
+}
+
 /**
- * Propina de la factura: el mínimo entre la congelada en la factura, la de
- * la cuenta y la cobrada (ver la cabecera). Nunca negativa.
+ * Propina de la factura: el mínimo entre la de la cuenta y la cobrada (ver
+ * la cabecera). Nunca negativa.
  */
 export function invoiceTipCents(source: InvoiceTipSource): number {
-  const candidates = [collectedTipCents(source.payments), cents(source.invoiceTipCents), cents(source.orderTipCents)];
-  return Math.min(...candidates.filter((n): n is number => n !== null));
+  const order = cents(source.orderTipCents);
+  const paid = collectedTipCents(source.payments);
+  return order === null ? paid : Math.min(order, paid);
 }
 
 /** Propina que devuelve una nota con este motivo: toda la de la factura si es anulación; si no, 0. */
 export function creditNoteTipRefundCents(reasonCode: string | null | undefined, source: InvoiceTipSource): number {
   return isAnnulmentReason(reasonCode) ? invoiceTipCents(source) : 0;
-}
-
-/** La propina congelada en el snapshot de la factura (JSON), si la trae. */
-export function snapshotTipCents(snapshot: unknown): number | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  return cents((snapshot as { tipCents?: unknown }).tipCents);
 }
 
 /**

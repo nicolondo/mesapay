@@ -285,7 +285,7 @@ describe("stampCreditNoteAccounting — cartera de cliente", () => {
     receivableCents: null,
     accountingStampedAt: null,
     tipRefundCents: 0,
-    originalInvoice: { orderId: "o1", snapshot: { tipCents: 0 }, order: { tipCents: 0 } },
+    originalInvoice: { orderId: "o1", order: { tipCents: 0 } },
     ...over,
   });
   const creditCharge = { id: "p1", method: "customer_credit", status: "approved", tipCents: 0, billingCustomerId: "c1" };
@@ -346,7 +346,7 @@ describe("stampCreditNoteAccounting — propina devuelta con la anulación", () 
     receivableCents: null,
     accountingStampedAt: null,
     tipRefundCents: 61_830_00,
-    originalInvoice: { orderId: "o1", snapshot: { tipCents: 61_830_00 }, order: { tipCents: 61_830_00 } },
+    originalInvoice: { orderId: "o1", order: { tipCents: 61_830_00 } },
     ...over,
   });
 

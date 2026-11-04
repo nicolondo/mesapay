@@ -30,8 +30,16 @@ vi.mock("@/lib/erp/cierre", async (orig) => ({
 }));
 vi.mock("@/lib/erp/ledger", async (orig) => ({
   ...(await orig<typeof import("@/lib/erp/ledger")>()),
-  loadAccountMap: async () => new Map([["24080501", "a-iva"], ["241205", "a-inc"], ["111005", "a-banco"]]),
+  loadAccountMap: async () =>
+    new Map([["24080501", "a-iva"], ["241205", "a-inc"], ["111005", "a-banco"], ["110505", "a-caja"]]),
   loadAccountIndex: async () => new Map([["111005", { id: "a-banco", postable: true, active: true }]]),
+}));
+// Cuentas de dinero desde las que se paga una declaración (caja y bancos).
+vi.mock("@/lib/erp/paymentAccounts", () => ({
+  listMoneyAccounts: async () => [
+    { code: "110505", name: "Caja general" },
+    { code: "111005", name: "Bancos" },
+  ],
 }));
 vi.mock("@/lib/db", () => {
   const tx = {
@@ -52,6 +60,7 @@ vi.mock("@/lib/db", () => {
       bankStatementLine: { findMany: m.bankLines },
       bankRecRule: { findMany: async () => [] },
       taxFiling: { findMany: m.filings, findFirst: m.filingFirst },
+      journalLine: { findMany: async () => [] },
       $transaction: async (fn: (t: unknown) => unknown) => fn(tx),
     },
   };
@@ -200,5 +209,41 @@ describe("bancos y declaraciones con montos > INT4", () => {
       expect.objectContaining({ accountCode: "241205", debitCents: 2_670_000_000 }),
       expect.objectContaining({ accountCode: "111005", creditCents: 2_670_000_000 }),
     ]);
+  });
+
+  it("POST paga la declaración desde la cuenta elegida (caja), no siempre desde bancos", async () => {
+    m.filingFirst.mockResolvedValue(null);
+    m.create.mockResolvedValue({ id: "e-c" });
+    m.filingCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+      id: "t2",
+      createdAt: new Date(),
+      ...data,
+      declaredCents: BigInt(Number(data.declaredCents)),
+    }));
+    const res = await call(
+      postFiling,
+      json("/api/operator/accounting/declaraciones", "POST", {
+        form: "inc", period: "2026-09", declaredCents: 50_000_00, paidDate: "2026-11-10", payFromAccountCode: "110505",
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect(m.create.mock.calls.at(-1)![0].data.lines.create).toEqual([
+      expect.objectContaining({ accountCode: "241205", debitCents: 50_000_00 }),
+      expect.objectContaining({ accountId: "a-caja", accountCode: "110505", creditCents: 50_000_00 }),
+    ]);
+  });
+
+  it("POST con una cuenta que no es de dinero del comercio → 400, sin asiento", async () => {
+    m.filingFirst.mockResolvedValue(null);
+    const before = m.create.mock.calls.length;
+    const res = await call(
+      postFiling,
+      json("/api/operator/accounting/declaraciones", "POST", {
+        form: "inc", period: "2026-08", declaredCents: 50_000_00, paidDate: "2026-11-10", payFromAccountCode: "413505",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "pay_account_invalid" });
+    expect(m.create.mock.calls.length).toBe(before);
   });
 });

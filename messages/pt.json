@@ -9524,7 +9524,8 @@
     "severity_info": "Para levar em conta",
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "nonDeductibleNote": "Não dedutível (custo): {amount}"
   },
   "tipReturns": {
     "collected": "Gorjetas cobradas",

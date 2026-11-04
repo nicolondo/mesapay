@@ -9524,7 +9524,8 @@
     "severity_info": "Good to know",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "nonDeductibleNote": "Non-deductible (cost): {amount}"
   },
   "tipReturns": {
     "collected": "Tips collected",

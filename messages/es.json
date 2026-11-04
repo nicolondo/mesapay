@@ -9524,7 +9524,8 @@
     "severity_info": "Para tener en cuenta",
     "expandAll": "Desplegar todo",
     "collapseAll": "Plegar todo",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "nonDeductibleNote": "No descontable (costo): {amount}"
   },
   "tipReturns": {
     "collected": "Propinas cobradas",

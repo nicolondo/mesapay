@@ -11,6 +11,7 @@ import { computeMonthPnl, computeTaxSummary } from "../src/lib/erp/accountingDat
 import { generateJournalForMonth } from "../src/lib/erp/posting";
 import { loadPayablesDocs } from "../src/lib/erp/reports/carteraQueries";
 import { loadTaxesReport } from "../src/lib/erp/reports/taxesReport";
+import { auxRowsForNode, clearTaxesDrillCache, loadTaxesDrillBase, taxChecks } from "../src/lib/erp/reports/taxesDrillReport";
 import { loadExogenaInputs } from "../src/lib/erp/exogena/queries";
 import { buildExogenaReport } from "../src/lib/erp/exogena/sources";
 import { loadRetentionConcepts } from "../src/lib/erp/retenciones";
@@ -191,6 +192,22 @@ describe("gastos con impuestos (PostgreSQL)", () => {
       expect.objectContaining({ kind: "inc", taxCents: 1_600_000 }),
     ]);
     expect(report.cross.find((r) => r.key === "retefuente")).toMatchObject({ referenceCents: 4_000_000, bookCents: 4_000_000, differenceCents: 0 });
+    // Despliegue de «Impuestos del período»: el origen «gastos» cuadra contra el libro.
+    clearTaxesDrillCache();
+    const drill = await loadTaxesDrillBase(restaurantId, { desde: "2026-10-01", hasta: "2026-10-31" });
+    const ivaTax = drill.drill.taxes.find((t) => t.key === "iva")!;
+    expect(ivaTax.docNodes.find((n) => n.id === "iva-gastos-19")).toMatchObject({ count: 1, taxCents: -19_000_000 });
+    expect(ivaTax).toMatchObject({ docCents: -19_000_000, bookCents: -19_000_000, diffCents: 0 });
+    const rete = drill.drill.taxes.find((t) => t.key === "retefuente")!;
+    expect(rete).toMatchObject({ docCents: 4_000_000, bookCents: 4_000_000, diffCents: 0 });
+    const aux = auxRowsForNode(drill, rete.docNodes[0]!.id)!;
+    expect(aux.rows[0]).toMatchObject({ docKind: "expense", document: "FE-901", conceptName: expect.stringContaining("Servicios") });
+    expect(aux.rows[0]!.entryId).toBeTruthy();
+    // Revisiones: el comercio de prueba descuenta IVA pero no factura con IVA
+    // (régimen sin impuesto de ventas): el IVA descontable del gasto se marca.
+    const ivaCheck = taxChecks(drill).find((c) => c.key === "ivaNoDescontable")!;
+    expect(ivaCheck).toMatchObject({ count: 1, params: { reason: "regime" } });
+    expect(ivaCheck.rows[0]).toMatchObject({ docKind: "expense", amountCents: 19_000_000 });
     const exo = buildExogenaReport(await loadExogenaInputs(restaurantId, 2026));
     expect(exo.formats["1005"]).toEqual([expect.objectContaining({ vimpCents: 19_000_000 })]);
     expect(exo.formats["1001"]).toEqual([expect.objectContaining({ pagoCents: 100_000_000, idedCents: 19_000_000, retpCents: 4_000_000, retaCents: 2_850_000 })]);

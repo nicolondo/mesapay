@@ -34,7 +34,8 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
-import { formatInvoiceNumber, frozenSalesTax, type InvoiceSnapshot } from "@/lib/invoice";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { saleTaxOfSnapshot } from "./saleTaxSnapshot";
 import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
 import {
   acceptedCreditNoteWhere,
@@ -111,12 +112,10 @@ export async function loadSaleTaxDocs(
   });
   return rows.map((r) => {
     const snap = r.snapshot as unknown as InvoiceSnapshot;
-    const frozen = frozenSalesTax(snap);
-    const taxCents = frozen.kind === "none" ? 0 : (snap.embeddedTaxCents ?? 0);
-    // Base del tramo como en `computeTaxSummary`: lo congelado, o para los
-    // snapshots viejos el subtotal entero menos el impuesto.
-    const baseCents =
-      snap.embeddedBaseCents != null ? snap.embeddedBaseCents : snap.subtotalCents - taxCents;
+    // Tarifa congelada, impuesto y base: una sola definición, compartida
+    // con la tendencia del despliegue (`saleTaxSnapshot.ts`).
+    const frozen = saleTaxOfSnapshot(snap);
+    const { taxCents, baseCents } = frozen;
     const customer = saleCustomer(snap, r.order.invoiceRequests[0]);
     return {
       invoiceId: r.id,

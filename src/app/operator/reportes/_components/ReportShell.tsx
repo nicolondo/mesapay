@@ -76,6 +76,10 @@ export async function ReportShell({
   body * { visibility: hidden; }
   .report-print, .report-print * { visibility: visible; }
   .report-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; margin: 0; }
+  /* El panel del espacio de trabajo es «relative»: sin esto el reporte
+     absoluto tomaba su ancho (hoja menos la barra lateral, que sigue
+     ocupando lugar aunque esté oculta) y salía en una columna angosta. */
+  .mp-workspace-main { position: static !important; overflow: visible !important; }
   .report-print, .report-print * {
     color: #000 !important;
     background: transparent !important;
@@ -86,6 +90,14 @@ export async function ReportShell({
   .report-print-header { display: block !important; }
   .report-print tr.report-row-hidden { display: table-row !important; }
   .report-print table { font-size: 10pt; }
+  /* En papel la tabla se ajusta a la hoja: el ancho mínimo es para el
+     desplazamiento en pantalla, y en la hoja cortaba las últimas columnas. */
+  .report-print table { min-width: 0 !important; }
+  /* Auxiliares desplegados (AuxiliariesPanel): menos relleno y la fecha
+     puede partirse, para que las siete columnas quepan en la hoja. */
+  .report-print .aux-table th, .report-print .aux-table td { padding-left: 4px !important; padding-right: 4px !important; }
+  .report-print .aux-table .aux-date { white-space: normal !important; }
+  .report-print .drill-panel { padding-left: 0 !important; }
   .report-print thead { display: table-header-group; }
   .report-print tr { break-inside: avoid; }
   /* Vista móvil (workspace.css «Reportes contables»): en papel manda la

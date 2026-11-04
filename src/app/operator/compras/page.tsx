@@ -17,7 +17,11 @@ export const dynamic = "force-dynamic";
  * `purchasing` activado — mismo gate que la API de purchase-orders;
  * apagado, la página no existe (notFound) y el item de nav tampoco.
  */
-export default async function ComprasPage() {
+export default async function ComprasPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("opErp");
   const tSettings = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
@@ -58,6 +62,15 @@ export default async function ComprasPage() {
     select: { id: true, name: true },
   });
 
+  // `?oc=<id>` (enlace desde Reportes › Impuestos): abre el detalle de esa
+  // orden si es de este comercio; si no, se ignora.
+  const ocParam = (await searchParams).oc;
+  const oc = Array.isArray(ocParam) ? ocParam[0] : ocParam;
+  const initialDetailId =
+    oc && /^[a-z0-9]{10,40}$/i.test(oc)
+      ? ((await db.purchaseOrder.findFirst({ where: { id: oc, restaurantId }, select: { id: true } }))?.id ?? null)
+      : null;
+
   // Moneda = país del comercio; el locale solo define idioma/formato
   // (regla idioma ≠ moneda de @/lib/format).
   const currency = await getCurrencyForCountry(tenant.country);
@@ -72,6 +85,7 @@ export default async function ComprasPage() {
         initialCursor={nextCursor}
         suppliers={suppliers}
         currency={currency}
+        initialDetailId={initialDetailId}
       />
     </div>
   );

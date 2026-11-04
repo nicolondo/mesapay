@@ -15,6 +15,7 @@ import { currentMonthPeriod, todayIso } from "@/lib/erp/reports/period";
 import { loadSealedCommissions } from "@/lib/erp/reports/waiterCommissionQueries";
 import { buildCommissionReport } from "@/lib/waiterCommissions";
 import { YoClient } from "./YoClient";
+import { loadTipReturns, tipReturnLines, type TipReturnLine } from "@/lib/creditNoteTipReturns";
 import { MisMesasClient, type MesaPick } from "./MisMesasClient";
 import { MisComisionesClient, type MisComisionesData } from "./MisComisionesClient";
 
@@ -65,6 +66,7 @@ export default async function YoPage() {
     sinceIso: string;
     tipsCents: number | null;
     tipsRawCents: number;
+    tipReturns: TipReturnLine[];
     salesCents: number;
     paymentCount: number;
     tableCount: number;
@@ -105,10 +107,17 @@ export default async function YoPage() {
     const tableSet = new Set<string>();
     for (const p of payments)
       if (p.order?.tableId) tableSet.add(p.order.tableId);
+    // Propinas devueltas por anulación en la ventana: con propinas por
+    // mesero, su parte baja lo que se le debe (ver lib/creditNoteTipReturns).
+    const tipReturns =
+      tipPolicy === "by_waiter"
+        ? tipReturnLines(await loadTipReturns(user.restaurantId, { from: since, to: null }), user.id)
+        : [];
     initialStats = {
       sinceIso: since.toISOString(),
       tipsCents: tipPolicy === "by_waiter" ? tipsCentsRaw : null,
       tipsRawCents: tipsCentsRaw,
+      tipReturns,
       salesCents: payments.reduce(
         (s, p) => s + (p.amountCents - p.tipCents),
         0,

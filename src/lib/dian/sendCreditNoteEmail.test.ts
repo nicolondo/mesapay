@@ -29,6 +29,20 @@ describe('credit-note recipient email', () => {
     expect(args.idempotencyKey).toContain('credit-note/');
     expect(mocks.update.mock.calls[0][0].where).toMatchObject({ restaurantId: 'tenant', state: 'accepted', emailedAt: null });
   });
+  it('annulment with tip: adds an informative tip line, never inside the fiscal attachments', async () => {
+    mocks.load.mockResolvedValue({ ...note, totalCents: 61_830_000, tipRefundCents: 6_183_000 });
+    await sendDianCreditNoteEmail('nc', 'tenant');
+    const args = mocks.send.mock.calls[0][0];
+    expect(args.text).toMatch(/Propina devuelta: \$\s?61\.830,00 \(no hace parte de la nota crédito electrónica\)/);
+    expect(args.text).toMatch(/Total acreditado: \$\s?618\.300,00/);
+    // El PDF y el XML se generan de la nota, sin la propina.
+    expect(mocks.pdf).toHaveBeenCalledWith(expect.objectContaining({ totalCents: 61_830_000 }));
+  });
+  it('no tip line for partial notes (or notes without tip)', async () => {
+    mocks.load.mockResolvedValue({ ...note, tipRefundCents: 0 });
+    await sendDianCreditNoteEmail('nc', 'tenant');
+    expect(mocks.send.mock.calls[0][0].text).not.toContain('Propina');
+  });
   it('does not send twice when the claim is lost', async () => {
     mocks.update.mockResolvedValue({ count: 0 });
     expect(await sendDianCreditNoteEmail('nc', 'tenant')).toMatchObject({ ok: false, reason: 'already_emailed' });

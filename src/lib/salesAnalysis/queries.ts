@@ -226,6 +226,8 @@ export async function loadReturnRows(
     taxCents: true,
     totalCents: true,
     receivableCents: true,
+    tipRefundCents: true,
+    tipReceivableCents: true,
     createdAt: true,
     dianDocument: { select: { issuedAt: true } },
     originalInvoice: { select: { orderId: true } },
@@ -279,6 +281,8 @@ export async function loadReturnRows(
       taxCents: n.taxCents,
       totalCents: n.totalCents,
       receivableCents: n.receivableCents,
+      tipRefundCents: n.tipRefundCents,
+      tipReceivableCents: n.tipReceivableCents,
       inRange: inRange(instant(n)),
     })),
     refunds: allRefunds.map((r) => ({

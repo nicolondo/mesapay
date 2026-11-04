@@ -4080,6 +4080,7 @@
     "paymentsCount": "{count, plural, one {# pago} other {# pagos}}",
     "drawer": "Caja {sign}{amount}",
     "tipSuffix": "+ {amount} propina",
+    "tipReturnedSuffix": "− {amount} propina devuelta",
     "loadMore": "Cargar más",
     "durationDash": "—",
     "durationHm": "{h}h {m}m",
@@ -8557,6 +8558,19 @@
     "adjustTitle": "Ajustar factura {number}",
     "available": "Saldo disponible para ajustar: {amount}",
     "separateRefund": "La nota ajusta la factura. La devolución del dinero se gestiona por separado.",
+    "chargeTitle": "Lo cobrado en esta cuenta",
+    "chargeInvoice": "Factura electrónica",
+    "chargeTip": "Propina (no va en la factura electrónica)",
+    "chargeCharged": "Cobrado",
+    "tipAnnulmentHint": "Con la anulación (motivo 2) también se le devuelve al cliente la propina de {amount}. Una nota parcial no toca la propina.",
+    "reviewCreditNote": "Nota crédito",
+    "reviewTipReturned": "+ Propina devuelta",
+    "reviewRefundTotal": "Total a devolver al cliente",
+    "tipReturnExplain": "La propina se le devuelve al cliente con la anulación, pero no hace parte de la nota crédito electrónica: la DIAN solo recibe la comida y sus impuestos. En las propinas del equipo sale como «Propina devuelta por anulación».",
+    "tipNotAffected": "Es una nota parcial: la propina de la cuenta ({amount}) no cambia.",
+    "detailTipReturned": "Propina devuelta: {amount} (no hace parte de la nota crédito electrónica)",
+    "detailRefundTotal": "Total a devolver al cliente: {amount}",
+    "listTipReturned": "+ propina devuelta {amount}",
     "mode": "Tipo de ajuste",
     "mode_total": "Todo el saldo disponible",
     "mode_total_hint": "Incluye el saldo que todavía no está reservado por otras notas crédito.",
@@ -8728,6 +8742,7 @@
     "intro": "Adjuntamos tu nota crédito electrónica validada por la DIAN.",
     "reference": "Factura original: {number}",
     "total": "Total acreditado: {amount}",
+    "tipRefund": "Propina devuelta: {amount} (no hace parte de la nota crédito electrónica)",
     "open": "Consultar nota crédito",
     "attachments": "Adjuntamos la representación en PDF y el contenedor XML con la respuesta de la DIAN."
   },
@@ -9424,5 +9439,14 @@
     "expandAll": "Desplegar todo",
     "collapseAll": "Plegar todo",
     "dayOrigin": "{source} · {tax}"
+  },
+  "tipReturns": {
+    "collected": "Propinas cobradas",
+    "line": "Propina devuelta por anulación ({number})",
+    "net": "Propinas netas del equipo",
+    "negative": "Quedan en negativo: la propina devuelta ya se le había entregado al equipo. La diferencia es plata que el equipo recibió de más.",
+    "explain": "Anular una factura con nota crédito le devuelve la propina al cliente. Se resta el día de la nota; el turno de la cuenta original no cambia.",
+    "waiterReturned": "−{amount} devuelta",
+    "statHint": "Cobradas {collected} · devueltas {returned}"
   }
 }

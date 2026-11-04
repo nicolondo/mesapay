@@ -37,6 +37,7 @@ import { embeddedTaxCents } from "@/lib/erp/accounting";
 import type { RestaurantTax } from "@/lib/salesTax";
 import {
   matchOrderNotesAndRefunds,
+  noteAvailableCents,
   refundLinkedCents,
   type OrderNoteEvent,
   type OrderRefundEvent,
@@ -316,6 +317,13 @@ export type CreditNoteRow = {
   totalCents: number;
   /** Parte que canceló cartera de crédito (null = aún no contabilizada). */
   receivableCents: number | null;
+  /**
+   * Propina devuelta con la anulación y su parte de cartera (null = sin
+   * contabilizar). No es venta: sólo sirve para que el reembolso de la
+   * propina no cuente como devolución sin nota.
+   */
+  tipRefundCents?: number | null;
+  tipReceivableCents?: number | null;
   /** ¿Cae en el período? (las demás sólo sirven para el cruce). */
   inRange: boolean;
 };
@@ -348,7 +356,7 @@ export function summarizeReturns(
     return b;
   };
   for (const n of notes) {
-    bucket(n.orderId).notes.push({ id: n.id, at: n.at, availableCents: n.totalCents - (n.receivableCents ?? 0) });
+    bucket(n.orderId).notes.push({ id: n.id, at: n.at, availableCents: noteAvailableCents(n) });
   }
   for (const r of refunds) {
     if (r.orderId) bucket(r.orderId).refunds.push({ id: r.id, at: r.at, amountCents: r.amountCents });

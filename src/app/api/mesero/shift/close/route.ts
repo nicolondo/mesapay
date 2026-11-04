@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { loadTipReturns, tipReturnLines } from "@/lib/creditNoteTipReturns";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -78,6 +79,11 @@ async function POSTHandler(req: Request) {
   const tableSet = new Set<string>();
   for (const p of payments) if (p.order?.tableId) tableSet.add(p.order.tableId);
   const durationMs = now.getTime() - shift.openedAt.getTime();
+  // Su parte de las propinas devueltas por anulación durante el turno.
+  const tipReturns = tipReturnLines(
+    await loadTipReturns(shift.restaurantId, { from: shift.openedAt, to: now }),
+    userId,
+  );
 
   await db.shift.update({
     where: { id: shift.id },
@@ -100,6 +106,7 @@ async function POSTHandler(req: Request) {
       closedAtIso: now.toISOString(),
       durationMs,
       tipsCents,
+      tipReturns,
       salesCents,
       paymentCount: payments.length,
       tableCount: tableSet.size,

@@ -4379,7 +4379,8 @@
     "recoverChanged": "Esta fatura mudou de status. Recarregue a página.",
     "recoverError": "A DIAN não respondeu. É tentado de novo automaticamente.",
     "recoverRateLimited": "Espere um minuto antes de tentar de novo.",
-    "recoverFailed": "Não deu certo. Tente de novo."
+    "recoverFailed": "Não deu certo. Tente de novo.",
+    "recoverCheckBlocked": "Não foi possível consultar: {reason}."
   },
   "opWallet": {
     "noRestaurant": "Sem restaurante.",

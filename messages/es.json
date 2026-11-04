@@ -4379,7 +4379,8 @@
     "recoverChanged": "Esta factura cambió de estado. Recarga la página.",
     "recoverError": "La DIAN no respondió. Se reintenta sola.",
     "recoverRateLimited": "Espera un minuto antes de volver a intentar.",
-    "recoverFailed": "No se pudo. Intenta de nuevo."
+    "recoverFailed": "No se pudo. Intenta de nuevo.",
+    "recoverCheckBlocked": "No se pudo consultar: {reason}."
   },
   "opWallet": {
     "noRestaurant": "Sin restaurante.",

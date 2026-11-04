@@ -107,7 +107,12 @@ export function DianRecoveryButton({
           text: r.reason ? t("recoverRejected", { reason: r.reason }) : t("recoverRejectedNoReason"),
         };
       case "blocked":
-        return { ok: false, text: t("retryBlocked", { reason: blockReasonText(r.reason ?? "", tf) }) };
+        return {
+          ok: false,
+          text: t(resend ? "retryBlocked" : "recoverCheckBlocked", {
+            reason: blockReasonText(r.reason ?? "", tf),
+          }),
+        };
       case "already":
         return { ok: false, text: t("recoverAlready") };
       case "not_applicable":

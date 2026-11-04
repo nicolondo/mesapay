@@ -4379,7 +4379,8 @@
     "recoverChanged": "This invoice changed status. Reload the page.",
     "recoverError": "DIAN did not answer. It retries automatically.",
     "recoverRateLimited": "Wait a minute before trying again.",
-    "recoverFailed": "It did not work. Try again."
+    "recoverFailed": "It did not work. Try again.",
+    "recoverCheckBlocked": "Could not check: {reason}."
   },
   "opWallet": {
     "noRestaurant": "No restaurant.",

@@ -186,6 +186,22 @@ function pick(obj: unknown, keys: string[]): string | undefined {
 }
 
 /**
+ * Monto que se manda en `amount.subtotal_iva0`.
+ *
+ * PRODUCCIÓN: unidad mínima de la moneda, que en COP es el peso entero
+ * (Kushki ONE, «Formato de montos»: 12.000 COP se manda 12000; «si agregas 00
+ * al final de un monto en COP, cobrarás 100 veces más»). Mandar los
+ * centavos tal cual llevó $91.850 al datáfono de Son y Melona como
+ * $9.185.000 (2026-11-04).
+ *
+ * UAT: el ambiente de pruebas sí divide por 100 (2026-06-02: 43890 cobró
+ * $438,90; 2026-08-05: 110000 autorizó 1100), así que ahí van los centavos.
+ */
+export function cloudTerminalAmount(amountCents: number, mode: KushkiMode): number {
+  return mode === "production" ? Math.round(amountCents) / 100 : Math.round(amountCents);
+}
+
+/**
  * Cobra SÍNCRONO en el datáfono. Devuelve el resultado final; el caller
  * settlea con eso.
  */
@@ -194,10 +210,7 @@ export async function pushPaymentToCloudTerminal(
 ): Promise<CloudTerminalChargeResult> {
   const businessCode = resolveBusinessCode(args.businessCode);
   const serial = args.serialNumber;
-  // El Cloud Terminal interpreta el monto en MINOR UNITS (centavos): cobra
-  // value/100. amountCents YA está en centavos ($43.890 = 4.389.000), así
-  // que se manda TAL CUAL (no dividir por 100, o cobraría $438,90).
-  const amountMinor = Math.round(args.amountCents);
+  const amountMinor = cloudTerminalAmount(args.amountCents, args.mode ?? getKushkiModeSync());
   const clientTxnId = randomUUID(); // idempotency key (UUID v4)
   const payload: Record<string, unknown> = {
     amount: {
@@ -300,6 +313,25 @@ export async function pushPaymentToCloudTerminal(
   // process"}) y SIN approved/transaction_status. Nunca asumir aprobado.
   const approvedOk =
     res.ok && (obj.approved === true || txStatus === "APPROVAL");
+  // El banco autorizó OTRO monto (`authorized_amount` viene en pesos, en
+  // UAT y en producción): no se salda la cuenta. Queda incierto para que
+  // alguien lo concilie contra el comprobante del datáfono.
+  const authorized = rawResp?.authorized_amount;
+  const expectedPesos = Math.round(args.amountCents) / 100;
+  if (approvedOk && typeof authorized === "number" && authorized !== expectedPesos) {
+    console.error("[kushki/cloud-terminal] monto autorizado distinto al de la cuenta", {
+      reference: args.reference,
+      authorized,
+      expectedPesos,
+    });
+    return {
+      status: "error",
+      providerRef,
+      message: `authorized_amount_mismatch: ${authorized} != ${expectedPesos}`,
+      httpStatus: res.status,
+      raw: json,
+    };
+  }
   if (approvedOk) {
     return {
       status: "approved",

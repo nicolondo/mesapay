@@ -7,6 +7,7 @@ import type { Locale } from "@/i18n/config";
 import { formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { waLink } from "@/lib/crm/phone";
+import { supplierMatchTier } from "@/lib/suppliers/supplierSearch";
 import {
   BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
@@ -82,8 +83,12 @@ export function ProveedoresClient({
   const filtered = useMemo(() => {
     const needle = fold(q.trim());
     if (!needle) return items;
-    return items.filter((s) =>
-      fold(`${s.name} ${s.contactName ?? ""}`).includes(needle),
+    // Nombre y NIT (con o sin DV) con la misma búsqueda del autocompletado
+    // de proveedor; el contacto, por "contiene".
+    return items.filter(
+      (s) =>
+        supplierMatchTier(s, q) !== null ||
+        fold(s.contactName ?? "").includes(needle),
     );
   }, [items, q]);
 

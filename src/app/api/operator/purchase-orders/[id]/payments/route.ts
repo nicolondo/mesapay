@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { loadAccountMap } from "@/lib/erp/ledger";
 import { isMoneyAccountCode } from "@/lib/erp/paymentAccounts";
-import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, PURCHASE_ORDER_TAX_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -76,10 +76,7 @@ async function POSTHandler(
           restaurantId: true,
           status: true,
           paidCents: true,
-          incCents: true,
-          retefuenteCents: true,
-          reteIvaCents: true,
-          reteIcaCents: true,
+          ...PURCHASE_ORDER_TAX_SELECT,
           items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
         },
       });

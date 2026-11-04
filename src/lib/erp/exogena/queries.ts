@@ -39,6 +39,7 @@ import { centsToNumber } from "../ledgerCents";
 import {
   PURCHASE_IN_MOVEMENTS_SELECT,
   PURCHASE_LINE_AMOUNTS_SELECT,
+  PURCHASE_ORDER_TAX_SELECT,
   purchaseOrderTotals,
   RECEIVED_VAT_LINE_SELECT,
   receivedNonDeductibleTaxByLine,
@@ -377,10 +378,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         },
         select: {
           supplier: { select: supplierSelect },
-          incCents: true,
-          retefuenteCents: true,
-          reteIvaCents: true,
-          reteIcaCents: true,
+          ...PURCHASE_ORDER_TAX_SELECT,
           items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
           payments: { where: { paidAt: { lt: to } }, select: { amountCents: true } },
         },

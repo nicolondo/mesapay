@@ -15,22 +15,33 @@ export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["purchasing"];
 
+const cents = z.number().int().min(0).max(2_000_000_000);
+
 const schema = z.object({
   lines: z
     .array(
       z.object({
         itemId: z.string().min(1),
         qtyBase: z.number().int().min(1).max(2_000_000_000),
-        costCents: z.number().int().min(0).max(2_000_000_000),
+        costCents: cents,
+        // Impuesto según la factura, si cambia el de la orden (solo en una
+        // línea sin nada recibido): tarifa de IVA y consumo de esta entrega.
+        taxPct: z.number().int().min(0).max(100).nullish(),
+        incCents: cents.nullish(),
       }),
     )
     .min(1)
     .max(200),
+  // Retenciones que el comercio practica sobre la factura de esta entrega.
+  retefuenteCents: cents.optional(),
+  reteIvaCents: cents.optional(),
+  reteIcaCents: cents.optional(),
 });
 
 /** POST /api/operator/purchase-orders/[id]/receive — recepción total o
  *  parcial. Genera purchase_in en el libro, actualiza costos y precios del
- *  proveedor, y recalcula el estado (spec D3/D4). */
+ *  proveedor, y recalcula el estado (spec D3/D4). Con la factura de la
+ *  entrega: impuesto por línea (IVA y/o consumo) y retenciones. */
 async function POSTHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -60,6 +71,11 @@ async function POSTHandler(
           purchaseOrderId: id,
           lines: parsed.data.lines,
           ivaDeductible: rest?.purchaseIvaDeductible ?? false,
+          retentions: {
+            retefuenteCents: parsed.data.retefuenteCents ?? 0,
+            reteIvaCents: parsed.data.reteIvaCents ?? 0,
+            reteIcaCents: parsed.data.reteIcaCents ?? 0,
+          },
           createdById: session?.user?.id ?? null,
         }),
       // Recepciones grandes (muchas líneas) — margen holgado.

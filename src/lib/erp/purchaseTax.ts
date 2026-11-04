@@ -61,7 +61,7 @@ export type PurchaseLineAmountsInput = {
 };
 
 /** Prorrateo exacto de centavos positivos, con redondeo al entero más cercano. */
-function proportionalCents(amount: number, part: number, whole: number): number {
+export function proportionalCents(amount: number, part: number, whole: number): number {
   if (amount === 0 || part <= 0 || whole <= 0) return 0;
   const denominator = BigInt(whole);
   return Number((BigInt(amount) * BigInt(part) + denominator / BigInt(2)) / denominator);
@@ -227,8 +227,28 @@ export const PURCHASE_LINE_AMOUNTS_SELECT = {
 } as const;
 
 export type PurchaseOrderAmountsInput = Partial<InvoiceTaxExtras> & {
+  /**
+   * Parte de las retenciones practicada AL RECIBIR (compras manuales): ya
+   * está sumada en retefuente/reteIva/reteIca y cuenta completa, sin seguir
+   * el avance de la recepción. Ausente = 0 (todas siguen el avance).
+   */
+  receptionRetentionCents?: number;
   items: readonly PurchaseLineAmountsInput[];
 };
+
+/**
+ * Impuestos de cabecera que `purchaseOrderTotals` necesita además de las
+ * líneas. Seleccionarlos JUNTOS: sin `receptionRetentionCents`, una compra
+ * recibida por partes con retenciones practicadas al recibir mostraría un
+ * saldo por pagar de más.
+ */
+export const PURCHASE_ORDER_TAX_SELECT = {
+  incCents: true,
+  retefuenteCents: true,
+  reteIvaCents: true,
+  reteIcaCents: true,
+  receptionRetentionCents: true,
+} as const;
 
 /**
  * Total de la OC/factura. incCents de cabecera YA incluye el consumo de
@@ -236,6 +256,8 @@ export type PurchaseOrderAmountsInput = Partial<InvoiceTaxExtras> & {
  * línea. Retenciones se descuentan una vez. En recepción parcial los
  * extras de cabecera siguen el avance de cantidades, ponderado al neto
  * esperado; una variación del precio real no cobra extras no recibidos.
+ * Las retenciones practicadas en las recepciones (`receptionRetentionCents`)
+ * ya son sobre lo recibido: cuentan completas.
  */
 export function purchaseOrderTotals(
   order: PurchaseOrderAmountsInput,
@@ -266,7 +288,9 @@ export function purchaseOrderTotals(
   }
   const extra = (amount: number) => basis === "expected" ? amount : proportionalCents(amount, part, whole);
   const incCents = lines.reduce((s, line) => s + line.incCents, 0) + extra(unallocatedInc);
-  const retention = extra((order.retefuenteCents ?? 0) + (order.reteIvaCents ?? 0) + (order.reteIcaCents ?? 0));
+  const allRetentions = (order.retefuenteCents ?? 0) + (order.reteIvaCents ?? 0) + (order.reteIcaCents ?? 0);
+  const atReception = Math.min(allRetentions, Math.max(0, order.receptionRetentionCents ?? 0));
+  const retention = extra(allRetentions - atReception) + atReception;
   return { subtotalCents, taxCents, incCents, retentionsCents: retention, totalCents: subtotalCents + taxCents + incCents - retention };
 }
 

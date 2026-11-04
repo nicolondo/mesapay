@@ -419,7 +419,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "ordenes-de-compra",
       title: "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       covers:
-        "\"Nueva orden\" (de la lista de precios o sin presentación, IVA, descuentos por línea y sobre el total), \"Sugerir por reorden\" (requiere Inventario y proveedor preferido), estados, \"Enviar por WhatsApp\" / \"Imprimir\" / \"Marcar enviada\", \"Anular orden\", \"Recibir mercancía\" (parcial, con descuento de la factura por línea y sobre el total), \"Por pagar\", \"Registrar pago\" (\"Se pagó desde\"), \"Pagar saldo\" y \"Editar factura\".",
+        "\"Nueva orden\" (de la lista de precios o sin presentación, \"Impuesto\" por línea: IVA, impuesto al consumo en % o valor, o los dos; descuentos por línea y sobre el total; \"Ya recibí esta mercancía\" con factura, vencimiento y retenciones), \"Sugerir por reorden\" (requiere Inventario y proveedor preferido), estados, \"Enviar por WhatsApp\" / \"Imprimir\" / \"Marcar enviada\", \"Anular orden\", \"Recibir mercancía\" (parcial, con descuento de la factura por línea y sobre el total, impuesto de la factura en la primera entrega de la línea), \"Impuestos y retenciones\" (sugeridas con los conceptos activos y el umbral UVT, editables, por entrega), \"Por pagar\", \"Registrar pago\" (\"Se pagó desde\"), \"Pagar saldo\" y \"Editar factura\".",
     },
     {
       slug: "cargar-facturas-de-compra",

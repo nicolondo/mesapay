@@ -2280,6 +2280,12 @@ model PurchaseOrder {
   retefuenteCents Int @default(0) // Retención en la fuente
   reteIvaCents    Int @default(0) // Retención de IVA
   reteIcaCents    Int @default(0) // Retención de ICA
+  /// Parte de las tres retenciones de arriba practicada AL RECIBIR (compras
+  /// manuales: cada entrega, sobre lo recibido). Ya está sumada en ellas. A
+  /// diferencia del resto —las de una factura importada como borrador, que
+  /// siguen el avance de la recepción— cuenta completa en la cuenta por pagar
+  /// desde la entrega en que se practicó. Ver `purchaseOrderTotals`.
+  receptionRetentionCents Int @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)

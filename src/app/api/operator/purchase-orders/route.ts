@@ -6,8 +6,10 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import {
   createPurchaseOrder,
+  receivePurchaseOrder,
   PurchasingError,
 } from "@/lib/erp/purchasing";
+import { StockError } from "@/lib/erp/stock";
 import type { ModuleSlug } from "@/lib/modules";
 import type { PurchaseOrderStatus } from "@prisma/client";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
@@ -39,6 +41,8 @@ const lineSchema = z.object({
   discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
 });
 
+const cents = z.number().int().min(0).max(2_000_000_000).optional();
+
 const createSchema = z.object({
   supplierId: z.string().min(1),
   lines: z.array(lineSchema).min(1).max(200),
@@ -47,6 +51,17 @@ const createSchema = z.object({
   discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
   notes: z.string().trim().max(1000).nullable().optional(),
   expectedAt: z.string().datetime().nullable().optional(),
+  // «Ya recibí esta mercancía»: la compra se registra recibida completa, con
+  // la factura del proveedor y las retenciones que el comercio le practica.
+  receive: z
+    .object({
+      supplierInvoiceNumber: z.string().trim().max(80).nullable().optional(),
+      invoiceDueAt: z.string().datetime().nullable().optional(),
+      retefuenteCents: cents,
+      reteIvaCents: cents,
+      reteIcaCents: cents,
+    })
+    .optional(),
 });
 
 function purchasingErrorResponse(err: PurchasingError) {
@@ -117,23 +132,64 @@ async function POSTHandler(req: Request) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const b = parsed.data;
+  const receive = b.receive;
+  // Ajuste del comercio para la recepción: inventario al neto o al bruto.
+  const rest = receive
+    ? await db.restaurant.findUnique({
+        where: { id: ctx.restaurantId },
+        select: { purchaseIvaDeductible: true },
+      })
+    : null;
 
   try {
-    const order = await db.$transaction((tx) =>
-      createPurchaseOrder(tx, {
-        restaurantId: ctx.restaurantId,
-        supplierId: b.supplierId,
-        lines: b.lines,
-        discountPct: b.discountPct,
-        discountCents: b.discountCents,
-        notes: b.notes ?? null,
-        expectedAt: b.expectedAt ? new Date(b.expectedAt) : null,
-        createdById: session?.user?.id ?? null,
-      }),
+    const order = await db.$transaction(
+      async (tx) => {
+        const created = await createPurchaseOrder(tx, {
+          restaurantId: ctx.restaurantId,
+          supplierId: b.supplierId,
+          lines: b.lines,
+          discountPct: b.discountPct,
+          discountCents: b.discountCents,
+          notes: b.notes ?? null,
+          expectedAt: b.expectedAt ? new Date(b.expectedAt) : null,
+          createdById: session?.user?.id ?? null,
+        });
+        if (!receive) return created;
+        // Recibida completa, a lo pedido y al costo de la orden (que ES la
+        // factura): mismo camino que «Recibir mercancía», con sus retenciones.
+        await receivePurchaseOrder(tx, {
+          restaurantId: ctx.restaurantId,
+          purchaseOrderId: created.id,
+          lines: created.items.map((it) => ({
+            itemId: it.id,
+            qtyBase: it.qtyOrderedBase,
+            costCents: it.expectedCostCents,
+          })),
+          ivaDeductible: rest?.purchaseIvaDeductible ?? false,
+          retentions: {
+            retefuenteCents: receive.retefuenteCents ?? 0,
+            reteIvaCents: receive.reteIvaCents ?? 0,
+            reteIcaCents: receive.reteIcaCents ?? 0,
+          },
+          createdById: session?.user?.id ?? null,
+        });
+        return tx.purchaseOrder.update({
+          where: { id: created.id },
+          data: {
+            supplierInvoiceNumber: receive.supplierInvoiceNumber || null,
+            ...(receive.invoiceDueAt ? { invoiceDueAt: new Date(receive.invoiceDueAt) } : {}),
+          },
+        });
+      },
+      // Compras grandes (muchas líneas) — margen holgado, como la recepción.
+      { timeout: 30_000 },
     );
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
     if (err instanceof PurchasingError) return purchasingErrorResponse(err);
+    if (err instanceof StockError) {
+      return NextResponse.json({ error: err.code }, { status: 400 });
+    }
     throw err;
   }
 }

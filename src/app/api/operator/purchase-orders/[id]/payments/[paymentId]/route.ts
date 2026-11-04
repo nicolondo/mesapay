@@ -2,7 +2,7 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, PURCHASE_ORDER_TAX_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +39,7 @@ async function DELETEHandler(
       where: { id },
       select: {
         paidCents: true,
-        incCents: true,
-        retefuenteCents: true,
-        reteIvaCents: true,
-        reteIcaCents: true,
+        ...PURCHASE_ORDER_TAX_SELECT,
         items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
       },
     });

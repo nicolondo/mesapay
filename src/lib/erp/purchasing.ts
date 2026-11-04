@@ -2,6 +2,12 @@ import type { Prisma, PurchaseOrderStatus } from "@prisma/client";
 import { applyStockMovement } from "@/lib/erp/stock";
 import { normalizeTaxPct, PURCHASE_LINE_AMOUNTS_SELECT, purchaseLineAmounts, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
 import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
+import { lineTaxEditable, PURCHASE_MAX_CENTS, receptionLineTax } from "@/lib/erp/purchaseLineTax";
+import {
+  purchaseRetentionError,
+  retentionTotalCents,
+  type PurchaseRetentionTotals,
+} from "@/lib/erp/purchaseRetentions";
 
 // Lógica central de compras (ERP Fase A2).
 //
@@ -22,7 +28,13 @@ export class PurchasingError extends Error {
       | "line_invalid"
       | "po_not_found"
       | "wrong_status"
-      | "nothing_to_receive",
+      | "nothing_to_receive"
+      // Retenciones de la factura (recepción): una supera su base / entre
+      // todas superan el total de la entrega.
+      | "retention_exceeds_base"
+      | "retention_exceeds_total"
+      // El impuesto de una línea ya se fijó con su primera entrega.
+      | "line_tax_locked",
   ) {
     super(code);
   }
@@ -258,7 +270,17 @@ export type ReceiveLine = {
   qtyBase: number;
   /** Costo REAL total de lo recibido en esta línea, en centavos. */
   costCents: number;
+  /**
+   * Impuesto de la línea según la factura, si cambia el de la orden: tarifa
+   * de IVA y consumo de ESTA entrega (centavos). Solo en una línea sin nada
+   * recibido — después el impuesto queda fijo (las recepciones parciales se
+   * reparten con el mismo impuesto documental). Ausente = el de la orden.
+   */
+  taxPct?: number | null;
+  incCents?: number | null;
 };
+
+const EMPTY_RETENTIONS: PurchaseRetentionTotals = { retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0 };
 
 /**
  * Recepción (total o parcial) de una OC. Por cada línea: purchase_in vía
@@ -274,15 +296,24 @@ export async function receivePurchaseOrder(
     lines: ReceiveLine[];
     /** ¿IVA descontable? Decide si el inventario se valora al neto o al bruto. */
     ivaDeductible?: boolean;
+    /**
+     * Retenciones que el comercio practica sobre la factura de ESTA entrega.
+     * Se validan contra lo recibido (ver purchaseRetentions.ts) y se SUMAN a
+     * las de la compra.
+     */
+    retentions?: PurchaseRetentionTotals | null;
     createdById?: string | null;
   },
 ) {
   const { restaurantId, purchaseOrderId, lines } = args;
   const ivaDeductible = args.ivaDeductible ?? false;
+  const retentions = args.retentions ?? EMPTY_RETENTIONS;
   if (!lines.length) throw new PurchasingError("nothing_to_receive");
   if (new Set(lines.map((line) => line.itemId)).size !== lines.length) {
     throw new PurchasingError("line_invalid");
   }
+  const isCents = (n: number | null | undefined) =>
+    n == null || (Number.isInteger(n) && n >= 0 && n <= PURCHASE_MAX_CENTS);
   for (const l of lines) {
     if (
       !Number.isInteger(l.qtyBase) ||
@@ -290,10 +321,15 @@ export async function receivePurchaseOrder(
       !Number.isInteger(l.costCents) ||
       l.costCents < 0 ||
       l.qtyBase > 2_000_000_000 ||
-      l.costCents > 2_000_000_000
+      l.costCents > 2_000_000_000 ||
+      !isCents(l.incCents) ||
+      (l.taxPct != null && (!Number.isInteger(l.taxPct) || l.taxPct < 0 || l.taxPct > 100))
     ) {
       throw new PurchasingError("line_invalid");
     }
+  }
+  if (![retentions.retefuenteCents, retentions.reteIvaCents, retentions.reteIcaCents].every(isCents)) {
+    throw new PurchasingError("line_invalid");
   }
 
   // Reclamo race-safe del estado (patrón del cierre de conteos): tocamos
@@ -324,6 +360,35 @@ export async function receivePurchaseOrder(
   });
   const itemById = new Map(po.items.map((i) => [i.id, i]));
 
+  // Impuesto de la factura distinto al de la orden (IVA y/o consumo). Se
+  // reescribe el impuesto documental de la línea ANTES de registrar, así el
+  // inventario, la CxP y el asiento salen del mismo camino de siempre. Solo
+  // en líneas sin nada recibido: con una entrega previa el reparto
+  // acumulado (acumulado − anterior) ya usó el impuesto de la orden.
+  let incDelta = 0;
+  for (const line of lines) {
+    if (line.taxPct == null && line.incCents == null) continue;
+    const item = itemById.get(line.itemId);
+    if (!item) throw new PurchasingError("line_invalid");
+    const next = receptionLineTax(item, line, line.qtyBase, line.costCents);
+    if (!next.changed) continue;
+    if (!lineTaxEditable(item)) throw new PurchasingError("line_tax_locked");
+    if (next.expectedIncCents > PURCHASE_MAX_CENTS) throw new PurchasingError("line_invalid");
+    const data = {
+      taxPct: next.taxPct,
+      expectedTaxCents: next.expectedTaxCents,
+      expectedIncCents: next.expectedIncCents,
+    };
+    await tx.purchaseOrderItem.update({ where: { id: item.id }, data });
+    incDelta += next.expectedIncCents - item.expectedIncCents;
+    itemById.set(item.id, { ...item, ...data });
+  }
+  const headerIncCents = po.incCents + incDelta;
+  if (headerIncCents < 0 || headerIncCents > PURCHASE_MAX_CENTS) throw new PurchasingError("line_invalid");
+
+  // Lo que trae ESTA entrega: la base de sus retenciones.
+  const reception = { baseCents: 0, ivaCents: 0, incCents: 0 };
+
   for (const line of lines) {
     const item = itemById.get(line.itemId);
     if (!item) throw new PurchasingError("line_invalid");
@@ -332,6 +397,9 @@ export async function receivePurchaseOrder(
     const receivedTaxCents = accumulated.taxCents - previous.taxCents;
     const receivedIncCents = accumulated.incCents - previous.incCents;
     const inventoryCost = line.costCents + receivedIncCents + (ivaDeductible ? 0 : receivedTaxCents);
+    reception.baseCents += line.costCents;
+    reception.ivaCents += receivedTaxCents;
+    reception.incCents += receivedIncCents;
     if (inventoryCost > 2_000_000_000
       || item.receivedQtyBase + line.qtyBase > 2_000_000_000
       || item.receivedCostCents + line.costCents > 2_000_000_000) {
@@ -414,6 +482,25 @@ export async function receivePurchaseOrder(
     }
   }
 
+  // Retenciones de la factura de esta entrega: sobre lo recibido, y se
+  // suman a las de la compra (también a la parte «practicada al recibir»,
+  // que la CxP no reparte según el avance).
+  const retained = retentionTotalCents(retentions);
+  if (retained > 0) {
+    const error = purchaseRetentionError(retentions, reception);
+    if (error) throw new PurchasingError(error);
+  }
+  const header = {
+    incCents: headerIncCents,
+    retefuenteCents: po.retefuenteCents + retentions.retefuenteCents,
+    reteIvaCents: po.reteIvaCents + retentions.reteIvaCents,
+    reteIcaCents: po.reteIcaCents + retentions.reteIcaCents,
+    receptionRetentionCents: po.receptionRetentionCents + retained,
+  };
+  if (Object.values(header).some((cents) => cents > PURCHASE_MAX_CENTS)) {
+    throw new PurchasingError("line_invalid");
+  }
+
   // Recalcular estado con los acumulados frescos.
   const freshItems = await tx.purchaseOrderItem.findMany({
     where: { purchaseOrderId },
@@ -424,10 +511,19 @@ export async function receivePurchaseOrder(
   );
   const now = new Date();
   const balanceReopened = po.paidAt != null
-    && purchaseOrderTotals({ ...po, items: freshItems }, "received").totalCents > po.paidCents;
+    && purchaseOrderTotals({ ...header, items: freshItems }, "received").totalCents > po.paidCents;
   const updated = await tx.purchaseOrder.update({
     where: { id: purchaseOrderId },
     data: {
+      ...(incDelta !== 0 ? { incCents: header.incCents } : {}),
+      ...(retained > 0
+        ? {
+            retefuenteCents: header.retefuenteCents,
+            reteIvaCents: header.reteIvaCents,
+            reteIcaCents: header.reteIcaCents,
+            receptionRetentionCents: header.receptionRetentionCents,
+          }
+        : {}),
       // A new receipt can exceed the amount already paid for an earlier
       // partial delivery. Payments stay unchanged; refresh only its cache.
       ...(balanceReopened ? { paidAt: null } : {}),

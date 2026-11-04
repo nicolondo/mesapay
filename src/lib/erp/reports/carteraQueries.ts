@@ -71,6 +71,9 @@ const PO_SELECT = {
   retefuenteCents: true,
   reteIvaCents: true,
   reteIcaCents: true,
+  // Junto con las tres de arriba (ver PURCHASE_ORDER_TAX_SELECT): sin esto,
+  // las retenciones practicadas al recibir seguirían el avance de la recepción.
+  receptionRetentionCents: true,
   supplier: { select: { id: true, name: true, taxId: true, paymentTermsDays: true } },
   items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
   movements: {
@@ -93,6 +96,7 @@ type PoRow = {
   retefuenteCents: number;
   reteIvaCents: number;
   reteIcaCents: number;
+  receptionRetentionCents: number;
   items: PurchaseLineAmountsInput[];
   movements: { createdAt: Date }[];
   payments: { id: string; amountCents: number; paidAt: Date; method: string | null; note: string | null }[];

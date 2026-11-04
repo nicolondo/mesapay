@@ -1,0 +1,11 @@
+-- Retenciones practicadas AL RECIBIR una compra manual (aditiva, escrita a mano).
+--
+-- `retefuenteCents` / `reteIvaCents` / `reteIcaCents` siguen siendo el TOTAL
+-- de retenciones de la compra (lo que leen el asiento «Compras del día», la
+-- exógena y los impuestos del período). Esta columna dice cuánto de ese total
+-- se practicó en las recepciones, sobre lo recibido en cada entrega: esa parte
+-- cuenta completa en la cuenta por pagar desde la entrega en que se practicó,
+-- mientras que el resto (las de una factura importada como borrador) sigue
+-- repartiéndose según el avance de la recepción, como hasta hoy.
+-- Default 0: las compras existentes no cambian.
+ALTER TABLE "PurchaseOrder" ADD COLUMN "receptionRetentionCents" INTEGER NOT NULL DEFAULT 0;

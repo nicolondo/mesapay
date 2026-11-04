@@ -1843,7 +1843,12 @@
     "payLinkErrOnlineUnavailable": "El comercio no tiene pagos en línea activos.",
     "payLinkErrEmail": "No se pudo enviar el correo. Copia el link y compártelo por otro medio.",
     "payLinkErrInvalidEmail": "Revisa el correo.",
-    "payLinkErrGeneric": "No se pudo generar el link. Intenta de nuevo."
+    "payLinkErrGeneric": "No se pudo generar el link. Intenta de nuevo.",
+    "compTitle": "Cerrada sin cobro",
+    "compBody": "Esta cuenta se cerró como «{label}»: no se cobró. Valor regalado: {amount}. Los platos descuentan inventario, pero no cuentan como venta.",
+    "compDefaultLabel": "Cortesía",
+    "compNote": "Nota: {note}",
+    "compReportLink": "Ver el reporte de gastos de representación"
   },
   "opCustomers": {
     "title": "Clientes",

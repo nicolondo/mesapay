@@ -19,6 +19,7 @@ import {
   selectAux,
   sumSelection,
   TAX_FAMILY,
+  visibleTaxes,
   type DrillFacts,
 } from "./taxesDrill";
 import { buildTaxAccountReport, familySubtotal, type TaxAccount } from "./taxesModel";
@@ -305,5 +306,21 @@ describe("saleTaxOfSnapshot", () => {
   });
   it("todos los impuestos del resumen existen en el árbol", () => {
     expect(buildTaxDrill({ docs: [], ledger: [] }).taxes.map((t) => t.key)).toEqual([...DRILL_TAXES]);
+  });
+});
+
+describe("visibleTaxes", () => {
+  const empty = buildTaxDrill({ docs: [], ledger: [] });
+
+  it("un período sin nada muestra igual la retención en la fuente (en $0) y el impuesto del régimen", () => {
+    expect(visibleTaxes(empty, "inc").map((t) => t.key)).toEqual(["inc", "retefuente"]);
+    expect(visibleTaxes(empty, "iva").map((t) => t.key)).toEqual(["iva", "retefuente"]);
+  });
+
+  it("reteIVA y reteICA en $0 siguen ocultos; con cifra salen", () => {
+    expect(visibleTaxes(empty, "inc").some((t) => t.key === "reteiva" || t.key === "reteica")).toBe(false);
+    const full = buildTaxDrill(facts());
+    const shown = visibleTaxes(full, "inc").map((t) => t.key);
+    for (const t of full.taxes) if (t.status !== "empty") expect(shown).toContain(t.key);
   });
 });

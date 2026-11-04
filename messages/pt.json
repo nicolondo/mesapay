@@ -3138,7 +3138,7 @@
   },
   "opExogena": {
     "title": "Informação exógena",
-    "subtitle": "Meios magnéticos DIAN por formato oficial, com validação de terceiros e download do XML de carga.",
+    "subtitle": "Meios magnéticos DIAN por formato oficial, com validação de terceiros e download em Excel ou no XML de carga.",
     "notColombia": "A informação exógena é um regime da DIAN (Colômbia). Este estabelecimento está registrado em outro país, então este relatório não se aplica.",
     "yearLabel": "Ano fiscal",
     "statUvt": "UVT do ano",
@@ -3149,7 +3149,7 @@
     "normSaldos": "Saldos por terceiro a partir de {uvt} UVT ({amount}); os menores são agregados como quantias menores.",
     "normEnvio": "O ano do envio é o fiscal + 1. Cada arquivo sai com o nome oficial Dmuisca_… em ISO-8859-1, pronto para o pré-validador da DIAN.",
     "issuesTitle": "Pendências",
-    "issuesIntro": "Terceiros a corrigir antes de apresentar. As bloqueantes impedem gerar o XML do seu formato; os avisos não.",
+    "issuesIntro": "Terceiros a corrigir antes de apresentar. As bloqueantes impedem gerar o XML do seu formato (o Excel é baixado mesmo assim, com as linhas marcadas); os avisos não.",
     "issuesNone": "Sem pendências: todos os terceiros do ano têm documento válido.",
     "issueBlocking": "Bloqueia",
     "issueWarning": "Aviso",
@@ -3170,8 +3170,11 @@
     "origin_auto": "Calculado",
     "origin_manual": "Cadastro manual",
     "origin_mixto": "Sem XML",
+    "downloadExcel": "Baixar Excel",
+    "downloadMore": "Mais opções de download",
     "downloadXml": "Baixar XML",
-    "downloadBlocked": "Corrija as pendências para baixar",
+    "downloadBlocked": "Corrija as pendências para baixar o XML",
+    "xmlBlockedNote": "O XML fica bloqueado até corrigir as pendências. O Excel é baixado mesmo assim, com as linhas afetadas marcadas, para revisão.",
     "noXml": "XML pendente",
     "f1001Name": "Pagamentos ou abonos em conta e retenções praticadas",
     "f1001Desc": "Compras recebidas (líquido, com o IVA na sua coluna) e despesas com fornecedor, por terceiro e conceito. As compras vão em 5016; as despesas, conforme a categoria. A folha vai no 2276.",
@@ -3264,7 +3267,101 @@
     "err_invalid_doc": "O número do documento deve ser numérico.",
     "err_invalid_dv": "O DV não corresponde ao NIT.",
     "err_generic": "Não foi possível salvar. Tente novamente.",
-    "note": "Conceitos, tipo de pessoa e localização de cada terceiro são o que o MESAPAY infere dos seus dados (fornecedores sem tipo de documento: NIT se forem 9 dígitos começando por 8 ou 9, cédula caso contrário). O contador os valida no pré-validador da DIAN antes de apresentar."
+    "note": "Conceitos, tipo de pessoa e localização de cada terceiro são o que o MESAPAY infere dos seus dados (fornecedores sem tipo de documento: NIT se forem 9 dígitos começando por 8 ou 9, cédula caso contrário). O contador os valida no pré-validador da DIAN antes de apresentar.",
+    "xlsx": {
+      "sheetData": "Formato {formato}",
+      "sheetIssues": "Pendências",
+      "sheetInfo": "Informação",
+      "col": {
+        "cpt": "Conceito",
+        "tdoc": "Tipo de documento",
+        "nid": "Número de identificação",
+        "dv": "DV",
+        "apl1": "Primeiro sobrenome",
+        "apl2": "Segundo sobrenome",
+        "nom1": "Primeiro nome",
+        "nom2": "Outros nomes",
+        "raz": "Razão social",
+        "dir": "Endereço",
+        "dpto": "Departamento",
+        "mun": "Município",
+        "pais": "País"
+      },
+      "f1001": {
+        "pago": "Pagamento ou abono em conta dedutível",
+        "pnded": "Pagamento ou abono em conta não dedutível",
+        "ided": "IVA como maior valor do custo ou despesa dedutível",
+        "inded": "IVA como maior valor do custo ou despesa não dedutível",
+        "retp": "Retenção na fonte praticada sobre a renda",
+        "reta": "Retenção na fonte assumida sobre a renda",
+        "comun": "Retenção na fonte praticada de IVA a responsáveis pelo IVA",
+        "ndom": "Retenção na fonte praticada de IVA a não residentes ou não domiciliados"
+      },
+      "f1005": {
+        "vimp": "Imposto dedutível",
+        "ivade": "IVA resultante de devoluções em vendas anuladas, rescindidas ou resolvidas"
+      },
+      "f1006": {
+        "imp": "Imposto gerado",
+        "iva": "IVA recuperado em devoluções em compras anuladas, rescindidas ou resolvidas",
+        "icon": "Imposto ao consumo"
+      },
+      "f1007": {
+        "ibru": "Receitas brutas recebidas",
+        "dred": "Devoluções, abatimentos e descontos"
+      },
+      "f1008": {
+        "sal": "Saldo de contas a receber em 31-12"
+      },
+      "f1009": {
+        "sal": "Saldo de contas a pagar em 31-12"
+      },
+      "f1010": {
+        "valnom": "Valor nominal da ação, cota ou direito social",
+        "valprm": "Valor do ágio na emissão de ações, cotas ou direitos sociais",
+        "por": "Percentual de participação",
+        "dec": "Percentual de participação (casas decimais)"
+      },
+      "f1011": {
+        "sal": "Valor"
+      },
+      "f1012": {
+        "val": "Valor em 31-12"
+      },
+      "f2276": {
+        "salario": "Pagamentos de salários",
+        "otros": "Outros pagamentos",
+        "salud": "Contribuições obrigatórias de saúde",
+        "pension": "Contribuições obrigatórias a fundos de pensão e solidariedade previdenciária",
+        "retefuente": "Retenções na fonte sobre rendimentos do trabalho"
+      },
+      "rowOmitted": "Sem documento declarável: esta linha não vai para o XML.",
+      "issueKind": "Tipo",
+      "issueText": "Pendência",
+      "issueAmount": "Valor",
+      "issueRows": "Linhas em «{sheet}»",
+      "issueNotInSheet": "Não vai no arquivo",
+      "infoInformante": "Informante",
+      "infoNit": "NIT do informante",
+      "infoYearEnvio": "Ano do envio",
+      "infoFormato": "Formato",
+      "infoVersion": "Versão",
+      "infoStatus": "Status",
+      "infoRecords": "Registros do XML",
+      "infoRows": "Linhas",
+      "infoOmitted": "Linhas sem documento (não vão para o XML)",
+      "infoValorTotal": "Valor total (pesos)",
+      "infoXmlFile": "Arquivo XML oficial",
+      "infoGenerated": "Gerado em",
+      "statusReady": "Pronto: estas linhas são as mesmas do XML.",
+      "statusBlocked": "XML bloqueado: há pendências a corrigir (veja a planilha de pendências).",
+      "statusNoXml": "Sem XML: planilha de trabalho para o contador.",
+      "notePaste": "As linhas da planilha «{sheet}» são exatamente os registros do XML, na mesma ordem e com os cabeçalhos do formato. Para o pré-validador da DIAN, copie as linhas sem o cabeçalho.",
+      "noteRules": "Valores em pesos inteiros. As quantias menores vão agrupadas com o NIT 222222222 e os terceiros sem documento ficam de fora, igual ao XML.",
+      "noteBlocked": "As linhas em vermelho são terceiros sem documento declarável: não vão para o XML até serem corrigidos.",
+      "noteWarnings": "As linhas em amarelo têm um aviso que não bloqueia o XML.",
+      "note2276": "O 2276 não gera XML no MESAPAY: os funcionários não têm documento e o anexo não foi portado. As colunas são as que o MESAPAY calcula da folha; o contador completa o resto do formato no pré-validador."
+    }
   },
   "opPagos": {
     "noRestaurant": "Sem restaurante.",

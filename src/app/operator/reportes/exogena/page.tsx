@@ -25,6 +25,7 @@ import {
   ReportShell,
   StatTile,
 } from "../_components/ReportShell";
+import { FormatDownload } from "./FormatDownload";
 import { DeleteRowButton, HoldingForm, ShareholderForm } from "./ManualForms";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +35,9 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /**
  * Información exógena DIAN (sólo Colombia): normativa del año gravable,
  * incidencias de terceros, una tarjeta por formato con su tabla y la
- * descarga del XML oficial, y captura manual de socios (1010) e
- * inversiones (1012). Portado de zenith `reportes/exogena/page.tsx`.
+ * descarga en Excel (revisión) o en el XML oficial, y captura manual de
+ * socios (1010) e inversiones (1012). Portado de zenith
+ * `reportes/exogena/page.tsx`.
  */
 export default async function ExogenaPage({ searchParams }: { searchParams: SearchParams }) {
   const [t, tSettings, locale] = await Promise.all([
@@ -266,7 +268,7 @@ export default async function ExogenaPage({ searchParams }: { searchParams: Sear
       {/* ================= Rentas de trabajo ================= */}
       <SectionTitle hint={t("sectionPayrollHint")}>{t("sectionPayroll")}</SectionTitle>
 
-      <FormatCard f={F("2276")} year={year} blocked={false}>
+      <FormatCard f={F("2276")} year={year} blocked={false} hasRows={f["2276"].length > 0}>
         <Tbl
           cols={[
             ...txtCols([t("colEmployee")]),
@@ -407,43 +409,37 @@ async function IssuesPanel({
   );
 }
 
-/** Tarjeta de un formato: código + nombre oficial + versión + origen + descarga. */
+/**
+ * Tarjeta de un formato: código + nombre oficial + versión + origen +
+ * descarga. La descarga principal es el Excel (los mismos registros del
+ * XML, para revisar); el XML oficial va en el menú de la flechita y se
+ * bloquea con incidencias. Sin XML (2276): sólo Excel, si hay datos.
+ */
 async function FormatCard({
   f,
   year,
   blocked,
+  hasRows = true,
   children,
 }: {
   f: CatalogoFormato;
   year: number;
   blocked: boolean;
+  /** Para los formatos sin XML: sin filas no hay nada que descargar. */
+  hasRows?: boolean;
   children: ReactNode;
 }) {
   const t = await getTranslations("opExogena");
-  let action: ReactNode;
-  if (!f.xml) {
-    action = (
+  const href = (type: "xlsx" | "xml") =>
+    `/api/operator/reports/exogena/download?formato=${f.codigo}&year=${year}&type=${type}`;
+  const action: ReactNode =
+    f.xml || hasRows ? (
+      <FormatDownload excelHref={href("xlsx")} xml={f.xml ? { href: href("xml"), blocked } : null} />
+    ) : (
       <span className="inline-flex rounded-full px-3 py-1 text-xs bg-op-bg border border-op-border text-op-muted">
         {t("noXml")}
       </span>
     );
-  } else if (blocked) {
-    action = (
-      <button type="button" disabled title={t("downloadBlocked")} className="mp-btn mp-btn--secondary mp-btn--sm">
-        {t("downloadXml")}
-      </button>
-    );
-  } else {
-    action = (
-      <a
-        href={`/api/operator/reports/exogena/download?formato=${f.codigo}&year=${year}`}
-        download
-        className="mp-btn mp-btn--secondary mp-btn--sm"
-      >
-        {t("downloadXml")}
-      </a>
-    );
-  }
   return (
     <section id={`f-${f.codigo}`} className="rounded-2xl border border-op-border bg-op-surface p-3 sm:p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -462,7 +458,7 @@ async function FormatCard({
           {action}
         </div>
       </div>
-      {blocked && f.xml && <p className="text-xs text-danger">{t("downloadBlocked")}</p>}
+      {blocked && f.xml && <p className="no-print text-xs text-danger">{t("xmlBlockedNote")}</p>}
       {children}
     </section>
   );

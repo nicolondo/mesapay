@@ -3017,6 +3017,16 @@
     "results": "{count, plural, =0 {Nenhum fornecedor corresponde} one {# fornecedor} other {# fornecedores}}",
     "pickOne": "Escolha um fornecedor da lista"
   },
+  "accountCombobox": {
+    "placeholder": "Digite o código ou o nome da conta",
+    "listLabel": "Contas",
+    "clear": "Remover conta",
+    "reset": "Voltar a “{label}”",
+    "current": "atual",
+    "noMatches": "Nenhuma conta corresponde a “{query}”",
+    "empty": "Não há contas para escolher",
+    "moreHint": "Digite para buscar entre as {count} contas"
+  },
   "opImpuestosRep": {
     "title": "Impostos do período",
     "subtitle": "O que gerou cada imposto: do total à alíquota, ao documento e ao lançamento, com as verificações que convém fazer antes de declarar.",

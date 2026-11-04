@@ -3017,6 +3017,16 @@
     "results": "{count, plural, =0 {Ningún proveedor coincide} one {# proveedor} other {# proveedores}}",
     "pickOne": "Elige un proveedor de la lista"
   },
+  "accountCombobox": {
+    "placeholder": "Escribe el código o el nombre de la cuenta",
+    "listLabel": "Cuentas",
+    "clear": "Quitar cuenta",
+    "reset": "Volver a «{label}»",
+    "current": "actual",
+    "noMatches": "Ninguna cuenta coincide con «{query}»",
+    "empty": "No hay cuentas para elegir",
+    "moreHint": "Escribe para buscar entre las {count} cuentas"
+  },
   "opImpuestosRep": {
     "title": "Impuestos del período",
     "subtitle": "Qué generó cada impuesto: del total a la tarifa, al documento y al asiento, con las revisiones que conviene hacer antes de declarar.",

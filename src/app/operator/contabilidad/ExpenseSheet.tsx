@@ -36,6 +36,7 @@ import {
 } from "@/lib/erp/supplierTaxId";
 import { MoneyInput } from "@/components/MoneyInput";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
+import { AccountCombobox } from "@/components/accounts/AccountCombobox";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses, /suppliers y /expenses/tax-context.
@@ -1040,22 +1041,17 @@ export function ExpenseSheet({
               palabras clave, que es lo que se hacía siempre; con plan de
               cuentas propio conviene fijarla. */}
           {accounts.length > 0 && (
-            <Field label={t("fieldExpenseAccount")} hint={t("expenseAccountHint")}>
-              <select
-                value={accountCode}
-                onChange={(e) => setAccountCode(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">{t("expenseAccountAuto")}</option>
-                {accounts
-                  .filter((a) => a.type === "gasto" || a.type === "costo")
-                  .map((a) => (
-                    <option key={a.code} value={a.code}>
-                      {`${a.code} · ${a.name}`}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+            <ComboField label={t("fieldExpenseAccount")} htmlFor="expense-account" hint={t("expenseAccountHint")}>
+              {/* Se escribe el código («5135») o el nombre; la primera
+                  opción, vacía, es «Automática (por la categoría)». */}
+              <AccountCombobox
+                id="expense-account"
+                accounts={accounts.filter((a) => a.type === "gasto" || a.type === "costo")}
+                value={accountCode || null}
+                onChange={(code) => setAccountCode(code ?? "")}
+                emptyLabel={t("expenseAccountAuto")}
+              />
+            </ComboField>
           )}
 
           {!recurring && !expense && (
@@ -1070,28 +1066,18 @@ export function ExpenseSheet({
                 <span className="text-sm">{t("expensePaidNow")}</span>
               </label>
               {paidNow ? (
-                <Field
+                <CashAccountField
+                  id="expense-pay-from"
                   label={t("fieldPayFromAccount")}
                   hint={
                     amounts.payableCents > 0
                       ? t("expensePaidNowAmount", { amount: money(amounts.payableCents) })
                       : t("payFromAccountHint")
                   }
-                >
-                  <select
-                    value={payAccountCode}
-                    onChange={(e) => setPayAccountCode(e.target.value)}
-                    className={inputCls}
-                  >
-                    {accounts
-                      .filter((a) => a.code.startsWith("11"))
-                      .map((a) => (
-                        <option key={a.code} value={a.code}>
-                          {`${a.code} · ${a.name}`}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
+                  accounts={accounts.filter((a) => a.code.startsWith("11"))}
+                  value={payAccountCode}
+                  onChange={setPayAccountCode}
+                />
               ) : (
                 <Field label={t("fieldDueDate")} hint={t("expenseOwedHint")}>
                   <input
@@ -1387,19 +1373,14 @@ function ExpensePaymentPanel({
           className={inputCls}
         />
       </Field>
-      <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
-        <select
-          value={accountCode}
-          onChange={(e) => setAccount(e.target.value)}
-          className={inputCls}
-        >
-          {cashAccounts.map((a) => (
-            <option key={a.code} value={a.code}>
-              {`${a.code} · ${a.name}`}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <CashAccountField
+        id={`expense-pay-${expense.id}`}
+        label={t("fieldPayFromAccount")}
+        hint={t("payFromAccountHint")}
+        accounts={cashAccounts}
+        value={accountCode}
+        onChange={setAccount}
+      />
       {err && <div className="text-xs text-danger">{err}</div>}
       <button
         type="button"
@@ -1670,6 +1651,83 @@ export function SupplierQuickCreate({
 }
 
 /* ────────────────────────────── UI compartida ──────────────────────── */
+
+/**
+ * Campo con un combobox adentro: rótulo con `htmlFor` (no un `<label>` que
+ * envuelva, que reenviaría los toques de la lista al input).
+ */
+function ComboField({
+  label,
+  htmlFor,
+  hint,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <label htmlFor={htmlFor} className="block font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
+        {label}
+      </label>
+      {children}
+      {hint && <div className="text-[10px] text-op-muted mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+/** Con más cuentas de caja/banco que esto, «Se pagó desde» se busca escribiendo. */
+const CASH_SELECT_MAX = 8;
+
+/**
+ * «Se pagó desde»: un selector corriente con pocas cuentas de caja/banco
+ * (lo normal: caja, uno o dos bancos, la pasarela); con muchas, el mismo
+ * buscador de la cuenta del gasto.
+ */
+function CashAccountField({
+  id,
+  label,
+  hint,
+  accounts,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  accounts: ChartAccountRef[];
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  if (accounts.length > CASH_SELECT_MAX) {
+    return (
+      <ComboField label={label} htmlFor={id} hint={hint}>
+        <AccountCombobox
+          id={id}
+          accounts={accounts}
+          value={value || null}
+          onChange={(code) => {
+            if (code) onChange(code);
+          }}
+          required
+        />
+      </ComboField>
+    );
+  }
+  return (
+    <Field label={label} hint={hint}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+        {accounts.map((a) => (
+          <option key={a.code} value={a.code}>
+            {`${a.code} · ${a.name}`}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
 
 function Field({
   label,

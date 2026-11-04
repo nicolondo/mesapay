@@ -3885,6 +3885,30 @@ model FinancialOperation {
   amountCents Int
   status String @default("pending")
   providerRef String?
+  /// Sólo kind=terminal (cobro empujado al datáfono Kushki): a qué equipo se
+  /// mandó (`TerminalDevice.kushkiDeviceId`). «Reintentar en el datáfono»
+  /// vuelve a mandar el cobro a ese mismo equipo.
+  deviceId String?
+  /// Sólo kind=terminal: lo que respondió el datáfono cuando NO aprobó
+  /// ("TERMINAL/TER-004", y su mensaje). Con respuesta del equipo se sabe que
+  /// el cobro terminó: el staff puede reintentar o cancelar sin esperar los
+  /// 3 minutos de "Resolver cobro". Null = sin respuesta (todavía en curso,
+  /// o timeout / red / 5xx: puede haber cobrado).
+  answerCode String?
+  answerMessage String?
+  answeredAt DateTime?
+  /// Sólo kind=terminal: el pago nuevo con el que se reintentó este cobro
+  /// (la pantalla del comensal lo sigue en vez de volver a los métodos).
+  nextPaymentId String?
+  /// Sólo kind=terminal: el `client_transaction_id` (UUID) con el que se
+  /// empujó el cobro. Se guarda ANTES de llamar a Kushki: si la respuesta no
+  /// llega (504 del gateway, timeout, red), con él se busca el resultado real
+  /// (`transaction_search_online`).
+  clientTransactionId String?
+  /// Sólo kind=terminal: última consulta del resultado a Kushki y qué dijo
+  /// ("not_found", "unknown:reversed", "error"…). Evita consultar de más.
+  checkedAt DateTime?
+  checkStatus String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])

@@ -118,6 +118,7 @@ export function PayClient({
   pseBanks,
   terminalDevices = [],
   declinedFlag = false,
+  declinedReason = null,
   operatorMode = false,
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
@@ -210,6 +211,11 @@ export function PayClient({
   terminalDevices?: TerminalDeviceOption[];
   /** Si true, mostramos banner "Pago rechazado, elegí otro método". */
   declinedFlag?: boolean;
+  /**
+   * Por qué volvió: "terminal_canceled" = se canceló en el datáfono (no se
+   * cobró nada). El banner lo dice así en vez de "no fue aprobado".
+   */
+  declinedReason?: "terminal_canceled" | null;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to staffHomeHref/staffServeHref once
@@ -1019,6 +1025,8 @@ export function PayClient({
             onCancelled={refreshBalance}
             canResolveTerminal={canResolveTerminal}
             disabled={interactionLocked}
+            tenantSlug={tenantSlug}
+            terminalDeviceId={terminalChoice.selected?.id ?? null}
           />
         </div>
       )}
@@ -1105,9 +1113,11 @@ export function PayClient({
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-display text-base text-danger">
-              {t("declinedTitle")}
+              {declinedReason === "terminal_canceled" ? t("terminalCanceledTitle") : t("declinedTitle")}
             </div>
-            <p className="text-xs text-muted mt-1">{t("declinedBody")}</p>
+            <p className="text-xs text-muted mt-1">
+              {declinedReason === "terminal_canceled" ? t("terminalCanceledBody") : t("declinedBody")}
+            </p>
           </div>
         </div>
       )}

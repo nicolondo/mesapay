@@ -748,7 +748,9 @@
       "viewReceipt": "Ver comprobante y factura"
     },
     "linkPayWith": "Paga con",
-    "linkOtherMethods": "Otras formas de pago"
+    "linkOtherMethods": "Otras formas de pago",
+    "terminalCanceledTitle": "Se canceló el cobro en el datáfono",
+    "terminalCanceledBody": "No se cobró nada. Elige cómo pagar, o pídele al mesero que vuelva a pasar la tarjeta."
   },
   "done": {
     "methodCard": "Tarjeta",
@@ -905,7 +907,10 @@
     "processing": "Procesando…",
     "pseProcessingBody": "Estamos confirmando el resultado de tu transferencia con tu banco. Puede tardar unos segundos.",
     "autoRefresh": "Esta página se actualiza automáticamente.",
-    "backToCheckout": "Volver al checkout"
+    "backToCheckout": "Volver al checkout",
+    "terminalCanceledTitle": "Se canceló en el datáfono",
+    "terminalCanceledBody": "No se cobró nada. Te llevamos de vuelta para que elijas cómo pagar…",
+    "terminalRetrying": "Volviendo a enviar el cobro al datáfono…"
   },
   "pickup": {
     "unavailableTitle": "Pedido anticipado no disponible",
@@ -1655,7 +1660,10 @@
     "stationCounter": "Refri",
     "badgeMainsTogether": "Fuertes juntos",
     "stillCooking": "Aún en preparación ({count})",
-    "chargeAdminOnly": "Sólo el administrador puede cobrar"
+    "chargeAdminOnly": "Sólo el administrador puede cobrar",
+    "terminalSentAnswered": "El datáfono no aprobó el cobro",
+    "terminalSentNoAnswer": "El datáfono no respondió",
+    "terminalOutcome": "{place} · {message}"
   },
   "opPayments": {
     "noRestaurant": "Sin restaurante.",
@@ -7767,7 +7775,7 @@
     "generic": "No se pudo completar la operación. Actualiza e intenta de nuevo.",
     "pending_payment_in_flight": "Hay un pago con {method} por {amount} esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma.",
     "pending_payment_in_flight_generic": "Hay un pago en línea esperando la confirmación del proveedor. Espera a que se apruebe o se rechace (lo ves en Salón o en Cobros) antes de cobrar de otra forma.",
-    "pending_payment_in_flight_terminal": "El cobro con {method} por {amount} ya se envió al datáfono y todavía no hay resultado: puede haber un cobro en curso. Espera a que el equipo lo apruebe o lo rechace. Si no responde, el administrador lo resuelve con «Resolver cobro» en el aviso de la cuenta, revisando el comprobante del datáfono o la consola de Kushki.",
+    "pending_payment_in_flight_terminal": "El cobro con {method} por {amount} ya se envió al datáfono y todavía no hay resultado: puede haber un cobro en curso. Si el datáfono lo canceló o no lo aprobó, usa «Reintentar en el datáfono» o «Cancelar y cobrar de otra forma» en el aviso de la cuenta. Si no responde, el administrador lo resuelve con «Resolver cobro», revisando el comprobante del datáfono o la consola de Kushki.",
     "terminal_unavailable": "El datáfono Kushki no está disponible en este comercio: no está habilitado o no hay un datáfono activo configurado. Cobra con otro medio.",
     "charge_admin_only": "Solo el administrador puede cobrar en este comercio.",
     "already_settled": "Este pago ya se resolvió. Actualiza para ver cómo quedó la cuenta.",
@@ -7775,7 +7783,11 @@
     "terminal_result_pending": "El datáfono todavía puede responder. Espera unos minutos antes de resolver el cobro a mano.",
     "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
-    "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó."
+    "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó.",
+    "terminal_canceled": "Se canceló en el datáfono. No se cobró nada: puedes volver a enviarlo o cobrar de otra forma.",
+    "terminal_no_answer": "El datáfono no respondió y puede que sí haya cobrado. Revisa la pantalla del datáfono o el comprobante; pasados 3 minutos, el administrador lo resuelve con «Resolver cobro».",
+    "confirmation_required": "Confirma en la pantalla del datáfono que el cobro no salió.",
+    "terminal_check_unavailable": "Este cobro no se puede consultar en Kushki desde MESAPAY. Revisa el datáfono o la consola de Kushki y resuélvelo con «Resolver cobro»."
   },
   "pendingPayment": {
     "requestKicker": "El comensal pidió pagar con",
@@ -7816,7 +7828,9 @@
     "cancelRequestConfirm": "¿Cancelar esta solicitud de pago? Hazlo solo si no recibiste ningún pago por ella. La cuenta queda lista para cobrar de otra forma.",
     "cancelRequestError": "No se pudo cancelar la solicitud. Actualiza e intenta de nuevo.",
     "inFlightTerminalKicker": "Cobro enviado al datáfono Kushki",
-    "inFlightTerminalBody": "El cobro ya está en el datáfono y todavía no hay resultado. Si el equipo lo aprueba o lo rechaza, la cuenta se actualiza sola. Mientras tanto, no cobres de otra forma."
+    "inFlightTerminalBody": "El cobro ya está en el datáfono y todavía no hay resultado. Si el equipo lo aprueba o lo rechaza, la cuenta se actualiza sola. Mientras tanto, no cobres de otra forma.",
+    "terminalAnsweredKicker": "El datáfono no aprobó el cobro",
+    "terminalNoAnswerKicker": "El datáfono no respondió"
   },
   "terminalResolve": {
     "waitCountdown": "Espera el resultado del datáfono. Si no responde, podrás resolverlo a mano en {time}.",
@@ -7839,6 +7853,36 @@
     "saving": "Guardando…",
     "back": "Volver",
     "error": "No se pudo resolver el cobro. Actualiza e intenta de nuevo."
+  },
+  "terminalAttempt": {
+    "inFlightBody": "El datáfono está esperando la tarjeta. Si la respuesta tarda, MESAPAY la consulta con Kushki y la cuenta se actualiza sola. Si no se va a pagar así, cancélalo en el datáfono.",
+    "abort": "Cancelar en el datáfono",
+    "aborting": "Cancelando…",
+    "abortSent": "Le pedimos al datáfono que cancele el cobro. Cuando responda, la cuenta se libera sola.",
+    "abortNotActive": "El datáfono ya no tiene un cobro en curso. Espera unos segundos: la cuenta se actualiza sola.",
+    "abortFailed": "No pudimos pedirle al datáfono que cancele. Cancélalo en la pantalla del datáfono: la cuenta se libera sola cuando responda.",
+    "answeredBody": "Respuesta del datáfono: {detail}.",
+    "answeredBodyGeneric": "El datáfono respondió sin aprobar el cobro.",
+    "checkDevice": "Mira la pantalla del datáfono: si el cobro no salió, vuelve a enviarlo o cobra de otra forma.",
+    "retry": "Reintentar en el datáfono",
+    "retrying": "Enviando al datáfono…",
+    "cancel": "Cancelar y cobrar de otra forma",
+    "cancelling": "Cancelando…",
+    "confirmRetry": "Confirma en la pantalla del datáfono que el cobro no salió. ¿Volver a enviar {amount} al datáfono?",
+    "confirmCancel": "Confirma en la pantalla del datáfono que el cobro no salió. ¿Cancelar este cobro? La cuenta queda lista para cobrar de otra forma.",
+    "retryNoDevice": "El cobro quedó pedido de nuevo, pero no sabemos a qué datáfono enviarlo. Envíalo desde Salón con «Cobrar».",
+    "retryFailed": "No se pudo volver a enviar al datáfono. Actualiza e intenta de nuevo.",
+    "retryApproved": "El datáfono aprobó el cobro.",
+    "adminOnly": "Solo el administrador puede reintentar o cancelar este cobro.",
+    "noAnswerBody": "No llegó respuesta y puede que sí haya cobrado. Antes de resolverlo, mira la pantalla del datáfono y si imprimió comprobante (voucher).",
+    "error": "No se pudo completar. Actualiza e intenta de nuevo.",
+    "check": "Consultar en Kushki",
+    "checking": "Consultando…",
+    "checkApproved": "Kushki confirmó que el cobro se aprobó: la cuenta quedó pagada.",
+    "checkDeclined": "Kushki confirmó que el cobro no se aprobó: la cuenta quedó libre para cobrar de otra forma.",
+    "checkNotFound": "Kushki todavía no registra este cobro. Revisa la pantalla del datáfono y si imprimió comprobante antes de resolverlo.",
+    "checkUnknown": "Kushki muestra un movimiento que hay que revisar a mano (por ejemplo, una reversión o un monto distinto). Resuélvelo con el comprobante del datáfono.",
+    "checkError": "No pudimos consultar a Kushki. Intenta de nuevo en un momento."
   },
   "terminalPicker": {
     "question": "¿A qué datáfono?",

@@ -14,7 +14,11 @@ import type { StaffPrintAccess } from "@/lib/print/staffPrint";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { CashSettleModal } from "@/components/payments/CashSettleModal";
 import { useApiError } from "@/lib/useApiError";
-import { TerminalResolveAction } from "@/components/payments/TerminalResolveAction";
+import {
+  TerminalAttemptActions,
+  useTerminalAttemptState,
+} from "@/components/payments/TerminalAttemptActions";
+import type { TerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 
 type InvoiceAfterSettle = { orderId: string; paid: boolean; invoiceId: string | null };
@@ -113,6 +117,8 @@ type TerminalPending = {
   replaceable: boolean;
   // Kushki enviado: cuándo (ISO), para la cuenta regresiva de "Resolver cobro".
   pushedAt: string | null;
+  // Kushki enviado: en curso / el datáfono contestó que no / sin respuesta.
+  terminalAttempt: TerminalAttemptView | null;
   order: {
     id: string;
     shortCode: string;
@@ -165,6 +171,10 @@ export function ServeBoard({
   // factura (igual que en efectivo/Kushki, que caen en la pantalla de listo).
   const [invoiceAfterSettle, setInvoiceAfterSettle] = useState<InvoiceAfterSettle | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
+  // Resultado de un cobro del datáfono que la tarjeta ya no puede mostrar
+  // (el pago se declina y la tarjeta desaparece): «Mesa 4 · Se canceló en
+  // el datáfono…».
+  const [terminalOutcome, setTerminalOutcome] = useState<string | null>(null);
 
   const refreshBoard = useBatchedRefresh(
     () => startTx(() => {
@@ -406,6 +416,22 @@ export function ServeBoard({
         </section>
       )}
 
+      {terminalOutcome && (
+        <div
+          role="status"
+          className="mb-4 rounded-2xl border border-terracotta/50 bg-terracotta/10 p-3 flex items-start justify-between gap-3"
+        >
+          <p className="text-sm leading-snug">{terminalOutcome}</p>
+          <button
+            type="button"
+            onClick={() => setTerminalOutcome(null)}
+            className="shrink-0 min-h-9 px-3 rounded-full border border-op-border text-xs"
+          >
+            {tr("close")}
+          </button>
+        </div>
+      )}
+
       {terminalPending.length > 0 && (
         <section className="mb-6">
           <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
@@ -428,6 +454,7 @@ export function ServeBoard({
                 onCharged={() => startTx(() => router.refresh())}
                 onExternalApproved={setInvoiceAfterSettle}
                 onBusyChange={setChargingPaymentId}
+                onOutcome={setTerminalOutcome}
               />
             ))}
           </ul>
@@ -686,6 +713,7 @@ function TerminalPendingCard({
   onCharged,
   onExternalApproved,
   onBusyChange,
+  onOutcome,
 }: {
   pending: TerminalPending;
   serviceMode: "table" | "counter";
@@ -701,6 +729,8 @@ function TerminalPendingCard({
   // Se llama tras aprobar el datáfono del comercio (para ofrecer factura).
   onExternalApproved: (invoice: InvoiceAfterSettle) => void;
   onBusyChange: (id: string | null) => void;
+  // Mensaje que sobrevive a la tarjeta (ver `terminalOutcome` del tablero).
+  onOutcome: (message: string) => void;
 }) {
   const tr = useTranslations("serve");
   const apiError = useApiError();
@@ -712,6 +742,7 @@ function TerminalPendingCard({
   // Kushki ya enviado al equipo: hay un cobro en curso, no se reenvía ni se
   // cancela. Sin enviar: "Cobrar" (si hay equipo) o "Cancelar solicitud".
   const sentToDevice = !isExternal && !pending.replaceable;
+  const attemptState = useTerminalAttemptState(sentToDevice ? pending.terminalAttempt : null);
   const title =
     serviceMode === "counter"
       ? tr("orderLabel", { code: displayOrderCode(pending.order.shortCode) })
@@ -739,7 +770,13 @@ function TerminalPendingCard({
       // j.message trae el detalle real del datáfono (rechazo/error); j.error
       // es el código interno. Los códigos conocidos (p. ej. Kushki rechazó la
       // solicitud por validación) van traducidos; si no, el mensaje humano.
-      setErr(apiError(j, j.message ?? j.error ?? tr("terminalSendError")));
+      const message = apiError(j, j.message ?? j.error ?? tr("terminalSendError"));
+      setErr(message);
+      // Cancelado en el equipo o rechazado: el pago se declina y esta
+      // tarjeta desaparece con el refresco; el aviso queda en el tablero.
+      if (j.status === "canceled" || j.status === "declined") {
+        onOutcome(tr("terminalOutcome", { place: title, message }));
+      }
       return;
     }
     onCharged();
@@ -820,6 +857,11 @@ function TerminalPendingCard({
           {tr("terminalOwnDevice")}
         </div>
       )}
+      {(attemptState === "answered" || attemptState === "no_answer") && (
+        <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta mt-1">
+          {attemptState === "answered" ? tr("terminalSentAnswered") : tr("terminalSentNoAnswer")}
+        </div>
+      )}
       <div className="mt-2 flex items-baseline justify-between">
         <span className="font-mono text-[10px] tracking-wider uppercase text-op-muted">
           {tr("charge")}
@@ -837,7 +879,10 @@ function TerminalPendingCard({
         {isExternal
           ? tr("terminalSwipeExternal")
           : sentToDevice
-            ? tr("terminalSentWaiting")
+            ? // Con datos del intento, el detalle lo pone TerminalAttemptActions.
+              pending.terminalAttempt
+              ? null
+              : tr("terminalSentWaiting")
             : devices.length > 0
               ? tr("terminalBringDevice")
               : tr("terminalNoDeviceHint")}
@@ -846,24 +891,33 @@ function TerminalPendingCard({
         <div className="text-[11px] text-op-muted mt-0.5">{tr("terminalNotSent")}</div>
       )}
       {sentToDevice && (
-        // Enviado y sin resultado: cuenta regresiva y, pasados 3 minutos,
-        // "Resolver cobro" para el administrador. No depende de "solo el
-        // administrador cobra": el mesero nunca lo ve.
+        // Enviado y sin aprobar. En curso: «Cancelar en el datáfono». El
+        // equipo contestó que no: «Reintentar en el datáfono» / «Cancelar y
+        // cobrar de otra forma», al instante (mesero incluido, salvo "solo
+        // el administrador cobra"). Sin respuesta: cuenta regresiva y,
+        // pasados 3 minutos, "Resolver cobro" para el administrador (el
+        // mesero nunca lo ve).
         <div className="mt-2">
-          <TerminalResolveAction
+          <TerminalAttemptActions
             paymentId={pending.id}
-            pushedAt={pending.pushedAt}
             amountCents={total}
+            attempt={pending.terminalAttempt}
+            pushedAt={pending.pushedAt}
+            tenantSlug={tenantSlug}
+            fallbackDeviceId={chosenDevice?.id ?? null}
             canResolve={canResolve}
+            chargeLocked={chargeLocked}
             disabled={busy}
-            onResolved={onCharged}
+            onChanged={onCharged}
+            onOutcome={(message) => onOutcome(tr("terminalOutcome", { place: title, message }))}
           />
         </div>
       )}
       {err && <div className="mt-1 text-[11px] text-danger">{err}</div>}
-      {chargeLocked ? (
+      {chargeLocked && !sentToDevice ? (
         // Cobro reservado al administrador: el mesero ve el pendiente
-        // (tiene que acompañar la mesa) pero no las acciones de plata.
+        // (tiene que acompañar la mesa) pero no las acciones de plata. (Ya
+        // enviado, el aviso lo pone TerminalAttemptActions.)
         <div className="mt-3 rounded-xl border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">
           {tr("chargeAdminOnly")}
         </div>

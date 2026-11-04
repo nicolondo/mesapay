@@ -748,7 +748,9 @@
       "viewReceipt": "Ver comprovante e fatura"
     },
     "linkPayWith": "Pague com",
-    "linkOtherMethods": "Outras formas de pagamento"
+    "linkOtherMethods": "Outras formas de pagamento",
+    "terminalCanceledTitle": "A cobrança foi cancelada na maquininha",
+    "terminalCanceledBody": "Nada foi cobrado. Escolha como pagar ou peça ao garçom para passar o cartão de novo."
   },
   "done": {
     "methodCard": "Cartão",
@@ -905,7 +907,10 @@
     "processing": "Processando…",
     "pseProcessingBody": "Estamos confirmando o resultado da sua transferência com seu banco. Pode levar alguns segundos.",
     "autoRefresh": "Esta página se atualiza automaticamente.",
-    "backToCheckout": "Voltar ao checkout"
+    "backToCheckout": "Voltar ao checkout",
+    "terminalCanceledTitle": "Cancelada na maquininha",
+    "terminalCanceledBody": "Nada foi cobrado. Estamos te levando de volta para você escolher como pagar…",
+    "terminalRetrying": "Enviando a cobrança para a maquininha de novo…"
   },
   "pickup": {
     "unavailableTitle": "Pedido antecipado indisponível",
@@ -1655,7 +1660,10 @@
     "stationCounter": "Geladeira",
     "badgeMainsTogether": "Pratos principais juntos",
     "stillCooking": "Ainda em preparo ({count})",
-    "chargeAdminOnly": "Apenas o administrador pode cobrar"
+    "chargeAdminOnly": "Apenas o administrador pode cobrar",
+    "terminalSentAnswered": "A maquininha não aprovou a cobrança",
+    "terminalSentNoAnswer": "A maquininha não respondeu",
+    "terminalOutcome": "{place} · {message}"
   },
   "opPayments": {
     "noRestaurant": "Sem restaurante.",
@@ -7767,7 +7775,7 @@
     "generic": "Não foi possível concluir a operação. Atualize e tente novamente.",
     "pending_payment_in_flight": "Há um pagamento com {method} de {amount} aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma.",
     "pending_payment_in_flight_generic": "Há um pagamento online aguardando a confirmação do provedor. Aguarde até que seja aprovado ou recusado (veja em Salão ou em Cobranças) antes de cobrar de outra forma.",
-    "pending_payment_in_flight_terminal": "A cobrança com {method} de {amount} já foi enviada para a maquininha e ainda não há resultado: pode haver uma cobrança em andamento. Aguarde até que o equipamento a aprove ou recuse. Se não responder, o administrador a resolve com «Resolver cobrança» no aviso da conta, conferindo o comprovante da maquininha ou o console da Kushki.",
+    "pending_payment_in_flight_terminal": "A cobrança com {method} de {amount} já foi enviada para a maquininha e ainda não há resultado: pode haver uma cobrança em andamento. Se a maquininha a cancelou ou não a aprovou, use «Tentar de novo na maquininha» ou «Cancelar e cobrar de outra forma» no aviso da conta. Se não responder, o administrador a resolve com «Resolver cobrança» no aviso da conta, conferindo o comprovante da maquininha ou o console da Kushki.",
     "terminal_unavailable": "A maquininha Kushki não está disponível neste estabelecimento: não está habilitada ou não há uma maquininha ativa configurada. Cobre com outro meio.",
     "charge_admin_only": "Apenas o administrador pode cobrar neste estabelecimento.",
     "already_settled": "Este pagamento já foi resolvido. Atualize para ver como ficou a conta.",
@@ -7775,7 +7783,11 @@
     "terminal_result_pending": "A maquininha ainda pode responder. Aguarde alguns minutos antes de resolver a cobrança manualmente.",
     "terminal_request_rejected": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha ({detail}). Nada foi cobrado. Confira a Chave Privada Card Present e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
     "terminal_request_rejected_generic": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha. Nada foi cobrado. Confira a Chave Privada Card Present e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
-    "cancellation_admin_required": "Somente o administrador pode cancelar ou deixar de cobrar pratos cujo preparo já começou."
+    "cancellation_admin_required": "Somente o administrador pode cancelar ou deixar de cobrar pratos cujo preparo já começou.",
+    "terminal_canceled": "Foi cancelada na maquininha. Nada foi cobrado: você pode enviar de novo ou cobrar de outra forma.",
+    "terminal_no_answer": "A maquininha não respondeu e pode ser que tenha cobrado. Confira a tela da maquininha ou o comprovante; depois de 3 minutos, o administrador resolve com «Resolver cobrança».",
+    "confirmation_required": "Confirme na tela da maquininha que a cobrança não passou.",
+    "terminal_check_unavailable": "Esta cobrança não pode ser consultada na Kushki pelo MESAPAY. Confira a maquininha ou o console da Kushki e resolva com «Resolver cobrança»."
   },
   "pendingPayment": {
     "requestKicker": "O cliente pediu para pagar com",
@@ -7816,7 +7828,9 @@
     "cancelRequestConfirm": "Cancelar esta solicitação de pagamento? Faça isso apenas se você não recebeu nenhum pagamento por ela. A conta fica pronta para cobrar de outra forma.",
     "cancelRequestError": "Não foi possível cancelar a solicitação. Atualize e tente de novo.",
     "inFlightTerminalKicker": "Cobrança enviada à maquininha Kushki",
-    "inFlightTerminalBody": "A cobrança já está na maquininha e ainda não há resultado. Se o equipamento a aprovar ou recusar, a conta se atualiza sozinha. Enquanto isso, não cobre de outra forma."
+    "inFlightTerminalBody": "A cobrança já está na maquininha e ainda não há resultado. Se o equipamento a aprovar ou recusar, a conta se atualiza sozinha. Enquanto isso, não cobre de outra forma.",
+    "terminalAnsweredKicker": "A maquininha não aprovou a cobrança",
+    "terminalNoAnswerKicker": "A maquininha não respondeu"
   },
   "terminalResolve": {
     "waitCountdown": "Aguarde o resultado da maquininha. Se não responder, você poderá resolvê-la manualmente em {time}.",
@@ -7839,6 +7853,36 @@
     "saving": "Salvando…",
     "back": "Voltar",
     "error": "Não foi possível resolver a cobrança. Atualize e tente de novo."
+  },
+  "terminalAttempt": {
+    "inFlightBody": "A maquininha está esperando o cartão. Se a resposta demorar, o MESAPAY consulta a Kushki e a conta se atualiza sozinha. Se não for pagar assim, cancele na maquininha.",
+    "abort": "Cancelar na maquininha",
+    "aborting": "Cancelando…",
+    "abortSent": "Pedimos à maquininha que cancele a cobrança. Quando ela responder, a conta é liberada sozinha.",
+    "abortNotActive": "A maquininha não tem mais uma cobrança em andamento. Aguarde alguns segundos: a conta se atualiza sozinha.",
+    "abortFailed": "Não conseguimos pedir à maquininha que cancele. Cancele na tela da maquininha: a conta é liberada sozinha quando ela responder.",
+    "answeredBody": "Resposta da maquininha: {detail}.",
+    "answeredBodyGeneric": "A maquininha respondeu sem aprovar a cobrança.",
+    "checkDevice": "Olhe a tela da maquininha: se a cobrança não passou, envie de novo ou cobre de outra forma.",
+    "retry": "Tentar de novo na maquininha",
+    "retrying": "Enviando para a maquininha…",
+    "cancel": "Cancelar e cobrar de outra forma",
+    "cancelling": "Cancelando…",
+    "confirmRetry": "Confirme na tela da maquininha que a cobrança não passou. Enviar {amount} para a maquininha de novo?",
+    "confirmCancel": "Confirme na tela da maquininha que a cobrança não passou. Cancelar esta cobrança? A conta fica pronta para cobrar de outra forma.",
+    "retryNoDevice": "A cobrança foi pedida de novo, mas não sabemos para qual maquininha enviá-la. Envie pelo Salão com «Cobrar».",
+    "retryFailed": "Não foi possível enviar de novo para a maquininha. Atualize e tente outra vez.",
+    "retryApproved": "A maquininha aprovou a cobrança.",
+    "adminOnly": "Só o administrador pode tentar de novo ou cancelar esta cobrança.",
+    "noAnswerBody": "Não chegou resposta e pode ser que tenha cobrado. Antes de resolver, olhe a tela da maquininha e se ela imprimiu comprovante.",
+    "error": "Não foi possível concluir. Atualize e tente outra vez.",
+    "check": "Consultar na Kushki",
+    "checking": "Consultando…",
+    "checkApproved": "A Kushki confirmou que a cobrança foi aprovada: a conta ficou paga.",
+    "checkDeclined": "A Kushki confirmou que a cobrança não foi aprovada: a conta ficou livre para cobrar de outra forma.",
+    "checkNotFound": "A Kushki ainda não registra esta cobrança. Confira a tela da maquininha e se ela imprimiu comprovante antes de resolver.",
+    "checkUnknown": "A Kushki mostra um movimento que precisa ser revisado à mão (por exemplo, um estorno ou um valor diferente). Resolva com o comprovante da maquininha.",
+    "checkError": "Não conseguimos consultar a Kushki. Tente de novo em instantes."
   },
   "terminalPicker": {
     "question": "Para qual maquininha?",

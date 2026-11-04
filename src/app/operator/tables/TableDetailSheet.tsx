@@ -833,6 +833,9 @@ export function TableDetailSheet({
                   // "Resolver cobro" de un datáfono Kushki sin respuesta:
                   // sólo el administrador, nunca el mesero.
                   canResolveTerminal={!isMeseroView && canResolveTerminalCharge(viewerRole)}
+                  // «Reintentar en el datáfono» vuelve a mandar el cobro al
+                  // mismo equipo (lo sabe el servidor) por terminal/charge.
+                  tenantSlug={tenantSlug ?? null}
                 />
               )}
 

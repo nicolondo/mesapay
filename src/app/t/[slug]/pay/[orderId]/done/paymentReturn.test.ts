@@ -5,7 +5,7 @@ import { getEmailTranslator } from "@/lib/emailIntl";
 const m = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string; restaurantId?: string } },
   activeId: "r1",
-  order: vi.fn(), restaurant: vi.fn(), payment: vi.fn(), invoiceRequest: vi.fn(),
+  order: vi.fn(), restaurant: vi.fn(), payment: vi.fn(), invoiceRequest: vi.fn(), claim: vi.fn(),
 }));
 vi.mock("@/auth", () => ({ auth: async () => m.session }));
 vi.mock("@/lib/staffAccess", () => ({
@@ -15,6 +15,7 @@ vi.mock("@/lib/staffAccess", () => ({
 vi.mock("@/lib/db", () => ({ db: {
   order: { findUnique: m.order }, restaurant: { findUnique: m.restaurant },
   payment: { findUnique: m.payment }, invoiceRequest: { findFirst: m.invoiceRequest },
+  financialOperation: { findUnique: m.claim },
 } }));
 vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("not_found"); },
@@ -55,6 +56,7 @@ beforeEach(() => {
   m.restaurant.mockResolvedValue(tenant);
   m.payment.mockResolvedValue({ id: "p1", orderId: "o1", method: "kushki_card_terminal", amountCents: 4_400, status: "pending" });
   m.invoiceRequest.mockResolvedValue(null);
+  m.claim.mockResolvedValue(null);
 });
 
 describe("terminal return after a partial payment", () => {
@@ -92,6 +94,43 @@ describe("terminal return after a partial payment", () => {
 
   it.each(["declined", "refunded"] as const)("uses the scoped retry for %s", (status) => {
     expect(terminalReturnHref(status, "paying", "/done", "/continue", "/retry")).toBe("/retry");
+  });
+
+  it("se canceló en el datáfono: vuelve a los métodos con su aviso, no con «rechazado»", () => {
+    expect(terminalReturnHref("declined", "served", "/done", "/continue", "/retry", "/canceled", "terminal_canceled")).toBe("/canceled");
+    expect(terminalReturnHref("declined", "served", "/done", "/continue", "/retry", "/canceled", null)).toBe("/retry");
+  });
+});
+
+describe("datáfono cancelado o reintentado (Son y Melona, 2026-11-04)", () => {
+  const claim = (over: Record<string, unknown> = {}) => ({
+    key: "terminal:p1", createdAt: new Date("2026-11-04T18:00:00Z"), answeredAt: null, answerCode: null,
+    answerMessage: null, nextPaymentId: null, deviceId: "kd-1", ...over,
+  });
+
+  it("el comensal vuelve a los métodos con ?declined=canceled", async () => {
+    m.session = null;
+    const page = await TerminalPage({ params: params(), searchParams: Promise.resolve({ pid: "p1" }) });
+    expect(page.props.canceledHref).toBe("/t/sample/pay/o1?declined=canceled");
+    expect(page.props.initialAttempt).toBeNull();
+  });
+
+  it("un pago ya declinado porque se canceló en el equipo llega con su motivo y, si se reintentó, con el pago nuevo", async () => {
+    m.session = null;
+    m.payment.mockResolvedValue({ id: "p1", orderId: "o1", method: "kushki_card_terminal", amountCents: 4_400, status: "declined" });
+    m.claim.mockResolvedValue(claim({ answeredAt: new Date(), answerCode: "TERMINAL/TER-004", nextPaymentId: "p2" }));
+    const page = await TerminalPage({ params: params(), searchParams: Promise.resolve({ pid: "p1" }) });
+    expect(page.props).toMatchObject({ initialDeclineReason: "terminal_canceled", initialNextPaymentId: "p2", initialAttempt: null });
+  });
+
+  it("el staff ve el intento enviado (para reintentar o cancelar); el comensal no", async () => {
+    m.claim.mockResolvedValue(claim({ answeredAt: new Date("2026-11-04T18:00:40Z"), answerCode: "TERMINAL/TER-003" }));
+    const staffPage = await TerminalPage({ params: params(), searchParams: Promise.resolve({ pid: "p1", op: "1" }) });
+    expect(staffPage.props.initialAttempt).toMatchObject({ answerCode: "TERMINAL/TER-003", pushedAt: "2026-11-04T18:00:00.000Z" });
+    expect(staffPage.props.canResolveTerminal).toBe(true);
+    m.session = null;
+    const dinerPage = await TerminalPage({ params: params(), searchParams: Promise.resolve({ pid: "p1" }) });
+    expect(dinerPage.props.initialAttempt).toBeNull();
   });
 });
 

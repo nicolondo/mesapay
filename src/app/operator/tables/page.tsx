@@ -19,6 +19,7 @@ import {
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { isReplaceablePending } from "@/lib/payments/methods";
 import { terminalClaims } from "@/lib/payments/pendingRequests";
+import { toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 import {
   RECENTLY_PAID_MINUTES,
@@ -310,7 +311,8 @@ export default async function TablesPage({
           createdAt: p.createdAt.toISOString(),
           replaceable: isReplaceablePending(p, terminalClaimed.has(p.id)),
           reconciliationRequired: p.reconciliationRequired,
-          pushedAt: terminalClaimed.get(p.id)?.toISOString() ?? null,
+          pushedAt: terminalClaimed.get(p.id)?.createdAt.toISOString() ?? null,
+          terminalAttempt: toTerminalAttemptView(terminalClaimed.get(p.id), p.reconciliationRequired),
         })),
       rounds: order.rounds.map((r) => ({
         id: r.id,

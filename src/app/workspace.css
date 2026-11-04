@@ -325,6 +325,31 @@
 .mp-kpi--primary .mp-kpi-hint {
   color: #c6beb3;
 }
+/* Segunda cifra de una tarjeta («+ $X por cobrar en N mesas»): más chica que
+   la principal, para que no se lea como el total. El monto no se parte. */
+.mp-kpi-detail {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--op-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mp-kpi-detail-amount {
+  font-weight: 600;
+  color: var(--op-text);
+  white-space: nowrap;
+}
+/* «en 10 mesas» baja entero: nunca queda «mesas» sola en la segunda línea. */
+.mp-kpi-detail-nowrap {
+  white-space: nowrap;
+}
+.mp-kpi--primary .mp-kpi-detail {
+  color: #e6ddd1;
+}
+.mp-kpi--primary .mp-kpi-detail-amount {
+  color: var(--ivory);
+}
 .mp-kpi--primary {
   background: var(--ink);
   color: var(--ivory);
@@ -765,6 +790,10 @@
   .mp-kpi-value {
     font-size: 25px;
     margin-top: 12px;
+  }
+  .mp-kpi-detail {
+    margin-top: 4px;
+    font-size: 12px;
   }
   .mp-panel-heading {
     padding: 18px 16px 14px;

@@ -3887,6 +3887,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",
     "salesBasis": "Sin impuestos ni propina",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# mesa} other {# mesas}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# orden} other {# órdenes}}</nowrap>",
     "noRestaurant": "No tienes restaurante asignado. Contacta al admin.",
     "kpiSalesToday": "Ventas hoy",
     "kpiPaidOrders": "Órdenes pagadas",

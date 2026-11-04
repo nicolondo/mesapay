@@ -68,7 +68,7 @@ async function fixture(page: Page, locale = "es") {
   });
   expect(login.ok()).toBe(true);
   expect((await (await page.request.get("/api/auth/session")).json()).user.id).toBe(user.id);
-  return { today, yesterday };
+  return { today, yesterday, restaurantId: restaurant.id, tableId: table.id };
 }
 
 test.afterEach(async () => {
@@ -99,6 +99,8 @@ test("sales chart, daily detail and KPIs exclude both taxes and tips", async ({ 
   await expect(ticket).toContainText("Sin impuestos ni propina");
   const count = page.locator(".mp-kpi").filter({ hasText: "Órdenes pagadas" });
   await expect(count.locator(".mp-kpi-value")).toHaveText("2");
+  // Nothing open: no "still to collect" line.
+  await expect(today.locator(".mp-kpi-detail")).toHaveCount(0);
   await sales.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const valuesFit = await sales.locator(".mp-sales-value").evaluateAll(elements => elements.every(el => {
@@ -108,6 +110,39 @@ test("sales chart, daily detail and KPIs exclude both taxes and tips", async ({ 
   expect(valuesFit).toBe(true);
   await sales.screenshot({ path: info.outputPath("net-sales-chart.png") });
   await page.locator(".mp-kpis").screenshot({ path: info.outputPath("net-sales-kpis.png") });
+});
+
+test("today's sales tile adds only the unpaid part of today's open tables", async ({ page }, info) => {
+  const { today, yesterday, restaurantId, tableId } = await fixture(page);
+  // Open today, $54.000 with INC 8 % embedded ($50.000 of sales), half paid
+  // plus a $2.000 tip. A comped dish is out of the subtotal and the tax split.
+  await db.order.create({ data: {
+    restaurantId, tableId, shortCode: randomUUID(), status: "paying", createdAt: new Date(today.getTime() + 600000),
+    subtotalCents: 54_000_00, tipCents: 2_000_00, totalCents: 56_000_00,
+    items: { create: [
+      { nameSnapshot: "Plato", qty: 1, priceCentsSnapshot: 54_000_00 },
+      { nameSnapshot: "Cortesía", qty: 1, priceCentsSnapshot: 99_000_00, cancelledAt: new Date(), cancellationKind: "comp" },
+    ] },
+    payments: { create: [
+      { method: "cash", status: "approved", amountCents: 29_000_00, tipCents: 2_000_00 },
+      // A pending request is not collected yet.
+      { method: "external_terminal", status: "pending", amountCents: 27_000_00 },
+    ] },
+  } });
+  // Left open from the previous business day: still open, not today's service.
+  await db.order.create({ data: {
+    restaurantId, tableId, shortCode: randomUUID(), status: "served", createdAt: yesterday,
+    subtotalCents: 108_000_00, totalCents: 108_000_00,
+  } });
+  await page.goto("/operator");
+  const tile = page.locator(".mp-kpi").filter({ hasText: "Ventas hoy" });
+  // The collected figure keeps its meaning.
+  await expect(tile.locator(".mp-kpi-value")).toHaveText("$190.000");
+  await expect(tile.locator(".mp-kpi-detail")).toHaveText("+ $25.000 por cobrar en 1 mesa");
+  await expect(tile).toContainText("Sin impuestos ni propina");
+  await expect(page.locator(".mp-kpi").filter({ hasText: "Abiertas ahora" }).locator(".mp-kpi-value")).toHaveText("2");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator(".mp-kpis").screenshot({ path: info.outputPath("uncollected-kpis.png") });
 });
 
 for (const [locale, title, hint] of [

@@ -3887,6 +3887,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Sales excluding taxes and tips",
     "salesBasis": "Excluding taxes and tips",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# table} other {# tables}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# order} other {# orders}}</nowrap>",
     "noRestaurant": "You don't have a restaurant assigned. Contact the admin.",
     "kpiSalesToday": "Sales today",
     "kpiPaidOrders": "Paid orders",

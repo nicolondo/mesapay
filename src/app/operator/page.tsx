@@ -11,8 +11,14 @@ import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
-import { summarizeDashboardSales } from "@/lib/reports/dashboardSales";
-import { loadDashboardSales } from "@/lib/reports/dashboardSalesQuery";
+import {
+  DASHBOARD_OPEN_ORDER_STATUSES,
+  summarizeDashboardSales,
+} from "@/lib/reports/dashboardSales";
+import {
+  loadDashboardSales,
+  loadDashboardUncollected,
+} from "@/lib/reports/dashboardSalesQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -59,22 +65,27 @@ export default async function OperatorHome() {
   // Inicio de la ventana de 7 jornadas (incluye hoy): hoy − 6 días.
   const weekStart = new Date(today.getTime() - 6 * 86400000);
   const tomorrow = new Date(today.getTime() + 86400000);
+  const currentTax = {
+    kind: asSalesTaxKind(tenant?.salesTaxKind), pct: tenant?.salesTaxPct ?? 0,
+  };
 
   const [
     openOrdersCount,
     weekPaid,
+    uncollected,
     topItemsRaw,
     openOrders,
   ] = await Promise.all([
     db.order.count({
       where: {
         restaurantId,
-        status: { in: ["placed", "in_kitchen", "ready", "served", "paying"] },
+        status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
       },
     }),
-    loadDashboardSales(restaurantId, { from: weekStart, to: tomorrow }, {
-      kind: asSalesTaxKind(tenant?.salesTaxKind), pct: tenant?.salesTaxPct ?? 0,
-    }),
+    loadDashboardSales(restaurantId, { from: weekStart, to: tomorrow }, currentTax),
+    // Lo que falta cobrar de las cuentas abiertas de la jornada, con la misma
+    // base que «Ventas hoy» (que sólo cuenta cuentas ya pagadas).
+    loadDashboardUncollected(restaurantId, today, currentTax),
     db.orderItem.groupBy({
       by: ["nameSnapshot"],
       where: {
@@ -89,7 +100,7 @@ export default async function OperatorHome() {
     db.order.findMany({
       where: {
         restaurantId,
-        status: { in: ["placed", "in_kitchen", "ready", "served", "paying"] },
+        status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
       },
       orderBy: { createdAt: "asc" },
       take: 10,
@@ -132,6 +143,14 @@ export default async function OperatorHome() {
         <Kpi
           label={tr("kpiSalesToday")}
           value={fmtCOP(sales.todayNetCents)}
+          detail={uncollected.netCents > 0
+            ? tr.rich(counterMode ? "salesUncollectedOrders" : "salesUncollectedTables", {
+              amount: fmtCOP(uncollected.netCents),
+              count: uncollected.orderCount,
+              strong: (chunks) => <span className="mp-kpi-detail-amount">{chunks}</span>,
+              nowrap: (chunks) => <span className="mp-kpi-detail-nowrap">{chunks}</span>,
+            })
+            : undefined}
           hint={tr("salesBasis")}
           href="/operator/payments"
           primary
@@ -323,6 +342,7 @@ function Kpi({
   accent,
   primary,
   hint,
+  detail,
 }: {
   label: string;
   value: string;
@@ -330,6 +350,8 @@ function Kpi({
   accent?: boolean;
   primary?: boolean;
   hint?: string;
+  /** Segunda cifra, más chica: no cambia lo que significa la principal. */
+  detail?: React.ReactNode;
 }) {
   return (
     <Link
@@ -342,6 +364,7 @@ function Kpi({
         <Icon name="arrow" width="16" />
       </span>
       <span className="mp-kpi-value">{value}</span>
+      {detail && <span className="mp-kpi-detail">{detail}</span>}
       {hint && <span className="mp-kpi-hint">{hint}</span>}
     </Link>
   );

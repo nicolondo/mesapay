@@ -3265,7 +3265,12 @@
     "check_variacion_up": "{tax}: {pct}% above the average of previous periods ({current} vs. {average}).",
     "check_variacion_down": "{tax}: {pct}% below the average of previous periods ({current} vs. {average}).",
     "check_variacion_action": "It may be seasonal; if there is no explanation, expand the tax and review its documents.",
-    "check_variacion_ok": "No tax with an unusual change"
+    "check_variacion_ok": "No tax with an unusual change",
+    "check_facturadaPendiente_title": "{count, plural, one {# invoice issued before payment, payment pending} other {# invoices issued before payment, payment pending}}",
+    "check_facturadaPendiente_body": "They were issued in the period and the DIAN already has them ({amount} in tax), but the bill hasn't been charged yet: they're not in this report's documents or ledger. It's not an error: the sale counts on the day it's charged.",
+    "check_facturadaPendiente_action": "Charge them in Tables. If the customer left without paying, void the invoice with a credit note and close the bill without charge.",
+    "check_facturadaPendiente_ok": "No invoice issued before payment was left uncharged",
+    "linkTables": "Go to Tables"
   },
   "opBackups": {
     "cardTitle": "Backups",
@@ -9447,7 +9452,8 @@
     "severity_info": "Good to know",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "flag_pendingPayment": "Payment pending"
   },
   "tipReturns": {
     "collected": "Tips collected",

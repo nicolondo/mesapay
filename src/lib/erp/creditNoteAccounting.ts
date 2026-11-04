@@ -58,8 +58,8 @@ type Client = Prisma.TransactionClient | typeof db;
  *
  * La venta entra por la cuenta COBRADA (`Order.paidAt`, ver posting.ts y
  * los reportes de impuestos). Una factura emitida ANTES de cobrar cuya
- * cuenta nunca se cobró (el cliente se fue y se anuló con nota crédito,
- * cerrando la cuenta sin cobro: cortesía ⇒ `compedAt`) no entró: ni la
+ * cuenta nunca se cobró (el cliente se fue y se anuló con nota crédito; la
+ * cuenta se cierra cancelada, sin `paidAt` — `compedAt` queda de red) no entró: ni la
  * factura ni su anulación tocan libros, impuestos, exógena ni el libro de
  * ventas — se netean entre ellas. Sin este filtro la nota debitaría
  * devoluciones y acreditaría «reintegros por pagar» de una venta que

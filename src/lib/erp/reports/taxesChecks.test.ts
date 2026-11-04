@@ -281,3 +281,36 @@ describe("sortChecks", () => {
     expect(keys.slice(0, 3)).toEqual(["dianRechazada", "tarifaDistinta", "variacion"]);
   });
 });
+
+describe("factura emitida ANTES de cobrar (pendiente de pago)", () => {
+  it("no es un hallazgo de ventas: no la marcan «cuentas anuladas» ni «cobradas sin factura» y pasa limpia", () => {
+    // La cuenta sigue sin cobrar: `paidAt` null ⇒ ni el motor ni los
+    // documentos del período la ven, así que la reconciliación no la nombra.
+    const orders: EngineOrder[] = [];
+    const recon = reconcileTaxes({
+      period: { desde: "2026-10-01", hasta: "2026-10-31" },
+      cutoffHour: 5,
+      docs: salesFacts([sale("1")]),
+      windowSaleFacts: salesFacts([sale("1")]),
+      windowPurchaseFacts: [],
+      orders: [{ orderId: "o1", shortCode: "A1", paidAtIso: "2026-10-05T20:00:00.000Z", status: "paid", invoiceId: "1", slice: { kind: "inc", pct: 8, baseCents: 100_000, taxCents: 8_000 } }, ...orders],
+      ledger: [],
+      entries: [],
+    } as Parameters<typeof reconcileTaxes>[0]);
+    const input = base({ recon, pendingPaymentSales: [sale("pre-1", { document: "FE77" })] });
+    expect(get(input, "cuentaAnulada").count).toBe(0);
+    expect(get(input, "sinFactura").count).toBe(0);
+  });
+
+  it("se lista como información, con su impuesto, el flag «pendiente de pago» y severidad info", () => {
+    const c = get(base({ pendingPaymentSales: [sale("pre-1", { document: "FE77", taxCents: 12_000 })] }), "facturadaPendiente");
+    expect(c).toMatchObject({ severity: "info", count: 1, amountCents: 12_000, taxes: ["inc"] });
+    expect(c.rows[0]).toMatchObject({ docKind: "invoice", docId: "pre-1", document: "FE77", flags: ["pendingPayment"] });
+  });
+
+  it("sin facturas pendientes de pago la revisión pasa (y sin el dato, también)", () => {
+    expect(get(base({ pendingPaymentSales: [] }), "facturadaPendiente").count).toBe(0);
+    expect(get(base(), "facturadaPendiente").count).toBe(0);
+  });
+});
+

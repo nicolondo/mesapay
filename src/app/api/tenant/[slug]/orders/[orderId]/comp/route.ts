@@ -106,7 +106,8 @@ async function POSTHandler(
     where: { orderId: order.id },
     select: { id: true, invoiceNumber: true, snapshot: true, totalCents: true },
   });
-  if (invoiced && !(await isInvoiceAnnulled(db, invoiced))) {
+  const annulled = invoiced ? await isInvoiceAnnulled(db, invoiced) : false;
+  if (invoiced && !annulled) {
     return NextResponse.json(
       {
         error: ORDER_INVOICED,
@@ -193,6 +194,17 @@ async function POSTHandler(
         compAmountCents,
       },
     });
+    // Factura emitida antes de cobrar y ANULADA con nota crédito (el
+    // cliente se fue sin pagar): la cuenta se cierra CANCELADA, sin
+    // `paidAt`. Así ni la factura ni su anulación entran a libros ni a los
+    // reportes que cortan por la cuenta cobrada (motor, impuestos, exógena,
+    // libro de ventas): se netean entre ellas, como en la DIAN. Cerrarla
+    // "pagada" en $0 metería al motor el impuesto que congeló la factura,
+    // sin plata que lo respalde. Ver orders/invoicedOrder.ts.
+    if (invoiced) {
+      await tx.order.update({ where: { id: order.id }, data: { status: "cancelled", paidAt: null } });
+      return { fullyPaid: false, compAmountCents, fired: [] as Awaited<ReturnType<typeof activateOpenRounds>> };
+    }
     const totals = await recomputeOrderTotalsInTx(tx, order.id);
     // Una cortesía también "paga" la cuenta: activa rondas prepagas y, si
     // la estación marcha sola, `fired` trae qué imprimir después de la tx.
@@ -211,7 +223,9 @@ async function POSTHandler(
     kind: "order.comp",
     restaurantId: tenant.id,
     target: { type: "order", id: order.id },
-    summary: `No cobró la cuenta (${label}) — ${parsed.data.note}`,
+    summary: invoiced
+      ? `Cerró sin cobro la cuenta con la factura anulada (${label}) — ${parsed.data.note}`
+      : `No cobró la cuenta (${label}) — ${parsed.data.note}`,
     diff: {
       after: {
         compAmountCents: result.compAmountCents,

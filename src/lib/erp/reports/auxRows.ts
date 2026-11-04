@@ -34,7 +34,9 @@ export type AuxFlag =
   | "intoPeriod"
   | "noEntry"
   | "noNit"
-  | "invalidDv";
+  | "invalidDv"
+  /** Factura emitida antes de cobrar y todavía sin cobrar. */
+  | "pendingPayment";
 
 export type AuxRow = {
   key: string;

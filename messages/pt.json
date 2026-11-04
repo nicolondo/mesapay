@@ -3265,7 +3265,12 @@
     "check_variacion_up": "{tax}: {pct} % acima da média dos períodos anteriores ({current} frente a {average}).",
     "check_variacion_down": "{tax}: {pct} % abaixo da média dos períodos anteriores ({current} frente a {average}).",
     "check_variacion_action": "Pode ser sazonal; se não tiver explicação, expanda o imposto e revise seus documentos.",
-    "check_variacion_ok": "Nenhum imposto com uma mudança incomum"
+    "check_variacion_ok": "Nenhum imposto com uma mudança incomum",
+    "check_facturadaPendiente_title": "{count, plural, one {# fatura emitida antes de cobrar, pagamento pendente} other {# faturas emitidas antes de cobrar, pagamento pendente}}",
+    "check_facturadaPendiente_body": "Foram emitidas no período e a DIAN já as tem ({amount} de imposto), mas a conta ainda não foi cobrada: não estão nos documentos nem no livro deste relatório. Não é um erro: a venda entra no dia em que for cobrada.",
+    "check_facturadaPendiente_action": "Cobre em Mesas. Se o cliente foi embora sem pagar, anule a fatura com uma nota de crédito e feche a conta sem cobrança.",
+    "check_facturadaPendiente_ok": "Nenhuma fatura emitida antes de cobrar ficou sem cobrar",
+    "linkTables": "Ir para Mesas"
   },
   "opBackups": {
     "cardTitle": "Cópias de segurança",
@@ -9447,7 +9452,8 @@
     "severity_info": "Para levar em conta",
     "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "flag_pendingPayment": "Pagamento pendente"
   },
   "tipReturns": {
     "collected": "Gorjetas cobradas",

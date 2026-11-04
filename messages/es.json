@@ -3265,7 +3265,12 @@
     "check_variacion_up": "{tax}: {pct} % más que el promedio de los períodos anteriores ({current} frente a {average}).",
     "check_variacion_down": "{tax}: {pct} % menos que el promedio de los períodos anteriores ({current} frente a {average}).",
     "check_variacion_action": "Puede ser la temporada; si no tiene explicación, despliega el impuesto y revisa sus documentos.",
-    "check_variacion_ok": "Ningún impuesto con un cambio inusual"
+    "check_variacion_ok": "Ningún impuesto con un cambio inusual",
+    "check_facturadaPendiente_title": "{count, plural, one {# factura emitida antes de cobrar, pendiente de pago} other {# facturas emitidas antes de cobrar, pendientes de pago}}",
+    "check_facturadaPendiente_body": "Se emitieron en el período y la DIAN ya las tiene ({amount} de impuesto), pero la cuenta todavía no se cobró: no están en los documentos ni en el libro de este reporte. No es un error: la venta entra el día en que se cobre.",
+    "check_facturadaPendiente_action": "Cóbralas en Mesas. Si el cliente se fue sin pagar, anula la factura con una nota crédito y cierra la cuenta sin cobro.",
+    "check_facturadaPendiente_ok": "Ninguna factura emitida antes de cobrar quedó sin cobrar",
+    "linkTables": "Ir a Mesas"
   },
   "opBackups": {
     "cardTitle": "Copias de seguridad",
@@ -9447,7 +9452,8 @@
     "severity_info": "Para tener en cuenta",
     "expandAll": "Desplegar todo",
     "collapseAll": "Plegar todo",
-    "dayOrigin": "{source} · {tax}"
+    "dayOrigin": "{source} · {tax}",
+    "flag_pendingPayment": "Pendiente de pago"
   },
   "tipReturns": {
     "collected": "Propinas cobradas",

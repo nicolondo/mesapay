@@ -90,6 +90,18 @@ const GENERATED_REQUEST = {
   select: { customerName: true, docType: true, docNumber: true },
 };
 
+const SALE_DOC_SELECT = {
+  id: true,
+  invoiceNumber: true,
+  snapshot: true,
+  order: {
+    select: {
+      paidAt: true,
+      invoiceRequests: GENERATED_REQUEST,
+    },
+  },
+} as const;
+
 export async function loadSaleTaxDocs(
   restaurantId: string,
   from: Date,
@@ -97,37 +109,64 @@ export async function loadSaleTaxDocs(
 ): Promise<SaleTaxInput[]> {
   const rows = await db.simpleInvoice.findMany({
     where: { restaurantId, order: { paidAt: { gte: from, lt: to } } },
-    select: {
-      id: true,
-      invoiceNumber: true,
-      snapshot: true,
-      order: {
-        select: {
-          paidAt: true,
-          invoiceRequests: GENERATED_REQUEST,
-        },
-      },
-    },
+    select: SALE_DOC_SELECT,
     orderBy: { createdAt: "asc" },
   });
-  return rows.map((r) => {
-    const snap = r.snapshot as unknown as InvoiceSnapshot;
-    // Tarifa congelada, impuesto y base: una sola definición, compartida
-    // con la tendencia del despliegue (`saleTaxSnapshot.ts`).
-    const frozen = saleTaxOfSnapshot(snap);
-    const { taxCents, baseCents } = frozen;
-    const customer = saleCustomer(snap, r.order.invoiceRequests[0]);
-    return {
-      invoiceId: r.id,
-      document: formatInvoiceNumber(snap, r.invoiceNumber),
-      dateIso: (r.order.paidAt ?? new Date(snap.paidAtIso)).toISOString(),
-      taxKind: frozen.kind,
-      taxPct: frozen.pct,
-      baseCents,
-      taxCents,
-      customer,
-    };
+  return rows.map(saleTaxInputOf);
+}
+
+/**
+ * Facturas emitidas ANTES de cobrar, en el período (por su emisión), cuya
+ * cuenta todavía no se cobró. No entran a los documentos del período (la
+ * venta entra el día que se cobra, como en el motor) ni son un error: la
+ * revisión «facturadaPendiente» las lista como información, porque la DIAN
+ * sí las tiene. Las de cuentas canceladas (factura anulada, el cliente se
+ * fue) no van: se netean con su nota crédito.
+ */
+export async function loadPendingPaymentSaleDocs(
+  restaurantId: string,
+  from: Date,
+  to: Date,
+): Promise<SaleTaxInput[]> {
+  const rows = await db.simpleInvoice.findMany({
+    where: {
+      restaurantId,
+      createdAt: { gte: from, lt: to },
+      order: { paidAt: null, status: { not: "cancelled" } },
+    },
+    select: SALE_DOC_SELECT,
+    orderBy: { createdAt: "asc" },
   });
+  return rows.map(saleTaxInputOf);
+}
+
+type SaleDocRow = {
+  id: string;
+  invoiceNumber: number;
+  snapshot: unknown;
+  order: {
+    paidAt: Date | null;
+    invoiceRequests: { customerName: string; docType: string; docNumber: string }[];
+  };
+};
+
+function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
+  const snap = r.snapshot as unknown as InvoiceSnapshot;
+  // Tarifa congelada, impuesto y base: una sola definición, compartida
+  // con la tendencia del despliegue (`saleTaxSnapshot.ts`).
+  const frozen = saleTaxOfSnapshot(snap);
+  const { taxCents, baseCents } = frozen;
+  const customer = saleCustomer(snap, r.order.invoiceRequests[0]);
+  return {
+    invoiceId: r.id,
+    document: formatInvoiceNumber(snap, r.invoiceNumber),
+    dateIso: (r.order.paidAt ?? new Date(snap.paidAtIso)).toISOString(),
+    taxKind: frozen.kind,
+    taxPct: frozen.pct,
+    baseCents,
+    taxCents,
+    customer,
+  };
 }
 
 export async function loadPurchaseTaxDocs(

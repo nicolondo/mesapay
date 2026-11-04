@@ -12,6 +12,7 @@ import { requireMutableOrderInTx } from "../src/lib/orders";
 import { OrderInvoicedError } from "../src/lib/orders/orderInvoicedError";
 import { acceptedCreditNoteWhere } from "../src/lib/erp/creditNoteAccounting";
 import { listOpenOrders } from "../src/lib/shift";
+import { loadPendingPaymentSaleDocs, loadSaleTaxDocs } from "../src/lib/erp/reports/taxesQueries";
 
 const scope = vi.hoisted(() => ({ restaurantId: "", userId: "", role: "operator" }));
 const print = vi.hoisted(() => ({
@@ -133,6 +134,32 @@ describe("factura antes de cobrar en PostgreSQL", () => {
     // Una cuenta sin factura de antes del turno no entra (como siempre).
     await account();
     expect(await listOpenOrders(scope.restaurantId, later)).toHaveLength(1);
+  });
+
+  it("impuestos del período: la pendiente de pago no está en los documentos, sí en su revisión; cobrada, pasa a los documentos", async () => {
+    const order = await account();
+    await issue(order.id);
+    const from = new Date(Date.now() - 3_600_000);
+    const to = new Date(Date.now() + 3_600_000);
+    expect(await loadSaleTaxDocs(scope.restaurantId, from, to)).toEqual([]);
+    const pending = await loadPendingPaymentSaleDocs(scope.restaurantId, from, to);
+    expect(pending).toEqual([expect.objectContaining({ document: "PRE50", taxKind: "inc", taxPct: 8, taxCents: 800_000 })]);
+
+    await cash(order.id, 10_800_000, 0);
+    expect(await loadPendingPaymentSaleDocs(scope.restaurantId, from, to)).toEqual([]);
+    expect(await loadSaleTaxDocs(scope.restaurantId, from, to)).toEqual([
+      expect.objectContaining({ document: "PRE50", taxCents: 800_000 }),
+    ]);
+  });
+
+  it("una cuenta facturada que se canceló (factura anulada, el cliente se fue) no queda como pendiente de pago", async () => {
+    const order = await account();
+    await issue(order.id);
+    await db.order.update({ where: { id: order.id }, data: { status: "cancelled" } });
+    const from = new Date(Date.now() - 3_600_000);
+    const to = new Date(Date.now() + 3_600_000);
+    expect(await loadPendingPaymentSaleDocs(scope.restaurantId, from, to)).toEqual([]);
+    expect(await loadSaleTaxDocs(scope.restaurantId, from, to)).toEqual([]);
   });
 
   it("las notas crédito de una factura nunca cobrada quedan fuera de libros (la consulta es válida)", async () => {

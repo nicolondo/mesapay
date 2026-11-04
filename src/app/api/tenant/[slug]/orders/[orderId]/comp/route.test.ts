@@ -134,14 +134,16 @@ describe("cortesía de una cuenta ya facturada (factura antes de cobrar)", () =>
     expect(h.fake.order()).toMatchObject({ status: "paying", subtotalCents: 63_470_000 });
   });
 
-  it("anulada entera con nota crédito (el cliente se fue): se cierra sin cobro", async () => {
+  it("anulada entera con nota crédito (el cliente se fue): se cierra sin cobro, CANCELADA y sin paidAt", async () => {
+    // Sin `paidAt` ni la factura ni su anulación entran a libros ni a los
+    // reportes que cortan por la cuenta cobrada.
     seed([]);
     h.invoice = invoice;
     h.creditedCents = 63_470_000;
     const { status, json } = await comp();
     expect(status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(h.fake.order()).toMatchObject({ status: "paid", subtotalCents: 0 });
+    expect(h.fake.order()).toMatchObject({ status: "cancelled", paidAt: null, subtotalCents: 0 });
   });
 
   it("una nota parcial no alcanza: sigue siendo una venta facturada", async () => {

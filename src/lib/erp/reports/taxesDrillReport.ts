@@ -51,6 +51,7 @@ import {
   loadCurrentSalesTax,
   loadPurchaseTaxDocs,
   loadRefundsCents,
+  loadPendingPaymentSaleDocs,
   loadSaleTaxDocs,
   loadTaxAccounts,
   loadTaxLedgerLines,
@@ -124,7 +125,7 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
   for (const c of concepts) if (!conceptKindByCode.has(c.accountCode)) conceptKindByCode.set(c.accountCode, c.kind);
   const codes = [...conceptKindByCode.keys()];
 
-  const [windowSales, windowPurchases, creditNotes, refundsCents, currentTax, accounts, lines, engine, entries, dianCreditNotes] =
+  const [windowSales, windowPurchases, creditNotes, refundsCents, currentTax, accounts, lines, engine, entries, dianCreditNotes, pendingPaymentSales] =
     await Promise.all([
       loadSaleTaxDocs(restaurantId, from, windowTo),
       loadPurchaseTaxDocs(restaurantId, from, windowTo),
@@ -136,6 +137,7 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
       loadEngineOrders(restaurantId, from, windowTo, tenant),
       loadEngineEntries(restaurantId, from, to),
       loadDianCreditNotes(restaurantId, from, to),
+      loadPendingPaymentSaleDocs(restaurantId, from, to),
     ]);
   const inUtcPeriod = (iso: string) => Date.parse(iso) < to.getTime();
   const sales = windowSales.filter((s) => inUtcPeriod(s.dateIso));
@@ -179,6 +181,7 @@ async function computeBase(restaurantId: string, period: ReportPeriod): Promise<
     dianInvoices,
     dianCreditNotes,
     freeLineTaxByInvoice: engine.freeLineTaxByInvoice,
+    pendingPaymentSales,
   };
   return { period, tenant, currentTax, facts, drill: buildTaxDrill(facts), recon, checksInput };
 }

@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import type { Locale } from "@/i18n/config";
+import { monthRangeUtc } from "@/lib/erp/reports/period";
 
 type Tax = {
   salesKind: string;
@@ -213,6 +214,17 @@ export function ImpuestosTab({
         <Row label={t("fiscalRetefuente")} value={money(tax.retefuenteCents)} />
         <Row label={t("fiscalReteIva")} value={money(tax.reteIvaCents)} />
         <Row label={t("fiscalReteIca")} value={money(tax.reteIcaCents)} />
+        {/* Las cifras de arriba son del MES DE NEGOCIO e incluyen las
+            ventas sin factura; el reporte despliega de dónde sale cada
+            impuesto (documentos, asientos) y lo que conviene revisar. */}
+        <div className="px-4 pb-3 pt-2">
+          <Link
+            href={`/operator/reportes/impuestos?${new URLSearchParams(monthRangeUtc(month) ?? {}).toString()}`}
+            className="text-sm font-medium underline underline-offset-2 hover:text-op-accent"
+          >
+            {t("fiscalDrillLink")}
+          </Link>
+        </div>
       </Section>
 
       <Section title={t("fiscalClosingTitle", { year: data.year })}>

@@ -452,11 +452,14 @@ export function ComprasClient({
   initialCursor,
   suppliers,
   currency,
+  initialDetailId = null,
 }: {
   initialOrders: OrderSummary[];
   initialCursor: string | null;
   suppliers: SupplierRef[];
   currency: string;
+  /** `?oc=<id>`: abre el detalle de esa orden (enlace desde los reportes). */
+  initialDetailId?: string | null;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -470,7 +473,7 @@ export function ComprasClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(initialDetailId);
   // Carga de factura con IA (A2.5): resultado del POST → sheet de revisión.
   const [invoiceResult, setInvoiceResult] = useState<InvoiceUploadResult | null>(
     null,

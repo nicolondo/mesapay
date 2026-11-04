@@ -3173,7 +3173,7 @@
     "downloadExcel": "Descargar Excel",
     "downloadMore": "Más opciones de descarga",
     "downloadXml": "Descargar XML",
-    "downloadBlocked": "Corregí las incidencias para descargar el XML",
+    "downloadBlocked": "Corrige las incidencias para descargar el XML",
     "xmlBlockedNote": "El XML está bloqueado hasta corregir las incidencias. El Excel se descarga igual, con las filas afectadas marcadas, para revisarlo.",
     "noXml": "XML pendiente",
     "f1001Name": "Pagos o abonos en cuenta y retenciones practicadas",

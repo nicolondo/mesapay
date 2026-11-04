@@ -132,3 +132,54 @@ export function resolveOrderDiscounts(
     netCents: subtotalCents - discountCents,
   };
 }
+
+/**
+ * Lo digitado en el control de descuento (texto + si es % o valor en pesos)
+ * → input del núcleo. El mismo parseo en la orden de compra, la revisión de
+ * la factura y la recepción: vacío, cero o basura = sin descuento.
+ * El % admite decimales (12,5 %); el valor va en pesos con hasta 2 decimales.
+ */
+export function parseDiscountInput(raw: string, isPct: boolean): DiscountInput {
+  const trimmed = raw.trim();
+  if (!/^(?=.*\d)\d*(?:[.,]\d*)?$/.test(trimmed)) return { pct: null, cents: null };
+  const n = Number(trimmed.replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return { pct: null, cents: null };
+  return isPct
+    ? { pct: Math.min(n, 100), cents: null }
+    : { pct: null, cents: Math.round(n * 100) };
+}
+
+/**
+ * Forma en que se GUARDA un descuento (columnas enteras de #393): el % solo
+ * si es entero; un % con decimales se guarda como su valor sobre la base.
+ * Así el servidor, que recalcula con `resolveOrderDiscounts`, llega
+ * exactamente al mismo neto que mostró la pantalla.
+ */
+export function toPersistedDiscount(
+  baseCents: number,
+  d: DiscountInput,
+): { pct: number | null; cents: number | null } {
+  if (d.pct != null && d.pct > 0) {
+    if (Number.isInteger(d.pct)) return { pct: d.pct, cents: null };
+    const cents = discountAmountCents(baseCents, d);
+    return { pct: null, cents: cents > 0 ? cents : null };
+  }
+  if (d.cents != null && d.cents > 0) return { pct: null, cents: Math.round(d.cents) };
+  return { pct: null, cents: null };
+}
+
+/**
+ * El neto revisado (lo que se paga) manda: lista + descuentos solo se aceptan
+ * si lo reproducen EXACTAMENTE con el mismo cálculo de la orden. Así nadie
+ * puede descontar dos veces un precio que ya venía neto.
+ */
+export function discountsReproduceNet(
+  lines: { netCents: number; listCents: number; discount: DiscountInput }[],
+  orderDiscount: DiscountInput,
+): boolean {
+  const applied = resolveOrderDiscounts(
+    lines.map((l) => ({ listCents: l.listCents, discount: l.discount })),
+    orderDiscount,
+  );
+  return applied.lines.every((a, i) => a.netCents === lines[i]!.netCents);
+}

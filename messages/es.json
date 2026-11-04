@@ -7740,7 +7740,20 @@
     "invLineTaxIncludedHint": "El IVA y el consumo se desglosan de este importe, sin sumarlos otra vez.",
     "invLineTaxExcludedHint": "Este importe es la base. El IVA y el consumo se suman al total.",
     "invLineConfirmNet": "Confirmar que no incluye impuestos",
-    "fiscalDrillLink": "Ver qué generó cada impuesto y qué revisar antes de declarar →"
+    "fiscalDrillLink": "Ver qué generó cada impuesto y qué revisar antes de declarar →",
+    "invDiscLineLabel": "Descuento de la línea",
+    "invDiscLineHint": "Se resta del importe de arriba, antes de impuestos. El IVA automático se calcula sobre la base con descuento.",
+    "invDiscLineHintGross": "Este importe incluye impuestos: el descuento se resta de él y la base sin impuestos se recalcula.",
+    "invDiscLineFromInvoice": "Precio de lista y descuento leídos de la factura.",
+    "invDiscLineUnmatched": "La factura muestra un descuento en esta línea que no cuadra con su precio, así que no se aplicó. Si el importe no lo incluye, escríbelo aquí.",
+    "invDiscLineTaxBeforeDiscount": "El IVA impreso de esta línea se calculó antes del descuento. Se conserva el de la factura.",
+    "invDiscLineList": "Importe antes del descuento",
+    "invDiscOrderFromInvoice": "Leído de la factura: es el descuento que no está en las líneas.",
+    "invDiscUnplaced": "La factura muestra descuentos por {amount} que no se aplicaron: los totales impresos no confirman si los precios de las líneas ya los incluyen. Si no los incluyen, escríbelos en el descuento de la línea o en «Descuento sobre el total».",
+    "invDiscTaxBeforeDiscount": "El IVA impreso en la factura se calculó antes del descuento. Se conserva el IVA impreso; si es un error, pídele al proveedor que corrija la factura.",
+    "invDiscTaxMismatch": "El IVA calculado ({computed}) no coincide con el impreso ({printed}). Con descuento, el IVA va sobre la base ya descontada; si la factura lo calcula distinto, escribe el IVA de cada línea como aparece en ella.",
+    "receiveCostHint": "Sin impuestos, antes del descuento de la factura",
+    "receiveDiscIncluded": "El costo ya trae el descuento de la orden. Aquí va solo un descuento adicional de la factura."
   },
   "opDian": {
     "title": "Facturación electrónica DIAN",

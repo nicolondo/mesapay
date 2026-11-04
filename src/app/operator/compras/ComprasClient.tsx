@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { fixReviewPriceAsTotal, reviewLineAmounts, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineAmounts, reviewLineDiscountDetail, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { prefillInvoiceDiscounts } from "@/lib/erp/invoiceDiscount";
 import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { inferPurchaseInvoiceTaxBases } from "@/lib/erp/invoiceTaxBasis";
 import { InvoiceLineTaxToggle } from "./InvoiceLineTaxToggle";
-import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
-import { resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
+import { sanitizeDecimalInput } from "@/lib/decimalInput";
+import { discountAmountCents, parseDiscountInput, resolveOrderDiscounts, toPersistedDiscount } from "@/lib/erp/purchaseDiscount";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
@@ -127,6 +128,8 @@ type OrderDetail = Partial<InvoiceTaxExtras> & {
     qtyOrderedBase: number;
     presentations: number | null;
     expectedCostCents: number;
+    /** Neto de lista antes de descuentos (#393); null = sin descuento. */
+    listCostCents?: number | null;
     receivedQtyBase: number;
     receivedCostCents: number;
     taxPct: number;
@@ -442,6 +445,68 @@ function TaxBreakdown({
   );
 }
 
+/**
+ * Control de descuento de la orden de compra (#393): valor + botón que
+ * alterna entre % y valor fijo en la moneda. El mismo en la orden, la
+ * revisión de la factura y la recepción. `inline` = solo el control (para
+ * ir dentro de una fila); si no, con su etiqueta a la izquierda.
+ */
+function DiscountControl({
+  id,
+  label,
+  raw,
+  isPct,
+  currency,
+  onChange,
+  inline = false,
+  hint,
+  className,
+}: {
+  id?: string;
+  label: string;
+  raw: string;
+  isPct: boolean;
+  currency: string;
+  onChange: (raw: string, isPct: boolean) => void;
+  inline?: boolean;
+  hint?: string;
+  className?: string;
+}) {
+  const t = useTranslations("opErp");
+  const control = (
+    <div className="flex items-center gap-1 shrink-0">
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        value={raw}
+        onChange={(e) => onChange(sanitizeDecimalInput(e.target.value), isPct)}
+        placeholder={t("discountPlaceholder")}
+        aria-label={label}
+        className={(inline ? "w-16" : "w-20") + " min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs text-right tabular"}
+      />
+      <button
+        type="button"
+        onClick={() => onChange(raw, !isPct)}
+        aria-label={t("discountToggleUnit")}
+        className="min-h-[36px] w-8 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
+      >
+        {isPct ? "%" : currency}
+      </button>
+    </div>
+  );
+  if (inline) return control;
+  return (
+    <div className={className}>
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={id} className="text-[11px] text-op-muted">{label}</label>
+        {control}
+      </div>
+      {hint && <p className="mt-1 text-[10px] text-op-muted">{hint}</p>}
+    </div>
+  );
+}
+
 /* ───────────────────────────── Lista ───────────────────────────────── */
 
 type Filter = "all" | PoStatus;
@@ -748,16 +813,27 @@ type DraftLine = {
 
 type LineMode = "list" | "free";
 
-/** Convierte lo digitado en el control de descuento al input del núcleo. */
-function toDiscount(raw: string, isPct: boolean): {
-  pct: number | null;
-  cents: number | null;
-} {
-  const n = parseDecimalInput(raw);
-  if (!Number.isFinite(n) || n <= 0) return { pct: null, cents: null };
-  return isPct
-    ? { pct: Math.min(Math.round(n), 100), cents: null }
-    : { pct: null, cents: Math.round(n * 100) };
+/**
+ * Descuentos del formulario en la forma que se GUARDA (un % con decimales
+ * viaja como su valor): el servidor recalcula con lo mismo y llega al
+ * mismo neto que se ve en pantalla.
+ */
+function persistedOrderDiscounts(
+  lines: { listCents: number; discRaw: string; discIsPct: boolean }[],
+  orderRaw: string,
+  orderIsPct: boolean,
+) {
+  const lineDiscounts = lines.map((l) =>
+    toPersistedDiscount(l.listCents, parseDiscountInput(l.discRaw, l.discIsPct)),
+  );
+  const afterLine = lines.reduce(
+    (sum, l, i) => sum + l.listCents - discountAmountCents(l.listCents, lineDiscounts[i]!),
+    0,
+  );
+  return {
+    lines: lineDiscounts,
+    order: toPersistedDiscount(afterLine, parseDiscountInput(orderRaw, orderIsPct)),
+  };
 }
 
 let lineKeySeq = 0;
@@ -1013,12 +1089,17 @@ function NewOrderSheet({
     if (!supplier || lines.length === 0) return;
     setErr(null);
     setBusy(true);
+    const persisted = persistedOrderDiscounts(
+      lines.map((l) => ({ listCents: l.expectedCostCents, discRaw: l.discRaw, discIsPct: l.discIsPct })),
+      orderDiscRaw,
+      orderDiscIsPct,
+    );
     const r = await fetch("/api/operator/purchase-orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         supplierId: supplier.id,
-        lines: lines.map((l) =>
+        lines: lines.map((l, i) =>
           l.supplierItemId
             ? {
                 ingredientId: l.ingredientId,
@@ -1026,17 +1107,17 @@ function NewOrderSheet({
                 presentations: l.presentations,
                 expectedCostCents: l.expectedCostCents,
                 taxPct: l.taxPct,
-                ...toDiscount(l.discRaw, l.discIsPct),
+                ...persisted.lines[i],
               }
             : {
                 ingredientId: l.ingredientId,
                 qtyBase: l.qtyBase,
                 expectedCostCents: l.expectedCostCents,
                 taxPct: l.taxPct,
-                ...toDiscount(l.discRaw, l.discIsPct),
+                ...persisted.lines[i],
               },
         ),
-        ...toDiscount(orderDiscRaw, orderDiscIsPct),
+        ...persisted.order,
         notes: notes.trim() || null,
         expectedAt: expectedAt ? dateInputToIso(expectedAt) : null,
       }),
@@ -1054,16 +1135,25 @@ function NewOrderSheet({
 
   // Mismo cálculo que hace el servidor al guardar: descuento por línea y
   // después el del pie prorrateado sobre lo que quedó.
+  const persisted = useMemo(
+    () =>
+      persistedOrderDiscounts(
+        lines.map((l) => ({ listCents: l.expectedCostCents, discRaw: l.discRaw, discIsPct: l.discIsPct })),
+        orderDiscRaw,
+        orderDiscIsPct,
+      ),
+    [lines, orderDiscRaw, orderDiscIsPct],
+  );
   const applied = useMemo(
     () =>
       resolveOrderDiscounts(
-        lines.map((l) => ({
+        lines.map((l, i) => ({
           listCents: l.expectedCostCents,
-          discount: toDiscount(l.discRaw, l.discIsPct),
+          discount: persisted.lines[i]!,
         })),
-        toDiscount(orderDiscRaw, orderDiscIsPct),
+        persisted.order,
       ),
-    [lines, orderDiscRaw, orderDiscIsPct],
+    [lines, persisted],
   );
 
   const lineAddDisabled =
@@ -1216,46 +1306,20 @@ function NewOrderSheet({
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={l.discRaw}
-                              onChange={(e) =>
-                                setLines((prev) =>
-                                  prev.map((x) =>
-                                    x.key === l.key
-                                      ? {
-                                          ...x,
-                                          discRaw: sanitizeDecimalInput(
-                                            e.target.value,
-                                          ),
-                                        }
-                                      : x,
-                                  ),
-                                )
-                              }
-                              placeholder={t("discountPlaceholder")}
-                              aria-label={t("discountLabel")}
-                              className="w-16 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs text-right tabular"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setLines((prev) =>
-                                  prev.map((x) =>
-                                    x.key === l.key
-                                      ? { ...x, discIsPct: !x.discIsPct }
-                                      : x,
-                                  ),
-                                )
-                              }
-                              aria-label={t("discountToggleUnit")}
-                              className="min-h-[36px] w-8 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
-                            >
-                              {l.discIsPct ? "%" : currency}
-                            </button>
-                          </div>
+                          <DiscountControl
+                            inline
+                            label={t("discountLabel")}
+                            raw={l.discRaw}
+                            isPct={l.discIsPct}
+                            currency={currency}
+                            onChange={(discRaw, discIsPct) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key ? { ...x, discRaw, discIsPct } : x,
+                                ),
+                              )
+                            }
+                          />
                           <button
                             type="button"
                             onClick={() =>
@@ -1272,32 +1336,18 @@ function NewOrderSheet({
                       {/* Descuento del pie: se prorratea entre las líneas,
                           igual que en el servidor, para que el IVA y el total
                           en pantalla sean los que se van a guardar. */}
-                      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-op-border">
-                        <span className="text-[11px] text-op-muted">
-                          {t("orderDiscountLabel")}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={orderDiscRaw}
-                            onChange={(e) =>
-                              setOrderDiscRaw(sanitizeDecimalInput(e.target.value))
-                            }
-                            placeholder={t("discountPlaceholder")}
-                            aria-label={t("orderDiscountLabel")}
-                            className="w-20 min-h-[36px] px-2 rounded-lg border border-op-border bg-op-bg text-xs text-right tabular"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setOrderDiscIsPct((v) => !v)}
-                            aria-label={t("discountToggleUnit")}
-                            className="min-h-[36px] w-8 rounded-lg border border-op-border bg-op-bg text-xs font-mono"
-                          >
-                            {orderDiscIsPct ? "%" : currency}
-                          </button>
-                        </div>
-                      </div>
+                      <DiscountControl
+                        id="po-order-discount"
+                        label={t("orderDiscountLabel")}
+                        raw={orderDiscRaw}
+                        isPct={orderDiscIsPct}
+                        currency={currency}
+                        onChange={(raw, isPct) => {
+                          setOrderDiscRaw(raw);
+                          setOrderDiscIsPct(isPct);
+                        }}
+                        className="px-3 py-2 border-t border-op-border"
+                      />
                       <TaxBreakdown
                         lines={applied.lines.map((a, i) => ({
                           costCents: a.netCents,
@@ -2077,6 +2127,10 @@ type ExtractionLine = {
   lineTaxCents?: number | null;
   lineIncCents?: number | null;
   lineIncAmbiguous?: boolean;
+  // Descuento impreso en la línea (ausente en lecturas viejas).
+  listUnitPriceCents?: number | null;
+  lineDiscountPct?: number | null;
+  lineDiscountCents?: number | null;
   taxPct: string | null;
   confidence: number;
 };
@@ -2393,14 +2447,26 @@ function InvoiceReviewSheet({
     extraction.issueDate ?? "",
   );
 
-  const [lines, setLines] = useState<InvoiceReviewLine[]>(() => {
+  // Descuentos del proveedor (prellenado determinista, una sola vez).
+  const [discountPrefill] = useState(() => {
     // Also interpret older pending uploads, once. Later supplier/ingredient
     // matches must never overwrite an operator's tax choice.
     const inferred = inferPurchaseInvoiceTaxBases(extraction);
-    return match.lines.map((line, index) => matchLineToReviewLine({ ...line,
+    const built = match.lines.map((line, index) => matchLineToReviewLine({ ...line,
       line: inferred.lines[line.sourceLineIndex ?? index] ?? line.line,
     }, index));
+    // Only what the printed numbers prove is prefilled; a net price that
+    // already contains the discount is never discounted again.
+    return prefillInvoiceDiscounts(inferred, built, {
+      incCents: Math.max(0, (extraction.invoiceIncCents ?? 0)
+        - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0)),
+      retentionsCents: (extraction.retefuenteCents ?? 0) + (extraction.reteIvaCents ?? 0) + (extraction.reteIcaCents ?? 0),
+    });
   });
+  const [lines, setLines] = useState<InvoiceReviewLine[]>(discountPrefill.lines);
+  const [orderDiscRaw, setOrderDiscRaw] = useState(discountPrefill.orderDiscRaw);
+  const [orderDiscIsPct, setOrderDiscIsPct] = useState(discountPrefill.orderDiscIsPct);
+  const [orderDiscFromInvoice, setOrderDiscFromInvoice] = useState(discountPrefill.orderDiscountFromInvoice);
 
   // Insumos existentes para el picker "usar existente" (carga diferida).
   const [ingredients, setIngredients] = useState<IngredientRef[] | null>(null);
@@ -2489,16 +2555,20 @@ function InvoiceReviewSheet({
       .slice(0, 8);
   }, [suppliers, supQ]);
 
-  // Preview and confirmation share one interpretation, including exact VAT.
-  const breakdownLines = useMemo(
-    () =>
-      lines.map((l) => {
-        const amounts = reviewLineAmounts(l);
-        return { costCents: amounts?.netCents ?? 0, taxCents: amounts?.taxCents ?? 0, taxPct: l.taxPct ?? 0 };
-      }),
-    [lines],
+  // Preview and confirmation share one interpretation, including exact VAT
+  // and both discount levels (the same proration the server re-checks).
+  const resolved = useMemo(
+    () => resolveReviewInvoice(lines, parseDiscountInput(orderDiscRaw, orderDiscIsPct)),
+    [lines, orderDiscRaw, orderDiscIsPct],
   );
-  const totals = useMemo(() => poTotals(breakdownLines), [breakdownLines]);
+  const breakdownLines = useMemo(
+    () => resolved.lines.map((l) => ({ costCents: l?.netCents ?? 0, taxCents: l?.taxCents ?? 0, taxPct: 0 })),
+    [resolved],
+  );
+  const totals = useMemo(
+    () => ({ subtotalCents: resolved.netCents, taxCents: resolved.taxCents }),
+    [resolved],
+  );
 
   // Otros impuestos del documento (ERP A3): INC (impoconsumo) + retenciones,
   // que la IA leyó y el operador verifica. En pesos enteros (MoneyInput).
@@ -2525,7 +2595,7 @@ function InvoiceReviewSheet({
     [incPesos, retefuentePesos, reteIvaPesos, reteIcaPesos, lines],
   );
   const unallocatedConsumption = pesosDigitsToCents(incPesos) > 0;
-  const incompleteAmounts = lines.some(l => reviewLineAmounts(l) == null);
+  const incompleteAmounts = !resolved.complete;
   // Total a pagar = subtotal + IVA + INC − retenciones.
   const grandTotalCents = useMemo(
     () => invoiceGrandTotalCents(totals.subtotalCents, totals.taxCents, extras),
@@ -2536,6 +2606,15 @@ function InvoiceReviewSheet({
     () => !totalsMatch(grandTotalCents, extraction.invoiceTotalCents),
     [grandTotalCents, extraction.invoiceTotalCents],
   );
+  // Descuentos: avisos, nunca recálculos silenciosos del IVA impreso.
+  const taxBeforeDiscount = lines.some((l) => l.taxBeforeDiscount);
+  const printedTaxCents = extraction.invoiceTaxCents;
+  const discountTaxMismatch = resolved.discountCents > 0 && !taxBeforeDiscount
+    && printedTaxCents != null && resolved.complete
+    && Math.abs(resolved.taxCents - printedTaxCents) > 100 + 50 * lines.length;
+  const unplacedDiscount = discountPrefill.unplacedDiscountCents != null
+    && (extraction.invoiceTotalCents == null || mismatch)
+    ? discountPrefill.unplacedDiscountCents : null;
 
   // Resumen emparejado/nuevo: cuántos insumos ya existen vs se crearán
   // (ingredientId != null ⇒ existe). Para que el operador vea qué va a crear.
@@ -2587,11 +2666,16 @@ function InvoiceReviewSheet({
         if (l.key !== key) return l;
         const base = (changes.qtyMode != null && changes.qtyMode !== l.qtyMode)
           || (changes.unit != null && changes.unit !== l.unit) ? fixReviewPriceAsTotal(l) : l;
+        const changed = (k: keyof InvoiceReviewLine) => changes[k] !== undefined && changes[k] !== l[k];
+        // A new discount changes the base: an automatic IVA follows it.
         const resetTax = changes.taxAmount === undefined && (
-          ["cost", "taxPct", "taxBasis", "incAmount", "amountKind"].some(k =>
-            changes[k as keyof InvoiceReviewLine] !== undefined && changes[k as keyof InvoiceReviewLine] !== l[k as keyof InvoiceReviewLine])
+          (["cost", "taxPct", "taxBasis", "incAmount", "amountKind", "discRaw", "discIsPct"] as const).some(changed)
           || (l.amountKind === "unit" && (changes.qty !== undefined || changes.presentations !== undefined)));
-        return { ...base, ...changes, ...(resetTax ? { taxAmount: "" } : {}) };
+        // Hints about what was read stop applying once the operator edits it.
+        const edited = (["cost", "discRaw", "discIsPct"] as const).some(changed);
+        return { ...base, ...changes, ...(resetTax ? { taxAmount: "" } : {}),
+          ...(edited ? { discountFromInvoice: false, discountUnmatched: false } : {}),
+          ...(resetTax || changed("taxAmount") ? { taxBeforeDiscount: false } : {}) };
       }),
     );
   }
@@ -2696,8 +2780,14 @@ function InvoiceReviewSheet({
       taxPct: number;
       expectedTaxCents: number;
       expectedIncCents: number;
+      listCostCents?: number;
+      discountPct?: number | null;
+      discountCents?: number | null;
     }[] = [];
-    for (const l of lines) {
+    // Con descuento viajan también lista + descuento (#393). El servidor
+    // verifica que reproduzcan EXACTAMENTE el neto: nunca lo descuenta otra vez.
+    const withDiscounts = resolved.discountCents > 0;
+    for (const [index, l] of lines.entries()) {
       if (l.aliasUnavailable) {
         setErr(t("invAliasUnavailable"));
         return;
@@ -2711,11 +2801,14 @@ function InvoiceReviewSheet({
         setErr(t("invReviewErrLineQty"));
         return;
       }
-      const amounts = reviewLineAmounts(l);
+      const amounts = resolved.lines[index];
       if (amounts == null || l.taxPct == null) {
         setErr(t("invLineReviewAmounts"));
         return;
       }
+      const discountFields = withDiscounts
+        ? { listCostCents: amounts.listCents, discountPct: amounts.discountPct, discountCents: amounts.discountCents }
+        : {};
       payloadLines.push(
         l.ingredientId
           ? {
@@ -2727,6 +2820,7 @@ function InvoiceReviewSheet({
               taxPct: l.taxPct,
               expectedTaxCents: amounts.taxCents,
               expectedIncCents: amounts.incCents,
+              ...discountFields,
             }
           : {
               ingredientId: null,
@@ -2737,6 +2831,7 @@ function InvoiceReviewSheet({
               taxPct: l.taxPct,
               expectedTaxCents: amounts.taxCents,
               expectedIncCents: amounts.incCents,
+              ...discountFields,
             },
       );
     }
@@ -2762,6 +2857,9 @@ function InvoiceReviewSheet({
             retefuenteCents: extras.retefuenteCents,
             reteIvaCents: extras.reteIvaCents,
             reteIcaCents: extras.reteIcaCents,
+            ...(withDiscounts
+              ? { discountPct: resolved.orderDiscount.pct, discountCents: resolved.orderDiscount.cents }
+              : {}),
           }),
         },
       );
@@ -3027,16 +3125,54 @@ function InvoiceReviewSheet({
 
             {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
 
-            {/* Desglose recomputado en vivo (Subtotal + IVA + Total) */}
+            {/* Desglose recomputado en vivo, como el pie de la factura:
+                Subtotal / Descuento / IVA / INC / Retenciones / Total. El
+                descuento del total se prorratea entre las líneas igual que
+                en el servidor, así el IVA mostrado es el que se guarda. */}
             <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
+              <DiscountControl
+                id="inv-order-discount"
+                label={t("orderDiscountLabel")}
+                raw={orderDiscRaw}
+                isPct={orderDiscIsPct}
+                currency={currency}
+                onChange={(raw, isPct) => {
+                  setOrderDiscRaw(raw);
+                  setOrderDiscIsPct(isPct);
+                  setOrderDiscFromInvoice(false);
+                }}
+                hint={orderDiscFromInvoice ? t("invDiscOrderFromInvoice") : undefined}
+                className="px-3 py-2 border-b border-op-border"
+              />
               <TaxBreakdown
                 lines={breakdownLines}
                 currency={currency}
                 totalLabel={t("invReviewTotalNote")}
                 incCents={extras.incCents}
                 retainedCents={retentionsCents(extras)}
+                discountCents={resolved.discountCents}
+                listSubtotalCents={resolved.subtotalCents}
               />
             </div>
+
+            {unplacedDiscount != null && (
+              <div role="status" className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
+                {t("invDiscUnplaced", { amount: formatMoney(unplacedDiscount, { currency, locale }) })}
+              </div>
+            )}
+            {taxBeforeDiscount && (
+              <div role="status" className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
+                {t("invDiscTaxBeforeDiscount")}
+              </div>
+            )}
+            {discountTaxMismatch && printedTaxCents != null && (
+              <div role="status" className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
+                {t("invDiscTaxMismatch", {
+                  computed: formatMoney(resolved.taxCents, { currency, locale }),
+                  printed: formatMoney(printedTaxCents, { currency, locale }),
+                })}
+              </div>
+            )}
 
             {/* Otros impuestos del documento (ERP A3): INC + retenciones. La IA
                 los prellena; el operador los verifica/corrige. INC suma,
@@ -3242,6 +3378,7 @@ function InvoiceReviewLineCard({
 
   const qtyBase = reviewLineQtyBase(l);
   const amounts = reviewLineAmounts(l);
+  const discountDetail = reviewLineDiscountDetail(l, amounts);
   const priceQuantity = reviewPriceQuantity(l);
   const money = (cents: number) => formatMoney(cents, { currency, locale });
   const readQtyStr = new Intl.NumberFormat(locale, {
@@ -3517,6 +3654,28 @@ function InvoiceReviewLineCard({
       </div>
 
       <p className="text-[11px] text-op-muted">{t(l.amountKind === "line" ? "invLineTotalHint" : "invLineUnitHint")}</p>
+      {/* Descuento de la línea: mismo control que en la orden de compra. Se
+          aplica sobre el importe de arriba; el IVA automático va sobre la
+          base ya descontada. */}
+      <div className="rounded-xl border border-op-border bg-op-surface px-3 py-2">
+        <DiscountControl
+          id={`inv-line-discount-${l.key}`}
+          label={t("invDiscLineLabel")}
+          raw={l.discRaw ?? ""}
+          isPct={l.discIsPct ?? true}
+          currency={currency}
+          onChange={(discRaw, discIsPct) => onChange({ discRaw, discIsPct })}
+        />
+        <p className="mt-1 text-[10px] text-op-muted">
+          {t(l.taxBasis === "gross" ? "invDiscLineHintGross" : "invDiscLineHint")}
+        </p>
+        {l.discountFromInvoice && (
+          <p className="mt-1 text-[11px] text-[#2E7D32]" role="status">{t("invDiscLineFromInvoice")}</p>
+        )}
+        {l.discountUnmatched && (
+          <p className="mt-1 text-[11px] text-terracotta" role="status">{t("invDiscLineUnmatched")}</p>
+        )}
+      </div>
       <InvoiceLineTaxToggle basis={l.taxBasis} manual={l.taxBasisManual}
         onChange={included => onChange(setReviewTaxIncluded(l, included))} />
       <div className="grid grid-cols-2 gap-2">
@@ -3531,7 +3690,12 @@ function InvoiceReviewLineCard({
       </div>
       {(l.taxBasis === "unknown" || l.taxPct == null || (l.incNeedsReview && !l.incAmount.trim())) &&
         <p className="text-[11px] text-terracotta">{t("invLineUnknownHint")}</p>}
+      {l.taxBeforeDiscount && <p className="text-[11px] text-[#7F5A1F]" role="status">{t("invDiscLineTaxBeforeDiscount")}</p>}
       {amounts && <div className="border-t border-op-border pt-2 space-y-1 text-[11px] tabular-nums" data-testid="invoice-line-amounts">
+        {discountDetail && discountDetail.shownDiscountCents > 0 && <>
+          <div className="flex justify-between gap-2 text-op-muted"><span>{t("invDiscLineList")}</span><span>{money(discountDetail.shownListCents)}</span></div>
+          <div className="flex justify-between gap-2 text-op-muted"><span>{t("discountLabel")}</span><span className="text-ok">{`− ${money(discountDetail.shownDiscountCents)}`}</span></div>
+        </>}
         <div className="flex justify-between gap-2 text-op-muted"><span>{t("invLineNetAmount")}</span><span>{money(amounts.netCents)}</span></div>
         <div className="flex justify-between gap-2 text-op-muted"><span>{t("taxLabel")}</span><span>{money(amounts.taxCents)}</span></div>
         {amounts.incCents > 0 && <div className="flex justify-between gap-2 text-op-muted"><span>{t("invTaxInc")}</span><span>{money(amounts.incCents)}</span></div>}
@@ -3693,6 +3857,18 @@ function OrderDetailSheet({
   // Total bruto (neto + IVA) — para WhatsApp/impresión.
   const detailTotals = purchaseOrderTotals(order ?? { items: [] }, useReceived ? "received" : "expected");
   const total = detailTotals.totalCents;
+  // Descuentos del proveedor (#393): "Subtotal / Descuento" como la factura.
+  // Solo mientras los costos mostrados son los de la orden (si se recibió a
+  // otro costo, la lista de la orden ya no explica ese neto).
+  const detailDiscount = (() => {
+    const items = order?.items ?? [];
+    const sameCost = items.every((it) => !useReceived || it.receivedCostCents === it.expectedCostCents);
+    const discount = items.reduce(
+      (sum, it) => sum + Math.max(0, (it.listCostCents ?? it.expectedCostCents) - it.expectedCostCents),
+      0,
+    );
+    return sameCost && discount > 0 ? { discountCents: discount, listSubtotalCents: detailTotals.subtotalCents + discount } : null;
+  })();
 
   // Enviar (WhatsApp/imprimir) marca `sent` si aún es borrador — optimista
   // y fire-and-forget: el envío ya salió, el server solo lo registra (D6).
@@ -3745,7 +3921,8 @@ function OrderDetailSheet({
       `<td class="num">${escapeHtml(
         formatMoney(cents, { currency, locale }),
       )}</td></tr>`;
-    const printTotalsRows = totalRow(t("subtotalLabel"), printTotals.subtotalCents)
+    const printTotalsRows = totalRow(t("subtotalLabel"), detailDiscount?.listSubtotalCents ?? printTotals.subtotalCents)
+      + (detailDiscount ? totalRow(t("discountLabel"), -detailDiscount.discountCents) : "")
       + (printTotals.taxCents > 0 ? totalRow(t("taxLabel"), printTotals.taxCents) : "")
       + (printTotals.incCents > 0 ? totalRow(t("invTaxInc"), printTotals.incCents) : "")
       + (printTotals.retentionsCents > 0 ? totalRow(t("invLineRetentions"), -printTotals.retentionsCents) : "")
@@ -3989,6 +4166,8 @@ function OrderDetailSheet({
                 totalLabel={t("orderTotalLabel")}
                 incCents={detailTotals.incCents}
                 retainedCents={detailTotals.retentionsCents}
+                discountCents={detailDiscount?.discountCents}
+                listSubtotalCents={detailDiscount?.listSubtotalCents}
               />
             </div>
 
@@ -4304,7 +4483,49 @@ type ReceiveLine = {
   cost: string;
   /** true cuando el operador tocó el costo — deja de precargarse. */
   costDirty: boolean;
+  /** Descuento de la factura en esta línea (además del de la orden). */
+  discRaw: string;
+  discIsPct: boolean;
 };
+
+/**
+ * Lo que se registra en la recepción: costo digitado (sin impuestos) menos
+ * el descuento de la línea y la parte del descuento del total, con el mismo
+ * cálculo de la orden de compra (#393). Devuelve null en la fila inválida.
+ */
+function resolveReception(
+  lines: ReceiveLine[],
+  itemsById: Map<string, OrderItem>,
+  orderDiscRaw: string,
+  orderDiscIsPct: boolean,
+) {
+  const rows = lines.flatMap((l) => {
+    const it = l.include ? itemsById.get(l.itemId) : undefined;
+    if (!it) return [];
+    const qtyBase = toBaseQty(Number(l.qty.replace(",", ".")), it.ingredient.measureKind, l.unit);
+    const pesos = Number(l.cost.replace(",", "."));
+    const listCents = l.cost.trim() !== "" && isFinite(pesos) && pesos >= 0 ? pesosToCents(pesos) : null;
+    return [{ line: l, qtyBase, listCents }];
+  });
+  const valid = rows.filter(
+    (r): r is { line: ReceiveLine; qtyBase: number; listCents: number } => r.qtyBase != null && r.listCents != null,
+  );
+  const persisted = persistedOrderDiscounts(
+    valid.map((r) => ({ listCents: r.listCents, discRaw: r.line.discRaw, discIsPct: r.line.discIsPct })),
+    orderDiscRaw,
+    orderDiscIsPct,
+  );
+  const applied = resolveOrderDiscounts(
+    valid.map((r, i) => ({ listCents: r.listCents, discount: persisted.lines[i]! })),
+    persisted.order,
+  );
+  return {
+    invalid: valid.length !== rows.length,
+    lines: valid.map((r, i) => ({ itemId: r.line.itemId, qtyBase: r.qtyBase, costCents: applied.lines[i]!.netCents })),
+    subtotalCents: applied.subtotalCents,
+    discountCents: applied.discountCents,
+  };
+}
 
 // Errores del POST /receive → clave i18n (fallback errSaveFailed).
 const API_RECEIVE_ERROR_KEYS: Record<string, string> = {
@@ -4358,11 +4579,42 @@ function ReceiveSheet({
         unit,
         cost: proportionalCost(it, remaining),
         costDirty: false,
+        discRaw: "",
+        discIsPct: true,
       };
     }),
   );
+  const [orderDiscRaw, setOrderDiscRaw] = useState("");
+  const [orderDiscIsPct, setOrderDiscIsPct] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Lo que se va a registrar y su efecto en la cuenta por pagar: la misma
+  // cuenta que hace el servidor (IVA documental proporcional al neto real,
+  // consumo y retenciones según lo recibido).
+  const reception = useMemo(
+    () => resolveReception(lines, itemsById, orderDiscRaw, orderDiscIsPct),
+    [lines, itemsById, orderDiscRaw, orderDiscIsPct],
+  );
+  const receptionTotals = useMemo(() => {
+    const received = new Map(reception.lines.map((r) => [r.itemId, r]));
+    const before = purchaseOrderTotals(order, "received");
+    const after = purchaseOrderTotals({
+      ...order,
+      items: order.items.map((it) => {
+        const r = received.get(it.id);
+        return r
+          ? { ...it, receivedQtyBase: it.receivedQtyBase + r.qtyBase, receivedCostCents: it.receivedCostCents + r.costCents }
+          : it;
+      }),
+    }, "received");
+    return {
+      netCents: after.subtotalCents - before.subtotalCents,
+      taxCents: after.taxCents - before.taxCents,
+      incCents: after.incCents - before.incCents,
+      retentionsCents: after.retentionsCents - before.retentionsCents,
+    };
+  }, [reception, order]);
 
   function updateLine(itemId: string, changes: Partial<ReceiveLine>) {
     setLines((prev) =>
@@ -4391,30 +4643,13 @@ function ReceiveSheet({
 
   async function submit() {
     setErr(null);
-    const payload: { itemId: string; qtyBase: number; costCents: number }[] =
-      [];
-    for (const l of lines) {
-      if (!l.include) continue;
-      const it = itemsById.get(l.itemId);
-      if (!it) continue;
-      const qtyBase = toBaseQty(
-        Number(l.qty.replace(",", ".")),
-        it.ingredient.measureKind,
-        l.unit,
-      );
-      const costPesos = Number(l.cost.replace(",", "."));
-      const costOk =
-        l.cost.trim() !== "" && isFinite(costPesos) && costPesos >= 0;
-      if (qtyBase == null || !costOk) {
-        setErr(t("errLineInvalid"));
-        return;
-      }
-      payload.push({
-        itemId: l.itemId,
-        qtyBase,
-        costCents: pesosToCents(costPesos),
-      });
+    // Neto de cada línea, ya con los descuentos de la factura: es lo que
+    // entra al inventario, a la cuenta por pagar y al precio del proveedor.
+    if (reception.invalid) {
+      setErr(t("errLineInvalid"));
+      return;
     }
+    const payload = reception.lines;
     if (payload.length === 0) return;
     setBusy(true);
     const r = await fetch(
@@ -4523,7 +4758,7 @@ function ReceiveSheet({
                           </select>
                         </div>
                       </Field>
-                      <Field label={`${t("fieldRealCost")} (${currency})`} required hint={t("invLineNetAmount")}>
+                      <Field label={`${t("fieldRealCost")} (${currency})`} required hint={t("receiveCostHint")}>
                         <MoneyInput
                           value={l.cost}
                           fractionDigits={2}
@@ -4536,11 +4771,56 @@ function ReceiveSheet({
                           className={inputCls}
                         />
                       </Field>
+                      <div className="col-span-2">
+                        <DiscountControl
+                          id={`receive-discount-${l.itemId}`}
+                          label={t("invDiscLineLabel")}
+                          raw={l.discRaw}
+                          isPct={l.discIsPct}
+                          currency={currency}
+                          onChange={(discRaw, discIsPct) => updateLine(l.itemId, { discRaw, discIsPct })}
+                        />
+                        {/* El costo precargado ya trae el descuento de la
+                            orden: aquí solo va uno adicional de la factura. */}
+                        {it.listCostCents != null && it.listCostCents > it.expectedCostCents && (
+                          <p className="mt-1 text-[10px] text-op-muted">{t("receiveDiscIncluded")}</p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               );
             })}
+            {/* Pie de la factura de esta entrega: descuento del total
+                (prorrateado como en la orden) y lo que queda por pagar. */}
+            {anyIncluded && (
+              <>
+                <DiscountControl
+                  id="receive-order-discount"
+                  label={t("orderDiscountLabel")}
+                  raw={orderDiscRaw}
+                  isPct={orderDiscIsPct}
+                  currency={currency}
+                  onChange={(raw, isPct) => {
+                    setOrderDiscRaw(raw);
+                    setOrderDiscIsPct(isPct);
+                  }}
+                  className="px-3 py-2 border-t border-op-border"
+                />
+                <div className="border-t border-op-border" data-testid="receive-breakdown">
+                  <TaxBreakdown
+                    lines={[{ costCents: receptionTotals.netCents, taxPct: 0, taxCents: receptionTotals.taxCents }]}
+                    currency={currency}
+                    totalLabel={t("invTaxGrandTotal")}
+                    alwaysBreakdown
+                    discountCents={reception.discountCents}
+                    listSubtotalCents={reception.subtotalCents}
+                    incCents={receptionTotals.incCents}
+                    retainedCents={receptionTotals.retentionsCents}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 

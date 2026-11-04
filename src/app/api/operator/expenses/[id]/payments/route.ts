@@ -4,6 +4,8 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { EXPENSE_INCLUDE } from "@/lib/erp/expenseShared";
+import { expensePayableCents } from "@/lib/erp/expenseTax";
 import { loadAccountMap } from "@/lib/erp/ledger";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -29,9 +31,11 @@ class PayError extends Error {
 }
 
 /**
- * Registrar un abono a un gasto que quedó debiéndose. Saldo =
- * amountCents − paidCents; se rechaza un abono que lo exceda. Cuando el
- * saldo llega a 0 el gasto queda pagado (paidAt).
+ * Registrar un abono a un gasto que quedó debiéndose. Saldo = TOTAL A
+ * PAGAR (payableCents: base + IVA + INC − retenciones) − paidCents; se
+ * rechaza un abono que lo exceda. Cuando el saldo llega a 0 el gasto queda
+ * pagado (paidAt). Lo retenido no se le paga al proveedor: se le debe a la
+ * DIAN (cuentas 2365/2367/2368).
  *
  * `accountCode` es la cuenta de donde SALE la plata: es lo que el asiento
  * acredita, en vez del banco fijo que se usaba antes.
@@ -67,6 +71,7 @@ async function POSTHandler(
         select: {
           restaurantId: true,
           amountCents: true,
+          payableCents: true,
           paidCents: true,
           recurring: true,
         },
@@ -77,7 +82,8 @@ async function POSTHandler(
       // Las plantillas no son un gasto real, no tienen saldo que pagar.
       if (expense.recurring) throw new PayError("wrong_status", 409);
 
-      const outstanding = expense.amountCents - expense.paidCents;
+      const payable = expensePayableCents(expense);
+      const outstanding = payable - expense.paidCents;
       if (b.amountCents > outstanding) {
         throw new PayError("exceeds_balance", 400);
       }
@@ -99,13 +105,9 @@ async function POSTHandler(
         where: { id },
         data: {
           paidCents: newPaid,
-          paidAt: newPaid >= expense.amountCents ? paidAt : null,
+          paidAt: newPaid >= payable ? paidAt : null,
         },
-        include: {
-          supplier: { select: { id: true, name: true } },
-          costCenter: { select: { id: true, name: true } },
-          payments: { orderBy: { paidAt: "desc" } },
-        },
+        include: { ...EXPENSE_INCLUDE, payments: { orderBy: { paidAt: "desc" } } },
       });
       return { payment, expense: updated };
     });

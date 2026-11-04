@@ -6,14 +6,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
+import { formatDate, formatMoney, localeTag } from "@/lib/format";
 import {
   type ContabilidadTab,
   DEFAULT_CONTABILIDAD_TAB,
   parseContabilidadTab,
 } from "@/lib/erp/contabilidadTabs";
 import { expenseOutstandingCents } from "@/lib/erp/accounting";
-import { MoneyInput } from "@/components/MoneyInput";
+import { expensePayableCents } from "@/lib/erp/expenseTax";
+import { ExpenseSheet, type ExpenseDto, type SupplierRef } from "./ExpenseSheet";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { PresupuestoTab } from "./PresupuestoTab";
 import { ActivosTab } from "./ActivosTab";
@@ -24,37 +25,8 @@ import { ImpuestosTab } from "./ImpuestosTab";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
-// categorías para el datalist) y de GET /api/operator/suppliers (picker).
-
-type ChartAccountRef = {
-  code: string;
-  name: string;
-  type: string;
-  postable: boolean;
-};
-
-type SupplierRef = { id: string; name: string };
-
-type ExpenseDto = {
-  id: string;
-  category: string;
-  description: string | null;
-  amountCents: number;
-  /** ISO — fecha contable del gasto (editable, no createdAt). */
-  date: string;
-  supplierId: string | null;
-  supplier: SupplierRef | null;
-  costCenterId: string | null;
-  accountCode?: string | null;
-  dueAt?: string | null;
-  paidCents?: number;
-  paidAt?: string | null;
-  costCenter: { id: string; name: string } | null;
-  recurring: boolean;
-  /** 1-28 solo en plantillas (recurring: true). */
-  recurringDay: number | null;
-  templateId: string | null;
-};
+// categorías para el datalist); el gasto y el proveedor viven en
+// ExpenseSheet.tsx, con el formulario.
 
 type ExpensesPayload = {
   /** Gastos del mes (recurring: false), date desc. */
@@ -253,36 +225,6 @@ function monthLabel(month: string, locale: Locale): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** "2026-07-10" (input date) → ISO al mediodía local (sin corrimiento de día). */
-function dateInputToIso(value: string): string {
-  return new Date(`${value}T12:00:00`).toISOString();
-}
-
-function isoToDateInput(value: string): string {
-  const d = new Date(value);
-  const pad = (x: number) => String(x).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** Hoy en formato input date — default del formulario de gasto. */
-function todayDateInput(): string {
-  return isoToDateInput(new Date().toISOString());
-}
-
-// Errores del POST/PATCH/DELETE de gastos → clave i18n (fallback
-// errSaveFailed). recurring_day_forbidden es defensivo: el formulario
-// nunca manda día sin recurrente.
-const API_ERROR_KEYS: Record<string, string> = {
-  invalid: "errExpenseInvalid",
-  recurring_day_required: "errRecurringDayRequired",
-  recurring_day_forbidden: "errRecurringDayForbidden",
-  supplier_not_found: "errSupplierNotFound",
-  not_found: "errExpenseNotFound",
-  exceeds_balance: "errExpensePayExceeds",
-  account_not_found: "errExpensePayAccount",
-  wrong_status: "errExpenseInvalid",
-};
-
 // PaymentMethod (prisma) → clave i18n del label (convención m* de
 // opPayments/opOrders). Un método futuro sin clave cae al valor crudo:
 // el libro nunca se rompe por un enum nuevo.
@@ -356,7 +298,14 @@ export function ContabilidadClient({ currency }: { currency: string }) {
     params.set("tab", next);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
-  const [month, setMonth] = useState(currentMonth);
+  // `?month=YYYY-MM&expense=<id>`: los reportes (impuestos, cartera) abren
+  // un gasto directo. El mes de la URL manda al entrar; el gasto se abre en
+  // cuanto llega la lista de ese mes y el parámetro se limpia.
+  const urlMonth = searchParams.get("month");
+  const [month, setMonth] = useState(() =>
+    urlMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(urlMonth) ? urlMonth : currentMonth(),
+  );
+  const [pendingExpenseId, setPendingExpenseId] = useState<string | null>(() => searchParams.get("expense"));
   // El payload viaja con SU mes: al cambiar de mes, `data` (derivado abajo)
   // vuelve a null (cargando) sin resetear estado dentro del efecto; al
   // recargar el MISMO mes (tras guardar) se muestra el dato viejo sin
@@ -367,9 +316,6 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   } | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
-  // true cuando el endpoint de proveedores respondió 200 (módulo purchasing
-  // activo) — habilita el campo/alta de proveedor aunque el catálogo esté vacío.
-  const [suppliersEnabled, setSuppliersEnabled] = useState(false);
   // Se incrementa para re-fetchear el mes tras guardar/borrar: un gasto
   // editado puede salir del mes, y una plantilla nueva cambia ambas listas.
   const [reloadSeq, setReloadSeq] = useState(0);
@@ -408,22 +354,38 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   // null = cargando el mes seleccionado (aún no hay payload de ESE mes).
   const data = loaded !== null && loaded.month === month ? loaded.payload : null;
 
-  // Proveedores para el select del formulario. El endpoint vive tras el
-  // módulo `purchasing`: si está apagado responde 403 y el campo
-  // simplemente no se ofrece (el gasto queda sin proveedor — opcional).
+  // Abrir el gasto del enlace (`?expense=`) cuando llega su mes: se busca
+  // entre los gastos y las plantillas y se limpia el parámetro de la URL.
+  // Ajuste de estado durante el render (patrón de la pestaña), no en un efecto.
+  if (pendingExpenseId && data) {
+    const hit = [...data.expenses, ...data.templates].find((e) => e.id === pendingExpenseId) ?? null;
+    setPendingExpenseId(null);
+    if (hit) setOpen(hit);
+  }
+  useEffect(() => {
+    if (pendingExpenseId !== null || !searchParams.get("expense")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("expense");
+    params.delete("month");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pendingExpenseId, searchParams, router, pathname]);
+
+  // Proveedores para el select del formulario. Lo abren los módulos de
+  // compras O de contabilidad: el gasto elige y crea su proveedor ahí mismo.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const r = await fetch("/api/operator/suppliers");
         if (!r.ok) return;
-        const j = (await r.json()) as { suppliers?: SupplierRef[] };
+        const j = (await r.json()) as {
+          suppliers?: Array<SupplierRef & { active?: boolean }>;
+        };
         if (!cancelled) {
-          // Módulo purchasing activo (endpoint 200) ⇒ ofrecer el campo
-          // proveedor aunque el catálogo esté vacío, para crear el primero.
-          setSuppliersEnabled(true);
           setSuppliers(
-            (j.suppliers ?? []).map((s) => ({ id: s.id, name: s.name })),
+            (j.suppliers ?? [])
+              .filter((s) => s.active !== false)
+              .map((s) => ({ id: s.id, name: s.name, taxId: s.taxId ?? null })),
           );
         }
       } catch {
@@ -595,6 +557,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                               timeStyle: undefined,
                             }) +
                               (e.supplier ? ` · ${e.supplier.name}` : "") +
+                              (e.documentNumber ? ` · ${e.documentNumber}` : "") +
                               (e.costCenter ? ` · ${e.costCenter.name}` : "")}
                           </div>
                         </div>
@@ -602,12 +565,22 @@ export function ContabilidadClient({ currency }: { currency: string }) {
                           <div className="text-sm font-medium tabular-nums">
                             {formatMoney(e.amountCents, { currency, locale })}
                           </div>
-                          {expenseOutstandingCents(e) > 0 && (
+                          {expenseOutstandingCents(e) > 0 ? (
                             <div className="text-[11px] font-medium text-[#7F5A1F] mt-0.5 tabular-nums">
                               {t("expenseOutstandingBadge", {
                                 amount: formatMoney(expenseOutstandingCents(e), { currency, locale }),
                               })}
                             </div>
+                          ) : (
+                            // Con IVA descontable o retenciones, lo que se
+                            // pagó no es el costo del gasto: se muestra.
+                            expensePayableCents(e) !== e.amountCents && (
+                              <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
+                                {t("expenseRowPayable", {
+                                  amount: formatMoney(expensePayableCents(e), { currency, locale }),
+                                })}
+                              </div>
+                            )
                           )}
                         </div>
                       </div>
@@ -635,7 +608,6 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           expense={open === "new" ? null : open}
           currency={currency}
           suppliers={suppliers}
-          suppliersEnabled={suppliersEnabled}
           categories={data?.categories ?? []}
           onClose={() => setOpen(null)}
           onChanged={handleChanged}
@@ -1884,739 +1856,3 @@ function TemplatesSection({
     </section>
   );
 }
-
-/* ──────────────── Crear/editar gasto (sheet) ───────────────────────── */
-
-function ExpenseSheet({
-  expense,
-  currency,
-  suppliers,
-  suppliersEnabled,
-  categories,
-  onClose,
-  onChanged,
-  onSupplierCreated,
-}: {
-  /** null = crear. */
-  expense: ExpenseDto | null;
-  currency: string;
-  suppliers: SupplierRef[];
-  /** Módulo purchasing activo: ofrecer el campo/alta aunque no haya proveedores. */
-  suppliersEnabled?: boolean;
-  categories: string[];
-  onClose: () => void;
-  onChanged: () => void;
-  /** Un proveedor creado inline sube al padre para persistir en la lista. */
-  onSupplierCreated?: (s: SupplierRef) => void;
-}) {
-  const t = useTranslations("opErp");
-
-  // Proveedores creados inline en esta sesión del sheet: se muestran en el
-  // select de inmediato (el prop `suppliers` solo se refresca en el padre).
-  const [localSuppliers, setLocalSuppliers] = useState<SupplierRef[]>([]);
-  const [creatingSupplier, setCreatingSupplier] = useState(false);
-
-  const [category, setCategory] = useState(expense?.category ?? "");
-  const [description, setDescription] = useState(expense?.description ?? "");
-  // Monto en unidades de moneda (pesos) — el API habla en centavos (×100).
-  const [amountRaw, setAmountRaw] = useState(
-    expense ? String(expense.amountCents / 100) : "",
-  );
-  const [date, setDate] = useState(
-    expense ? isoToDateInput(expense.date) : todayDateInput(),
-  );
-  const [supplierId, setSupplierId] = useState(expense?.supplierId ?? "");
-  // Centros de costos (opcional): se cargan perezoso al abrir el sheet.
-  const [costCenterId, setCostCenterId] = useState(expense?.costCenterId ?? "");
-  const [centers, setCenters] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/operator/accounting/centros")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
-      .then((j) => {
-        if (alive)
-          setCenters(
-            (j.centers as Array<{ id: string; name: string; active: boolean }>)
-              .filter((c) => c.active)
-              .map((c) => ({ id: c.id, name: c.name })),
-          );
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const [accountCode, setAccountCode] = useState(expense?.accountCode ?? "");
-  const [dueDate, setDueDate] = useState("");
-  // Al crear, lo normal es que ya se pagó. Al editar no se toca el pago:
-  // los abonos se registran aparte.
-  const [paidNow, setPaidNow] = useState(true);
-  const [payAccountCode, setPayAccountCode] = useState("");
-  const [accounts, setAccounts] = useState<ChartAccountRef[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/operator/accounting/chart")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
-      .then((j) => {
-        if (!alive) return;
-        const rows = (j.accounts as ChartAccountRef[]).filter((a) => a.postable);
-        setAccounts(rows);
-        // Default del pago: la primera cuenta de caja/bancos del plan.
-        setPayAccountCode((prev) => prev || (rows.find((a) => a.code.startsWith("11"))?.code ?? ""));
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const [recurring, setRecurring] = useState(expense?.recurring ?? false);
-  const [dayRaw, setDayRaw] = useState(
-    expense?.recurringDay != null ? String(expense.recurringDay) : "",
-  );
-  const [busy, setBusy] = useState(false);
-  const [deletingBusy, setDeletingBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // El gasto puede referenciar un proveedor que ya no está en el catálogo
-  // (o purchasing apagado → lista vacía): se agrega como opción para no
-  // perder la referencia al editar. Los creados inline se anteponen.
-  const supplierOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: SupplierRef[] = [];
-    const push = (s: SupplierRef) => {
-      if (seen.has(s.id)) return;
-      seen.add(s.id);
-      out.push(s);
-    };
-    localSuppliers.forEach(push);
-    if (expense?.supplier) push(expense.supplier);
-    suppliers.forEach(push);
-    return out;
-  }, [expense, suppliers, localSuppliers]);
-
-  // Proveedor creado inline: queda elegido, visible en el select y sube al
-  // padre para persistir fuera del sheet.
-  function handleSupplierCreated(s: SupplierRef) {
-    setLocalSuppliers((prev) => [s, ...prev.filter((p) => p.id !== s.id)]);
-    setSupplierId(s.id);
-    setCreatingSupplier(false);
-    onSupplierCreated?.(s);
-  }
-
-  async function save() {
-    setErr(null);
-    const cat = category.trim();
-    if (!cat) {
-      setErr(t("errExpenseInvalid"));
-      return;
-    }
-    const pesos = Number(amountRaw.replace(",", "."));
-    const amountCents = isFinite(pesos) ? pesosToCents(pesos) : 0;
-    if (amountCents < 1) {
-      setErr(t("errAmountInvalid"));
-      return;
-    }
-    if (!date) {
-      setErr(t("errExpenseInvalid"));
-      return;
-    }
-    const day = Number(dayRaw);
-    if (recurring && (!Number.isInteger(day) || day < 1 || day > 28)) {
-      setErr(t("errRecurringDayRequired"));
-      return;
-    }
-    // recurringDay: null explícito al apagar recurrente — el PATCH valida
-    // el estado resultante (existente + parche) y un día huérfano es 400.
-    const body = {
-      category: cat,
-      description: description.trim() || null,
-      amountCents,
-      date: dateInputToIso(date),
-      supplierId: supplierId || null,
-      costCenterId: costCenterId || null,
-      recurring,
-      recurringDay: recurring ? day : null,
-      accountCode: accountCode || null,
-      dueAt: !recurring && !paidNow && dueDate ? dateInputToIso(dueDate) : null,
-      // Solo al CREAR: el abono de contado se hace en la misma transacción.
-      // Editando, los pagos se registran por su propia ruta.
-      payFromAccountCode:
-        !expense && !recurring && paidNow ? payAccountCode || null : null,
-    };
-    setBusy(true);
-    const r = await fetch(
-      expense ? `/api/operator/expenses/${expense.id}` : "/api/operator/expenses",
-      {
-        method: expense ? "PATCH" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    onChanged();
-  }
-
-  // Borrar plantilla: las copias ya materializadas quedan (contrato del
-  // API) — el confirm lo aclara. Confirm nativo, patrón compras/recetas.
-  async function remove() {
-    if (!expense) return;
-    const msg = expense.recurring
-      ? t("confirmDeleteExpenseTemplate")
-      : t("confirmDeleteExpense");
-    if (!window.confirm(msg)) return;
-    setErr(null);
-    setDeletingBusy(true);
-    const r = await fetch(`/api/operator/expenses/${expense.id}`, {
-      method: "DELETE",
-    });
-    setDeletingBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    onChanged();
-  }
-
-  const anyBusy = busy || deletingBusy;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
-    >
-      <div
-        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
-        // Hoja pegada al borde inferior: el padding reserva la franja del
-        // indicador de inicio en la PWA de iOS (env() = 0 en escritorio).
-        style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="font-display text-2xl">
-            {expense ? t("editExpense") : t("newExpense")}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
-            aria-label={t("cancel")}
-          >
-            {"✕"}
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <Field label={t("fieldCategory")} required>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder={t("expenseCategoryPlaceholder")}
-              maxLength={60}
-              list="expense-categories"
-              className={inputCls}
-            />
-            <datalist id="expense-categories">
-              {categories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </Field>
-
-          <Field label={t("fieldDescription")}>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={300}
-              className={inputCls}
-            />
-          </Field>
-
-          <Field label={t("fieldAmount")} required>
-            <MoneyInput
-              value={amountRaw}
-              onChange={setAmountRaw}
-              className={inputCls}
-            />
-          </Field>
-
-          <Field label={t("fieldDate")} required>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-
-          {(suppliersEnabled || supplierOptions.length > 0) && (
-            <Field label={t("fieldSupplier")}>
-              <select
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">{t("supplierNone")}</option>
-                {supplierOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              {creatingSupplier ? (
-                <SupplierInlineForm
-                  onCreated={handleSupplierCreated}
-                  onCancel={() => setCreatingSupplier(false)}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setCreatingSupplier(true)}
-                  className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
-                >
-                  {t("createSupplierInline")}
-                </button>
-              )}
-            </Field>
-          )}
-
-          {/* Centro de costos (opcional) — solo si el comercio creó alguno. */}
-          {(centers.length > 0 || costCenterId !== "") && (
-            <Field label={t("fieldCostCenter")}>
-              <select
-                value={costCenterId}
-                onChange={(e) => setCostCenterId(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              >
-                <option value="">{t("noCostCenter")}</option>
-                {centers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-                {costCenterId !== "" &&
-                  !centers.some((c) => c.id === costCenterId) &&
-                  expense?.costCenter && (
-                    <option value={costCenterId}>{expense.costCenter.name}</option>
-                  )}
-              </select>
-            </Field>
-          )}
-
-          {/* Cuenta contable del gasto. Vacío = se deriva de la categoría por
-              palabras clave, que es lo que se hacía siempre; con plan de
-              cuentas propio conviene fijarla. */}
-          {accounts.length > 0 && (
-            <Field label={t("fieldExpenseAccount")} hint={t("expenseAccountHint")}>
-              <select
-                value={accountCode}
-                onChange={(e) => setAccountCode(e.target.value)}
-                className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-              >
-                <option value="">{t("expenseAccountAuto")}</option>
-                {accounts
-                  .filter((a) => a.type === "gasto" || a.type === "costo")
-                  .map((a) => (
-                    <option key={a.code} value={a.code}>
-                      {`${a.code} · ${a.name}`}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-          )}
-
-          {!recurring && !expense && (
-            <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-              <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={paidNow}
-                  onChange={(e) => setPaidNow(e.target.checked)}
-                  className="w-4 h-4 accent-ink"
-                />
-                <span className="text-sm">{t("expensePaidNow")}</span>
-              </label>
-              {paidNow ? (
-                <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
-                  <select
-                    value={payAccountCode}
-                    onChange={(e) => setPayAccountCode(e.target.value)}
-                    className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-                  >
-                    {accounts
-                      .filter((a) => a.code.startsWith("11"))
-                      .map((a) => (
-                        <option key={a.code} value={a.code}>
-                          {`${a.code} · ${a.name}`}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-              ) : (
-                <Field label={t("fieldDueDate")} hint={t("expenseOwedHint")}>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-                  />
-                </Field>
-              )}
-            </div>
-          )}
-
-          {/* Gasto que quedó debiéndose: el pago se registra acá (la ruta de
-              abonos existía, pero ninguna pantalla la usaba y el gasto
-              quedaba en cuentas por pagar para siempre). */}
-          {expense && !expense.recurring && (
-            <ExpensePaymentPanel
-              expense={expense}
-              currency={currency}
-              accounts={accounts}
-              onPaid={onChanged}
-            />
-          )}
-
-          <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
-            <input
-              type="checkbox"
-              checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
-              className="w-4 h-4 accent-ink"
-            />
-            <span className="text-sm">{t("recurringToggle")}</span>
-          </label>
-
-          {recurring && (
-            <Field
-              label={t("fieldRecurringDay")}
-              required
-              hint={t("recurringDayHint")}
-            >
-              <input
-                type="number"
-                min={1}
-                max={28}
-                step={1}
-                inputMode="numeric"
-                value={dayRaw}
-                onChange={(e) => setDayRaw(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-          )}
-
-          {err && <div className="text-xs text-danger">{err}</div>}
-
-          {/* Acciones: en el celular, Cancelar | Guardar en una fila de dos
-              a todo el ancho y Eliminar debajo; en escritorio, una sola
-              fila con Eliminar a la izquierda. */}
-          <div className="pt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {expense && (
-              <button
-                type="button"
-                onClick={remove}
-                disabled={anyBusy}
-                className="mp-btn mp-btn--danger order-last sm:order-none"
-              >
-                {deletingBusy ? t("deleting") : t("deleteItem")}
-              </button>
-            )}
-            <div className="hidden sm:block sm:flex-1" />
-            <div className="grid grid-cols-2 gap-3 sm:flex">
-              <button
-                type="button"
-                onClick={onClose}
-                className="mp-btn mp-btn--secondary"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={anyBusy || category.trim() === "" || amountRaw.trim() === ""}
-                className="mp-btn mp-btn--primary"
-              >
-                {busy ? t("saving") : t("save")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── Registrar el pago de un gasto por pagar ────────────── */
-
-/**
- * Pago (total o abono) de un gasto que quedó debiéndose: POST
- * /api/operator/expenses/[id]/payments con el monto, la fecha y la cuenta
- * de donde salió la plata. Entra al asiento «Pagos de gastos» del mes de
- * la fecha de pago. Sin saldo, muestra que está pagado.
- */
-function ExpensePaymentPanel({
-  expense,
-  currency,
-  accounts,
-  onPaid,
-}: {
-  expense: ExpenseDto;
-  currency: string;
-  accounts: ChartAccountRef[];
-  onPaid: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-  const outstanding = expenseOutstandingCents(expense);
-  const cashAccounts = accounts.filter((a) => a.code.startsWith("11"));
-  const [amountRaw, setAmountRaw] = useState(String(outstanding / 100));
-  const [date, setDate] = useState(todayDateInput());
-  const [account, setAccount] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const accountCode = account || cashAccounts[0]?.code || "";
-
-  if (outstanding <= 0) {
-    return expense.paidAt ? (
-      <div className="rounded-2xl border border-op-border bg-op-bg/50 px-3 py-2.5 text-sm text-op-muted">
-        {t("expensePaidFull", { date: formatDate(expense.paidAt, { locale, timeStyle: undefined }) })}
-      </div>
-    ) : null;
-  }
-
-  async function pay() {
-    setErr(null);
-    const pesos = Number(amountRaw.replace(",", "."));
-    const amountCents = isFinite(pesos) ? pesosToCents(pesos) : 0;
-    if (amountCents < 1) {
-      setErr(t("errAmountInvalid"));
-      return;
-    }
-    if (amountCents > outstanding) {
-      setErr(t("errExpensePayExceeds"));
-      return;
-    }
-    if (!date || !accountCode) {
-      setErr(t("errExpenseInvalid"));
-      return;
-    }
-    setBusy(true);
-    const r = await fetch(`/api/operator/expenses/${expense.id}/payments`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amountCents, paidAt: dateInputToIso(date), accountCode }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    onPaid();
-  }
-
-  return (
-    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">{t("expensePayTitle")}</span>
-        <span className="text-[11px] text-op-muted tabular-nums">
-          {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale }) })}
-        </span>
-      </div>
-      <Field label={t("expensePayAmount")} required>
-        <MoneyInput value={amountRaw} onChange={setAmountRaw} className={inputCls} />
-      </Field>
-      <Field label={t("expensePayDate")} required>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldPayFromAccount")} hint={t("payFromAccountHint")}>
-        <select
-          value={accountCode}
-          onChange={(e) => setAccount(e.target.value)}
-          className="w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
-        >
-          {cashAccounts.map((a) => (
-            <option key={a.code} value={a.code}>
-              {`${a.code} · ${a.name}`}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {err && <div className="text-xs text-danger">{err}</div>}
-      <button
-        type="button"
-        onClick={pay}
-        disabled={busy || !accountCode}
-        className="mp-btn mp-btn--secondary mp-btn--block"
-      >
-        {busy ? t("expensePayBusy") : t("expensePayButton")}
-      </button>
-    </div>
-  );
-}
-
-/* ─────────────── Crear proveedor inline (mini-form) ────────────────── */
-
-/**
- * Mini-form colapsable para dar de alta un proveedor sin salir del sheet
- * de gasto: Nombre (req.), NIT (opc.) y plazo de pago en días (opc.). Al
- * crear, entrega el proveedor devuelto por el API al `onCreated` del padre.
- */
-function SupplierInlineForm({
-  onCreated,
-  onCancel,
-}: {
-  onCreated: (s: SupplierRef) => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const [name, setName] = useState("");
-  const [taxId, setTaxId] = useState("");
-  const [termsRaw, setTermsRaw] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setErr(t("errExpenseInvalid"));
-      return;
-    }
-    const terms = termsRaw.trim();
-    const paymentTermsDays = terms === "" ? undefined : Number(terms);
-    if (
-      paymentTermsDays !== undefined &&
-      (!Number.isInteger(paymentTermsDays) ||
-        paymentTermsDays < 0 ||
-        paymentTermsDays > 365)
-    ) {
-      setErr(t("errExpenseInvalid"));
-      return;
-    }
-    setErr(null);
-    setBusy(true);
-    const r = await fetch("/api/operator/suppliers", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: trimmed,
-        taxId: taxId.trim() || undefined,
-        paymentTermsDays,
-      }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        (j as { error?: string }).error === "name_taken"
-          ? t("errSupplierNameTaken")
-          : t("errSaveFailed"),
-      );
-      return;
-    }
-    const j = (await r.json()) as { supplier: SupplierRef };
-    onCreated({ id: j.supplier.id, name: j.supplier.name });
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <Field label={t("fieldName")} required>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("supplierNamePlaceholder")}
-          maxLength={120}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldTaxId")}>
-        <input
-          type="text"
-          value={taxId}
-          onChange={(e) => setTaxId(e.target.value)}
-          placeholder={t("taxIdPlaceholder")}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldPaymentTerms")} hint={t("paymentTermsHint")}>
-        <input
-          type="number"
-          min={0}
-          max={365}
-          step={1}
-          inputMode="numeric"
-          value={termsRaw}
-          onChange={(e) => setTermsRaw(e.target.value)}
-          className={inputCls}
-        />
-      </Field>
-      {err && <div className="text-xs text-danger">{err}</div>}
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="mp-btn mp-btn--sm mp-btn--secondary"
-        >
-          {t("cancel")}
-        </button>
-        <button
-          type="button"
-          onClick={create}
-          disabled={busy || name.trim() === ""}
-          className="mp-btn mp-btn--sm mp-btn--primary"
-        >
-          {busy ? t("saving") : t("inlineCreate")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────────────── UI compartida ──────────────────────── */
-
-function Field({
-  label,
-  required,
-  hint,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-        {label}
-        {required && <span className="text-danger ml-1">{"*"}</span>}
-      </div>
-      {children}
-      {hint && <div className="text-[10px] text-op-muted mt-1">{hint}</div>}
-    </label>
-  );
-}
-
-const inputCls =
-  "w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40";

@@ -14,6 +14,7 @@ import {
   type CreditNoteTaxInput,
   type CurrentSalesTax,
   type DocumentTaxTotals,
+  type ExpenseTaxInput,
   type PurchaseTaxInput,
   type SaleTaxInput,
 } from "./taxesDocuments";
@@ -54,7 +55,8 @@ export function tileValue(t: DocumentTaxTotals, tax: DrillTaxKey): number {
     case "inc":
       return t.incGeneradoCents;
     case "iva":
-      return t.ivaGeneradoCents - t.ivaDescontableCents;
+      // El descontable de compras y el de gastos (lo que el motor lleva a 2408).
+      return t.ivaGeneradoCents - t.ivaDescontableCents - (t.ivaGastosDescontableCents ?? 0);
     case "retefuente":
       return t.retefuenteCents;
     case "reteiva":
@@ -89,12 +91,15 @@ export function buildTaxTrend({
   buckets,
   sales,
   purchases,
+  expenses = [],
   creditNotes,
   currentTax,
 }: {
   buckets: readonly TrendBucketInput[];
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
+  /** Gastos con impuestos (origen «gastos»). */
+  expenses?: readonly ExpenseTaxInput[];
   creditNotes: readonly CreditNoteTaxInput[];
   currentTax: CurrentSalesTax;
 }): TaxTrend {
@@ -103,6 +108,7 @@ export function buildTaxTrend({
     const docs = aggregateDocumentTaxes({
       sales: sales.filter((s) => inDays(s.dateIso, b.period)),
       purchases: purchases.filter((p) => inDays(p.dateIso, b.period)),
+      expenses: expenses.filter((e) => inDays(e.dateIso, b.period)),
       creditNotes: creditNotes.filter((n) => inDays(n.dateIso, b.period)),
       refundsCents: b.refundsCents,
       currentTax,

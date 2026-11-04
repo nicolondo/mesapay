@@ -46,6 +46,7 @@ import {
   receivedPurchaseLineAmounts,
 } from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
+import { expenseBaseCents, expensePayableCents } from "../expenseTax";
 import { uvtDelAno } from "./normativa";
 import {
   billingCustomerTercero,
@@ -55,6 +56,7 @@ import {
   type CreditNoteExogenaInput,
   type ExogenaInputs,
   type ExogenaReport,
+  type ExpenseInput,
   type ReceivableInput,
   type SaleInput,
   type Tercero,
@@ -65,7 +67,7 @@ export function yearRange(year: number): { from: Date; to: Date } {
   return { from: new Date(Date.UTC(year, 0, 1)), to: new Date(Date.UTC(year + 1, 0, 1)) };
 }
 
-const supplierSelect = { id: true, name: true, taxId: true, address: true } as const;
+const supplierSelect = { id: true, name: true, taxId: true, taxIdType: true, personType: true, address: true } as const;
 
 /**
  * Impuesto y base de una tirilla desde su snapshot congelado: el embebido
@@ -252,6 +254,36 @@ export async function loadCreditReceivables(
   return out;
 }
 
+/**
+ * Un gasto con proveedor como fila del 1001/1005: pago = base + INC (el INC
+ * es costo, no IVA), el IVA aparte —descontable o mayor valor del gasto
+ * según la foto guardada— y las retenciones practicadas. Un gasto sin
+ * impuestos queda como siempre: pago = su valor.
+ */
+export function expenseExogenaInput(
+  e: {
+    category: string;
+    amountCents: number;
+    baseCents: number;
+    ivaCents: number;
+    ivaDeductible: boolean;
+    incCents: number;
+    retefuenteCents: number;
+    reteIvaCents: number;
+  },
+  supplier: ExpenseInput["supplier"],
+): ExpenseInput {
+  return {
+    supplier,
+    category: e.category,
+    amountCents: expenseBaseCents(e) + e.incCents,
+    ivaCents: e.ivaCents,
+    indedCents: e.ivaDeductible ? 0 : e.ivaCents,
+    retefuenteCents: e.retefuenteCents,
+    reteIvaCents: e.reteIvaCents,
+  };
+}
+
 /** UVT del año gravable en pesos (tabla, o el valor que mantiene el contador). */
 export async function loadUvtPesos(restaurantId: string, year: number): Promise<number> {
   const cfg = await db.accountingConfig.findUnique({
@@ -294,7 +326,17 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
           supplierId: { not: null },
           recurring: false,
         },
-        select: { category: true, amountCents: true, supplier: { select: supplierSelect } },
+        select: {
+          category: true,
+          amountCents: true,
+          baseCents: true,
+          ivaCents: true,
+          ivaDeductible: true,
+          incCents: true,
+          retefuenteCents: true,
+          reteIvaCents: true,
+          supplier: { select: supplierSelect },
+        },
       }),
       // Tirillas de órdenes pagadas en el año + solicitud de factura de la orden.
       db.simpleInvoice.findMany({
@@ -346,6 +388,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         where: { restaurantId, date: { lt: to }, supplierId: { not: null }, recurring: false },
         select: {
           amountCents: true,
+          payableCents: true,
           supplier: { select: supplierSelect },
           payments: { where: { paidAt: { lt: to } }, select: { amountCents: true } },
         },
@@ -407,7 +450,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
     })),
     expenses: expenses
       .filter((e) => e.supplier)
-      .map((e) => ({ supplier: e.supplier!, category: e.category, amountCents: e.amountCents })),
+      .map((e) => expenseExogenaInput(e, e.supplier!)),
     sales: invoices.map((inv) => {
       const req = inv.order.invoiceRequests[0];
       return saleFromSnapshot(
@@ -433,7 +476,9 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
         .filter((e) => e.supplier)
         .map((e) => ({
           supplier: e.supplier!,
-          totalCents: e.amountCents,
+          // El saldo con el proveedor es el TOTAL A PAGAR (lo retenido se le
+          // debe a la DIAN, no al proveedor).
+          totalCents: expensePayableCents(e),
           paidCents: sum(e.payments.map((p) => p.amountCents)),
         })),
     ],

@@ -10,6 +10,9 @@
  *    (una fila por tarifa), con su número NC…, su fecha fiscal, el tercero
  *    de la factura original y la referencia a esa factura.
  *  · IVA descontable (compras): una fila por compra recibida y tarifa.
+ *  · Gastos (origen aparte): una fila por gasto con IVA (su tarifa) y otra
+ *    si lleva INC, con enlace al gasto. Sólo su IVA DESCONTABLE suma al
+ *    total de IVA descontable.
  *  · Retenciones practicadas y a favor: desde los ASIENTOS contra las
  *    cuentas de retención (2365/2367/2368 practicadas; 135515/17/18 a
  *    favor; más las cuentas de los conceptos de retención del comercio).
@@ -21,6 +24,7 @@ import { formatVoucherNumber, isAnnulled } from "./generalLedger";
 import {
   purchaseLineTaxCents,
   type CreditNoteTaxInput,
+  type ExpenseTaxInput,
   type PurchaseTaxInput,
   type SaleTaxInput,
 } from "./taxesDocuments";
@@ -46,6 +50,10 @@ export type TaxDocRow = {
   valorCents: number;
   /** Sólo notas crédito: número de la factura que ajusta (los montos van en negativo). */
   reference?: string | null;
+  /** Sólo gastos: pantalla del gasto. */
+  href?: string | null;
+  /** Sólo gastos: parte del valor que NO es descontable (mayor valor del gasto). */
+  nonDeductibleCents?: number;
 };
 
 /** Línea del libro con los datos del comprobante que el detalle muestra. */
@@ -88,6 +96,8 @@ export type RetentionDetail = {
 export type TaxesDetail = {
   sales: TaxDocRow[];
   purchases: TaxDocRow[];
+  /** Origen «gastos»: IVA e INC de los gastos, uno por gasto e impuesto. */
+  expenses: TaxDocRow[];
   practicadas: RetentionRow[];
   aFavor: RetentionRow[];
   stats: {
@@ -175,6 +185,39 @@ export function purchaseDetailRows(purchases: readonly PurchaseTaxInput[]): TaxD
   return [...rows.values()].sort(byDateThenDoc);
 }
 
+/**
+ * Gastos con impuestos: una fila por gasto con IVA (con su tarifa) y otra
+ * con su INC, con el enlace al gasto. Las retenciones de los gastos salen
+ * del libro, como las demás (ver `retentionDetailRows`).
+ */
+export function expenseDetailRows(expenses: readonly ExpenseTaxInput[]): TaxDocRow[] {
+  const rows: TaxDocRow[] = [];
+  for (const e of expenses) {
+    const base = {
+      dateIso: e.dateIso,
+      document: e.document,
+      nit: e.supplierTaxId,
+      party: e.supplierName,
+      baseCents: e.baseCents,
+      href: e.href,
+    };
+    if (e.ivaCents !== 0) {
+      rows.push({
+        ...base,
+        key: `exp:${e.expenseId}:iva`,
+        kind: "iva",
+        pct: e.ivaPct,
+        valorCents: e.ivaCents,
+        nonDeductibleCents: Math.max(0, Math.min(e.ivaCents, e.nonDeductibleIvaCents)),
+      });
+    }
+    if (e.incCents !== 0) {
+      rows.push({ ...base, key: `exp:${e.expenseId}:inc`, kind: "inc", pct: 0, valorCents: e.incCents });
+    }
+  }
+  return rows.sort(byDateThenDoc);
+}
+
 const sortRet = (a: RetentionRow, b: RetentionRow) =>
   a.dateIso.localeCompare(b.dateIso) || (a.voucher ?? "").localeCompare(b.voucher ?? "") || a.key.localeCompare(b.key);
 
@@ -238,9 +281,12 @@ export function buildTaxesDetail({
   accounts,
   conceptsByCode,
   creditNotes = [],
+  expenses = [],
 }: {
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
+  /** Gastos con impuestos del período (origen aparte). */
+  expenses?: readonly ExpenseTaxInput[];
   /** Notas crédito aceptadas del período: restan como documentos negativos. */
   creditNotes?: readonly CreditNoteTaxInput[];
   ledgerLines: readonly RetentionLedgerLine[];
@@ -249,16 +295,22 @@ export function buildTaxesDetail({
 }): TaxesDetail {
   const salesRows = salesDetailRows(sales, creditNotes);
   const purchaseRows = purchaseDetailRows(purchases);
+  const expenseRows = expenseDetailRows(expenses);
+  const expenseDeductibleIva = expenseRows
+    .filter((r) => r.kind === "iva")
+    .reduce((s, r) => s + r.valorCents - (r.nonDeductibleCents ?? 0), 0);
   const { practicadas, aFavor } = retentionDetailRows(ledgerLines, accounts, { conceptsByCode });
   return {
     sales: salesRows,
     purchases: purchaseRows,
+    expenses: expenseRows,
     practicadas,
     aFavor,
     stats: {
       ivaGeneradoCents: sum(salesRows.filter((r) => r.kind === "iva")),
       incGeneradoCents: sum(salesRows.filter((r) => r.kind === "inc")),
-      ivaDescontableCents: sum(purchaseRows),
+      // Compras + el IVA descontable de los gastos (lo que va a 240810).
+      ivaDescontableCents: sum(purchaseRows) + expenseDeductibleIva,
       retencionesPracticadasCents: sum(practicadas),
       retencionesAFavorCents: sum(aFavor),
     },
@@ -266,7 +318,7 @@ export function buildTaxesDetail({
 }
 
 export type TaxesDetailCsvLabels = {
-  sections: { sales: string; purchases: string; practicadas: string; aFavor: string };
+  sections: { sales: string; purchases: string; expenses?: string; practicadas: string; aFavor: string };
   /** Etiqueta del impuesto documental (IVA / Impoconsumo). */
   taxLabel: (kind: "iva" | "inc") => string;
   finalConsumer: string;
@@ -323,6 +375,7 @@ export function taxesDetailCsvRows(
   return [
     ...detail.sales.map((r) => doc(labels.sections.sales, r)),
     ...detail.purchases.map((r) => doc(labels.sections.purchases, r)),
+    ...(detail.expenses ?? []).map((r) => doc(labels.sections.expenses ?? labels.sections.purchases, r)),
     ...detail.practicadas.map((r) => ret(labels.sections.practicadas, r)),
     ...detail.aFavor.map((r) => ret(labels.sections.aFavor, r)),
   ];

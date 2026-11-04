@@ -8,12 +8,14 @@ const m = vi.hoisted(() => ({
   orders: vi.fn(),
   creditNotes: vi.fn(),
   refunds: vi.fn(),
+  expenses: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.restaurant },
     order: { findMany: m.orders },
     purchaseOrder: { findMany: async () => [] },
+    expense: { findMany: m.expenses },
     // Notas del mes (y la búsqueda de notas sin fijar, que acá no hay).
     creditNote: {
       findMany: (args: { where: { accountingStampedAt?: unknown } }) =>
@@ -74,7 +76,31 @@ beforeEach(() => {
   m.restaurant.mockResolvedValue({ salesTaxKind: "inc", salesTaxPct: 8 });
   m.creditNotes.mockResolvedValue([]);
   m.refunds.mockResolvedValue([]);
+  m.expenses.mockResolvedValue([]);
   sales([]);
+});
+
+describe("computeTaxSummary — gastos con impuestos", () => {
+  it("suma el IVA de los gastos (y aparte sólo el DESCONTABLE), su INC y sus retenciones; filtra por mes calendario", async () => {
+    m.expenses.mockResolvedValue([
+      { ivaCents: 38_000, ivaDeductible: true, incCents: 0, retefuenteCents: 8_000, reteIvaCents: 5_700, reteIcaCents: 1_400 },
+      { ivaCents: 19_000, ivaDeductible: false, incCents: 8_000, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0 },
+    ]);
+    const calendar = { from: new Date("2026-09-01T00:00:00Z"), to: new Date("2026-10-01T00:00:00Z") };
+    const tax = await computeTaxSummary("r1", { ...RANGE, calendar });
+    expect(tax.purchases).toEqual({
+      // Registrado: 38.000 descontable + 19.000 que es costo del gasto.
+      ivaCents: 57_000,
+      ivaDeductibleCents: 38_000,
+      incCents: 8_000,
+      retefuenteCents: 8_000,
+      reteIvaCents: 5_700,
+      reteIcaCents: 1_400,
+    });
+    expect(tax.expenses).toMatchObject({ ivaCents: 57_000, deductibleIvaCents: 38_000 });
+    const where = m.expenses.mock.calls[0]![0].where;
+    expect(where).toMatchObject({ restaurantId: "r1", recurring: false, date: { gte: calendar.from, lt: calendar.to } });
+  });
 });
 
 /** Nota crédito aceptada de $10.800 (INC 8 %) emitida el 15-sep en Bogotá. */

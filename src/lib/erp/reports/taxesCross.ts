@@ -9,12 +9,13 @@
  * diferencias no prueban un error por sí solas: el libro también lleva
  * pagos de declaraciones, ajustes y comprobantes manuales del período.
  *
- *  · iva:        IVA generado en ventas − IVA DESCONTABLE de compras (la
- *                parte no descontable el motor la manda al gasto, no a
- *                2408: por eso se cruza contra el descontable y no contra
- *                todo el IVA registrado).
- *  · consumo:    INC generado en ventas (el INC de compras es costo).
- *  · retefuente / reteiva / reteica: retenciones de cabecera de compras.
+ *  · iva:        IVA generado en ventas − IVA DESCONTABLE de compras y
+ *                gastos (la parte no descontable el motor la manda al
+ *                gasto, no a 2408: por eso se cruza contra el descontable y
+ *                no contra todo el IVA registrado).
+ *  · consumo:    INC generado en ventas (el INC de compras y gastos es costo).
+ *  · retefuente / reteiva / reteica: retenciones de cabecera de compras y
+ *                las practicadas en gastos.
  */
 import type { DocumentTaxes } from "./taxesDocuments";
 import { familySubtotal, type TaxAccountReport } from "./taxesModel";
@@ -41,7 +42,7 @@ function referenceOf(docs: DocumentTaxes, key: CrossFamily): number {
   const t = docs.totals;
   switch (key) {
     case "iva":
-      return t.ivaGeneradoCents - t.ivaDescontableCents;
+      return t.ivaGeneradoCents - t.ivaDescontableCents - (t.ivaGastosDescontableCents ?? 0);
     case "consumo":
       return t.incGeneradoCents;
     case "retefuente":

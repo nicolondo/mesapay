@@ -34,6 +34,9 @@ const MIGRATED = [
   // Pedidos del operador (lista, detalle y acciones de la factura):
   // migrados enteros, quedan blindados.
   "src/app/operator/orders/**/*.{ts,tsx}",
+  // Formulario de gastos (impuestos, retenciones y alta rápida de
+  // proveedor): nació trilingüe, queda blindado.
+  "src/app/operator/contabilidad/ExpenseSheet.tsx",
   "src/components/LocaleSwitcher.tsx",
   "src/components/BrowserPrintStatus.tsx",
   // Botón "Imprimir" del staff (por el agente, el navegador de respaldo).
@@ -184,6 +187,7 @@ const MIGRATED = [
   "src/components/MunicipioAutocomplete.tsx",
   // Autocompletado de proveedor: nació trilingüe, queda blindado.
   "src/components/suppliers/**/*.{ts,tsx}",
+  "src/components/accounts/**/*.{ts,tsx}",
   "src/components/AddressAutocomplete.tsx",
   "src/components/WelcomeResend.tsx",
   "src/app/restablecer/**/*.{ts,tsx}",

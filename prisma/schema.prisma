@@ -2033,6 +2033,12 @@ model Supplier {
   restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   name             String
   taxId            String? // NIT / RFC
+  /// Tipo de documento de `taxId` (NIT | CC | CE | PA) cuando se capturó
+  /// explícito (alta rápida de gastos). null = el de siempre: texto libre,
+  /// la exógena lo infiere (`supplierTercero`).
+  taxIdType        String?
+  /// natural | juridica (null = se infiere del documento, como antes).
+  personType       String?
   contactName      String?
   phone            String? // E.164 (normalizePhone del CRM)
   email            String?
@@ -2788,9 +2794,47 @@ model Expense {
 
   category     String
   description  String?
+  /// COSTO del gasto que va al PYG y a la cuenta de gasto: base + INC + IVA
+  /// no descontable. Sin impuestos es simplemente el valor del gasto. NO es
+  /// lo que se paga cuando hay IVA o retenciones: eso es `payableCents`.
   amountCents  Int
   // Fecha CONTABLE del gasto (editable) — no confundir con createdAt.
   date         DateTime
+
+  // ─── Documento soporte (opcional) ─────────────────────────────────
+  /// e_invoice (factura electrónica) | charge_account (cuenta de cobro) |
+  /// equivalent (documento equivalente o recibo) | none (sin soporte).
+  documentType   String    @default("none")
+  documentNumber String?
+  /// Fecha de expedición del documento (la contable sigue siendo `date`).
+  documentDate   DateTime?
+  /// Foto o PDF del soporte (/uploads/…), mismo almacenamiento que las
+  /// facturas de compra.
+  attachmentUrl  String?
+
+  // ─── Impuestos (misma convención que las compras, ver expenseTax.ts) ──
+  /// Base gravable NETA (después del descuento). Los gastos viejos: = amountCents.
+  baseCents      Int       @default(0)
+  /// Descuento impreso en el documento (informativo: la base ya lo trae).
+  discountCents  Int       @default(0)
+  /// Tarifa de IVA elegida (0/5/19). Informativa si el IVA vino impreso.
+  ivaPct         Int       @default(0)
+  ivaCents       Int       @default(0)
+  /// Foto de `Restaurant.purchaseIvaDeductible` al crear el gasto: cambiar
+  /// la configuración después no reescribe gastos anteriores.
+  ivaDeductible  Boolean   @default(false)
+  incCents       Int       @default(0)
+  /// Totales por tipo de las retenciones practicadas (cache de `retentions`).
+  retefuenteCents Int      @default(0)
+  reteIvaCents    Int      @default(0)
+  reteIcaCents    Int      @default(0)
+  /// TOTAL A PAGAR al proveedor = base + IVA + INC − retenciones. Es lo que
+  /// queda en cuentas por pagar y lo que cancelan los abonos. Los gastos
+  /// viejos: = amountCents.
+  payableCents    Int      @default(0)
+
+  retentions ExpenseRetention[]
+
   supplierId   String?
   supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   // Centro de costos (opcional) — gasto por cocina/bar/salón/eventos.
@@ -2807,7 +2851,7 @@ model Expense {
   /// Vencimiento, si el gasto se debe. null = sin plazo pactado.
   dueAt     DateTime?
   /// Abonado acumulado (centavos) — cache mantenido en la tx de cada pago.
-  /// Saldo = amountCents − paidCents.
+  /// Saldo = payableCents − paidCents.
   paidCents Int       @default(0)
   /// Se setea cuando el saldo llega a 0.
   paidAt    DateTime?
@@ -2829,6 +2873,35 @@ model Expense {
 
   @@index([restaurantId, date])
   @@index([restaurantId, recurring])
+}
+
+/// Una retención practicada en un gasto (retefuente / reteIVA / reteICA).
+/// Nace del concepto del comercio (RetentionConcept) y guarda una FOTO de
+/// su nombre, tarifa y cuenta: cambiar o borrar el concepto no reescribe
+/// gastos ya registrados. En una plantilla recurrente es la configuración
+/// que se recalcula en cada copia (umbral UVT del año de la copia).
+model ExpenseRetention {
+  id        String  @id @default(cuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  conceptId String?
+  concept   RetentionConcept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+
+  kind        String // retefuente | reteiva | reteica
+  name        String
+  rateBps     Int
+  /// subtotal | tax — sobre qué se calculó.
+  base        String  @default("subtotal")
+  /// Cuenta del PUC que se acredita (2365xx / 2367xx / 2368xx).
+  accountCode String
+  /// Base sobre la que se calculó (la base del gasto o su IVA).
+  baseCents   Int
+  amountCents Int
+
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([conceptId])
 }
 
 // === Kushki integration ====================================================
@@ -3775,6 +3848,8 @@ model RetentionConcept {
   accountCode  String // 236505 / 236705 / 236805
   active       Boolean    @default(false)
   createdAt    DateTime   @default(now())
+
+  expenseRetentions ExpenseRetention[]
 
   @@index([restaurantId])
 }

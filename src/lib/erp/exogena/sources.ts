@@ -112,6 +112,10 @@ export type SupplierInput = {
   id: string;
   name: string;
   taxId: string | null;
+  /** Tipo de documento explícito (alta rápida): NIT | CC | CE | PA. */
+  taxIdType?: string | null;
+  /** natural | juridica, si se capturó. */
+  personType?: string | null;
   address: string | null;
 };
 
@@ -122,6 +126,8 @@ export type SupplierInput = {
  *  · 9 dígitos que empiezan por 8 o 9 ⇒ NIT de persona jurídica (31, raz);
  *  · con DV escrito ⇒ NIT (31) aunque sea de persona natural;
  *  · lo demás ⇒ cédula (13) de persona natural (apl/nom).
+ * Si el proveedor se creó con tipo de documento y de persona explícitos
+ * (alta rápida desde el gasto), mandan esos y no se infiere nada.
  * Sin dirección estructurada: dir = `address`, dpto/mun = "0" (el contador
  * los completa en el prevalidador), país = Colombia.
  */
@@ -136,14 +142,17 @@ export function supplierTercero(s: SupplierInput): Tercero {
   }
   const digits = base.replace(/\D/g, "");
   const juridica = digits.length === 9 && /^[89]/.test(digits);
-  const docType = !raw ? null : juridica || dvGiven ? "NIT" : "CC";
+  const explicitType = s.taxIdType?.trim().toUpperCase() || null;
+  const docType = !raw ? null : explicitType ?? (juridica || dvGiven ? "NIT" : "CC");
+  const kind: Tercero["kind"] =
+    s.personType === "juridica" || s.personType === "natural" ? s.personType : juridica ? "juridica" : "natural";
   return {
     key: `sup:${s.id}`,
     name: s.name.trim(),
     docType,
     docNumber: raw ? base.trim() : null,
     dvGiven,
-    kind: juridica ? "juridica" : "natural",
+    kind,
     dir: (s.address ?? "").trim(),
     dpto: "0",
     mun: "0",
@@ -264,7 +273,14 @@ export type PurchaseInput = {
 export type ExpenseInput = {
   supplier: SupplierInput;
   category: string;
+  /** Pago o abono en cuenta: base + INC (sin IVA). En un gasto sin impuestos, su valor. */
   amountCents: number;
+  /** IVA del documento (0 en los gastos sin impuestos). */
+  ivaCents?: number;
+  /** Parte del IVA que NO es descontable (mayor valor del gasto). */
+  indedCents?: number;
+  retefuenteCents?: number;
+  reteIvaCents?: number;
 };
 
 export type SaleInput = {
@@ -359,7 +375,7 @@ export function creditReceivablesAtCutoff(
 
 export type PayableInput = {
   supplier: SupplierInput;
-  /** Total bruto del documento (OC: neto + IVA; gasto: su valor). */
+  /** Total a pagar del documento (OC: neto + IVA + INC − retenciones; gasto: su total a pagar). */
   totalCents: number;
   /** Abonos con fecha ≤ 31/12 del año. */
   paidCents: number;
@@ -440,7 +456,8 @@ const byTotalDesc =
  * Pagos o abonos en cuenta por tercero y concepto:
  *  · compras recibidas: pago = neto (el IVA va aparte en ided/inded),
  *    retp = retefuente practicada, reta = reteIVA; concepto 5016;
- *  · gastos manuales con proveedor: pago = valor, concepto por categoría.
+ *  · gastos manuales con proveedor: pago = base + INC, concepto por
+ *    categoría; el IVA y las retenciones del gasto, igual que en compras.
  * La nómina liquidada NO entra: va al 2276.
  */
 export function aggregate1001(i: { purchases: PurchaseInput[]; expenses: ExpenseInput[] }): Row1001[] {
@@ -478,12 +495,14 @@ export function aggregate1001(i: { purchases: PurchaseInput[]; expenses: Expense
     });
   }
   for (const e of i.expenses) {
+    const iva = e.ivaCents ?? 0;
+    const inded = Math.max(0, Math.min(iva, e.indedCents ?? 0));
     bump(supplierTercero(e.supplier), concepto1001DeCategoria(e.category), {
       pago: e.amountCents,
-      ided: 0,
-      inded: 0,
-      retp: 0,
-      reta: 0,
+      ided: iva - inded,
+      inded,
+      retp: e.retefuenteCents ?? 0,
+      reta: e.reteIvaCents ?? 0,
     });
   }
   return [...rows.values()]
@@ -494,16 +513,29 @@ export function aggregate1001(i: { purchases: PurchaseInput[]; expenses: Expense
 /* ──────────────────────────────── 1005 ────────────────────────────────── */
 
 /**
- * IVA descontable por proveedor (Σ IVA de las compras con taxPct > 0) e
+ * IVA descontable por proveedor (Σ IVA de las compras con taxPct > 0 y de
+ * los gastos con IVA descontable) e
  * «IVA resultante por devoluciones en ventas anuladas, rescindidas o
  * resueltas» (`ivade`) por adquiriente: el IVA de sus notas crédito.
  */
 export function aggregate1005(
   purchases: PurchaseInput[],
   creditNotes: readonly CreditNoteExogenaInput[] = [],
+  expenses: readonly ExpenseInput[] = [],
 ): Row1005[] {
   const rows = new Map<string, Row1005>();
-  for (const p of purchases) {
+  // Los gastos con IVA descontable cuentan como una compra más del proveedor.
+  const expenseIva = expenses
+    .filter((e) => (e.ivaCents ?? 0) > 0)
+    .map<PurchaseInput>((e) => ({
+      supplier: e.supplier,
+      netCents: e.amountCents,
+      ivaCents: e.ivaCents ?? 0,
+      indedCents: e.indedCents ?? 0,
+      retefuenteCents: 0,
+      reteIvaCents: 0,
+    }));
+  for (const p of [...purchases, ...expenseIva]) {
     const deductible = p.ivaCents - Math.max(0, Math.min(p.ivaCents, p.indedCents));
     if (deductible <= 0) continue;
     const tercero = supplierTercero(p.supplier);
@@ -791,7 +823,7 @@ export type ExogenaReport = {
 export function buildExogenaReport(i: ExogenaInputs): ExogenaReport {
   const formats: ExogenaFormats = {
     "1001": aggregate1001({ purchases: i.purchases, expenses: i.expenses }),
-    "1005": aggregate1005(i.purchases, i.creditNotes),
+    "1005": aggregate1005(i.purchases, i.creditNotes, i.expenses),
     "1006": aggregate1006(i.sales, i.creditNotes),
     "1007": aggregate1007(i.sales, i.creditNotes),
     "1008": aggregate1008(i.receivables),

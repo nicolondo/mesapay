@@ -23,7 +23,8 @@ import {
   type AuxFlag,
   type AuxRow,
 } from "./auxRows";
-import type { CurrentSalesTax, PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
+import type { CurrentSalesTax, ExpenseTaxInput, PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
+import { pickRetefuenteConcept } from "../expenseTax";
 import { purchaseLineTaxCents } from "./taxesDocuments";
 import { ORIGIN_SOURCE, type DocFact, type DrillOrigin, type DrillTaxKey } from "./taxesDrill";
 import { engineDay, type EngineEntry, type Reconciliation } from "./taxesReconcile";
@@ -133,6 +134,8 @@ export type ChecksInput = {
   sales: readonly SaleTaxInput[];
   /** Compras del período. */
   purchases: readonly PurchaseTaxInput[];
+  /** Gastos del período con IVA, INC o retenciones (origen «gastos»). */
+  expenses?: readonly ExpenseTaxInput[];
   /** Hechos documentales del período. */
   docs: readonly DocFact[];
   currentTax: CurrentSalesTax;
@@ -378,6 +381,61 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
           purchaseRow(p, practiced, {
             key: `compras:${p.purchaseId}:${kind}`,
             conceptName: active.map((c) => c.name).join(" · "),
+          }),
+        );
+        bajoTaxes.push(kind);
+      }
+    }
+  }
+
+  // Gastos: misma revisión, pero un gasto es UNA cosa (arriendo, servicio,
+  // honorarios…): de retefuente se espera sólo el concepto que le queda a
+  // su categoría (`pickRetefuenteConcept`, el mismo de la sugerencia del
+  // formulario), no la suma de todos los activos.
+  const expenseRow = (e: ExpenseTaxInput, amountCents: number, extra: Partial<AuxRow> = {}): AuxRow => ({
+    key: `gastos:${e.expenseId}`,
+    kind: "doc",
+    dateIso: e.dateIso,
+    amountCents,
+    docKind: "expense",
+    docId: e.expenseId,
+    document: e.document,
+    party: e.supplierName,
+    nit: e.supplierTaxId,
+    baseCents: e.baseCents,
+    ...extra,
+  });
+  for (const e of input.expenses ?? []) {
+    const doc = { subtotalCents: e.baseCents, taxCents: e.ivaCents };
+    for (const kind of RET_KINDS) {
+      const active = input.concepts.filter((c) => c.active && c.kind === kind);
+      if (active.length === 0) continue;
+      // El concepto que le toca al gasto (antes del umbral): de retefuente,
+      // el de su categoría; de reteIVA y reteICA, el primero activo.
+      let pool = active.slice(0, 1);
+      if (kind === "retefuente") {
+        const pick = pickRetefuenteConcept(
+          active.map((c, i) => ({ ...c, id: String(i), accountCode: "" })),
+          { category: e.category },
+        );
+        pool = pick ? [active[Number(pick.id)]!] : pool;
+      }
+      const applicable = applicableConcepts(pool, kind, doc, input.uvtCents);
+      const practiced = kind === "retefuente" ? e.retefuenteCents : kind === "reteiva" ? e.reteIvaCents : e.reteIcaCents;
+      if (applicable.length > 0 && practiced === 0) {
+        omitidas.push(
+          expenseRow(e, applicable.reduce((s, a) => s + a.amountCents, 0), {
+            key: `gastos:${e.expenseId}:${kind}`,
+            conceptName: applicable.map((a) => a.concept.name).join(" + "),
+            baseCents: kind === "reteiva" ? doc.taxCents : doc.subtotalCents,
+          }),
+        );
+        omitTaxes.push(kind);
+      } else if (applicable.length === 0 && practiced > 0) {
+        bajoUmbral.push(
+          expenseRow(e, practiced, {
+            key: `gastos:${e.expenseId}:${kind}`,
+            conceptName: pool.map((c) => c.name).join(" · "),
           }),
         );
         bajoTaxes.push(kind);

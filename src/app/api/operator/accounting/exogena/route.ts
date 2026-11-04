@@ -10,6 +10,7 @@ import {
 } from "@/lib/erp/exogena";
 import type { ModuleSlug } from "@/lib/modules";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { expenseBaseCents } from "@/lib/erp/expenseTax";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,10 @@ async function GETHandler(req: Request) {
       },
       select: {
         amountCents: true,
+        baseCents: true,
+        ivaCents: true,
+        incCents: true,
+        retefuenteCents: true,
         supplier: { select: { id: true, name: true, taxId: true } },
       },
     }),
@@ -96,7 +101,10 @@ async function GETHandler(req: Request) {
   }
   for (const e of expenses) {
     if (!e.supplier) continue;
-    bump(e.supplier.id, e.supplier.name, e.supplier.taxId, e.amountCents, 0);
+    // Bruto documental, como las compras: base + IVA + INC (un gasto sin
+    // impuestos: su valor) y la retefuente practicada aparte.
+    const gross = expenseBaseCents(e) + e.ivaCents + e.incCents;
+    bump(e.supplier.id, e.supplier.name, e.supplier.taxId, gross, e.retefuenteCents);
   }
 
   const rows: Formato1001Row[] = [];

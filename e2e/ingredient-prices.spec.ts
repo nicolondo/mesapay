@@ -96,8 +96,8 @@ test("new purchase suggests the reference price and respects a manual cost", asy
     const supplier = await db.supplier.create({ data: { restaurantId: f.restaurant.id, name: "Proveedor sin presentación" } });
     await page.goto("/operator/compras");
     await page.locator("#operator-content").getByRole("button", { name: t.newOrder, exact: true }).click();
-    await page.getByPlaceholder(t.supplierSearchPlaceholder).fill(supplier.name);
-    await page.getByRole("button", { name: supplier.name, exact: true }).click();
+    await page.getByRole("combobox", { name: t.fieldSupplier, exact: true }).fill(supplier.name);
+    await page.getByRole("option", { name: new RegExp(`^${supplier.name}`) }).click();
     await page.getByPlaceholder(t.ingredientSearchPlaceholder).fill(f.ingredient.name);
     await page.getByRole("button", { name: new RegExp(f.ingredient.name) }).click();
     const qty = page.getByRole("textbox", { name: labelStartingWith(t.fieldQty) });
@@ -156,8 +156,8 @@ test("supplier presentations keep their own price instead of the ingredient refe
     await db.supplierIngredient.create({ data: { supplierId: supplier.id, ingredientId: f.ingredient.id, presentationLabel: "Bolsa de 1 kg", contentQty: 1000, lastPriceCents: 1000000 } });
     await page.goto("/operator/compras");
     await page.locator("#operator-content").getByRole("button", { name: t.newOrder, exact: true }).click();
-    await page.getByPlaceholder(t.supplierSearchPlaceholder).fill(supplier.name);
-    await page.getByRole("button", { name: supplier.name, exact: true }).click();
+    await page.getByRole("combobox", { name: t.fieldSupplier, exact: true }).fill(supplier.name);
+    await page.getByRole("option", { name: new RegExp(`^${supplier.name}`) }).click();
     await page.getByPlaceholder(t.priceListSearchPlaceholder).fill(f.ingredient.name);
     await page.getByRole("button", { name: new RegExp(`${f.ingredient.name}.*Bolsa de 1 kg`) }).click();
     await page.getByRole("spinbutton", { name: labelStartingWith(t.fieldPresentationsCount) }).fill("2");

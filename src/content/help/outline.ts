@@ -413,13 +413,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "ordenes-de-compra",
       title: "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       covers:
-        "\"Nueva orden\" (de la lista de precios o sin presentación, IVA, descuentos por línea y sobre el total), \"Sugerir por reorden\" (requiere Inventario y proveedor preferido), estados, \"Enviar por WhatsApp\" / \"Imprimir\" / \"Marcar enviada\", \"Anular orden\", \"Recibir mercancía\" (parcial), \"Por pagar\", \"Registrar pago\" (\"Se pagó desde\"), \"Pagar saldo\" y \"Editar factura\".",
+        "\"Nueva orden\" (de la lista de precios o sin presentación, IVA, descuentos por línea y sobre el total), \"Sugerir por reorden\" (requiere Inventario y proveedor preferido), estados, \"Enviar por WhatsApp\" / \"Imprimir\" / \"Marcar enviada\", \"Anular orden\", \"Recibir mercancía\" (parcial, con descuento de la factura por línea y sobre el total), \"Por pagar\", \"Registrar pago\" (\"Se pagó desde\"), \"Pagar saldo\" y \"Editar factura\".",
     },
     {
       slug: "cargar-facturas-de-compra",
       title: "Registra una compra subiendo la factura",
       covers:
-        "\"Cargar factura\" (PDF o imagen hasta 15 MB), \"Revisar factura\", crear proveedor o insumo al vuelo, \"Recordar esta relación…\", retenciones, cuenta de cobro, \"Solo crear borrador\" o \"Crear y recibir\", impuestos por línea (\"Impuestos incluidos en este importe\", impuesto al consumo) y \"Sugerir retenciones\".",
+        "\"Cargar factura\" (PDF o imagen hasta 15 MB), \"Revisar factura\", crear proveedor o insumo al vuelo, \"Recordar esta relación…\", retenciones, cuenta de cobro, \"Solo crear borrador\" o \"Crear y recibir\", impuestos por línea (\"Impuestos incluidos en este importe\", impuesto al consumo), descuentos del proveedor (\"Descuento de la línea\", \"Descuento sobre el total\", qué lee la IA y cuándo avisa) y \"Sugerir retenciones\".",
       legacy:
         "En Compras subís una foto o PDF y la IA extrae proveedor, insumos, cantidades e impuestos para que los revises antes de guardar.",
     },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { reviewLineAmounts, reviewLineQtyBase, selectReviewIngredient, setReviewTaxIncluded, type InvoiceReviewLine } from "./invoiceReviewLine";
+import { resolveReviewInvoice, reviewLineAmounts, reviewLineDiscountDetail, reviewLineQtyBase, selectReviewIngredient, setReviewTaxIncluded, type InvoiceReviewLine } from "./invoiceReviewLine";
+import { discountsReproduceNet, resolveOrderDiscounts } from "./purchaseDiscount";
 
 function line(patch: Partial<InvoiceReviewLine> = {}): InvoiceReviewLine {
   return {
@@ -113,5 +114,67 @@ describe("edited invoice ingredient quantities", () => {
   });
   it("accepts comma decimals and falls back to direct quantity when there is no presentation", () => {
     expect(reviewLineQtyBase(line({ qty: "2,75", suggestedPresentation: null }))).toBe(2750);
+  });
+});
+
+describe("supplier discounts in the invoice review", () => {
+  const plain = (patch: Partial<InvoiceReviewLine> = {}) =>
+    line({ suggestedPresentation: null, qtyMode: "direct", qty: "2", unit: "un", measureKind: "count", ...patch });
+
+  it("applies a line % to the typed line amount and computes automatic VAT on the discounted base", () => {
+    const l = plain({ cost: "20000", discRaw: "10", discIsPct: true });
+    expect(reviewLineAmounts(l)).toEqual({ netCents: 1_800_000, taxCents: 342_000, incCents: 0, totalCents: 2_142_000 });
+    expect(reviewLineDiscountDetail(l)).toEqual({ listCents: 2_000_000, discount: { pct: 10, cents: null }, shownListCents: 2_000_000, shownDiscountCents: 200_000 });
+  });
+  it("multiplies a unit price once before a fixed-value line discount", () => {
+    const l = plain({ amountKind: "unit", cost: "10000", discRaw: "1500", discIsPct: false });
+    expect(reviewLineAmounts(l)?.netCents).toBe(1_850_000);
+    expect(reviewLineDiscountDetail(l)?.discount).toEqual({ pct: null, cents: 150_000 });
+  });
+  it("keeps a printed line VAT even with a discount", () => {
+    expect(reviewLineAmounts(plain({ cost: "20000", discRaw: "10", taxAmount: "3800" }))?.taxCents).toBe(380_000);
+  });
+  it("discounts a tax-included amount and persists its pre-tax equivalent", () => {
+    const l = plain({ cost: "23800", taxBasis: "gross", discRaw: "10" });
+    const amounts = reviewLineAmounts(l)!;
+    expect(amounts).toEqual({ netCents: 1_800_000, taxCents: 342_000, incCents: 0, totalCents: 2_142_000 });
+    const detail = reviewLineDiscountDetail(l, amounts)!;
+    expect(detail).toMatchObject({ listCents: 2_000_000, discount: { pct: null, cents: 200_000 }, shownListCents: 2_380_000, shownDiscountCents: 238_000 });
+  });
+  it("leaves lines without discount exactly as before", () => {
+    const l = plain({ cost: "20000" });
+    expect(reviewLineAmounts(l)).toEqual(reviewLineAmounts({ ...l, discRaw: "", discIsPct: true }));
+    expect(reviewLineDiscountDetail(l)).toMatchObject({ listCents: 2_000_000, discount: { pct: null, cents: null }, shownDiscountCents: 0 });
+  });
+  it("prorates the document discount, recomputes automatic VAT on the discounted base and keeps printed VAT", () => {
+    const resolved = resolveReviewInvoice([
+      plain({ cost: "60000" }),
+      plain({ cost: "40000", taxPct: 5, taxAmount: "2000" }),
+    ], { pct: 10 });
+    expect(resolved.lines.map(l => [l?.orderDiscountCents, l?.netCents, l?.taxCents])).toEqual([
+      [600_000, 5_400_000, 1_026_000],
+      [400_000, 3_600_000, 200_000],
+    ]);
+    expect(resolved).toMatchObject({ subtotalCents: 10_000_000, discountCents: 1_000_000, netCents: 9_000_000, taxCents: 1_226_000, totalCents: 10_226_000, orderDiscount: { pct: 10, cents: null }, complete: true });
+  });
+  it("produces the list and discounts that the server reproduces exactly", () => {
+    const lines = [
+      plain({ cost: "33333.33", discRaw: "12,5" }),
+      plain({ cost: "23800", taxBasis: "gross", discRaw: "777", discIsPct: false }),
+      plain({ amountKind: "unit", cost: "999.99", qty: "3" }),
+    ];
+    const resolved = resolveReviewInvoice(lines, { pct: 7.5 });
+    expect(resolved.complete).toBe(true);
+    expect(resolved.orderDiscount.pct).toBeNull();
+    expect(discountsReproduceNet(resolved.lines.map(l => ({ netCents: l!.netCents, listCents: l!.listCents,
+      discount: { pct: l!.discountPct, cents: l!.discountCents } })), resolved.orderDiscount)).toBe(true);
+    const applied = resolveOrderDiscounts(resolved.lines.map(l => ({ listCents: l!.listCents, discount: { pct: l!.discountPct, cents: l!.discountCents } })), resolved.orderDiscount);
+    expect(applied.lines.map(l => l.netCents)).toEqual(resolved.lines.map(l => l!.netCents));
+  });
+  it("does not give a document discount share to incomplete lines", () => {
+    const resolved = resolveReviewInvoice([plain({ cost: "10000" }), plain({ taxBasis: "unknown" })], { cents: 100_000 });
+    expect(resolved.complete).toBe(false);
+    expect(resolved.lines[0]?.orderDiscountCents).toBe(100_000);
+    expect(resolved.lines[1]).toBeNull();
   });
 });

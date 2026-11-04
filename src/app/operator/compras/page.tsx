@@ -55,11 +55,12 @@ export default async function ComprasPage({
   const nextCursor =
     orders.length === 20 ? orders[orders.length - 1].id : null;
 
-  // Proveedores activos para el combobox de "Nueva orden".
+  // Proveedores activos para el campo con autocompletado (nombre o NIT) de
+  // "Nueva orden" y de la revisión de facturas.
   const suppliers = await db.supplier.findMany({
     where: { restaurantId, active: true },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, taxId: true },
   });
 
   // `?oc=<id>` (enlace desde Reportes › Impuestos): abre el detalle de esa

@@ -2997,6 +2997,20 @@
     "clear": "Remover",
     "daneCode": "Código DANE {code}"
   },
+  "supplierCombobox": {
+    "placeholder": "Digite o nome ou NIT do fornecedor",
+    "listLabel": "Fornecedores",
+    "clear": "Remover fornecedor",
+    "nit": "NIT {taxId}",
+    "current": "atual",
+    "noMatches": "Nenhum fornecedor corresponde a “{query}”",
+    "empty": "Você ainda não tem fornecedores",
+    "create": "Criar fornecedor “{query}”",
+    "createNew": "Criar novo fornecedor",
+    "moreHint": "Digite para buscar entre os {count} fornecedores",
+    "results": "{count, plural, =0 {Nenhum fornecedor corresponde} one {# fornecedor} other {# fornecedores}}",
+    "pickOne": "Escolha um fornecedor da lista"
+  },
   "opImpuestosRep": {
     "title": "Impostos do período",
     "subtitle": "Vendas e compras por imposto e alíquota, com devoluções, retenções do livro e cruzamento com a contabilidade.",
@@ -6233,7 +6247,7 @@
     "proveedoresTitle": "Fornecedores",
     "proveedoresIntro": "De quem você compra: dados de contato, condições de pagamento e a lista de preços de cada fornecedor.",
     "newSupplier": "Novo fornecedor",
-    "searchSuppliersPlaceholder": "Buscar por nome ou contato…",
+    "searchSuppliersPlaceholder": "Buscar por nome, NIT ou contato…",
     "emptySuppliersTitle": "Ainda não há fornecedores",
     "emptySuppliersBody": "Adicione o primeiro: nome e telefone bastam para começar.",
     "emptyFilteredSuppliers": "Nenhum fornecedor corresponde à busca.",

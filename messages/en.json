@@ -2997,6 +2997,20 @@
     "clear": "Remove",
     "daneCode": "DANE code {code}"
   },
+  "supplierCombobox": {
+    "placeholder": "Type the supplier's name or NIT",
+    "listLabel": "Suppliers",
+    "clear": "Clear supplier",
+    "nit": "NIT {taxId}",
+    "current": "current",
+    "noMatches": "No supplier matches “{query}”",
+    "empty": "You don't have any suppliers yet",
+    "create": "Create supplier “{query}”",
+    "createNew": "Create new supplier",
+    "moreHint": "Type to search among the {count} suppliers",
+    "results": "{count, plural, =0 {No supplier matches} one {# supplier} other {# suppliers}}",
+    "pickOne": "Choose a supplier from the list"
+  },
   "opImpuestosRep": {
     "title": "Period taxes",
     "subtitle": "Sales and purchases by tax and rate, with refunds, withholdings from the ledger and a cross-check against the books.",
@@ -6233,7 +6247,7 @@
     "proveedoresTitle": "Suppliers",
     "proveedoresIntro": "Who you buy from: contact details, payment terms and each supplier's price list.",
     "newSupplier": "New supplier",
-    "searchSuppliersPlaceholder": "Search by name or contact…",
+    "searchSuppliersPlaceholder": "Search by name, NIT or contact…",
     "emptySuppliersTitle": "No suppliers yet",
     "emptySuppliersBody": "Add the first one: a name and a phone number are enough to get started.",
     "emptyFilteredSuppliers": "No supplier matches your search.",

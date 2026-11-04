@@ -646,14 +646,13 @@ export async function searchCloudTerminalCharge(
   });
   if (!res.ok || !Array.isArray(items)) return { status: "error", httpStatus: res.status };
 
-  // Sólo lo que es de ESTE cobro (el filtro debería bastar; por las dudas).
+  // Sólo lo que es de ESTE cobro, por su `client_transaction_id` EXACTO. Un
+  // ítem sin id no se atribuye: si el filtro del endpoint no se aplicara, una
+  // venta aprobada de otra mesa saldaría ésta. Sin coincidencia → incierto.
   const mine = items
     .map(asObj)
     .filter((i): i is Record<string, unknown> => !!i)
-    .filter((i) => {
-      const id = pick(i, ["client_transaction_id"]);
-      return !id || id === args.clientTransactionId;
-    });
+    .filter((i) => pick(i, ["client_transaction_id"]) === args.clientTransactionId);
   if (mine.length === 0) return { status: "not_found" };
 
   const type = (i: Record<string, unknown>) => (pick(i, ["transaction_type"]) ?? "SALE").toUpperCase();
@@ -668,11 +667,12 @@ export async function searchCloudTerminalCharge(
   const approved = sales.find((i) => txStatus(i) === "APPROVAL");
   if (approved) {
     // Lo autorizado tiene que ser la cuenta: en pesos (como `authorized_amount`)
-    // o, en UAT, lo que se mandó. Otro monto → a mano.
+    // o, en UAT, lo que se mandó. Sin monto u otro monto → a mano: un
+    // aprobado recuperado nunca salda sin comprobar cuánto se cobró.
     const authorized = approved.approved_transaction_amount;
     const pesos = Math.round(args.amountCents) / 100;
     const sent = cloudTerminalAmount(args.amountCents, mode);
-    if (typeof authorized === "number" && authorized !== pesos && authorized !== sent) {
+    if (typeof authorized !== "number" || (authorized !== pesos && authorized !== sent)) {
       console.error("[kushki/cloud-terminal] search: monto aprobado distinto al de la cuenta", {
         clientTransactionId: args.clientTransactionId,
         authorized,

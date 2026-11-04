@@ -350,6 +350,16 @@ describe("searchCloudTerminalCharge: el resultado real cuando el cobro no respon
     expect(await search()).toEqual({ status: "not_found" });
   });
 
+  it("un aprobado SIN client_transaction_id no se atribuye a este cobro (si el filtro no se aplicara, saldaría otra mesa)", async () => {
+    respond(200, { items: [item({ client_transaction_id: undefined })] });
+    expect(await search()).toEqual({ status: "not_found" });
+  });
+
+  it("un aprobado SIN monto → unknown (a mano): nunca se salda sin comprobar cuánto se cobró", async () => {
+    respond(200, { items: [item({ approved_transaction_amount: undefined })] });
+    expect(await search()).toMatchObject({ status: "unknown", reason: "amount_mismatch" });
+  });
+
   it("un estado desconocido → unknown", async () => {
     respond(200, { items: [item({ transaction_status: "PENDING" })] });
     expect(await search()).toMatchObject({ status: "unknown", reason: "unrecognized" });

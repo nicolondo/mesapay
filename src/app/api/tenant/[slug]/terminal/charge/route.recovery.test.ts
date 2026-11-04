@@ -137,8 +137,12 @@ async function charge() {
 /** Lo que devuelve el gateway de Kushki a los 60 s. */
 const GATEWAY_504 = "<html><head><title>504 Gateway Time-out</title></head><body><center><h1>504 Gateway Time-out</h1></center></body></html>";
 const html504 = () => h.fetch.mockResolvedValueOnce(new Response(GATEWAY_504, { status: 504, headers: { "content-type": "text/html" } }));
-const searchSays = (items: unknown[]) =>
-  h.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ items }), { status: 200 }));
+// Lazy: el `client_transaction_id` lo genera la ruta antes de empujar, así
+// que la respuesta de la búsqueda se arma recién cuando se consulta.
+const searchSays = (items: unknown[] | (() => unknown[])) =>
+  h.fetch.mockImplementationOnce(async () =>
+    new Response(JSON.stringify({ items: typeof items === "function" ? items() : items }), { status: 200 }),
+  );
 
 const sale = (over: Record<string, unknown> = {}) => ({
   transaction_reference: "8c1d2f1e-tx-ref",
@@ -235,7 +239,7 @@ describe("terminal/charge: 504 del gateway y el datáfono aprobó", () => {
 
   it("un timeout propio (AbortError) también busca el resultado", async () => {
     h.fetch.mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "AbortError" }));
-    searchSays([sale()]);
+    searchSays(() => [sale()]);
     expect(await charge()).toMatchObject({ status: 200, json: { status: "approved", recovered: true } });
   });
 });
@@ -243,7 +247,7 @@ describe("terminal/charge: 504 del gateway y el datáfono aprobó", () => {
 describe("terminal/charge: 504 del gateway y el banco rechazó", () => {
   it("la venta aparece DECLINED → se declina y la cuenta queda libre", async () => {
     html504();
-    searchSays([sale({ transaction_status: "DECLINED", approved_transaction_amount: 0 })]);
+    searchSays(() => [sale({ transaction_status: "DECLINED", approved_transaction_amount: 0 })]);
 
     const { status, json } = await charge();
 

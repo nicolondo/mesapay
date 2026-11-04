@@ -1721,7 +1721,7 @@
   "opOrders": {
     "noRestaurant": "No restaurant.",
     "title": "Orders",
-    "summary": "{count, plural, one {# order} other {# orders}} · {paidCount, plural, one {# paid} other {# paid}} · {amount}",
+    "summary": "{count, plural, one {# order} other {# orders}} · {paidCount, plural, one {# paid} other {# paid}} · Gross sales {amount} (incl. taxes and tips)",
     "filterStatus": "Status",
     "filterPeriod": "Period",
     "statusAll": "All",
@@ -4179,7 +4179,7 @@
     "salesUncollectedTables": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# table} other {# tables}}</nowrap>",
     "salesUncollectedOrders": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# order} other {# orders}}</nowrap>",
     "noRestaurant": "You don't have a restaurant assigned. Contact the admin.",
-    "kpiSalesToday": "Sales today",
+    "kpiSalesToday": "Net sales today",
     "kpiPaidOrders": "Paid orders",
     "kpiAvgTicket": "Average ticket",
     "kpiOpenNow": "Open now",

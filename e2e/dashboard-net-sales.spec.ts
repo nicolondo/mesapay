@@ -91,7 +91,7 @@ test("sales chart, daily detail and KPIs exclude both taxes and tips", async ({ 
   await expect(sales.getByRole("table")).toBeVisible();
   const amounts = await sales.locator("tbody td").allTextContents();
   expect(amounts).toEqual(["$0", "$0", "$0", "$0", "$0", "$20.000.000", "$190.000"]);
-  const today = page.locator(".mp-kpi").filter({ hasText: "Ventas hoy" });
+  const today = page.locator(".mp-kpi").filter({ hasText: "Ventas netas hoy" });
   await expect(today).toContainText("$190.000");
   await expect(today).toContainText("Sin impuestos ni propina");
   const ticket = page.locator(".mp-kpi").filter({ hasText: "Ticket promedio" });
@@ -135,7 +135,7 @@ test("today's sales tile adds only the unpaid part of today's open tables", asyn
     subtotalCents: 108_000_00, totalCents: 108_000_00,
   } });
   await page.goto("/operator");
-  const tile = page.locator(".mp-kpi").filter({ hasText: "Ventas hoy" });
+  const tile = page.locator(".mp-kpi").filter({ hasText: "Ventas netas hoy" });
   // The collected figure keeps its meaning.
   await expect(tile.locator(".mp-kpi-value")).toHaveText("$190.000");
   await expect(tile.locator(".mp-kpi-detail")).toHaveText("+ $25.000 por cobrar en 1 mesa");

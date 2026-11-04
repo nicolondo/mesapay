@@ -17,6 +17,8 @@ import { ShiftPanel } from "./ShiftPanel";
 import { CashBox } from "@/components/CashBox";
 import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
+import { loadTipReturns, sumTipReturnLines, tipReturnLines } from "@/lib/creditNoteTipReturns";
+import { TipReturnsBox, fmtSignedCOP } from "@/components/TipReturns";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const t = await getTranslations("opReports");
+  const tTips = await getTranslations("tipReturns");
   const taxT = await getTranslations("opShifts");
   const locale = (await getLocale()) as Locale;
   const methodLabel = (method: string) =>
@@ -136,6 +139,12 @@ export default async function ReportsPage({
   }
   const paymentsTotal = payments.reduce((s, p) => s + p.amountCents, 0);
   const tipsTotal = paidOrders.reduce((s, o) => s + o.tipCents, 0);
+  // Propinas devueltas por notas de anulación de ESTE día de negocio: bajan
+  // las propinas del equipo del día de la nota (no las del día de la cuenta).
+  const tipReturnsOfDay = tipReturnLines(
+    await loadTipReturns(restaurantId, { from: start, to: new Date(end.getTime() - 1) }),
+  );
+  const tipsReturned = sumTipReturnLines(tipReturnsOfDay);
   const subtotalTotal = paidOrders.reduce((s, o) => s + o.subtotalCents, 0);
 
   // Top-selling dishes from today's paid orders (qty + revenue).
@@ -344,9 +353,20 @@ export default async function ReportsPage({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <Stat label={t("statCharged")} value={fmtCOP(paymentsTotal)} hint={t("statChargedHint", { count: payments.length })} />
         <Stat label={t("statPaidOrders")} value={String(paidOrders.length)} hint={fmtCOP(subtotalTotal)} />
-        <Stat label={t("statTips")} value={fmtCOP(tipsTotal)} hint={paidOrders.length ? t("statTipsHint", { amount: fmtCOP(Math.round(tipsTotal / paidOrders.length)) }) : t("emptyDash")} />
+        <Stat
+          label={t("statTips")}
+          value={fmtSignedCOP(tipsTotal - tipsReturned)}
+          hint={
+            tipsReturned > 0
+              ? tTips("statHint", { collected: fmtCOP(tipsTotal), returned: fmtCOP(tipsReturned) })
+              : paidOrders.length
+                ? t("statTipsHint", { amount: fmtCOP(Math.round(tipsTotal / paidOrders.length)) })
+                : t("emptyDash")
+          }
+        />
         <Stat label={t("statAvgTicket")} value={paidOrders.length ? fmtCOP(Math.round(subtotalTotal / paidOrders.length)) : t("emptyDash")} hint={t("statAvgTicketHint")} />
       </div>
+      <TipReturnsBox lines={tipReturnsOfDay} collectedCents={tipsTotal} className="mb-3 bg-op-surface" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Stat
           label={t("statDishesSold")}

@@ -25,6 +25,7 @@ const MIGRATED = [
   "src/components/charts/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
   "src/components/ShiftConsumptionTax.tsx",
+  "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
   "src/app/admin/configuracion/MenuAiCard.tsx",
   "src/app/operator/menu/DescriptionAi.tsx",

@@ -331,7 +331,66 @@ export function refundLinkedCents(
   return r ? r.liabilityDebitCents + r.coveredByLaterNoteCents : 0;
 }
 
+// ── Propina devuelta con la anulación ─────────────────────────────────────
+
+/**
+ * Lo que una nota le reconoce al cliente FUERA de cartera (lo que cruzan los
+ * reembolsos de la pasarela): la parte fiscal que no canceló cartera más la
+ * propina devuelta que tampoco (ver `creditNoteTips.ts`). La propina sólo
+ * cuenta ya contabilizada (`tipReceivableCents` fijado).
+ */
+export function noteAvailableCents(note: {
+  totalCents: number;
+  receivableCents: number | null;
+  tipRefundCents?: number | null;
+  tipReceivableCents?: number | null;
+}): number {
+  const fiscal = Math.max(0, note.totalCents - (note.receivableCents ?? 0));
+  const tip =
+    note.tipReceivableCents == null
+      ? 0
+      : Math.max(0, (note.tipRefundCents ?? 0) - Math.max(0, note.tipReceivableCents));
+  return fiscal + tip;
+}
+
+/**
+ * Mes en el que se asienta la propina devuelta de una nota TODAVÍA sin
+ * asentar su propina: el de la nota (el que ya tiene, o al que va), y si ese
+ * mes ya está cerrado, el primer mes abierto. Sólo difiere del de la nota en
+ * las notas que ya estaban asentadas en un mes cerrado antes de esta regla.
+ */
+export function creditNoteTipTargetMonth(
+  note: { postedMonth: string | null; fiscalMonth: string },
+  closedThrough: string | null,
+): string {
+  return creditNoteTargetMonth(note.postedMonth ?? note.fiscalMonth, closedThrough);
+}
+
 // ── Montos del asiento ────────────────────────────────────────────────────
+
+export type CreditNoteTipPosting = {
+  /** Propina devuelta: débito a «propinas por pagar» (238030). */
+  refundCents: number;
+  /** Parte que canceló cartera de crédito: crédito a Clientes (130505). */
+  receivableCents: number;
+  /** Parte que el comercio le debe devolver al cliente: crédito a 238020. */
+  liabilityCents: number;
+  /**
+   * Parte que ya había salido con un reembolso de la pasarela ANTERIOR a la
+   * nota. Ese reembolso se asentó entonces como devolución en ventas
+   * estimada (con su impuesto embebido): esa parte se reclasifica con un
+   * crédito a devoluciones (y al impuesto estimado), porque la propina no
+   * es venta.
+   */
+  coveredByPriorRefundsCents: number;
+};
+
+export const NO_TIP_POSTING: CreditNoteTipPosting = Object.freeze({
+  refundCents: 0,
+  receivableCents: 0,
+  liabilityCents: 0,
+  coveredByPriorRefundsCents: 0,
+});
 
 export type CreditNotePosting = {
   id: string;
@@ -341,13 +400,17 @@ export type CreditNotePosting = {
   receivableCents: number;
   /** Crédito al pasivo «reintegros por pagar» (238020). */
   liabilityCents: number;
+  /** Propina devuelta con la anulación (sin propina: todo en 0 u omitido). */
+  tip?: CreditNoteTipPosting;
 };
 
 /**
  * Lo que una nota aporta al asiento del mes. `slices` son los tramos
  * COMPLETOS de la nota; `coveredByPriorRefundsCents` (de
- * `matchOrderNotesAndRefunds`) se descuenta prorrateado. Cuadra por
- * construcción: Σ tramos asentados = receivable + pasivo.
+ * `matchOrderNotesAndRefunds`, sobre `noteAvailableCents`) cubre primero la
+ * parte fiscal (se descuenta prorrateada, como siempre) y lo que sobre, la
+ * propina. Cuadra por construcción: Σ tramos asentados = receivable +
+ * pasivo, y propina = su receivable + su pasivo + su parte ya reembolsada.
  */
 export function creditNotePosting(args: {
   id: string;
@@ -355,14 +418,26 @@ export function creditNotePosting(args: {
   totalCents: number;
   receivableCents: number;
   coveredByPriorRefundsCents: number;
+  tipRefundCents?: number;
+  tipReceivableCents?: number;
 }): CreditNotePosting {
   const receivable = Math.min(Math.max(0, args.receivableCents), args.totalCents);
-  const covered = Math.min(Math.max(0, args.coveredByPriorRefundsCents), args.totalCents - receivable);
-  const keep = args.totalCents - covered;
+  const covered = Math.max(0, args.coveredByPriorRefundsCents);
+  const coveredFiscal = Math.min(covered, args.totalCents - receivable);
+  const keep = args.totalCents - coveredFiscal;
+  const tipRefund = Math.max(0, args.tipRefundCents ?? 0);
+  const tipReceivable = Math.min(Math.max(0, args.tipReceivableCents ?? 0), tipRefund);
+  const coveredTip = Math.min(covered - coveredFiscal, tipRefund - tipReceivable);
   return {
     id: args.id,
     slices: prorateSlices(args.slices, keep),
     receivableCents: receivable,
     liabilityCents: keep - receivable,
+    tip: {
+      refundCents: tipRefund,
+      receivableCents: tipReceivable,
+      liabilityCents: tipRefund - tipReceivable - coveredTip,
+      coveredByPriorRefundsCents: coveredTip,
+    },
   };
 }

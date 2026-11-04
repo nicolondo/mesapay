@@ -15,8 +15,8 @@ vi.mock("@/lib/db", () => ({
     customerCreditPayment: { findMany: m.abonos },
     creditNote: {
       // Sin notas pendientes de fijar; el resto, las que bajaron cartera.
-      findMany: (args: { where: { accountingStampedAt?: unknown } }) =>
-        args.where.accountingStampedAt === null ? Promise.resolve([]) : m.notes(args),
+      findMany: (args: { where: { accountingStampedAt?: unknown; OR?: Array<Record<string, unknown>> } }) =>
+        args.where.OR?.some((c) => c.accountingStampedAt === null) ? Promise.resolve([]) : m.notes(args),
     },
   },
 }));
@@ -104,7 +104,9 @@ describe("loadCreditReceivables (1008)", () => {
     m.notes.mockResolvedValue([
       // 31-dic a las 10 p. m. en Bogotá (ya 1-ene en UTC): cuenta para 2026.
       {
-        receivableCents: 100_000,
+        // 80.000 de la parte fiscal + 20.000 de la propina devuelta con la anulación.
+        receivableCents: 80_000,
+        tipReceivableCents: 20_000,
         createdAt: new Date("2027-01-01T03:00:00Z"),
         dianDocument: { issuedAt: new Date("2027-01-01T03:00:00Z") },
         originalInvoice: { orderId: "o1" },
@@ -129,7 +131,7 @@ describe("loadCreditReceivables (1008)", () => {
       restaurantId: "r1",
       abandonedAt: null,
       accountingStampedAt: { not: null },
-      receivableCents: { gt: 0 },
+      OR: [{ receivableCents: { gt: 0 } }, { tipReceivableCents: { gt: 0 } }],
       originalInvoice: { orderId: { in: ["o1"] } },
     });
   });

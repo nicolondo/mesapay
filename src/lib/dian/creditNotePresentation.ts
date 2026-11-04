@@ -17,6 +17,8 @@ export type DeliveryNote = {
   id: string; restaurantId: string; publicToken: string; documentNumber: string;
   reasonCode: string; reasonText: string; subtotalCents: number; taxCents: number; totalCents: number;
   abandonedAt: Date | null; snapshot: unknown;
+  /** Propina devuelta con la anulación: sólo informativa en el correo, nunca en el PDF/XML fiscal. */
+  tipRefundCents?: number | null;
   dianDocument: null | {
     id: string; restaurantId: string; creditNoteId: string | null; kind: string; state: string;
     cufe: string | null; issuedAt: Date | null; xmlZip: Uint8Array | null; responseXml: string | null;

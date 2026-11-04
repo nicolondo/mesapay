@@ -17,6 +17,7 @@ import { shiftCashToNumbers, type CashShift } from "@/lib/shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 import { loadShiftConsumptionTax, loadShiftPaymentSummaries } from "@/lib/reports/shiftConsumptionTaxQuery";
 import { sumShiftConsumptionTax, type ConsumptionTaxSummary } from "@/lib/reports/shiftConsumptionTax";
+import { loadTipReturns, sumTipReturnLines, tipReturnLines, type TipReturnLine } from "@/lib/creditNoteTipReturns";
 
 export type ShiftMethodBreakdown = {
   method: PaymentMethod;
@@ -28,10 +29,25 @@ export type ShiftMetrics = ConsumptionTaxSummary & {
   payments: number;
   ordersClosed: number;
   grossCents: number;
+  /** Propinas cobradas en el turno. */
   tipCents: number;
+  /**
+   * Propinas devueltas por notas de ANULACIÓN emitidas durante el turno
+   * («Propina devuelta por anulación (NC…)»): ya no son del equipo.
+   */
+  tipReturns: TipReturnLine[];
+  tipReturnedCents: number;
+  /** Propinas del equipo: cobradas − devueltas. Puede quedar negativa (ver creditNoteTipReturns). */
+  tipNetCents: number;
   cashCents: number;
   byMethod: ShiftMethodBreakdown[];
 };
+
+/** Suma al resumen del turno las propinas devueltas por anulación. */
+function withTipReturns(metrics: ShiftMetrics, lines: TipReturnLine[]): ShiftMetrics {
+  const returned = sumTipReturnLines(lines);
+  return { ...metrics, tipReturns: lines, tipReturnedCents: returned, tipNetCents: metrics.tipCents - returned };
+}
 
 export async function getCurrentShift(restaurantId: string): Promise<CashShift | null> {
   // `userId: null` = SOLO el turno global del restaurante (el que abre/
@@ -98,13 +114,22 @@ export async function computeOpenShiftMetrics(
       orderId: true,
     },
   });
-  const tax = await loadShiftConsumptionTax(restaurantId, payments);
-  return { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) };
+  const [tax, returns] = await Promise.all([
+    loadShiftConsumptionTax(restaurantId, payments),
+    loadTipReturns(restaurantId, { from: shift.openedAt, to: null }),
+  ]);
+  return withTipReturns(
+    { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) },
+    tipReturnLines(returns),
+  );
 }
 
 /** Same shape as live but for a closed shift, by following the shiftId pin. */
 export async function computeClosedShiftMetrics(shiftId: string): Promise<ShiftMetrics> {
-  const shift = await db.shift.findUnique({ where: { id: shiftId }, select: { restaurantId: true } });
+  const shift = await db.shift.findUnique({
+    where: { id: shiftId },
+    select: { restaurantId: true, openedAt: true, closedAt: true, userId: true },
+  });
   if (!shift) return rollUp([]);
   const payments = await db.payment.findMany({
     where: { shiftId, status: "approved", order: { restaurantId: shift.restaurantId } },
@@ -116,8 +141,14 @@ export async function computeClosedShiftMetrics(shiftId: string): Promise<ShiftM
       orderId: true,
     },
   });
-  const tax = await loadShiftConsumptionTax(shift.restaurantId, payments);
-  return { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) };
+  const [tax, returns] = await Promise.all([
+    loadShiftConsumptionTax(shift.restaurantId, payments),
+    loadTipReturns(shift.restaurantId, { from: shift.openedAt, to: shift.closedAt }),
+  ]);
+  return withTipReturns(
+    { ...rollUp(payments), ...sumShiftConsumptionTax(tax, payments.map((p) => p.id)) },
+    tipReturnLines(returns, shift.userId ?? undefined),
+  );
 }
 
 function rollUp(
@@ -146,6 +177,9 @@ function rollUp(
     ordersClosed: orderIds.size,
     grossCents: gross,
     tipCents: tips,
+    tipReturns: [],
+    tipReturnedCents: 0,
+    tipNetCents: tips,
     cashCents: cash,
     consumptionTaxCents: 0,
     taxPendingPayments: 0,

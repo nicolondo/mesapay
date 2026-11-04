@@ -12,6 +12,7 @@ import { cashCentsToNumber } from "./shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
 import { loadShiftConsumptionTax, loadShiftPaymentSummaries } from "@/lib/reports/shiftConsumptionTaxQuery";
 import { sumShiftConsumptionTax } from "@/lib/reports/shiftConsumptionTax";
+import { loadTipReturns, sumTipReturnLines, tipReturnLines, type TipReturn, type TipReturnLine } from "@/lib/creditNoteTipReturns";
 
 export type ShiftReport = {
   shift: {
@@ -31,6 +32,12 @@ export type ShiftReport = {
   totals: {
     grossCents: number; // suma de amountCents de todos los pagos approved
     tipCents: number; // suma de tipCents (lo que se llevó como propina)
+    // Propinas devueltas por notas de anulación emitidas durante el turno
+    // («Propina devuelta por anulación (NC…)»). El turno de la cuenta
+    // original no cambia: la devolución cae en el turno de la nota.
+    tipReturns: TipReturnLine[];
+    tipReturnedCents: number;
+    tipNetCents: number; // tipCents − tipReturnedCents (puede ser negativo)
     foodCents: number; // gross - tip
     consumptionTaxCents: number; // frozen INC included in collected payments
     taxPendingPayments: number; // selected payments without a reliable invoice allocation
@@ -50,6 +57,8 @@ export type ShiftReport = {
     count: number;
     grossCents: number;
     tipCents: number;
+    /** Su parte de las propinas devueltas por anulación en el turno. */
+    tipReturnedCents: number;
     // Solo los pagos en efectivo cobrados por este mesero — útil
     // para arqueo personal cuando el shift es global pero se quiere
     // ver "cuánto efectivo entregó cada mesero".
@@ -80,6 +89,37 @@ export type ShiftReport = {
     collectedByLabel: string | null;
   }>;
 };
+
+type WaiterRow = ShiftReport["byWaiter"][number];
+
+/**
+ * Filas por mesero con su parte de las propinas devueltas por anulación (la
+ * que cobró). Un mesero que devolvió propina en el turno sin haber cobrado
+ * nada en él aparece igual, con la devolución.
+ */
+function withWaiterTipReturns(
+  rows: Map<string, WaiterRow>,
+  returns: readonly TipReturn[],
+  labels: ReadonlyMap<string, string>,
+): WaiterRow[] {
+  const out = new Map(rows);
+  for (const r of returns) {
+    for (const part of r.byCollector) {
+      const key = part.userId ?? "__guest__";
+      const row = out.get(key) ?? {
+        userId: part.userId,
+        userLabel: part.userId ? (labels.get(part.userId) ?? part.userId) : "Cobro directo del cliente",
+        count: 0,
+        grossCents: 0,
+        tipCents: 0,
+        tipReturnedCents: 0,
+        cashCents: 0,
+      };
+      out.set(key, { ...row, tipReturnedCents: row.tipReturnedCents + part.cents });
+    }
+  }
+  return [...out.values()];
+}
 
 export async function buildShiftReport(
   shiftId: string,
@@ -132,7 +172,14 @@ export async function buildShiftReport(
     },
     orderBy: { settledAt: "asc" },
   });
-  const consumptionTax = await loadShiftConsumptionTax(shift.restaurantId, payments);
+  const [consumptionTax, returns] = await Promise.all([
+    loadShiftConsumptionTax(shift.restaurantId, payments),
+    loadTipReturns(shift.restaurantId, { from: shift.openedAt, to: shift.closedAt }),
+  ]);
+  // Turno personal: sólo la parte de las propinas devueltas que le toca a
+  // ese mesero (la que él cobró). Turno del local: todas.
+  const returnLines = tipReturnLines(returns, shift.userId ?? undefined);
+  const returnedCents = sumTipReturnLines(returnLines);
 
   // Totales generales.
   let grossCents = 0;
@@ -180,6 +227,7 @@ export async function buildShiftReport(
       count: number;
       grossCents: number;
       tipCents: number;
+      tipReturnedCents: number;
       cashCents: number;
     }
   >();
@@ -194,6 +242,7 @@ export async function buildShiftReport(
       count: 0,
       grossCents: 0,
       tipCents: 0,
+      tipReturnedCents: 0,
       cashCents: 0,
     };
     entry.count += 1;
@@ -202,6 +251,21 @@ export async function buildShiftReport(
     if (isCashMethod(p.method)) entry.cashCents += p.amountCents;
     waiterMap.set(key, entry);
   }
+
+  // Propinas devueltas por mesero (sólo en el turno del local): quien
+  // devolvió sin haber cobrado en este turno también aparece, con su nombre.
+  const waiterReturns = shift.userId == null ? returns : [];
+  const missing = [
+    ...new Set(
+      waiterReturns.flatMap((r) => r.byCollector.map((c) => c.userId)).filter((id): id is string => !!id && !waiterMap.has(id)),
+    ),
+  ];
+  const returnLabels = new Map(
+    (missing.length
+      ? await db.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true, email: true } })
+      : []
+    ).map((u) => [u.id, u.name ?? u.email]),
+  );
 
   // Cash specifics.
   let cashReceived = 0;
@@ -242,6 +306,9 @@ export async function buildShiftReport(
     totals: {
       grossCents,
       tipCents,
+      tipReturns: returnLines,
+      tipReturnedCents: returnedCents,
+      tipNetCents: tipCents - returnedCents,
       foodCents: grossCents - tipCents,
       ...sumShiftConsumptionTax(consumptionTax, payments.map((p) => p.id)),
       paymentCount: payments.length,
@@ -250,7 +317,7 @@ export async function buildShiftReport(
     byMethod: Array.from(methodMap.values()).sort(
       (a, b) => b.grossCents - a.grossCents,
     ),
-    byWaiter: Array.from(waiterMap.values()).sort(
+    byWaiter: withWaiterTipReturns(waiterMap, waiterReturns, returnLabels).sort(
       (a, b) => b.grossCents - a.grossCents,
     ),
     cash: {
@@ -313,6 +380,21 @@ export async function listShiftsWithSummary(
   const slice = hasMore ? shifts.slice(0, limit) : shifts;
 
   const aggByShift = await loadShiftPaymentSummaries(restaurantId, slice);
+  // Propinas devueltas por anulación: una sola consulta para toda la página,
+  // repartida después por la ventana de cada turno.
+  const returns = slice.length
+    ? await loadTipReturns(restaurantId, {
+        from: new Date(Math.min(...slice.map((s) => s.openedAt.getTime()))),
+        to: new Date(Math.max(...slice.map((s) => (s.closedAt ?? new Date()).getTime()))),
+      })
+    : [];
+  const returnedFor = (s: (typeof slice)[number]) =>
+    sumTipReturnLines(
+      tipReturnLines(
+        returns.filter((r) => r.at >= s.openedAt && (!s.closedAt || r.at <= s.closedAt)),
+        s.userId ?? undefined,
+      ),
+    );
 
   return {
     items: slice.map((s) => {
@@ -332,6 +414,7 @@ export async function listShiftsWithSummary(
         cashDiffCents: cashCentsToNumber(s.cashDiffCents),
         grossCents: a?.grossCents ?? 0,
         tipCents: a?.tipCents ?? 0,
+        tipReturnedCents: returnedFor(s),
         paymentCount: a?.paymentCount ?? 0,
         consumptionTaxCents: a?.consumptionTaxCents ?? 0,
         taxPendingPayments: a?.taxPendingPayments ?? 0,

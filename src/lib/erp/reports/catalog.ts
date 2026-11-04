@@ -56,12 +56,9 @@ export const REPORT_CATALOG: readonly ReportCatalogCategory[] = [
     ns: "opReportes",
     labelKey: "catTributarios",
     items: [
+      // «Impuestos detallados» vive dentro de «Impuestos del período» (sus
+      // auxiliares); la ruta vieja redirige allá.
       rep("/operator/reportes/impuestos", "rImpuestos", "rImpuestosDesc"),
-      rep(
-        "/operator/reportes/impuestos-detallados",
-        "rImpuestosDetallados",
-        "rImpuestosDetalladosDesc",
-      ),
       rep("/operator/reportes/exogena", "rExogena", "rExogenaDesc"),
     ],
   },

@@ -215,6 +215,14 @@ describe("notas crédito y reembolsos", () => {
     expect(r.baseCents).toBe(1_000_000);
   });
 
+  it("anulación con propina: el reembolso de lo cobrado (comida + propina) no resta venta de más", () => {
+    const annulment = { ...note, tipRefundCents: 108_000, tipReceivableCents: 0 };
+    const r = summarizeReturns([annulment], [{ id: "r1", orderId: "o2", at: at(4), amountCents: 1_188_000, inRange: true }], INC8);
+    // La propina no es venta: su reembolso queda cubierto por la nota.
+    expect(r.refunds.unlinkedCents).toBe(0);
+    expect(r.baseCents).toBe(1_000_000);
+  });
+
   it("lo que canceló cartera de crédito no se cruza con reembolsos", () => {
     const credit = { ...note, receivableCents: 1_080_000 };
     const r = summarizeReturns([credit], [{ id: "r1", orderId: "o2", at: at(4), amountCents: 200_000, inRange: true }], NONE);

@@ -113,6 +113,11 @@ export default async function ShiftsListPage({
                           {t("tipSuffix", { amount: fmtCOP(s.tipCents) })}
                         </div>
                       )}
+                      {s.tipReturnedCents > 0 && (
+                        <div className="font-mono text-[11px] text-danger">
+                          {t("tipReturnedSuffix", { amount: fmtCOP(s.tipReturnedCents) })}
+                        </div>
+                      )}
                       <div className="mt-1 font-mono text-[11px] text-op-muted">
                         {t("consumptionTaxAmount", { amount: fmtCOP(s.consumptionTaxCents) })}
                       </div>

@@ -31,6 +31,10 @@ const BLOCK_REASONS = new Set([
   "numbering_exhausted",
   "number_out_of_range",
   "no_lines",
+  // La consulta del envío anterior no respondió (ver dian/invoiceResponse.ts).
+  "dian_status_unavailable",
+  // La DIAN dijo tenerla (regla 90) y falta confirmarlo por CUFE.
+  "dian_duplicate_unverified",
 ]);
 
 /**

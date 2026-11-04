@@ -455,7 +455,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "emision-automatica-de-facturas",
       title: "Cómo se emiten tus facturas y qué hacer si se frenan",
       covers:
-        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, y \"Reintentar emisión\".",
+        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no; productos en $0 fuera de la factura, como nota \"Sin costo\"), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, \"Reintentar emisión\", y las rechazadas con causa conocida (producto en $0, regla 90 «documento procesado anteriormente», respuestas temporales de la DIAN): \"Reenviar a la DIAN\" con el mismo número y \"Consultar en la DIAN\" por CUFE.",
     },
     {
       slug: "solicitudes-de-factura",

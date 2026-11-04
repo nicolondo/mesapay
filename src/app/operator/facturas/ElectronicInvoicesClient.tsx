@@ -22,6 +22,7 @@ import { CREDIT_NOTES_PATH, creditNotePreselectHref } from "@/lib/dian/creditNot
 import { InvoiceActions } from "../orders/InvoiceActions";
 import { EmissionBanner, blockReasonText, type EmissionInfo } from "./EmissionBanner";
 import { RetryEmissionButton } from "./RetryEmissionButton";
+import { DianCauseNotice, DianRecoveryButton } from "./DianRecovery";
 import { ResolveLateRequestButton } from "./ResolveLateRequestButton";
 
 /**
@@ -425,8 +426,29 @@ const STATUS_TONE: Record<InvoiceDianStatus, string> = {
 function DianCell({ row }: { row: InvoiceListRow }) {
   const t = useTranslations("opEInvoices");
   const tf = useTranslations("opFacturas");
-  const { status, reason, errors } = row.dian;
+  const { status, reason, errors, advice } = row.dian;
   const reasonText = reason ? blockReasonText(reason, tf) : null;
+  // Causa conocida (línea en $0, regla 90, respuesta transitoria): primero
+  // la explicación clara y la acción; el mensaje crudo, desplegable.
+  if (advice) {
+    return (
+      <div className="min-w-0 max-w-[16rem]">
+        <span
+          className={
+            "px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium " + STATUS_TONE[status]
+          }
+        >
+          {t(STATUS_LABEL[status])}
+        </span>
+        <DianCauseNotice
+          advice={advice}
+          errors={errors}
+          waiting={status === "in_process"}
+          fallback={reasonText}
+        />
+      </div>
+    );
+  }
   let detail: string | null = null;
   if (status === "rejected" || status === "error_stuck" || status === "error_retrying") {
     detail = reasonText;
@@ -516,7 +538,7 @@ function CreditNoteLabel({ note }: { note: InvoiceCreditNoteInfo }) {
 
 function RowActions({ row }: { row: InvoiceListRow }) {
   const t = useTranslations("opEInvoices");
-  const { status, documentId, reason } = row.dian;
+  const { status, documentId, reason, advice } = row.dian;
   const accepted = status === "accepted";
   // El reintento que ya existe ("Reintentar emisión"): lo que la DIAN
   // rechazó, lo que falló al enviarse y lo frenado por configuración. Lo
@@ -534,7 +556,11 @@ function RowActions({ row }: { row: InvoiceListRow }) {
           {t("actionCreditNote")}
         </Link>
       )}
-      {canRetry && <RetryEmissionButton simpleInvoiceId={row.id} status={status} />}
+      {advice && advice.action !== "none" ? (
+        <DianRecoveryButton documentId={documentId} action={advice.action} invoiceNumber={row.number} />
+      ) : (
+        canRetry && <RetryEmissionButton simpleInvoiceId={row.id} status={status} />
+      )}
     </div>
   );
 }

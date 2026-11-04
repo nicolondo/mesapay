@@ -29,6 +29,11 @@ import {
   type InvoiceListParams,
 } from "@/lib/dian/invoiceList";
 import { invoiceXmlBuyerId, isLateInvoiceRequest } from "@/lib/dian/invoiceRequestCoverage";
+import {
+  dianRecoveryAdvice,
+  type DianRecoveryAction,
+  type DianRejectionCause,
+} from "@/lib/dian/invoiceResponse";
 
 /** Nota crédito (la vigente más reciente) de una factura. */
 export type InvoiceCreditNoteInfo = {
@@ -58,6 +63,13 @@ export type InvoiceListRow = {
     emailError: string | null;
     /** A qué correo salió / saldría (misma precedencia que el envío). */
     emailTo: string | null;
+    /**
+     * Causa en palabras claras y acción recomendada («Reenviar a la DIAN» /
+     * «Consultar en la DIAN») de una factura que no quedó aceptada — ver
+     * `dianRecoveryAdvice`. null ⇒ nada especial (aceptada, en cola, error
+     * de canal que se reintenta solo).
+     */
+    advice: { cause: DianRejectionCause; action: DianRecoveryAction } | null;
   };
   creditNote: InvoiceCreditNoteInfo | null;
 };
@@ -195,6 +207,7 @@ export async function loadInvoiceListPage(
             simpleInvoiceEmail: inv.email,
             orderSimpleInvoiceEmail: inv.order.simpleInvoiceEmail,
           }),
+          advice: dianRecoveryAdvice({ state: doc.state, lastError: doc.lastError, errors }),
         },
         creditNote: creditNoteInfo(inv.creditNotes),
       },

@@ -131,6 +131,12 @@ export type ThermalInvoice = {
   /** Datos del cliente cuando la factura es nominativa. Vacío = consumidor final. */
   customerLines: string[];
   items: ThermalInvoiceItem[];
+  /**
+   * Factura electrónica: lo que salió sin costo («Sin costo …: 1× Postre»).
+   * No son líneas fiscales —no van en el XML de la DIAN— y por eso no van
+   * en `items`. Ausente en el comprobante y en los payloads viejos.
+   */
+  itemsNote?: string | null;
   /** Subtotal, impuestos, descuento, propina y TOTAL — en ese orden. */
   totals: ThermalInvoiceRow[];
   /** Encabezado del bloque de pago ("Forma de pago"). null = no se imprime. */
@@ -268,6 +274,7 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     metaRows,
     customerLines: stringList(inv.customerLines),
     items,
+    ...(typeof inv.itemsNote === "string" && inv.itemsNote.trim() && { itemsNote: inv.itemsNote }),
     totals: rows(inv.totals),
     paymentTitle:
       typeof inv.paymentTitle === "string" ? inv.paymentTitle : null,
@@ -368,6 +375,14 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
         smallCols,
       ),
     );
+  }
+
+  // Lo que salió sin costo, en fuente B: informativo, fuera del detalle
+  // fiscal (no está en el XML de la DIAN).
+  if (invoice.itemsNote) {
+    chunks.push(selectFont("B"));
+    for (const l of wrap(invoice.itemsNote, smallCols)) chunks.push(line(l));
+    chunks.push(selectFont("A"));
   }
 
   // ── Totales y forma de pago ─────────────────────────────────────────

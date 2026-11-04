@@ -2,6 +2,7 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { sweepDianEmissions } from "@/lib/dian/sweep";
 import { sweepCreditNotes } from "@/lib/dian/sweepCreditNotes";
+import { sweepUnverifiedInvoices } from "@/lib/dian/invoiceReconcile";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ async function POSTHandler(req: Request) {
   }
   const summary = await sweepDianEmissions({ budgetMs: 25_000 });
   const creditNotes = await sweepCreditNotes({ budgetMs: 25_000 });
-  return NextResponse.json({ ok: true, ...summary, creditNotes });
+  // Facturas que la DIAN dijo tener (regla 90) sin confirmar todavía: se
+  // consultan por CUFE con backoff y tope (ver dian/invoiceReconcile.ts).
+  const unverified = await sweepUnverifiedInvoices({ budgetMs: 10_000 });
+  return NextResponse.json({ ok: true, ...summary, creditNotes, unverified });
 }
 
 export const POST = secureApi(POSTHandler);

@@ -20,13 +20,19 @@ import {
 import { businessMonthRange } from "@/lib/erp/businessDays";
 import type { InvoiceSnapshot } from "@/lib/invoice";
 import {
+  capitalizedInventoryVatByLine,
+  PURCHASE_IN_MOVEMENTS_SELECT,
   PURCHASE_LINE_AMOUNTS_SELECT,
   purchaseOrderTotals,
+  RECEIVED_VAT_LINE_SELECT,
+  receivedNonDeductibleTaxByLine,
   receivedPurchaseLineAmounts,
   sumPurchaseBookRows,
 } from "@/lib/erp/purchaseTax";
 import {
   currentSalesTaxOf,
+  type FreeLine,
+  freeLineTaxSlicesFor,
   salesTaxByRate,
   salesTaxLabel,
   salesTaxSlicesFor,
@@ -500,18 +506,25 @@ export async function computeTaxSummary(
         retefuenteCents: true,
         reteIvaCents: true,
         reteIcaCents: true,
-        items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
+        items: { select: { ...PURCHASE_LINE_AMOUNTS_SELECT, ...RECEIVED_VAT_LINE_SELECT } },
+        movements: PURCHASE_IN_MOVEMENTS_SELECT,
       },
     }),
   ]);
 
   const purchaseAmounts = poHeaders.map((order) => purchaseOrderTotals(order, "received"));
   const ivaCents = purchaseAmounts.reduce((sum, order) => sum + order.taxCents, 0);
+  // Lo NO descontable sale de la misma definición que el asiento de compras.
+  const nonDeductibleCents = poHeaders.reduce(
+    (sum, order) => sum + receivedNonDeductibleTaxByLine(order.items, order.movements ?? []).reduce((s, c) => s + c, 0),
+    0,
+  );
 
   return {
     sales,
     purchases: {
       ivaCents,
+      ivaDeductibleCents: ivaCents - nonDeductibleCents,
       incCents: purchaseAmounts.reduce((sum, order) => sum + order.incCents, 0),
       retefuenteCents: poHeaders.reduce((sum, order) => sum + order.retefuenteCents, 0),
       reteIvaCents: poHeaders.reduce((sum, order) => sum + order.reteIvaCents, 0),
@@ -538,7 +551,11 @@ async function computeSalesTaxSummary(
     // El snapshot es JSON, así que se agrupa en memoria: una fila por venta.
     db.order.findMany({
       where: { restaurantId, ...paidInMonth },
-      select: { subtotalCents: true, simpleInvoice: { select: { snapshot: true } } },
+      select: {
+        subtotalCents: true,
+        simpleInvoice: { select: { snapshot: true } },
+        items: FREE_LINES_INCLUDE,
+      },
     }),
     loadMonthCreditNotes(restaurantId, range),
     loadUnlinkedRefundsCents(restaurantId, range.from, range.to),
@@ -548,10 +565,16 @@ async function computeSalesTaxSummary(
   const taxOrders: SalesTaxOrder[] = orders.map((o) => ({
     subtotalCents: o.subtotalCents,
     invoiceSnapshot: (o.simpleInvoice?.snapshot as unknown as InvoiceSnapshot | undefined) ?? null,
+    freeLines: toFreeLines(o.items),
   }));
   const byRate = salesTaxByRate(salesTaxSlicesFor(taxOrders, current));
+  // Lo que las líneas libres suman encima: mismo cálculo que el asiento.
+  const freeByRate = salesTaxByRate(freeLineTaxSlicesFor(taxOrders));
+  const freeTaxCents = freeByRate.reduce((s, r) => s + r.taxCents, 0);
   const grossCents = orders.reduce((s, o) => s + o.subtotalCents, 0);
   const salesTaxCents = byRate.reduce((s, r) => s + r.taxCents, 0);
+  // La etiqueta del mes (y con ella las devoluciones sin nota) sigue siendo
+  // la de la CARTA, igual que el asiento y el documental.
   const label = salesTaxLabel(byRate, current);
 
   // Lo que restan: las notas por la tarifa de sus líneas; las devoluciones
@@ -559,7 +582,7 @@ async function computeSalesTaxSummary(
   const noteBase = creditNotes.slices.reduce((s, x) => s + x.baseCents, 0);
   const noteTax = creditNotes.slices.reduce((s, x) => s + x.taxCents, 0);
   const refunds = refundAdjustment(refundsCents, label);
-  const net = netSalesTaxByRate(byRate, creditNotes.slices, {
+  const net = netSalesTaxByRate([...byRate, ...freeByRate], creditNotes.slices, {
     kind: label.kind,
     pct: label.pct,
     taxCents: refunds.taxCents,
@@ -572,6 +595,7 @@ async function computeSalesTaxSummary(
     taxCents: salesTaxCents,
     baseCents: grossCents - salesTaxCents,
     byRate,
+    freeLines: { taxCents: freeTaxCents, byRate: freeByRate },
     creditNotes: {
       count: creditNotes.count,
       grossCents: noteBase + noteTax,
@@ -581,7 +605,7 @@ async function computeSalesTaxSummary(
     refunds,
     net: {
       baseCents: grossCents - salesTaxCents - noteBase - refunds.baseCents,
-      taxCents: salesTaxCents - noteTax - refunds.taxCents,
+      taxCents: salesTaxCents + freeTaxCents - noteTax - refunds.taxCents,
       byRate: net,
     },
   };
@@ -767,7 +791,10 @@ export async function loadPurchasesBook(
       reteIvaCents: true,
       reteIcaCents: true,
       supplier: { select: { name: true } },
-      items: { select: { ...PURCHASE_LINE_AMOUNTS_SELECT, nonInventoryReceivedCostCents: true, nonInventoryReceivedNonDeductibleTaxCents: true, nonInventoryReceivedIncCents: true } },
+      items: { select: { ...PURCHASE_LINE_AMOUNTS_SELECT, ...RECEIVED_VAT_LINE_SELECT } },
+      // El kardex de la compra: dice cuánto IVA quedó en el costo del
+      // inventario al recibir (IVA de compras no descontable), congelado.
+      movements: PURCHASE_IN_MOVEMENTS_SELECT,
     },
   });
   const rows = orders.map((o) => ({
@@ -782,6 +809,7 @@ export async function loadPurchasesBook(
     receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
     nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
     nonInventoryNonDeductibleTaxCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedNonDeductibleTaxCents, 0),
+    inventoryNonDeductibleTaxCents: capitalizedInventoryVatByLine(o.items, o.movements ?? []).reduce((s, c) => s + c, 0),
     nonInventoryIncCents: splitPurchaseInventoryCost({
       receivedCents: o.items.reduce((s, i) => s + i.receivedCostCents, 0),
       nonInventoryReceivedCents: o.items.reduce((s, i) => s + i.nonInventoryReceivedCostCents, 0),
@@ -808,6 +836,33 @@ export async function loadPurchasesBook(
   return { rows, totals };
 }
 
+/**
+ * Líneas LIBRES vivas de un pedido (`taxKind` ≠ null: no salen del menú),
+ * sin cancelar y fuera de rondas canceladas — el mismo criterio con el que
+ * la factura arma sus ítems (`simpleInvoice.ts`). Es el `include` de
+ * `Order.items` que comparten el motor, la tarjeta de impuestos y el
+ * documental de «Impuestos del período».
+ */
+export const FREE_LINES_INCLUDE = {
+  where: {
+    taxKind: { not: null },
+    cancelledAt: null,
+    OR: [{ roundId: null }, { round: { status: { not: "cancelled" as const } } }],
+  },
+  select: { qty: true, priceCentsSnapshot: true, taxKind: true, taxPct: true },
+};
+
+/** Filas de `FREE_LINES_INCLUDE` → `FreeLine` (precio × cantidad). */
+export function toFreeLines(
+  items: readonly { qty: number; priceCentsSnapshot: number; taxKind: string | null; taxPct: number | null }[] | undefined,
+): FreeLine[] {
+  return (items ?? []).map((i) => ({
+    amountCents: i.priceCentsSnapshot * i.qty,
+    taxKind: i.taxKind,
+    taxPct: i.taxPct,
+  }));
+}
+
 /** Lo que el asiento «Ventas del día» necesita de cada pedido pagado. */
 export type SalesPostingOrder = {
   /** Instante del pago: define el día de negocio de TODO el pedido. */
@@ -817,6 +872,8 @@ export type SalesPostingOrder = {
   tipCents: number;
   /** Snapshot de su factura (lo que congeló), o null si no tiene. */
   invoiceSnapshot: InvoiceSnapshot | null;
+  /** Líneas libres vivas (su impuesto va ENCIMA, ver `salesTaxSlices`). */
+  freeLines: FreeLine[];
   /** Cobros BRUTOS (approved + refunded) por método. */
   payments: Array<{ method: string; amountCents: number }>;
 };
@@ -848,6 +905,7 @@ export async function loadSalesPostingOrders(
       subtotalCents: true,
       tipCents: true,
       simpleInvoice: { select: { snapshot: true } },
+      items: FREE_LINES_INCLUDE,
       payments: {
         where: { status: { in: ["approved", "refunded"] } },
         select: { method: true, amountCents: true },
@@ -863,6 +921,7 @@ export async function loadSalesPostingOrders(
       subtotalCents: o.subtotalCents,
       tipCents: o.tipCents,
       invoiceSnapshot: (o.simpleInvoice?.snapshot as unknown as InvoiceSnapshot | undefined) ?? null,
+      freeLines: toFreeLines(o.items),
       payments: o.payments,
     });
   }

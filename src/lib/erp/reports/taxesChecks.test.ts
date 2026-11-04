@@ -64,7 +64,6 @@ function base(over: Partial<ChecksInput> = {}): ChecksInput {
     entries: [],
     dianInvoices: new Map(),
     dianCreditNotes: [],
-    freeLineTaxByInvoice: new Map(),
     ...over,
   };
 }
@@ -156,10 +155,6 @@ describe("tarifa de las facturas", () => {
     expect(get(input, "sinImpuesto").count).toBe(0);
     expect(get(input, "tarifaDistinta").count).toBe(0);
   });
-  it("líneas libres con impuesto encima", () => {
-    const input = base({ sales: [sale("1"), sale("2")], freeLineTaxByInvoice: new Map([["2", 45_600]]) });
-    expect(get(input, "lineasLibres")).toMatchObject({ count: 1, amountCents: 45_600 });
-  });
 });
 
 describe("retenciones", () => {
@@ -224,6 +219,13 @@ describe("IVA descontable sin ser responsable", () => {
   });
   it("responsable de IVA con descontable: nada que revisar", () => {
     expect(get(base({ purchases: withIva, currentTax: { kind: "iva", pct: 19 }, sales: [] }), "ivaNoDescontable").count).toBe(0);
+  });
+  it("NO descontable y el motor ya lo lleva al costo: nada que revisar", () => {
+    // Desde el arreglo del motor, la compra recibida sin IVA descontable trae
+    // todo su IVA como no descontable (kardex al bruto) y nada llega a 2408.
+    const atCost = [purchase("p1", { lines: [{ netCents: 100_000, taxPct: 19, taxCents: null, nonDeductibleTaxCents: 19_000 }] })];
+    const c = get(base({ purchases: atCost, purchaseIvaDeductible: false, currentTax: { kind: "iva", pct: 19 }, sales: [] }), "ivaNoDescontable");
+    expect(c).toMatchObject({ count: 0, params: { reason: "config" } });
   });
 });
 

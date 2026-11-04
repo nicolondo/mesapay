@@ -33,7 +33,14 @@
  */
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "@/lib/erp/purchaseTax";
+import {
+  PURCHASE_IN_MOVEMENTS_SELECT,
+  PURCHASE_LINE_AMOUNTS_SELECT,
+  purchaseOrderTotals,
+  RECEIVED_VAT_LINE_SELECT,
+  receivedNonDeductibleTaxByLine,
+  receivedPurchaseLineAmounts,
+} from "@/lib/erp/purchaseTax";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { saleTaxOfSnapshot } from "./saleTaxSnapshot";
 import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
@@ -54,6 +61,10 @@ import type {
   SaleTaxInput,
 } from "./taxesDocuments";
 import { centsToNumber, type StoredCents } from "../ledgerCents";
+// Las mismas definiciones que el motor (`posting.ts`) para el impuesto de
+// las líneas libres.
+import { FREE_LINES_INCLUDE, toFreeLines } from "../accountingData";
+import { orderFreeLineTaxSlices } from "../salesTaxSlices";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
 
@@ -97,7 +108,11 @@ const SALE_DOC_SELECT = {
   order: {
     select: {
       paidAt: true,
+      subtotalCents: true,
       invoiceRequests: GENERATED_REQUEST,
+      // Sólo para las tirillas anteriores a que el snapshot guardara el
+      // tipo de impuesto de cada ítem (ver `orderFreeLineTaxSlices`).
+      items: FREE_LINES_INCLUDE,
     },
   },
 } as const;
@@ -140,15 +155,7 @@ export async function loadPendingPaymentSaleDocs(
   return rows.map(saleTaxInputOf);
 }
 
-type SaleDocRow = {
-  id: string;
-  invoiceNumber: number;
-  snapshot: unknown;
-  order: {
-    paidAt: Date | null;
-    invoiceRequests: { customerName: string; docType: string; docNumber: string }[];
-  };
-};
+type SaleDocRow = Prisma.SimpleInvoiceGetPayload<{ select: typeof SALE_DOC_SELECT }>;
 
 function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
   const snap = r.snapshot as unknown as InvoiceSnapshot;
@@ -157,6 +164,12 @@ function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
   const frozen = saleTaxOfSnapshot(snap);
   const { taxCents, baseCents } = frozen;
   const customer = saleCustomer(snap, r.order.invoiceRequests[0]);
+  // Lo que las líneas libres suman encima: el MISMO tramo que asienta el motor.
+  const freeLineSlices = orderFreeLineTaxSlices({
+    subtotalCents: r.order.subtotalCents,
+    invoiceSnapshot: snap,
+    freeLines: toFreeLines(r.order.items),
+  }).map(({ kind, pct, baseCents, taxCents }) => ({ kind, pct, baseCents, taxCents }));
   return {
     invoiceId: r.id,
     document: formatInvoiceNumber(snap, r.invoiceNumber),
@@ -165,6 +178,7 @@ function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
     taxPct: frozen.pct,
     baseCents,
     taxCents,
+    ...(freeLineSlices.length > 0 ? { freeLineSlices } : {}),
     customer,
   };
 }
@@ -190,9 +204,10 @@ export async function loadPurchaseTaxDocs(
       items: {
         select: {
           ...PURCHASE_LINE_AMOUNTS_SELECT,
-          nonInventoryReceivedNonDeductibleTaxCents: true,
+          ...RECEIVED_VAT_LINE_SELECT,
         },
       },
+      movements: PURCHASE_IN_MOVEMENTS_SELECT,
     },
   });
   return rows.map((p) => ({
@@ -201,11 +216,13 @@ export async function loadPurchaseTaxDocs(
     dateIso: (p.receivedAt ?? new Date(0)).toISOString(),
     supplierName: p.supplier.name,
     supplierTaxId: p.supplier.taxId,
-    lines: p.items.map((i) => ({
+    lines: p.items.map((i, idx) => ({
       netCents: i.receivedCostCents,
       taxPct: i.taxPct,
       taxCents: receivedPurchaseLineAmounts(i).taxCents,
-      nonDeductibleTaxCents: i.nonInventoryReceivedNonDeductibleTaxCents,
+      // Misma definición que el asiento «Compras del día»: lo que la
+      // recepción dejó en el costo (inventario o gasto) no es descontable.
+      nonDeductibleTaxCents: receivedNonDeductibleTaxByLine(p.items, p.movements ?? [])[idx]!,
     })),
     incCents: purchaseOrderTotals(p, "received").incCents,
     retefuenteCents: p.retefuenteCents,

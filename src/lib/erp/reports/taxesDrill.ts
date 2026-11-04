@@ -150,7 +150,11 @@ const signOf = (tax: DrillTaxKey, origin: DrillOrigin): 1 | -1 => {
   return 1;
 };
 
-/** Facturas de venta → hechos (una por factura con tarifa; las de base y tarifa en cero no aportan). */
+/**
+ * Facturas de venta → hechos: uno por factura con tarifa (lo embebido de la
+ * carta; las de base y tarifa en cero no aportan) y uno por cada tramo que
+ * sus líneas libres suman encima (`SaleTaxInput.freeLineSlices`).
+ */
 export function salesFacts(sales: readonly SaleTaxInput[]): DocFact[] {
   const out: DocFact[] = [];
   for (const s of sales) {
@@ -175,6 +179,32 @@ export function salesFacts(sales: readonly SaleTaxInput[]): DocFact[] {
       grossTaxCents: null,
       nonDeductibleCents: null,
     });
+  }
+  // Lo que las LÍNEAS LIBRES de cada factura suman ENCIMA: un hecho por
+  // factura y tramo, como lo asienta el motor («Ventas del día»).
+  for (const s of sales) {
+    for (const f of s.freeLineSlices ?? []) {
+      if (f.kind === "none" || (f.taxCents === 0 && f.baseCents === 0)) continue;
+      out.push({
+        key: `inv:${s.invoiceId}:libre:${f.kind}:${f.pct}`,
+        tax: f.kind,
+        origin: "ventas",
+        rateKey: String(f.pct),
+        pct: f.pct,
+        conceptName: null,
+        docKind: "invoice",
+        docId: s.invoiceId,
+        document: s.document,
+        reference: null,
+        dateIso: s.dateIso,
+        party: s.customer?.name ?? null,
+        nit: s.customer?.docNumber ?? null,
+        baseCents: f.baseCents,
+        taxCents: f.taxCents,
+        grossTaxCents: null,
+        nonDeductibleCents: null,
+      });
+    }
   }
   return out;
 }

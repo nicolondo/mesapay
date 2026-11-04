@@ -89,6 +89,118 @@ export function receivedPurchaseLineAmounts(item: PurchaseLineAmountsInput) {
   return purchaseLineAmounts(item, item.receivedCostCents ?? 0, item.receivedQtyBase ?? 0);
 }
 
+// ── IVA de compras: descontable o mayor valor del costo ────────────────────
+//
+// `Restaurant.purchaseIvaDeductible` decide, AL RECIBIR, si el IVA de la
+// compra se descuenta (2408 IVA descontable) o es parte del costo, y la
+// recepción congela esa decisión (`purchasing.receivePurchaseOrder`):
+//   · líneas inventariables → el kardex: sin descontable la mercancía entra
+//     al BRUTO (neto + consumo + IVA, `StockMovement.valueCents` del
+//     `purchase_in`); con descontable, sin el IVA;
+//   · líneas NO inventariables → `nonInventoryReceivedNonDeductibleTaxCents`
+//     (va al gasto).
+// Cambiar el ajuste después no reescribe compras ya recibidas: el reparto se
+// LEE de lo congelado, nunca del ajuste de hoy. Estas funciones son la ÚNICA
+// definición: la usan el asiento «Compras del día» (`posting.ts`, vía el
+// libro de compras), el documental de «Impuestos del período», la exógena y
+// la declaración, para que el libro y los reportes digan lo mismo.
+
+/** Lo que hace falta de una línea recibida para repartir su IVA. */
+export type ReceivedVatLineInput = PurchaseLineAmountsInput & {
+  ingredientId?: string;
+  /** Neto de las recepciones NO inventariables (congelado al recibir). */
+  nonInventoryReceivedCostCents?: number;
+  /** Consumo de las recepciones NO inventariables (congelado al recibir). */
+  nonInventoryReceivedIncCents?: number;
+  /** IVA no descontable de las recepciones NO inventariables (congelado al recibir). */
+  nonInventoryReceivedNonDeductibleTaxCents?: number;
+};
+
+/** Un `purchase_in` de la compra en el kardex. */
+export type PurchaseInMovement = { ingredientId: string; valueCents: number };
+
+/** Lo que el kardex de una compra tiene que traer (filtro + campos). */
+export const PURCHASE_IN_MOVEMENTS_SELECT = {
+  where: { kind: "purchase_in" as const },
+  select: { ingredientId: true, valueCents: true },
+};
+
+/** Campos de la línea que pide `capitalizedInventoryVatByLine` además de los importes. */
+export const RECEIVED_VAT_LINE_SELECT = {
+  ingredientId: true,
+  nonInventoryReceivedCostCents: true,
+  nonInventoryReceivedIncCents: true,
+  nonInventoryReceivedNonDeductibleTaxCents: true,
+} as const;
+
+/** IVA de las recepciones INVENTARIABLES de la línea (el tope que el kardex pudo capitalizar). */
+function inventoryLineVatCents(item: ReceivedVatLineInput): number {
+  const frozen = item.nonInventoryReceivedNonDeductibleTaxCents ?? 0;
+  return Math.max(0, receivedPurchaseLineAmounts(item).taxCents - frozen);
+}
+
+/**
+ * IVA que la recepción CAPITALIZÓ en el inventario, línea por línea (mismo
+ * orden que `items`): lo que el kardex de la compra valoró por encima del
+ * neto + consumo de las recepciones inventariables. Con IVA descontable al
+ * recibir es 0 (el kardex entró al neto y el IVA va a 2408); sin
+ * descontable, el IVA de esas recepciones (va a 143505, no a 2408).
+ *
+ * Se agrupa por insumo (el `purchase_in` lleva el insumo, no la línea) y
+ * nunca pasa del IVA de las recepciones inventariables de la línea. Las
+ * recepciones anteriores al IVA documental (oct-2026) redondeaban el IVA por
+ * entrega: en una compra recibida por partes puede quedar un centavo de
+ * diferencia, que sigue el kardex (el inventario del libro = el del kardex).
+ */
+export function capitalizedInventoryVatByLine(
+  items: readonly ReceivedVatLineInput[],
+  movements: readonly PurchaseInMovement[],
+): number[] {
+  const out = items.map(() => 0);
+  const groups = new Map<string, number[]>();
+  items.forEach((item, i) => {
+    const key = item.ingredientId ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  });
+  const stockByIngredient = new Map<string, number>();
+  for (const m of movements) stockByIngredient.set(m.ingredientId, (stockByIngredient.get(m.ingredientId) ?? 0) + m.valueCents);
+  for (const [ingredientId, idx] of groups) {
+    const stock = stockByIngredient.get(ingredientId) ?? 0;
+    if (stock <= 0) continue;
+    let expected = 0;
+    const caps = idx.map((i) => {
+      const item = items[i]!;
+      expected += (item.receivedCostCents ?? 0) - (item.nonInventoryReceivedCostCents ?? 0);
+      expected += receivedPurchaseLineAmounts(item).incCents - (item.nonInventoryReceivedIncCents ?? 0);
+      return inventoryLineVatCents(item);
+    });
+    const capTotal = caps.reduce((s, c) => s + c, 0);
+    let left = Math.min(Math.max(0, stock - expected), capTotal);
+    // Varias líneas del mismo insumo (raro): se llenan en orden, cada una
+    // hasta su IVA. Como `left` ≤ Σ topes, se reparte entero.
+    idx.forEach((i, k) => {
+      const share = Math.min(caps[k]!, left);
+      out[i] = share;
+      left -= share;
+    });
+  }
+  return out;
+}
+
+/**
+ * IVA NO descontable de cada línea recibida (mismo orden que `items`): el de
+ * las recepciones no inventariables (gasto, congelado en la línea) más el
+ * que el kardex capitalizó en el inventario. Con IVA descontable al recibir
+ * queda exactamente lo congelado de siempre.
+ */
+export function receivedNonDeductibleTaxByLine(
+  items: readonly ReceivedVatLineInput[],
+  movements: readonly PurchaseInMovement[],
+): number[] {
+  const capitalized = capitalizedInventoryVatByLine(items, movements);
+  return items.map((item, i) => (item.nonInventoryReceivedNonDeductibleTaxCents ?? 0) + capitalized[i]!);
+}
+
 /** Neto sugerido para el siguiente lote, conservando centavos entre parciales.
  * Los precios reales anteriores no se compensan: sólo cuenta la cantidad.
  */
@@ -226,6 +338,13 @@ export type PurchaseBookRowAmounts = {
   receivedCents: number;
   nonInventoryReceivedCents: number;
   nonInventoryNonDeductibleTaxCents: number;
+  /**
+   * IVA de las líneas inventariables que la recepción capitalizó en el
+   * inventario (IVA de compras NO descontable al recibir): el asiento lo
+   * debita a 143505 y no a 2408. 0 con IVA descontable. Ver
+   * `capitalizedInventoryVatByLine`.
+   */
+  inventoryNonDeductibleTaxCents: number;
   nonInventoryIncCents: number;
   ivaCents: number;
   incCents: number;
@@ -247,6 +366,7 @@ export function sumPurchaseBookRows(rows: readonly PurchaseBookRowAmounts[]): Pu
     receivedCents: 0,
     nonInventoryReceivedCents: 0,
     nonInventoryNonDeductibleTaxCents: 0,
+    inventoryNonDeductibleTaxCents: 0,
     nonInventoryIncCents: 0,
     ivaCents: 0,
     incCents: 0,
@@ -258,6 +378,7 @@ export function sumPurchaseBookRows(rows: readonly PurchaseBookRowAmounts[]): Pu
     totals.receivedCents += r.receivedCents;
     totals.nonInventoryReceivedCents += r.nonInventoryReceivedCents;
     totals.nonInventoryNonDeductibleTaxCents += r.nonInventoryNonDeductibleTaxCents;
+    totals.inventoryNonDeductibleTaxCents += r.inventoryNonDeductibleTaxCents ?? 0;
     totals.nonInventoryIncCents += r.nonInventoryIncCents;
     totals.ivaCents += r.ivaCents;
     totals.incCents += r.incCents;

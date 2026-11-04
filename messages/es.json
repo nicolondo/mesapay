@@ -2457,7 +2457,7 @@
     "cardTranslationsSubtitle": "Traducí tu carta a inglés y portugués con IA",
     "badgeTranslate": "Traducir",
     "cardDevicesTitle": "Datáfonos",
-    "cardDevicesSubtitle": "Los Smart POS del comercio y su Business-Code",
+    "cardDevicesSubtitle": "Los Smart POS del comercio y su Llave Privada Card Present",
     "cardPoliciesTitle": "Permisos, propinas y turnos",
     "cardPoliciesSubtitle": "Define quién cobra y mueve pedidos, cómo se reparten propinas y cómo funcionan los turnos.",
     "cardMeserosTitle": "Mesas por mesero",
@@ -2677,19 +2677,19 @@
     "datafonosAddBtn": "Agregar",
     "datafonosAdding": "Agregando…",
     "datafonosAddFailed": "No se pudo agregar el datáfono.",
-    "datafonosBusinessCodeLabel": "Business-Code del Cloud Terminal",
-    "datafonosBusinessCodePlaceholder": "Pega el Business-Code del datáfono",
+    "datafonosBusinessCodeLabel": "Llave Privada Card Present",
+    "datafonosBusinessCodePlaceholder": "Pega la Llave Privada Card Present del datáfono",
     "datafonosBusinessCodeBtn": "Guardar",
     "datafonosBusinessCodeSaving": "Guardando…",
-    "datafonosBusinessCodeHint": "Es la clave del Cloud Terminal que Kushki entrega para el datáfono, y firma cada cobro. NO es el Merchant ID ni la llave pública de Kushki: con esos, el datáfono rechaza cada cobro.",
+    "datafonosBusinessCodeHint": "Es la Llave Privada Card Present que Kushki entrega para el datáfono, y firma cada cobro. NO es el Merchant ID ni la llave pública de Kushki: con esos, el datáfono rechaza cada cobro.",
     "datafonosBusinessCodeSaved": "Guardado:",
-    "datafonosBusinessCodePlatform": "Sin código propio: los cobros usan el de la plataforma",
-    "datafonosBusinessCodeNone": "Sin Business-Code: el datáfono no puede cobrar hasta que lo guardes.",
-    "datafonosBusinessCodeReplacePlaceholder": "Escribe uno nuevo para reemplazarlo",
+    "datafonosBusinessCodePlatform": "Sin llave propia: los cobros usan la de la plataforma",
+    "datafonosBusinessCodeNone": "Sin Llave Privada Card Present: el datáfono no puede cobrar hasta que la guardes.",
+    "datafonosBusinessCodeReplacePlaceholder": "Escribe una nueva para reemplazarla",
     "datafonosBusinessCodeClear": "Borrar",
-    "datafonosBusinessCodeClearConfirm": "¿Borrar el Business-Code? El datáfono no podrá cobrar hasta que guardes uno nuevo.",
-    "datafonosBusinessCodeIsMerchantId": "Ese es el Merchant ID de Kushki, no el Business-Code del datáfono. Pídele a Kushki el Business-Code del Cloud Terminal.",
-    "datafonosBusinessCodeIsPublicKey": "Esa es la llave pública de Kushki, no el Business-Code del datáfono. Pídele a Kushki el Business-Code del Cloud Terminal.",
+    "datafonosBusinessCodeClearConfirm": "¿Borrar la Llave Privada Card Present? El datáfono no podrá cobrar hasta que guardes una nueva.",
+    "datafonosBusinessCodeIsMerchantId": "Ese es el Merchant ID de Kushki, no la Llave Privada Card Present del datáfono. Pídele a Kushki la Llave Privada Card Present.",
+    "datafonosBusinessCodeIsPublicKey": "Esa es la llave pública de Kushki, no la Llave Privada Card Present del datáfono. Pídele a Kushki la Llave Privada Card Present.",
     "badgeDevicesEmpty": "Configurar",
     "badgeDevicesReady": "{ready} de {total} listos para cobrar",
     "subscriptionCardTitle": "Suscripción",
@@ -3152,7 +3152,7 @@
   },
   "opExogena": {
     "title": "Información exógena",
-    "subtitle": "Medios magnéticos DIAN por formato oficial, con validación de terceros y descarga del XML de cargue.",
+    "subtitle": "Medios magnéticos DIAN por formato oficial, con validación de terceros y descarga en Excel o en el XML de cargue.",
     "notColombia": "La información exógena es un régimen de la DIAN (Colombia). Este comercio está registrado en otro país, así que este reporte no aplica.",
     "yearLabel": "Año gravable",
     "statUvt": "UVT del año",
@@ -3163,7 +3163,7 @@
     "normSaldos": "Saldos por tercero desde {uvt} UVT ({amount}); los menores van agregados como cuantías menores.",
     "normEnvio": "El año del envío es el gravable + 1. Cada archivo sale con el nombre oficial Dmuisca_… en ISO-8859-1, listo para el prevalidador de la DIAN.",
     "issuesTitle": "Incidencias",
-    "issuesIntro": "Terceros que hay que corregir antes de presentar. Las bloqueantes impiden generar el XML de su formato; los avisos no.",
+    "issuesIntro": "Terceros que hay que corregir antes de presentar. Las bloqueantes impiden generar el XML de su formato (el Excel se descarga igual, con las filas marcadas); los avisos no.",
     "issuesNone": "Sin incidencias: todos los terceros del año tienen documento válido.",
     "issueBlocking": "Bloquea",
     "issueWarning": "Aviso",
@@ -3184,8 +3184,11 @@
     "origin_auto": "Calculado",
     "origin_manual": "Captura manual",
     "origin_mixto": "Sin XML",
+    "downloadExcel": "Descargar Excel",
+    "downloadMore": "Más opciones de descarga",
     "downloadXml": "Descargar XML",
-    "downloadBlocked": "Corregí las incidencias para descargar",
+    "downloadBlocked": "Corrige las incidencias para descargar el XML",
+    "xmlBlockedNote": "El XML está bloqueado hasta corregir las incidencias. El Excel se descarga igual, con las filas afectadas marcadas, para revisarlo.",
     "noXml": "XML pendiente",
     "f1001Name": "Pagos o abonos en cuenta y retenciones practicadas",
     "f1001Desc": "Compras recibidas (neto, con el IVA en su columna) y gastos con proveedor, por tercero y concepto. Las compras van en 5016; los gastos, según su categoría. La nómina va en el 2276.",
@@ -3278,7 +3281,101 @@
     "err_invalid_doc": "El número de documento debe ser numérico.",
     "err_invalid_dv": "El DV no corresponde al NIT.",
     "err_generic": "No se pudo guardar. Intentá de nuevo.",
-    "note": "Conceptos, tipo de persona y ubicación de cada tercero son los que MESAPAY infiere de sus datos (proveedores sin tipo de documento: NIT si son 9 dígitos que empiezan por 8 o 9, cédula en otro caso). El contador los valida en el prevalidador de la DIAN antes de presentar."
+    "note": "Conceptos, tipo de persona y ubicación de cada tercero son los que MESAPAY infiere de sus datos (proveedores sin tipo de documento: NIT si son 9 dígitos que empiezan por 8 o 9, cédula en otro caso). El contador los valida en el prevalidador de la DIAN antes de presentar.",
+    "xlsx": {
+      "sheetData": "Formato {formato}",
+      "sheetIssues": "Incidencias",
+      "sheetInfo": "Información",
+      "col": {
+        "cpt": "Concepto",
+        "tdoc": "Tipo de documento",
+        "nid": "Número de identificación",
+        "dv": "DV",
+        "apl1": "Primer apellido",
+        "apl2": "Segundo apellido",
+        "nom1": "Primer nombre",
+        "nom2": "Otros nombres",
+        "raz": "Razón social",
+        "dir": "Dirección",
+        "dpto": "Departamento",
+        "mun": "Municipio",
+        "pais": "País"
+      },
+      "f1001": {
+        "pago": "Pago o abono en cuenta deducible",
+        "pnded": "Pago o abono en cuenta no deducible",
+        "ided": "IVA mayor valor del costo o gasto deducible",
+        "inded": "IVA mayor valor del costo o gasto no deducible",
+        "retp": "Retención en la fuente practicada en renta",
+        "reta": "Retención en la fuente asumida en renta",
+        "comun": "Retención en la fuente practicada IVA a responsables del IVA",
+        "ndom": "Retención en la fuente practicada IVA a no residentes o no domiciliados"
+      },
+      "f1005": {
+        "vimp": "Impuesto descontable",
+        "ivade": "IVA resultante por devoluciones en ventas anuladas, rescindidas o resueltas"
+      },
+      "f1006": {
+        "imp": "Impuesto generado",
+        "iva": "IVA recuperado en devoluciones en compras anuladas, rescindidas o resueltas",
+        "icon": "Impuesto al consumo"
+      },
+      "f1007": {
+        "ibru": "Ingresos brutos recibidos",
+        "dred": "Devoluciones, rebajas y descuentos"
+      },
+      "f1008": {
+        "sal": "Saldo cuentas por cobrar al 31-12"
+      },
+      "f1009": {
+        "sal": "Saldo cuentas por pagar al 31-12"
+      },
+      "f1010": {
+        "valnom": "Valor nominal de la acción, aporte o derecho social",
+        "valprm": "Valor de la prima en colocación de acciones, aportes o derechos sociales",
+        "por": "Porcentaje de participación",
+        "dec": "Porcentaje de participación (posición decimal)"
+      },
+      "f1011": {
+        "sal": "Valor"
+      },
+      "f1012": {
+        "val": "Valor al 31-12"
+      },
+      "f2276": {
+        "salario": "Pagos por salarios",
+        "otros": "Otros pagos",
+        "salud": "Aportes obligatorios por salud",
+        "pension": "Aportes obligatorios a fondos de pensiones y solidaridad pensional",
+        "retefuente": "Retenciones en la fuente por rentas de trabajo"
+      },
+      "rowOmitted": "Sin documento reportable: esta fila no va al XML.",
+      "issueKind": "Tipo",
+      "issueText": "Incidencia",
+      "issueAmount": "Valor",
+      "issueRows": "Filas en «{sheet}»",
+      "issueNotInSheet": "No va en el archivo",
+      "infoInformante": "Informante",
+      "infoNit": "NIT del informante",
+      "infoYearEnvio": "Año de envío",
+      "infoFormato": "Formato",
+      "infoVersion": "Versión",
+      "infoStatus": "Estado",
+      "infoRecords": "Registros del XML",
+      "infoRows": "Filas",
+      "infoOmitted": "Filas sin documento (no van al XML)",
+      "infoValorTotal": "Valor total (pesos)",
+      "infoXmlFile": "Archivo XML oficial",
+      "infoGenerated": "Generado",
+      "statusReady": "Listo: estas filas son las mismas del XML.",
+      "statusBlocked": "XML bloqueado: hay incidencias que corregir (ver la hoja de incidencias).",
+      "statusNoXml": "Sin XML: hoja de trabajo para el contador.",
+      "notePaste": "Las filas de la hoja «{sheet}» son exactamente los registros del XML, en el mismo orden y con los encabezados del formato. Para el prevalidador de la DIAN copiá las filas sin el encabezado.",
+      "noteRules": "Montos en pesos enteros. Las cuantías menores van agregadas con el NIT 222222222 y los terceros sin documento quedan fuera, igual que en el XML.",
+      "noteBlocked": "Las filas en rojo son terceros sin documento reportable: no van al XML hasta corregirlos.",
+      "noteWarnings": "Las filas en amarillo tienen un aviso que no bloquea el XML.",
+      "note2276": "El 2276 no genera XML en MESAPAY: los empleados no tienen documento y el anexo no está portado. Las columnas son las que MESAPAY calcula de la nómina; el contador completa el resto del formato en el prevalidador."
+    }
   },
   "opPagos": {
     "noRestaurant": "Sin restaurante.",
@@ -3901,6 +3998,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",
     "salesBasis": "Sin impuestos ni propina",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# mesa} other {# mesas}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> por cobrar <nowrap>en {count, plural, one {# orden} other {# órdenes}}</nowrap>",
     "noRestaurant": "No tienes restaurante asignado. Contacta al admin.",
     "kpiSalesToday": "Ventas hoy",
     "kpiPaidOrders": "Órdenes pagadas",
@@ -7690,8 +7789,8 @@
     "already_settled": "Este pago ya se resolvió. Actualiza para ver cómo quedó la cuenta.",
     "terminal_not_sent": "Este cobro nunca se envió al datáfono: cancela la solicitud en lugar de resolverlo.",
     "terminal_result_pending": "El datáfono todavía puede responder. Espera unos minutos antes de resolver el cobro a mano.",
-    "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa el Business-Code y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
-    "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa el Business-Code y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
+    "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
+    "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó."
   },
   "pendingPayment": {

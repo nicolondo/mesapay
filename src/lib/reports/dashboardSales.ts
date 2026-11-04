@@ -1,5 +1,17 @@
+import type { OrderStatus } from "@prisma/client";
 import { splitTaxIncludedCents } from "@/lib/dian/ubl";
+import { computeOrderTotals } from "@/lib/orderTotals";
 import type { RestaurantTax } from "@/lib/salesTax";
+
+/**
+ * Accounts that are still running on the dashboard: «Abiertas ahora», the
+ * active list and the amount still to collect. "open" stays out on purpose:
+ * it is a counter-mode cart that was never paid (or a just-created manual
+ * invoice without lines), not a bill being served.
+ */
+export const DASHBOARD_OPEN_ORDER_STATUSES = [
+  "placed", "in_kitchen", "ready", "served", "paying",
+] satisfies OrderStatus[];
 
 export type DashboardMenuLine = { priceCentsSnapshot: number; qty: number };
 
@@ -44,6 +56,68 @@ export function dashboardOrderNetSalesCents(
       ).taxCents, 0)
       : 0;
   return Math.max(0, order.totalCents - order.tipCents - order.taxCents - embeddedTaxCents);
+}
+
+export type DashboardOpenOrder = {
+  subtotalCents: number;
+  /** Tax that free lines add on top (Order.taxCents); menu tax is embedded. */
+  taxCents: number;
+  discountCents: number;
+  /** Approved payments only: a pending cash or card-terminal request is still to collect. */
+  approvedPayments: readonly { amountCents: number; tipCents: number }[];
+  /** Live menu lines only, excluding cancelled/comped items and rounds and own-tax free lines. */
+  menuItems: readonly DashboardMenuLine[];
+};
+
+/**
+ * What is still to collect on an open order, on the same basis as «Ventas
+ * hoy»: before tips and both kinds of tax, after the diner discount.
+ *
+ * «Ventas hoy» counts an order only once it is fully paid (by `paidAt`), and
+ * then counts it whole. An open order is never in it, so there is nothing to
+ * double count; what a partially paid order already received (split bill,
+ * reservation deposit, voucher) is left out here because it is no longer to
+ * collect, and it reaches «Ventas hoy» with the rest of the bill when it closes.
+ *
+ * The outstanding balance comes from `computeOrderTotals`, the same rule
+ * that decides when the bill is settled (tips never reduce it). Its share of
+ * net sales is proportional: payments carry tax, so the unpaid part carries
+ * its share of the tax as well.
+ */
+export function dashboardOrderUncollectedNetCents(
+  order: DashboardOpenOrder,
+  currentTax: RestaurantTax,
+): number {
+  const { outstandingCents } = computeOrderTotals(
+    order.subtotalCents,
+    [...order.approvedPayments],
+    order.taxCents,
+    order.discountCents,
+  );
+  if (outstandingCents === 0) return 0;
+  const chargeableCents = Math.max(0, order.subtotalCents + order.taxCents - order.discountCents);
+  // Once paid, the order is stored with totalCents = chargeable + tips; this
+  // is exactly the value «Ventas hoy» will then read for it. Open orders have
+  // no invoice yet (it is issued on payment), so today's tax applies.
+  const netCents = dashboardOrderNetSalesCents({
+    totalCents: chargeableCents,
+    tipCents: 0,
+    taxCents: order.taxCents,
+    invoice: null,
+    menuItems: order.menuItems,
+  }, currentTax);
+  return outstandingCents >= chargeableCents
+    ? netCents
+    : Math.round((netCents * outstandingCents) / chargeableCents);
+}
+
+/** Total still to collect and how many open accounts it is spread over. */
+export function summarizeDashboardUncollected(netCentsByOrder: readonly number[]) {
+  const pending = netCentsByOrder.filter((cents) => cents > 0);
+  return {
+    netCents: pending.reduce((sum, cents) => sum + cents, 0),
+    orderCount: pending.length,
+  };
 }
 
 /** One series drives the daily table, chart and KPI values, with no browser-local dates. */

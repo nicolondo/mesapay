@@ -2457,7 +2457,7 @@
     "cardTranslationsSubtitle": "Translate your menu to English and Portuguese with AI",
     "badgeTranslate": "Translate",
     "cardDevicesTitle": "Card readers",
-    "cardDevicesSubtitle": "The business's Smart POS devices and their Business-Code",
+    "cardDevicesSubtitle": "The business's Smart POS devices and their Card Present Private Key",
     "cardPoliciesTitle": "Permissions, tips and shifts",
     "cardPoliciesSubtitle": "Choose who takes payments and moves orders, how tips are shared and how shifts work.",
     "cardMeserosTitle": "Tables by waiter",
@@ -2677,19 +2677,19 @@
     "datafonosAddBtn": "Add",
     "datafonosAdding": "Adding…",
     "datafonosAddFailed": "Couldn’t add the terminal.",
-    "datafonosBusinessCodeLabel": "Cloud Terminal Business-Code",
-    "datafonosBusinessCodePlaceholder": "Paste the card reader's Business-Code",
+    "datafonosBusinessCodeLabel": "Card Present Private Key",
+    "datafonosBusinessCodePlaceholder": "Paste the card reader's Card Present Private Key",
     "datafonosBusinessCodeBtn": "Save",
     "datafonosBusinessCodeSaving": "Saving…",
-    "datafonosBusinessCodeHint": "It's the Cloud Terminal key Kushki provides for the card reader, and it signs every charge. It is NOT the Kushki Merchant ID or public key: with those, the card reader rejects every charge.",
+    "datafonosBusinessCodeHint": "It's the Card Present Private Key Kushki provides for the card reader, and it signs every charge. It is NOT the Kushki Merchant ID or public key: with those, the card reader rejects every charge.",
     "datafonosBusinessCodeSaved": "Saved:",
-    "datafonosBusinessCodePlatform": "No code of your own: charges use the platform's",
-    "datafonosBusinessCodeNone": "No Business-Code: the card reader can't charge until you save one.",
+    "datafonosBusinessCodePlatform": "No key of your own: charges use the platform's",
+    "datafonosBusinessCodeNone": "No Card Present Private Key: the card reader can't charge until you save one.",
     "datafonosBusinessCodeReplacePlaceholder": "Type a new one to replace it",
     "datafonosBusinessCodeClear": "Delete",
-    "datafonosBusinessCodeClearConfirm": "Delete the Business-Code? The card reader won't be able to charge until you save a new one.",
-    "datafonosBusinessCodeIsMerchantId": "That's the Kushki Merchant ID, not the card reader's Business-Code. Ask Kushki for the Cloud Terminal Business-Code.",
-    "datafonosBusinessCodeIsPublicKey": "That's the Kushki public key, not the card reader's Business-Code. Ask Kushki for the Cloud Terminal Business-Code.",
+    "datafonosBusinessCodeClearConfirm": "Delete the Card Present Private Key? The card reader won't be able to charge until you save a new one.",
+    "datafonosBusinessCodeIsMerchantId": "That's the Kushki Merchant ID, not the card reader's Card Present Private Key. Ask Kushki for the Card Present Private Key.",
+    "datafonosBusinessCodeIsPublicKey": "That's the Kushki public key, not the card reader's Card Present Private Key. Ask Kushki for the Card Present Private Key.",
     "badgeDevicesEmpty": "Set up",
     "badgeDevicesReady": "{ready} of {total} ready to charge",
     "subscriptionCardTitle": "Subscription",
@@ -3152,7 +3152,7 @@
   },
   "opExogena": {
     "title": "Exogenous information",
-    "subtitle": "DIAN magnetic media by official format, with third-party validation and download of the upload XML.",
+    "subtitle": "DIAN magnetic media by official format, with third-party validation and download in Excel or as the upload XML.",
     "notColombia": "Exogenous information is a DIAN (Colombia) regime. This venue is registered in another country, so this report does not apply.",
     "yearLabel": "Tax year",
     "statUvt": "UVT of the year",
@@ -3163,7 +3163,7 @@
     "normSaldos": "Balances per third party from {uvt} UVT ({amount}); smaller ones are aggregated as minor amounts.",
     "normEnvio": "The filing year is the tax year + 1. Each file is produced with the official name Dmuisca_… in ISO-8859-1, ready for the DIAN pre-validator.",
     "issuesTitle": "Issues",
-    "issuesIntro": "Third parties to fix before filing. Blocking ones prevent generating the XML of their format; warnings do not.",
+    "issuesIntro": "Third parties to fix before filing. Blocking ones prevent generating the XML of their format (the Excel still downloads, with the rows marked); warnings do not.",
     "issuesNone": "No issues: every third party of the year has a valid document.",
     "issueBlocking": "Blocks",
     "issueWarning": "Warning",
@@ -3184,8 +3184,11 @@
     "origin_auto": "Computed",
     "origin_manual": "Manual entry",
     "origin_mixto": "No XML",
+    "downloadExcel": "Download Excel",
+    "downloadMore": "More download options",
     "downloadXml": "Download XML",
-    "downloadBlocked": "Fix the issues to download",
+    "downloadBlocked": "Fix the issues to download the XML",
+    "xmlBlockedNote": "The XML is blocked until the issues are fixed. The Excel still downloads, with the affected rows marked, so you can review it.",
     "noXml": "XML pending",
     "f1001Name": "Payments or credits to account and withholdings applied",
     "f1001Desc": "Received purchases (net, with VAT in its own column) and expenses with a supplier, by third party and concept. Purchases go under 5016; expenses by category. Payroll goes in 2276.",
@@ -3278,7 +3281,101 @@
     "err_invalid_doc": "The document number must be numeric.",
     "err_invalid_dv": "The check digit does not match the NIT.",
     "err_generic": "Could not save. Please try again.",
-    "note": "Concepts, person type and location of each third party are what MESAPAY infers from its data (suppliers without a document type: NIT if 9 digits starting with 8 or 9, ID card otherwise). The accountant validates them in the DIAN pre-validator before filing."
+    "note": "Concepts, person type and location of each third party are what MESAPAY infers from its data (suppliers without a document type: NIT if 9 digits starting with 8 or 9, ID card otherwise). The accountant validates them in the DIAN pre-validator before filing.",
+    "xlsx": {
+      "sheetData": "Format {formato}",
+      "sheetIssues": "Issues",
+      "sheetInfo": "Information",
+      "col": {
+        "cpt": "Concept",
+        "tdoc": "Document type",
+        "nid": "ID number",
+        "dv": "Check digit",
+        "apl1": "First surname",
+        "apl2": "Second surname",
+        "nom1": "First name",
+        "nom2": "Other names",
+        "raz": "Company name",
+        "dir": "Address",
+        "dpto": "Department",
+        "mun": "Municipality",
+        "pais": "Country"
+      },
+      "f1001": {
+        "pago": "Deductible payment or credit to account",
+        "pnded": "Non-deductible payment or credit to account",
+        "ided": "VAT added to deductible cost or expense",
+        "inded": "VAT added to non-deductible cost or expense",
+        "retp": "Income tax withholding applied",
+        "reta": "Income tax withholding assumed",
+        "comun": "VAT withholding applied to VAT-registered parties",
+        "ndom": "VAT withholding applied to non-residents or non-domiciled parties"
+      },
+      "f1005": {
+        "vimp": "Deductible tax",
+        "ivade": "VAT from returns on cancelled, rescinded or resolved sales"
+      },
+      "f1006": {
+        "imp": "Tax generated",
+        "iva": "VAT recovered from returns on cancelled, rescinded or resolved purchases",
+        "icon": "Consumption tax"
+      },
+      "f1007": {
+        "ibru": "Gross income received",
+        "dred": "Returns, rebates and discounts"
+      },
+      "f1008": {
+        "sal": "Accounts receivable balance at 12-31"
+      },
+      "f1009": {
+        "sal": "Accounts payable balance at 12-31"
+      },
+      "f1010": {
+        "valnom": "Nominal value of the share, contribution or equity interest",
+        "valprm": "Share premium on shares, contributions or equity interests",
+        "por": "Ownership percentage",
+        "dec": "Ownership percentage (decimal places)"
+      },
+      "f1011": {
+        "sal": "Value"
+      },
+      "f1012": {
+        "val": "Value at 12-31"
+      },
+      "f2276": {
+        "salario": "Salary payments",
+        "otros": "Other payments",
+        "salud": "Mandatory health contributions",
+        "pension": "Mandatory pension and pension solidarity contributions",
+        "retefuente": "Withholding tax on employment income"
+      },
+      "rowOmitted": "No reportable document: this row is not in the XML.",
+      "issueKind": "Type",
+      "issueText": "Issue",
+      "issueAmount": "Amount",
+      "issueRows": "Rows in «{sheet}»",
+      "issueNotInSheet": "Not in the file",
+      "infoInformante": "Reporting entity",
+      "infoNit": "Reporting entity NIT",
+      "infoYearEnvio": "Filing year",
+      "infoFormato": "Format",
+      "infoVersion": "Version",
+      "infoStatus": "Status",
+      "infoRecords": "XML records",
+      "infoRows": "Rows",
+      "infoOmitted": "Rows without a document (not in the XML)",
+      "infoValorTotal": "Total value (pesos)",
+      "infoXmlFile": "Official XML file",
+      "infoGenerated": "Generated",
+      "statusReady": "Ready: these rows are the same as in the XML.",
+      "statusBlocked": "XML blocked: there are issues to fix (see the issues sheet).",
+      "statusNoXml": "No XML: working sheet for the accountant.",
+      "notePaste": "The rows in the «{sheet}» sheet are exactly the XML records, in the same order and with the format's headers. For the DIAN pre-validator, copy the rows without the header.",
+      "noteRules": "Amounts in whole pesos. Minor amounts are grouped under NIT 222222222 and third parties without a document are left out, just like in the XML.",
+      "noteBlocked": "Rows in red are third parties without a reportable document: they are not in the XML until they are fixed.",
+      "noteWarnings": "Rows in yellow have a warning that does not block the XML.",
+      "note2276": "Format 2276 does not produce an XML in MESAPAY: employees have no document and the annex is not ported. The columns are what MESAPAY computes from payroll; the accountant completes the rest of the format in the pre-validator."
+    }
   },
   "opPagos": {
     "noRestaurant": "No restaurant.",
@@ -3901,6 +3998,8 @@
   "opDashboard": {
     "salesBeforeTaxAndTip": "Sales excluding taxes and tips",
     "salesBasis": "Excluding taxes and tips",
+    "salesUncollectedTables": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# table} other {# tables}}</nowrap>",
+    "salesUncollectedOrders": "<strong>+ {amount}</strong> to collect <nowrap>from {count, plural, one {# order} other {# orders}}</nowrap>",
     "noRestaurant": "You don't have a restaurant assigned. Contact the admin.",
     "kpiSalesToday": "Sales today",
     "kpiPaidOrders": "Paid orders",
@@ -7690,8 +7789,8 @@
     "already_settled": "This payment was already resolved. Refresh to see the bill's status.",
     "terminal_not_sent": "This charge was never sent to the card terminal: cancel the request instead of resolving it.",
     "terminal_result_pending": "The card terminal may still respond. Wait a few minutes before resolving the charge manually.",
-    "terminal_request_rejected": "Kushki rejected the request during validation before sending it to the card terminal ({detail}). Nothing was charged. Check the Business-Code and the device's serial number in Settings → Card readers and try again, or charge another way.",
-    "terminal_request_rejected_generic": "Kushki rejected the request during validation before sending it to the card terminal. Nothing was charged. Check the Business-Code and the device's serial number in Settings → Card readers and try again, or charge another way.",
+    "terminal_request_rejected": "Kushki rejected the request during validation before sending it to the card terminal ({detail}). Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
+    "terminal_request_rejected_generic": "Kushki rejected the request during validation before sending it to the card terminal. Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
     "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started."
   },
   "pendingPayment": {

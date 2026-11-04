@@ -43,7 +43,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conocer-el-panel",
       title: "Conoce el panel del restaurante",
       covers:
-        "Resumen (\"Ventas hoy\", \"Órdenes pagadas\", \"Ticket promedio\", \"Abiertas ahora\", caja, ventas de 7 días, top platos, mesas activas), el menú lateral y sus grupos, la barra de arriba (\"Buscar orden\", \"Cierre de turno\", \"Nueva orden\"), \"Ir a una sección\" (⌘ K) y por qué algunos ítems no aparecen (módulos).",
+        "Resumen (\"Ventas hoy\" y lo que falta por cobrar de las mesas abiertas, \"Órdenes pagadas\", \"Ticket promedio\", \"Abiertas ahora\", caja, ventas de 7 días, top platos, mesas activas), el menú lateral y sus grupos, la barra de arriba (\"Buscar orden\", \"Cierre de turno\", \"Nueva orden\"), \"Ir a una sección\" (⌘ K) y por qué algunos ítems no aparecen (módulos).",
     },
     {
       slug: "identidad-del-comercio",
@@ -551,7 +551,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "informacion-exogena",
       title: "Prepara la información exógena para la DIAN",
       covers:
-        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura; 1008 con las ventas a crédito a clientes y los bonos), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
+        "\"Información exógena\": año gravable, formatos 1001–1012 y 2276 (notas crédito con el tercero de su factura; 1008 con las ventas a crédito a clientes y los bonos), \"Incidencias\" que bloquean, \"Corregir\", \"Descargar Excel\" (mismos registros del XML, hojas Incidencias e Información; el 2276 sólo en Excel) y la flechita con \"Descargar XML\", captura manual 1010 / 1012, y el TXT 1001 de la pestaña Impuestos.",
     },
     {
       slug: "libros-y-estados-financieros",
@@ -689,7 +689,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "datafonos",
       title: "Configura los datáfonos del comercio",
       covers:
-        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Business-Code del Cloud Terminal\" (enmascarado, no es el Merchant ID), \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", elegir \"¿A qué datáfono?\" al cobrar (son del comercio, no de un mesero), el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
+        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Llave Privada Card Present\" (enmascarado, no es el Merchant ID), \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", elegir \"¿A qué datáfono?\" al cobrar (son del comercio, no de un mesero), el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
     },
     {
       slug: "tablet-de-cocina-y-bar",

@@ -689,7 +689,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "datafonos",
       title: "Configura los datáfonos del comercio",
       covers:
-        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Business-Code del Cloud Terminal\" (enmascarado, no es el Merchant ID), \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", elegir \"¿A qué datáfono?\" al cobrar (son del comercio, no de un mesero), el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
+        "\"Datáfonos\" (solo con datáfono Kushki activo): \"Llave Privada Card Present\" (enmascarado, no es el Merchant ID), \"Agregar datáfono\" con serial, \"Activo\" / \"Inactivo\", elegir \"¿A qué datáfono?\" al cobrar (son del comercio, no de un mesero), el usuario Datáfono y su pantalla \"Mesas en vivo\", y el datáfono propio del comercio.",
     },
     {
       slug: "tablet-de-cocina-y-bar",

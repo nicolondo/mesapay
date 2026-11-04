@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { lockOrder } from "@/lib/orderLock";
 import { markPaymentUncertain } from "@/lib/payments/intent";
 import { secureApi } from "@/lib/secureApi";
@@ -8,7 +9,13 @@ import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { getPaymentProvider } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
-import { pushPaymentToCloudTerminal } from "@/lib/payments/kushki/cloudTerminal";
+import {
+  pushPaymentToCloudTerminal,
+  terminalAnswerCode,
+  type CloudTerminalChargeResult,
+} from "@/lib/payments/kushki/cloudTerminal";
+import { publishOrderEvent } from "@/lib/events";
+import { recoverTerminalOutcome } from "@/lib/payments/terminalRecovery";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
 import { kushkiTerminalSetup, terminalDeviceUsable } from "@/lib/payments/terminalAvailability";
 import { terminalClaimKey } from "@/lib/payments/methods";
@@ -31,6 +38,35 @@ const schema = z.object({
   paymentId: z.string().min(1),
   deviceId: z.string().min(1),
 });
+
+/**
+ * Lo que contestó el datáfono cuando NO aprobó, en el reclamo
+ * `terminal:<id>`. Con eso las pantallas saben que el cobro síncrono ya
+ * terminó (el staff puede reintentar o cancelar sin esperar) y la del
+ * comensal, que se canceló en el equipo. Antes de settlear: si el rechazo
+ * después falla, el pago queda incierto pero con la respuesta guardada.
+ */
+async function recordTerminalAnswer(paymentId: string, result: CloudTerminalChargeResult) {
+  await db.financialOperation.updateMany({
+    where: { key: terminalClaimKey(paymentId), answeredAt: null },
+    data: {
+      answerCode: terminalAnswerCode(result.failure),
+      answerMessage: result.failure?.message?.slice(0, 300) ?? null,
+      answeredAt: new Date(),
+      providerRef: result.providerRef,
+    },
+  });
+}
+
+/**
+ * El cobro terminó sin aprobarse ni liberarse: no se sabe si el equipo cobró
+ * (o contestó algo que no es definitivo). El pago queda incierto y la cuenta
+ * bloqueada; las pantallas se actualizan para mostrar qué se puede hacer.
+ */
+async function leaveUncertain(restaurantId: string, payment: { id: string; orderId: string }) {
+  await markPaymentUncertain(payment.id);
+  publishOrderEvent(restaurantId, { type: "order.updated", orderId: payment.orderId });
+}
 
 async function POSTHandler(
   req: Request,
@@ -132,11 +168,17 @@ async function POSTHandler(
   // solicitud (reemplazable por el cobro del staff o "Cancelar solicitud")
   // en cobro en vuelo. Si el staff lo declinó mientras tanto, esto rebota
   // con operation_conflict y no se llama a Kushki.
+  // `client_transaction_id` del cobro, guardado en el reclamo ANTES de
+  // llamar a Kushki: si la respuesta no llega, con él se busca el resultado.
+  const clientTransactionId = randomUUID();
+  const pushedAt = new Date();
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
     if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
-    const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents }], skipDuplicates: true });
+    // `deviceId`: a qué equipo va (para «Reintentar en el datáfono» y para
+    // pedirle que cancele un cobro en curso).
+    const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents, deviceId: device.kushkiDeviceId, clientTransactionId, createdAt: pushedAt }], skipDuplicates: true });
     return result.count === 1;
   });
   if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
@@ -155,10 +197,40 @@ async function POSTHandler(
     if (!device.serialNumber) {
       return NextResponse.json({ error: "device_no_serial" }, { status: 400 });
     }
+    const serialNumber = device.serialNumber;
+    /**
+     * No llegó la respuesta del cobro (504 del gateway de Kushki a los 60 s,
+     * timeout, red, 5xx): el datáfono puede seguir esperando la tarjeta. Se
+     * busca el resultado real en Kushki hasta que el equipo ya no pueda
+     * responder (ver terminalRecovery.ts). Aprobado → se salda como siempre
+     * (factura e impresión incluidas); rechazado → cuenta libre; nada →
+     * incierto como hasta hoy.
+     */
+    const noAnswer = async () => {
+      const recovered = await recoverTerminalOutcome({
+        restaurantId: tenant.id,
+        paymentId: payment.id,
+        amountCents: payment.amountCents,
+        serialNumber,
+        clientTransactionId,
+        businessCode,
+        mode,
+        pushedAt,
+      });
+      if (recovered.status === "approved") {
+        return NextResponse.json({ ok: true, status: "approved", providerRef: recovered.providerRef, recovered: true });
+      }
+      if (recovered.status === "declined") {
+        return NextResponse.json({ ok: false, status: "declined", recovered: true }, { status: 402 });
+      }
+      await leaveUncertain(tenant.id, payment);
+      return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+    };
+
     let result;
     try {
       result = await pushPaymentToCloudTerminal({
-        serialNumber: device.serialNumber,
+        serialNumber,
         // amountCents YA incluye la propina (TOTAL).
         amountCents: payment.amountCents,
         reference: payment.id,
@@ -168,10 +240,10 @@ async function POSTHandler(
         businessCode,
         // Host del Cloud Terminal según el modo efectivo del comercio.
         mode,
+        clientTransactionId,
       });
     } catch {
-      await markPaymentUncertain(payment.id);
-      return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      return noAnswer();
     }
 
 
@@ -186,7 +258,7 @@ async function POSTHandler(
         raw: result.raw,
       });
       if (processed.status === "error") {
-        await markPaymentUncertain(payment.id);
+        await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
       return NextResponse.json({
@@ -209,11 +281,38 @@ async function POSTHandler(
         raw: result.raw,
       });
       if (processed.status === "error") {
-        await markPaymentUncertain(payment.id);
+        await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
+        { status: 402 },
+      );
+    }
+
+    if (result.status === "canceled") {
+      // El datáfono dijo explícitamente que se canceló ANTES de autorizar
+      // (TER-004 «User cancel the process», MAN-30005 lectura/PIN vencido):
+      // no hubo cobro. Mismo camino que un rechazo del banco (pago declined,
+      // reclamo `failed`, la cuenta sale de `paying` si no queda nada), con
+      // su propio mensaje. Antes quedaba incierto y la cuenta trabada
+      // (Son y Melona, 2026-11-04).
+      await recordTerminalAnswer(payment.id, result);
+      const processed = await processKushkiWebhook({
+        eventId: `cloudterm:${payment.id}:canceled:${Date.now()}`,
+        type: "terminal.declined",
+        restaurantId: tenant.id,
+        paymentId: payment.id,
+        providerRef: result.providerRef,
+        message: result.message,
+        raw: result.raw,
+      });
+      if (processed.status === "error") {
+        await leaveUncertain(tenant.id, payment);
+        return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      }
+      return NextResponse.json(
+        { ok: false, status: "canceled", error: "terminal_canceled", message: result.message },
         { status: 402 },
       );
     }
@@ -234,7 +333,7 @@ async function POSTHandler(
         raw: result.raw,
       });
       if (processed.status === "error") {
-        await markPaymentUncertain(payment.id);
+        await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
@@ -259,9 +358,23 @@ async function POSTHandler(
       );
     }
 
-    // Transport failure does not establish whether the terminal charged.
-    await markPaymentUncertain(payment.id);
-    return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+    // El equipo contestó que no aprobó, con un código que no es definitivo
+    // (p. ej. TER-003, ocupado): el cobro síncrono terminó, así que el staff
+    // puede reintentar o cancelar al instante (confirmando en la pantalla del
+    // datáfono) en vez de esperar los 3 minutos de "Resolver cobro". Sigue
+    // incierto hasta que alguien lo cierre.
+    if (result.deviceAnswered) {
+      await recordTerminalAnswer(payment.id, result);
+      await leaveUncertain(tenant.id, payment);
+      return NextResponse.json(
+        { pending: true, error: "payment_pending", terminal: "answered" },
+        { status: 202 },
+      );
+    }
+
+    // Transport failure does not establish whether the terminal charged:
+    // buscar el resultado real antes de dejarlo incierto.
+    return noAnswer();
   }
 
   const currency = await getCurrencyForCountry(tenant.country);
@@ -277,7 +390,7 @@ async function POSTHandler(
       metadata: { orderId: payment.orderId, paymentId: payment.id },
     });
   } catch {
-      await markPaymentUncertain(payment.id);
+      await leaveUncertain(tenant.id, payment);
       return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
     }
   await db.payment.updateMany({

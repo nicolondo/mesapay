@@ -748,7 +748,9 @@
       "viewReceipt": "View receipt and invoice"
     },
     "linkPayWith": "Pay with",
-    "linkOtherMethods": "Other ways to pay"
+    "linkOtherMethods": "Other ways to pay",
+    "terminalCanceledTitle": "The charge was cancelled on the card terminal",
+    "terminalCanceledBody": "Nothing was charged. Choose how to pay, or ask your server to run the card again."
   },
   "done": {
     "methodCard": "Card",
@@ -905,7 +907,10 @@
     "processing": "Processing…",
     "pseProcessingBody": "We're confirming the result of your transfer with your bank. It may take a few seconds.",
     "autoRefresh": "This page refreshes automatically.",
-    "backToCheckout": "Back to checkout"
+    "backToCheckout": "Back to checkout",
+    "terminalCanceledTitle": "Cancelled on the card terminal",
+    "terminalCanceledBody": "Nothing was charged. Taking you back so you can choose how to pay…",
+    "terminalRetrying": "Sending the charge to the card terminal again…"
   },
   "pickup": {
     "unavailableTitle": "Pre-orders unavailable",
@@ -1655,7 +1660,10 @@
     "stationCounter": "Cooler",
     "badgeMainsTogether": "Mains together",
     "stillCooking": "Still being prepared ({count})",
-    "chargeAdminOnly": "Only the administrator can charge"
+    "chargeAdminOnly": "Only the administrator can charge",
+    "terminalSentAnswered": "The card terminal didn't approve the charge",
+    "terminalSentNoAnswer": "The card terminal didn't respond",
+    "terminalOutcome": "{place} · {message}"
   },
   "opPayments": {
     "noRestaurant": "No restaurant.",
@@ -7783,7 +7791,7 @@
     "generic": "The operation could not be completed. Refresh and try again.",
     "pending_payment_in_flight": "A {method} payment of {amount} is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way.",
     "pending_payment_in_flight_generic": "An online payment is waiting for the provider's confirmation. Wait until it is approved or declined (see Floor or Payments) before charging another way.",
-    "pending_payment_in_flight_terminal": "The {method} charge of {amount} was already sent to the card terminal and there is no result yet: a charge may be in progress. Wait until the device approves or declines it. If it doesn't respond, the administrator resolves it with “Resolve charge” on the bill's notice, checking the terminal's receipt or the Kushki console.",
+    "pending_payment_in_flight_terminal": "The {method} charge of {amount} was already sent to the card terminal and there is no result yet: a charge may be in progress. If the terminal cancelled it or didn't approve it, use “Retry on the terminal” or “Cancel and charge another way” on the bill's notice. If it doesn't respond, the administrator resolves it with “Resolve charge” on the bill's notice, checking the terminal's receipt or the Kushki console.",
     "terminal_unavailable": "The Kushki card terminal isn't available at this restaurant: it isn't enabled or there is no active card terminal set up. Charge with another method.",
     "charge_admin_only": "Only the administrator can charge at this restaurant.",
     "already_settled": "This payment was already resolved. Refresh to see the bill's status.",
@@ -7791,7 +7799,11 @@
     "terminal_result_pending": "The card terminal may still respond. Wait a few minutes before resolving the charge manually.",
     "terminal_request_rejected": "Kushki rejected the request during validation before sending it to the card terminal ({detail}). Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
     "terminal_request_rejected_generic": "Kushki rejected the request during validation before sending it to the card terminal. Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
-    "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started."
+    "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started.",
+    "terminal_canceled": "It was cancelled on the card terminal. Nothing was charged: you can send it again or charge another way.",
+    "terminal_no_answer": "The card terminal didn't respond and it may have charged. Check the terminal's screen or the receipt; after 3 minutes, the administrator resolves it with “Resolve charge”.",
+    "confirmation_required": "Confirm on the card terminal's screen that the charge didn't go through.",
+    "terminal_check_unavailable": "This charge can't be checked with Kushki from MESAPAY. Check the card terminal or the Kushki console and resolve it with “Resolve charge”."
   },
   "pendingPayment": {
     "requestKicker": "The guest asked to pay with",
@@ -7832,7 +7844,9 @@
     "cancelRequestConfirm": "Cancel this payment request? Only do it if you didn't receive any payment for it. The bill will be ready to charge another way.",
     "cancelRequestError": "The request couldn't be cancelled. Refresh and try again.",
     "inFlightTerminalKicker": "Charge sent to the Kushki card terminal",
-    "inFlightTerminalBody": "The charge is already on the card terminal and there is no result yet. If the device approves or declines it, the bill updates on its own. Meanwhile, don't charge another way."
+    "inFlightTerminalBody": "The charge is already on the card terminal and there is no result yet. If the device approves or declines it, the bill updates on its own. Meanwhile, don't charge another way.",
+    "terminalAnsweredKicker": "The card terminal didn't approve the charge",
+    "terminalNoAnswerKicker": "The card terminal didn't respond"
   },
   "terminalResolve": {
     "waitCountdown": "Wait for the card terminal's result. If it doesn't respond, you can resolve it manually in {time}.",
@@ -7855,6 +7869,36 @@
     "saving": "Saving…",
     "back": "Back",
     "error": "The charge couldn't be resolved. Refresh and try again."
+  },
+  "terminalAttempt": {
+    "inFlightBody": "The card terminal is waiting for the card. If the response takes long, MESAPAY checks it with Kushki and the bill updates on its own. If the guest won't pay this way, cancel it on the terminal.",
+    "abort": "Cancel on the terminal",
+    "aborting": "Cancelling…",
+    "abortSent": "We asked the card terminal to cancel the charge. Once it responds, the bill frees up on its own.",
+    "abortNotActive": "The card terminal no longer has a charge in progress. Wait a few seconds: the bill updates on its own.",
+    "abortFailed": "We couldn't ask the card terminal to cancel. Cancel it on the terminal's screen: the bill frees up on its own once it responds.",
+    "answeredBody": "Card terminal response: {detail}.",
+    "answeredBodyGeneric": "The card terminal responded without approving the charge.",
+    "checkDevice": "Check the card terminal's screen: if the charge didn't go through, send it again or charge another way.",
+    "retry": "Retry on the terminal",
+    "retrying": "Sending to the card terminal…",
+    "cancel": "Cancel and charge another way",
+    "cancelling": "Cancelling…",
+    "confirmRetry": "Confirm on the card terminal's screen that the charge didn't go through. Send {amount} to the card terminal again?",
+    "confirmCancel": "Confirm on the card terminal's screen that the charge didn't go through. Cancel this charge? The bill will be ready to charge another way.",
+    "retryNoDevice": "The charge was requested again, but we don't know which card terminal to send it to. Send it from Floor with “Charge”.",
+    "retryFailed": "Couldn't send it to the card terminal again. Refresh and try again.",
+    "retryApproved": "The card terminal approved the charge.",
+    "adminOnly": "Only the administrator can retry or cancel this charge.",
+    "noAnswerBody": "No response came back and it may have charged. Before resolving it, check the terminal's screen and whether it printed a receipt (voucher).",
+    "error": "Couldn't complete it. Refresh and try again.",
+    "check": "Check with Kushki",
+    "checking": "Checking…",
+    "checkApproved": "Kushki confirmed the charge was approved: the bill is paid.",
+    "checkDeclined": "Kushki confirmed the charge wasn't approved: the bill is free to charge another way.",
+    "checkNotFound": "Kushki doesn't have this charge yet. Check the terminal's screen and whether it printed a receipt before resolving it.",
+    "checkUnknown": "Kushki shows a movement that needs a manual review (for example, a reversal or a different amount). Resolve it with the terminal's receipt.",
+    "checkError": "We couldn't check with Kushki. Try again in a moment."
   },
   "terminalPicker": {
     "question": "Which card terminal?",

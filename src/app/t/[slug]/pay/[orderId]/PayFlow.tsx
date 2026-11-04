@@ -166,6 +166,7 @@ export async function PayFlow({
         replaceable: p.replaceable,
         reconciliationRequired: p.reconciliationRequired,
         pushedAt: p.pushedAt?.toISOString() ?? null,
+        terminalAttempt: p.terminalAttempt,
       }))
     : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
@@ -297,7 +298,9 @@ export async function PayFlow({
       // Banner que se muestra al volver de un cobro rechazado por
       // datáfono o PSE — sirve para que el diner entienda por qué
       // volvió al checkout y elija otro método.
-      declinedFlag={declined === "1"}
+      declinedFlag={declined === "1" || declined === "canceled"}
+      // Volvió porque se canceló en el datáfono: no se cobró, aviso propio.
+      declinedReason={declined === "canceled" ? "terminal_canceled" : null}
       // La factura se pide ACÁ, durante el cobro. `invoiceIntent` es lo que
       // ya haya pedido en esta cuenta (para mostrar el resumen en vez del
       // formulario) y `invoicePrefillEmail`, el correo del último cobro con

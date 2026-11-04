@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { terminalClaimKey } from "@/lib/payments/methods";
+import { TERMINAL_CANCELED_REASON, toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
+import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { TerminalWait } from "./TerminalWait";
 
 export const dynamic = "force-dynamic";
@@ -51,9 +54,21 @@ export default async function TerminalPendingPage({
   }
 
   const tMenu = await getTranslations("menu");
+  // El reclamo del datáfono Kushki: si se canceló en el equipo o se
+  // reintentó (la pantalla vuelve con su aviso o sigue al pago nuevo) y, sólo
+  // para el staff, qué se sabe del cobro enviado (para cancelar en el equipo,
+  // reintentar o cobrar de otra forma ahí mismo).
+  const claim =
+    payment.method === "kushki_card_terminal" && payment.status !== "approved"
+      ? await db.financialOperation.findUnique({ where: { key: terminalClaimKey(payment.id) } })
+      : null;
+  const declined = payment.status === "declined";
+  const retrySep = checkoutHref.includes("?") ? "&" : "?";
 
   return (
     <TerminalWait
+      // Un reintento cambia de pago (`pid`): pantalla nueva, estado nuevo.
+      key={payment.id}
       tenantSlug={slug}
       tenantName={order.restaurant.name}
       locationLabel={
@@ -70,7 +85,14 @@ export default async function TerminalPendingPage({
       initialOrderStatus={order.status}
       doneHref={doneHref}
       continueHref={staff ? checkoutHref : undefined}
-      retryHref={`${checkoutHref}${checkoutHref.includes("?") ? "&" : "?"}declined=1`}
+      retryHref={`${checkoutHref}${retrySep}declined=1`}
+      canceledHref={`${checkoutHref}${retrySep}declined=canceled`}
+      initialDeclineReason={declined && claim?.answeredAt ? TERMINAL_CANCELED_REASON : null}
+      initialNextPaymentId={declined ? (claim?.nextPaymentId ?? null) : null}
+      initialAttempt={
+        staff && payment.status === "pending" ? toTerminalAttemptView(claim, payment.reconciliationRequired) : null
+      }
+      canResolveTerminal={canResolveTerminalCharge(staff?.user.role)}
     />
   );
 }

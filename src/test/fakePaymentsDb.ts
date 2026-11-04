@@ -47,6 +47,7 @@ export type FakePayment = {
   providerRef: string | null;
   reconciliationRequired: boolean;
   settledAt: Date | null;
+  splitOfCount: number | null;
   createdAt: Date;
 };
 
@@ -57,6 +58,15 @@ export type FakeFinancialOperation = {
   amountCents: number;
   status: string;
   providerRef: string | null;
+  // Datáfono Kushki (opcionales: los tests viejos empujan reclamos sin ellos).
+  deviceId?: string | null;
+  answerCode?: string | null;
+  answerMessage?: string | null;
+  answeredAt?: Date | null;
+  nextPaymentId?: string | null;
+  clientTransactionId?: string | null;
+  checkedAt?: Date | null;
+  checkStatus?: string | null;
   createdAt: Date;
 };
 
@@ -128,6 +138,14 @@ export function createFakePaymentsDb(init: {
     amountCents: 0,
     status: "pending",
     providerRef: null,
+    deviceId: null,
+    answerCode: null,
+    answerMessage: null,
+    answeredAt: null,
+    nextPaymentId: null,
+    clientTransactionId: null,
+    checkedAt: null,
+    checkStatus: null,
     createdAt: new Date(Date.UTC(2026, 9, 31, 18, 30, 0)),
     ...data,
   });
@@ -146,6 +164,7 @@ export function createFakePaymentsDb(init: {
     providerRef: data.providerRef ?? null,
     reconciliationRequired: data.reconciliationRequired ?? false,
     settledAt: data.settledAt ?? null,
+    splitOfCount: data.splitOfCount ?? null,
     // Orden estable para `orderBy: createdAt`.
     createdAt: data.createdAt ?? new Date(Date.UTC(2026, 8, 25, 19, 0, seq)),
   });

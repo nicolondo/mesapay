@@ -81,6 +81,11 @@ vi.mock("@/lib/platformConfig", () => ({
 }));
 vi.mock("@/lib/billing/countries", () => ({ getCurrencyForCountry: async () => "COP" }));
 vi.mock("@/lib/payments/mockBridge", () => ({ ensureMockBridge: () => {} }));
+// Sin respuesta, la ruta busca el resultado en Kushki (route.recovery.test.ts);
+// acá Kushki "no sabe nada" y el pago queda incierto como antes.
+vi.mock("@/lib/payments/terminalRecovery", () => ({
+  recoverTerminalOutcome: async () => ({ status: "unresolved", last: "not_found" }),
+}));
 vi.mock("@/lib/payments", () => ({ getPaymentProvider: vi.fn() }));
 
 import { POST } from "./route";

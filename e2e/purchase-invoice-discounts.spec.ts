@@ -203,4 +203,32 @@ test("receiving goods with an extra invoice discount records the discounted net 
   } finally { await page.goto("about:blank"); await cleanup(restaurant.id); }
 });
 
+test("the review supplier field autocompletes by NIT and creates a new supplier from the typed text", async ({ page }) => {
+  const f = await openReview(page, [line()], {});
+  try {
+    const other = await db.supplier.create({ data: { restaurantId: f.restaurant.id, name: "Distribuidora por NIT", taxId: "900123456" } });
+    await page.reload();
+    await page.locator("#inv-upload-file").setInputFiles({ name: "synthetic-invoice.png", mimeType: "image/png", buffer: Buffer.from("synthetic OCR fixture") });
+    const field = f.dialog.getByRole("combobox", { name: t.invReviewSupplierSection, exact: true });
+    await expect(field).toHaveValue(f.supplier.name);
+    // Search by NIT (with dots and check digit) and pick the matching supplier.
+    const rematch = page.waitForResponse(r => new URL(r.url()).searchParams.get("supplierId") === other.id);
+    await field.fill("900.123.456-7");
+    await f.dialog.getByRole("option", { name: new RegExp(`^${other.name}`) }).click();
+    expect((await rematch).status()).toBe(200);
+    await expect(field).toHaveValue(other.name);
+    // A name that does not exist yet opens the creation with it prefilled.
+    await field.fill("Granos El Nuevo");
+    await f.dialog.getByRole("option", { name: es.supplierCombobox.create.replace("{query}", "Granos El Nuevo") }).click();
+    await expect(f.dialog.getByRole("textbox", { name: new RegExp(t.invReviewNewSupplierName) })).toHaveValue("Granos El Nuevo");
+    await page.getByRole("button", { name: t.invReviewModeDraft, exact: true }).click();
+    const response = page.waitForResponse(r => r.url().endsWith(`/purchase-invoices/${f.upload.id}/confirm`) && r.request().method() === "POST");
+    await page.getByRole("button", { name: t.invReviewConfirm, exact: true }).click();
+    const result = await response;
+    expect(result.status(), await result.text()).toBe(201);
+    expect(result.request().postDataJSON()).toMatchObject({ supplierId: null, newSupplierName: "Granos El Nuevo" });
+    expect(await db.supplier.count({ where: { restaurantId: f.restaurant.id, name: "Granos El Nuevo" } })).toBe(1);
+  } finally { await page.goto("about:blank"); await cleanup(f.restaurant.id); }
+});
+
 test.afterAll(async () => { await db.$disconnect(); });

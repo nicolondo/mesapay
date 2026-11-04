@@ -13,6 +13,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { referenceLineCost } from "@/lib/erp/ingredientPrice";
 import { waLink } from "@/lib/crm/phone";
 import {
@@ -73,7 +74,16 @@ type OrderSummary = Partial<InvoiceTaxExtras> & {
   _count: { items: number };
 };
 
-type SupplierRef = { id: string; name: string };
+type SupplierRef = { id: string; name: string; taxId?: string | null };
+
+/** Lo escrito en el campo de proveedor al pedir «Crear proveedor»: si son
+ *  solo dígitos (con puntos, guiones o espacios), es el NIT; si no, el nombre. */
+function splitSupplierText(text: string): { name: string; taxId: string } {
+  const trimmed = text.trim();
+  return /^[\d.\-\s]+$/.test(trimmed) && /\d/.test(trimmed)
+    ? { name: "", taxId: trimmed }
+    : { name: trimmed, taxId: "" };
+}
 
 type IngredientRef = {
   id: string;
@@ -855,7 +865,6 @@ function NewOrderSheet({
   const taxRates = useMemo(() => purchaseTaxRates(country), [country]);
 
   const [supplier, setSupplier] = useState<SupplierRef | null>(null);
-  const [supQ, setSupQ] = useState("");
   // Lista de precios del proveedor elegido + insumos (líneas libres); null
   // = cargando tras elegir proveedor.
   const [priceList, setPriceList] = useState<PriceListItem[] | null>(null);
@@ -890,12 +899,13 @@ function NewOrderSheet({
   const [taxPct, setTaxPct] = useState(0);
   const [lineErr, setLineErr] = useState<string | null>(null);
 
-  const supMatches = useMemo(() => {
-    const needle = fold(supQ.trim());
-    return suppliers
-      .filter((s) => !needle || fold(s.name).includes(needle))
-      .slice(0, 8);
-  }, [suppliers, supQ]);
+  // Proveedores del campo con autocompletado + los creados aquí mismo.
+  const [createdSuppliers, setCreatedSuppliers] = useState<SupplierRef[]>([]);
+  const [newSupplierText, setNewSupplierText] = useState("");
+  const supplierOptions = useMemo(
+    () => [...suppliers, ...createdSuppliers],
+    [suppliers, createdSuppliers],
+  );
 
   function pickSupplier(s: SupplierRef) {
     setSupplier(s);
@@ -903,7 +913,6 @@ function NewOrderSheet({
     setIngredients(null);
     setLoadErr(false);
     setCreatingSupplier(false);
-    setSupQ("");
   }
 
   // El reset de priceList/ingredients pasa en pickSupplier (handler), no
@@ -1191,7 +1200,6 @@ function NewOrderSheet({
                   type="button"
                   onClick={() => {
                     setSupplier(null);
-                    setSupQ("");
                     setLines([]);
                     resetLineForm();
                   }}
@@ -1202,46 +1210,32 @@ function NewOrderSheet({
               </div>
             ) : (
               <div>
-                <input
-                  type="search"
-                  value={supQ}
-                  onChange={(e) => setSupQ(e.target.value)}
-                  placeholder={t("supplierSearchPlaceholder")}
+                {/* Se escribe el nombre o el NIT; la última opción pide
+                    crear el proveedor con lo escrito. */}
+                <SupplierCombobox
+                  id="po-supplier"
+                  suppliers={supplierOptions}
+                  value={null}
+                  onChange={(_id, s) => {
+                    if (s) pickSupplier({ id: s.id, name: s.name, taxId: s.taxId });
+                  }}
+                  onCreateRequested={(text) => {
+                    setNewSupplierText(text);
+                    setCreatingSupplier(true);
+                  }}
                   aria-label={t("fieldSupplier")}
-                  className={inputCls}
                 />
-                <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
-                  {supMatches.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-op-muted">
-                      {t("noSupplierMatches")}
-                    </div>
-                  ) : (
-                    supMatches.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => pickSupplier(s)}
-                        className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                      >
-                        {s.name}
-                      </button>
-                    ))
-                  )}
-                </div>
-                {creatingSupplier ? (
+                {creatingSupplier && (
                   <SupplierInlineForm
-                    initialName={supQ.trim()}
-                    onCreated={pickSupplier}
+                    key={newSupplierText}
+                    initialName={splitSupplierText(newSupplierText).name}
+                    initialTaxId={splitSupplierText(newSupplierText).taxId}
+                    onCreated={(s) => {
+                      setCreatedSuppliers((prev) => [...prev, s]);
+                      pickSupplier(s);
+                    }}
                     onCancel={() => setCreatingSupplier(false)}
                   />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setCreatingSupplier(true)}
-                    className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
-                  >
-                    {t("createSupplierInline")}
-                  </button>
                 )}
               </div>
             )}
@@ -2435,7 +2429,6 @@ function InvoiceReviewSheet({
       ? (match.supplier.nit ?? "")
       : (extraction.supplierNit ?? ""),
   );
-  const [supQ, setSupQ] = useState("");
   const [supplierMatchBusy, setSupplierMatchBusy] = useState(false);
   const [supplierMatchError, setSupplierMatchError] = useState(false);
   const supplierMatchRequest = useRef(0);
@@ -2500,7 +2493,6 @@ function InvoiceReviewSheet({
   async function changeReviewSupplier(next: SupplierRef | null, preserveSelection = false) {
     const requestId = ++supplierMatchRequest.current;
     setSupplier(next);
-    setSupQ("");
     setSupplierMatchError(false);
     if (!preserveSelection) setLines(previous => previous.map(resetInvoiceSupplier));
     setSupplierMatchBusy(next != null);
@@ -2548,12 +2540,12 @@ function InvoiceReviewSheet({
   const busyRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const supMatches = useMemo(() => {
-    const needle = fold(supQ.trim());
-    return suppliers
-      .filter((s) => !needle || fold(s.name).includes(needle))
-      .slice(0, 8);
-  }, [suppliers, supQ]);
+  // The supplier the invoice matched stays selectable even if it is not in
+  // the active list loaded with the page.
+  const supplierOptions = useMemo(
+    () => (supplier && !suppliers.some((s) => s.id === supplier.id) ? [...suppliers, supplier] : suppliers),
+    [suppliers, supplier],
+  );
 
   // Preview and confirmation share one interpretation, including exact VAT
   // and both discount levels (the same proration the server re-checks).
@@ -3012,58 +3004,27 @@ function InvoiceReviewSheet({
                   </button>
                 )}
               </>
-            ) : supplier ? (
-              <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
-                <span className="truncate">{supplier.name}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void changeReviewSupplier(null);
-                  }}
-                  className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
-                >
-                  {t("changeSupplier")}
-                </button>
-              </div>
             ) : (
-              <>
-                <input
-                  type="search"
-                  value={supQ}
-                  onChange={(e) => setSupQ(e.target.value)}
-                  placeholder={t("supplierSearchPlaceholder")}
-                  className={inputCls}
-                />
-                <div className="rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
-                  {supMatches.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-op-muted">
-                      {t("noSupplierMatches")}
-                    </div>
-                  ) : (
-                    supMatches.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => { void changeReviewSupplier(s); }}
-                        className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                      >
-                        {s.name}
-                      </button>
-                    ))
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreatingSupplier(true);
-                    if (!newSupplierName)
-                      setNewSupplierName(extraction.supplierName ?? "");
-                  }}
-                  className="text-[11px] font-medium text-op-muted hover:text-ink"
-                >
-                  {t("invReviewCreateSupplier")}
-                </button>
-              </>
+              // Proveedor con autocompletado (nombre o NIT). Viene elegido si
+              // la IA lo reconoció; «Crear proveedor» abre el alta de arriba
+              // con lo escrito o, si no se escribió nada, con lo que leyó la IA.
+              <SupplierCombobox
+                id="inv-supplier"
+                suppliers={supplierOptions}
+                value={supplier?.id ?? null}
+                onChange={(id, s) => {
+                  if ((id ?? null) === (supplier?.id ?? null)) return;
+                  void changeReviewSupplier(s ? { id: s.id, name: s.name, taxId: s.taxId } : null);
+                }}
+                onCreateRequested={(text) => {
+                  const typed = splitSupplierText(text);
+                  if (supplier) void changeReviewSupplier(null);
+                  setNewSupplierName(typed.name || newSupplierName || extraction.supplierName || "");
+                  setNewSupplierNit(typed.taxId || newSupplierNit || extraction.supplierNit || "");
+                  setCreatingSupplier(true);
+                }}
+                aria-label={t("invReviewSupplierSection")}
+              />
             )}
 
             {supplierMatchBusy && <p role="status" className="text-xs text-op-muted">{t("invAliasLoading")}</p>}
@@ -5559,16 +5520,19 @@ function Field({
  */
 function SupplierInlineForm({
   initialName,
+  initialTaxId,
   onCreated,
   onCancel,
 }: {
   initialName?: string;
+  /** NIT escrito en el campo de proveedor (si lo escrito eran dígitos). */
+  initialTaxId?: string;
   onCreated: (s: SupplierRef) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations("opErp");
   const [name, setName] = useState(initialName ?? "");
-  const [taxId, setTaxId] = useState("");
+  const [taxId, setTaxId] = useState(initialTaxId ?? "");
   const [termsRaw, setTermsRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -5612,7 +5576,7 @@ function SupplierInlineForm({
       return;
     }
     const j = (await r.json()) as { supplier: SupplierRef };
-    onCreated({ id: j.supplier.id, name: j.supplier.name });
+    onCreated({ id: j.supplier.id, name: j.supplier.name, taxId: j.supplier.taxId ?? null });
   }
 
   return (

@@ -224,6 +224,87 @@ describe("reconcileTaxes", () => {
   });
 });
 
+describe("reconcileTaxes — líneas libres con impuesto encima e IVA no descontable", () => {
+  // Lo que asienta el motor desde el arreglo: el IVA/INC que las líneas
+  // libres suman encima va al generado; el IVA de compras no descontable,
+  // al costo (nada a 2408).
+  const ACC: TaxAccount[] = [
+    ...ACCOUNTS,
+    { code: "24080501", name: "IVA 19 %", type: "pasivo" },
+    { code: "24081001", name: "IVA descontable", type: "pasivo" },
+  ];
+  const DAY = "2026-10-05";
+  const PAID = "2026-10-05T20:00:00.000Z";
+  const invoice: SaleTaxInput = {
+    ...inv("9", PAID, 222_222),
+    baseCents: 2_777_778,
+    freeLineSlices: [
+      { kind: "iva", pct: 19, baseCents: 10_000_000, taxCents: 1_900_000 },
+      { kind: "inc", pct: 8, baseCents: 2_500_000, taxCents: 200_000 },
+    ],
+  };
+  const noInvoice: EngineOrder = {
+    ...order("o9", PAID, null, 185_185),
+    freeSlices: [{ kind: "iva", pct: 19, baseCents: 1_000_000, taxCents: 190_000 }],
+  };
+  const nonDeductible: PurchaseTaxInput = {
+    ...purchase("p9", "2026-10-05T15:00:00.000Z", 0),
+    lines: [
+      { netCents: 100_000, taxPct: 19, taxCents: null, nonDeductibleTaxCents: 19_000 },
+      { netCents: 50_000, taxPct: 19, taxCents: null, nonDeductibleTaxCents: 9_500 },
+    ],
+  };
+  const reconcile = (orders: EngineOrder[], lines: RetentionLedgerLine[]) => {
+    const docs = [...salesFacts([invoice]), ...purchaseFacts([nonDeductible])];
+    return reconcileTaxes({
+      period: PERIOD,
+      cutoffHour: CUTOFF,
+      docs,
+      windowSaleFacts: salesFacts([invoice]),
+      windowPurchaseFacts: purchaseFacts([nonDeductible]),
+      orders,
+      ledger: ledgerFacts(lines, ACC),
+      entries: [{ id: `sale-${DAY}`, source: "sale", day: DAY }, { id: `purchase-${DAY}`, source: "purchase", day: DAY }],
+    });
+  };
+
+  it("los documentos traen un hecho por factura y tramo de líneas libres", () => {
+    expect(salesFacts([invoice]).map((f) => [f.key, f.tax, f.pct, f.baseCents, f.taxCents])).toEqual([
+      ["inv:9", "inc", 8, 2_777_778, 222_222],
+      ["inv:9:libre:iva:19", "iva", 19, 10_000_000, 1_900_000],
+      ["inv:9:libre:inc:8", "inc", 8, 2_500_000, 200_000],
+    ]);
+    // Compra sin IVA descontable: su IVA no resta del generado.
+    expect(purchaseFacts([nonDeductible]).map((f) => [f.tax, f.taxCents + 0, f.grossTaxCents, f.nonDeductibleCents])).toEqual([
+      ["iva", 0, 28_500, 28_500],
+    ]);
+  });
+
+  it("facturada: libro − documentos = 0 en cada impuesto, sin ningún componente", () => {
+    const r = reconcile(
+      [order("o8", PAID, "9", 222_222)],
+      [ln("s1", "241205", 222_222 + 200_000, "sale", DAY), ln("s2", "24080501", 1_900_000, "sale", DAY)],
+    );
+    for (const t of r.byTax) {
+      expect(t.diffCents, t.tax).toBe(0);
+      expect(Object.values(t.components).every((v) => v === 0), t.tax).toBe(true);
+    }
+  });
+
+  it("sin factura: lo embebido y lo encima son «sin factura», nada desactualizado", () => {
+    const r = reconcile(
+      [order("o8", PAID, "9", 222_222), noInvoice],
+      [ln("s1", "241205", 222_222 + 200_000 + 185_185, "sale", DAY), ln("s2", "24080501", 1_900_000 + 190_000, "sale", DAY)],
+    );
+    expect(r.rows.sinFactura.map((f) => [f.key, f.tax, f.deltaCents])).toEqual([
+      ["ord:o9", "inc", 185_185],
+      ["ord:o9:libre:iva:19", "iva", 190_000],
+    ]);
+    expect(r.rows.desactualizado).toEqual([]);
+    for (const t of r.byTax) expect(componentsTotal(t), t.tax).toBe(t.diffCents);
+  });
+});
+
 describe("engineDay", () => {
   it("ventas y compras por día de negocio; notas y gastos por su fecha", () => {
     expect(engineDay("ventas", "2026-10-01T03:00:00.000Z", 5)).toBe("2026-09-30");

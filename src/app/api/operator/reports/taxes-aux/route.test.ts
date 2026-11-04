@@ -70,7 +70,7 @@ vi.mock("@/lib/erp/reports/taxesDrillQueries", () => ({
     uvtCents: 5_237_400,
   })),
   loadRetentionConceptsFull: vi.fn(async () => []),
-  loadEngineOrders: vi.fn(async () => ({ orders: h.state.orders, freeLineTaxByInvoice: new Map() })),
+  loadEngineOrders: vi.fn(async () => ({ orders: h.state.orders })),
   loadEngineEntries: vi.fn(async () => h.state.entries),
   loadDianInvoiceStates: vi.fn(async () => new Map([["i2", { state: "rejected", lastError: "FAK24" }]])),
   loadDianCreditNotes: vi.fn(async () => []),

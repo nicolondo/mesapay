@@ -46,6 +46,7 @@ import { type PurchaseBookRowAmounts, sumPurchaseBookRows } from "./purchaseTax"
 import {
   type SalesTaxOrder,
   currentSalesTaxOf,
+  freeLineTaxSlicesFor,
   salesTaxByRate,
   salesTaxLabel,
   salesTaxSlicesFor,
@@ -234,6 +235,7 @@ async function buildMonthEntries(
   const toTaxOrder = (o: SalesPostingOrder): SalesTaxOrder => ({
     subtotalCents: o.subtotalCents,
     invoiceSnapshot: o.invoiceSnapshot,
+    freeLines: o.freeLines,
   });
   // Sólo los pedidos en estado pagado causan impuesto (misma regla que la
   // tarjeta de impuestos); los cobros y propinas cuentan por `paidAt`.
@@ -247,7 +249,12 @@ async function buildMonthEntries(
   const entries: DraftEntry[] = [];
 
   // 1) VENTAS — por día de negocio del pago del pedido. D caja/banco/pasarela
-  // (bruto) · C ingresos + impuesto + propinas.
+  // (bruto) · C ingresos + impuesto + propinas. El impuesto es el EMBEBIDO
+  // de la carta más el que las LÍNEAS LIBRES suman encima (servicios,
+  // cargos sueltos con IVA/INC propio): la base de la línea libre queda en
+  // ingresos y su impuesto va al generado de su tipo y tarifa, igual que lo
+  // declaró la factura. Antes ese impuesto caía en 4135 (el ingreso es la
+  // cuenta que cuadra el asiento).
   for (const [day, dayOrders] of groupByDay(orders, (o) => dayOf(o.paidAt))) {
     const lines: Line[] = [];
     // Consolidar por cuenta destino (varios métodos caen en la misma cuenta).
@@ -263,7 +270,11 @@ async function buildMonthEntries(
     // tarifa lleva un crédito por código (241205 + el auxiliar de IVA);
     // un día normal, uno solo. Nunca "tarifa de hoy × ventas del día".
     const taxByCode = new Map<string, number>();
-    for (const slice of salesTaxByRate(salesTaxSlicesFor(taxable(dayOrders), current))) {
+    const dayTaxable = taxable(dayOrders);
+    for (const slice of [
+      ...salesTaxByRate(salesTaxSlicesFor(dayTaxable, current)),
+      ...salesTaxByRate(freeLineTaxSlicesFor(dayTaxable)),
+    ]) {
       const code = salesTaxCodeFor(slice.kind, slice.pct);
       if (!code || slice.taxCents <= 0) continue;
       taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
@@ -307,6 +318,17 @@ async function buildMonthEntries(
   // 2) COMPRAS — por día de negocio de la recepción. D inventario + IVA
   // descontable · C proveedores − retenciones. La misma suma del libro de
   // compras, sobre las facturas de cada día.
+  //
+  // Compra recibida con IVA NO descontable (`purchaseIvaDeductible = false`
+  // al recibir): ese IVA es mayor valor del costo, no un crédito fiscal. El
+  // de las líneas inventariables va a 143505 —el kardex ya valoró esa
+  // mercancía al bruto y el costo de ventas lo saca de ahí: el inventario
+  // del libro queda igual al del kardex— y el de las no inventariables al
+  // gasto; nada a 2408. Antes el de las inventariables se debitaba a
+  // 24081001 aunque el inventario ya lo incluía: contado dos veces. Lo que
+  // se capitalizó lo dice el kardex (`capitalizedInventoryVatByLine`), no el
+  // ajuste de hoy; una compra recibida con IVA descontable tiene
+  // `inventoryNonDeductibleTaxCents` 0 y su asiento es el de siempre.
   const purchaseRows = purchasesBook.rows.filter(
     (r): r is typeof r & { receivedAt: Date } => r.receivedAt != null,
   );
@@ -315,8 +337,14 @@ async function buildMonthEntries(
     const purchaseCost = t.receivedCents + t.incCents;
     const nonInventoryNetCost = t.nonInventoryReceivedCents + t.nonInventoryIncCents;
     const expenseDebit = nonInventoryNetCost + t.nonInventoryNonDeductibleTaxCents;
-    const invDebit = purchaseCost - nonInventoryNetCost;
-    const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents;
+    // Nunca más que el IVA que queda después del del gasto: así el asiento
+    // cuadra aunque una línea traiga datos raros.
+    const inventoryVat = Math.min(
+      t.inventoryNonDeductibleTaxCents,
+      Math.max(0, t.ivaCents - t.nonInventoryNonDeductibleTaxCents),
+    );
+    const invDebit = purchaseCost - nonInventoryNetCost + inventoryVat;
+    const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents - inventoryVat;
     if (purchaseCost <= 0 && t.ivaCents <= 0) continue;
     const lines: Line[] = [];
     if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });

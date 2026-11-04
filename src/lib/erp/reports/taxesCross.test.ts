@@ -112,3 +112,65 @@ describe("cruce documental vs libro", () => {
     expect(buildTaxCross(docs, book)).toEqual([]);
   });
 });
+
+describe("cruce con líneas libres e IVA de compras no descontable", () => {
+  // Factura con INC 8 % embebido (carta) + alquiler IVA 19 % y meseros INC
+  // 8 % ENCIMA; compra de un comercio con IVA NO descontable (todo el IVA
+  // es costo: inventario o gasto). Es lo que asienta el motor después del
+  // arreglo: el IVA/INC encima al generado, nada al descontable.
+  const freeSale: SaleTaxInput = {
+    invoiceId: "i9",
+    document: "FESM9",
+    dateIso: "2026-08-10T15:00:00.000Z",
+    taxKind: "inc",
+    taxPct: 8,
+    baseCents: 2_777_778,
+    taxCents: 222_222,
+    freeLineSlices: [
+      { kind: "iva", pct: 19, baseCents: 10_000_000, taxCents: 1_900_000 },
+      { kind: "inc", pct: 8, baseCents: 2_500_000, taxCents: 200_000 },
+    ],
+    customer: null,
+  };
+  const nonDeductible: PurchaseTaxInput = {
+    ...purchases[0]!,
+    retefuenteCents: 0,
+    reteIcaCents: 0,
+    lines: [
+      // Inventariable: todo su IVA es mayor valor del inventario.
+      { netCents: 100_000, taxPct: 19, nonDeductibleTaxCents: 19_000 },
+      // No inventariable: congelado al recibir, va al gasto.
+      { netCents: 50_000, taxPct: 19, nonDeductibleTaxCents: 9_500 },
+    ],
+  };
+
+  it("documentos: el impuesto encima va a su propio kind:tarifa y el IVA de compras queda sin descontable", () => {
+    const docs = aggregateDocumentTaxes({ sales: [freeSale], purchases: [nonDeductible] });
+    expect(docs.sales.map((b) => [b.key, b.baseCents, b.taxCents])).toEqual([
+      ["iva:19", 10_000_000, 1_900_000],
+      ["inc:8", 5_277_778, 422_222],
+    ]);
+    expect(docs.totals).toMatchObject({
+      incGeneradoCents: 422_222,
+      ivaGeneradoCents: 1_900_000,
+      ivaComprasCents: 28_500,
+      ivaNoDescontableCents: 28_500,
+      ivaDescontableCents: 0,
+    });
+  });
+
+  it("libro del motor vs documentos: diferencia 0", () => {
+    const lines: TaxLedgerLine[] = [
+      // «Ventas del día»: INC embebido + INC encima; IVA 19 % encima.
+      { accountCode: "241205", debitCents: 0, creditCents: 422_222 },
+      { accountCode: "24080501", debitCents: 0, creditCents: 1_900_000 },
+      // «Compras del día» de un comercio no descontable: nada a 2408.
+    ];
+    const docs = aggregateDocumentTaxes({ sales: [freeSale], purchases: [nonDeductible] });
+    const cross = buildTaxCross(docs, buildTaxAccountReport(lines, accounts));
+    expect(cross).toEqual([
+      { key: "iva", referenceCents: 1_900_000, bookCents: 1_900_000, differenceCents: 0 },
+      { key: "consumo", referenceCents: 422_222, bookCents: 422_222, differenceCents: 0 },
+    ]);
+  });
+});

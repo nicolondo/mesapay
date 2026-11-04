@@ -66,7 +66,10 @@ export function taxDeclarationFrom(tax: TaxSummary): TaxDeclaration {
   const incNotas = sumKind("inc", (s) => s.creditNoteTaxCents);
   const incDevoluciones = sumKind("inc", (s) => s.refundTaxCents);
   const incGenerado = incBruto - incNotas - incDevoluciones;
-  const ivaDescontable = tax.purchases.ivaCents;
+  // Sólo lo DESCONTABLE (lo que el motor lleva a 2408): sin el IVA que es
+  // mayor valor del costo (comercio con IVA de compras no descontable) o del
+  // gasto (recepciones no inventariables).
+  const ivaDescontable = tax.purchases.ivaDeductibleCents;
   return {
     salesKind: kind,
     salesPct: tax.sales.pct,

@@ -9,7 +9,8 @@
  *  · los conceptos de retención CON su tarifa, base y umbral;
  *  · los PEDIDOS PAGADOS de la ventana (con y sin factura) con lo mínimo
  *    del snapshot para reproducir el impuesto que les causa el motor
- *    (`orderSalesTaxSlice`) y el impuesto de las líneas libres;
+ *    (`orderSalesTaxSlice` + `orderFreeLineTaxSlices`: lo embebido de la
+ *    carta y lo que sus líneas libres suman encima);
  *  · los asientos del motor del período (fuente + día);
  *  · el estado ante la DIAN de las facturas y notas crédito del período;
  *  · las facturas de la ventana de la tendencia, sin el snapshot entero.
@@ -21,7 +22,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
-import { currentSalesTaxOf, orderSalesTaxSlice } from "../salesTaxSlices";
+import { currentSalesTaxOf, orderFreeLineTaxSlices, orderSalesTaxSlice } from "../salesTaxSlices";
 import { formatVoucherNumber } from "./generalLedger";
 import { saleTaxOfSnapshot } from "./saleTaxSnapshot";
 import type { SaleTaxInput } from "./taxesDocuments";
@@ -70,6 +71,29 @@ export async function loadRetentionConceptsFull(restaurantId: string): Promise<(
   });
 }
 
+/** Una línea libre viva tal como la arma `ORDER_FREE_LINES`. */
+type RawFreeLine = { amountCents: number; taxKind: string | null; taxPct: number | null };
+
+/**
+ * Líneas LIBRES vivas del pedido `o` (sin cancelar, fuera de rondas
+ * canceladas): el mismo criterio que `accountingData.FREE_LINES_INCLUDE`,
+ * con el que las lee el motor.
+ */
+const ORDER_FREE_LINES = Prisma.sql`(
+  SELECT jsonb_agg(jsonb_build_object(
+           'amountCents', i."priceCentsSnapshot" * i."qty",
+           'taxKind', i."taxKind",
+           'taxPct', i."taxPct"))
+    FROM "OrderItem" i
+    LEFT JOIN "Round" rd ON rd."id" = i."roundId"
+   WHERE i."orderId" = o."id"
+     AND i."taxKind" IS NOT NULL
+     AND i."cancelledAt" IS NULL
+     AND (i."roundId" IS NULL OR rd."status" <> 'cancelled'))`;
+
+/** ¿La factura `s` suma impuesto ENCIMA (líneas libres)? Sólo entonces hacen falta sus ítems. */
+const SNAP_HAS_FREE_TAX = Prisma.sql`COALESCE((s."snapshot" ->> 'taxCents')::numeric, 0) > 0`;
+
 type RawOrder = {
   id: string;
   shortCode: string | null;
@@ -78,18 +102,21 @@ type RawOrder = {
   subtotalCents: number;
   invoiceId: string | null;
   snap: Partial<InvoiceSnapshot> | null;
+  /** Líneas libres vivas del pedido (`ORDER_FREE_LINES`). */
+  freeLines: RawFreeLine[] | null;
 };
 
 /**
  * Pedidos pagados en `[from, to)` (por `Order.paidAt`, como el motor) con
- * el tramo que les causa el motor y el impuesto que suman sus líneas libres.
+ * los tramos que les causa el motor: lo embebido de la carta y lo que suman
+ * sus líneas libres (mismas funciones que «Ventas del día»).
  */
 export async function loadEngineOrders(
   restaurantId: string,
   from: Date,
   to: Date,
   current: { salesTaxKind: string; salesTaxPct: number },
-): Promise<{ orders: EngineOrder[]; freeLineTaxByInvoice: Map<string, number> }> {
+): Promise<{ orders: EngineOrder[] }> {
   const rows = await db.$queryRaw<RawOrder[]>(Prisma.sql`
     SELECT o."id", o."shortCode", o."paidAt", o."status"::text AS "status", o."subtotalCents",
            s."id" AS "invoiceId",
@@ -99,8 +126,11 @@ export async function loadEngineOrders(
              'embeddedTaxCents', s."snapshot" -> 'embeddedTaxCents',
              'embeddedBaseCents', s."snapshot" -> 'embeddedBaseCents',
              'subtotalCents', s."snapshot" -> 'subtotalCents',
-             'taxCents', s."snapshot" -> 'taxCents'
-           ) END AS "snap"
+             'taxCents', s."snapshot" -> 'taxCents',
+             'taxByKind', s."snapshot" -> 'taxByKind',
+             'items', CASE WHEN ${SNAP_HAS_FREE_TAX} THEN s."snapshot" -> 'items' END
+           ) END AS "snap",
+           ${ORDER_FREE_LINES} AS "freeLines"
     FROM "Order" o
     LEFT JOIN "SimpleInvoice" s ON s."orderId" = o."id"
     WHERE o."restaurantId" = ${restaurantId}
@@ -109,13 +139,11 @@ export async function loadEngineOrders(
     ORDER BY o."paidAt" ASC
   `);
   const tax = currentSalesTaxOf(current);
-  const freeLineTaxByInvoice = new Map<string, number>();
   const orders = rows.map((r): EngineOrder => {
     const snap = r.snap ? (stripNulls(r.snap) as InvoiceSnapshot) : null;
-    if (r.invoiceId && snap && typeof snap.taxCents === "number" && snap.taxCents > 0) {
-      freeLineTaxByInvoice.set(r.invoiceId, snap.taxCents);
-    }
-    const slice = orderSalesTaxSlice({ subtotalCents: r.subtotalCents, invoiceSnapshot: snap }, tax);
+    const taxOrder = { subtotalCents: r.subtotalCents, invoiceSnapshot: snap, freeLines: r.freeLines ?? [] };
+    const slice = orderSalesTaxSlice(taxOrder, tax);
+    const freeSlices = orderFreeLineTaxSlices(taxOrder).map(({ kind, pct, baseCents, taxCents }) => ({ kind, pct, baseCents, taxCents }));
     return {
       orderId: r.id,
       shortCode: r.shortCode,
@@ -123,9 +151,10 @@ export async function loadEngineOrders(
       status: r.status,
       invoiceId: r.invoiceId,
       slice: { kind: slice.kind, pct: slice.pct, baseCents: slice.baseCents, taxCents: slice.taxCents },
+      ...(freeSlices.length > 0 ? { freeSlices } : {}),
     };
   });
-  return { orders, freeLineTaxByInvoice };
+  return { orders };
 }
 
 /** `jsonb_build_object` deja `null` en los campos ausentes: se quitan para que el snapshot parcial se lea igual que el completo. */
@@ -206,7 +235,13 @@ export async function loadDianCreditNotes(restaurantId: string, from: Date, to: 
   });
 }
 
-type RawTrendSale = { id: string; paidAt: Date; snap: Partial<InvoiceSnapshot> };
+type RawTrendSale = {
+  id: string;
+  paidAt: Date;
+  subtotalCents: number;
+  snap: Partial<InvoiceSnapshot>;
+  freeLines: RawFreeLine[] | null;
+};
 
 /**
  * Facturas de la ventana de la tendencia con lo mínimo para el documental
@@ -215,14 +250,18 @@ type RawTrendSale = { id: string; paidAt: Date; snap: Partial<InvoiceSnapshot> }
  */
 export async function loadSaleTaxTrendDocs(restaurantId: string, from: Date, to: Date): Promise<SaleTaxInput[]> {
   const rows = await db.$queryRaw<RawTrendSale[]>(Prisma.sql`
-    SELECT s."id", o."paidAt",
+    SELECT s."id", o."paidAt", o."subtotalCents",
            jsonb_build_object(
              'salesTaxKind', s."snapshot" -> 'salesTaxKind',
              'salesTaxPct', s."snapshot" -> 'salesTaxPct',
              'embeddedTaxCents', s."snapshot" -> 'embeddedTaxCents',
              'embeddedBaseCents', s."snapshot" -> 'embeddedBaseCents',
-             'subtotalCents', s."snapshot" -> 'subtotalCents'
-           ) AS "snap"
+             'subtotalCents', s."snapshot" -> 'subtotalCents',
+             'taxCents', s."snapshot" -> 'taxCents',
+             'taxByKind', s."snapshot" -> 'taxByKind',
+             'items', CASE WHEN ${SNAP_HAS_FREE_TAX} THEN s."snapshot" -> 'items' END
+           ) AS "snap",
+           CASE WHEN ${SNAP_HAS_FREE_TAX} THEN ${ORDER_FREE_LINES} END AS "freeLines"
     FROM "SimpleInvoice" s
     JOIN "Order" o ON o."id" = s."orderId"
     WHERE s."restaurantId" = ${restaurantId}
@@ -230,7 +269,15 @@ export async function loadSaleTaxTrendDocs(restaurantId: string, from: Date, to:
       AND o."paidAt" < ${to}
   `);
   return rows.map((r) => {
-    const tax = saleTaxOfSnapshot(stripNulls(r.snap) as InvoiceSnapshot);
+    const snap = stripNulls(r.snap) as InvoiceSnapshot;
+    const tax = saleTaxOfSnapshot(snap);
+    // Lo que las líneas libres suman encima, como `loadSaleTaxDocs`: así el
+    // último punto de la serie sigue siendo la tesela.
+    const freeLineSlices = orderFreeLineTaxSlices({
+      subtotalCents: r.subtotalCents,
+      invoiceSnapshot: snap,
+      freeLines: r.freeLines ?? [],
+    }).map(({ kind, pct, baseCents, taxCents }) => ({ kind, pct, baseCents, taxCents }));
     return {
       invoiceId: r.id,
       document: "",
@@ -239,6 +286,7 @@ export async function loadSaleTaxTrendDocs(restaurantId: string, from: Date, to:
       taxPct: tax.pct,
       baseCents: tax.baseCents,
       taxCents: tax.taxCents,
+      ...(freeLineSlices.length > 0 ? { freeLineSlices } : {}),
       customer: null,
     };
   });

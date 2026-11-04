@@ -11,6 +11,7 @@ import { fmtCOP } from "@/lib/format";
 import type { CashSnapshot } from "@/lib/cashBox";
 import type { SoldOutItem } from "@/lib/menuSoldOut";
 import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
+import { TipReturnsBox, fmtSignedCOP, type TipReturnLineView } from "@/components/TipReturns";
 import { SoldOutDialog } from "./SoldOutDialog";
 
 const METHOD_KEY: Record<string, string> = {
@@ -48,6 +49,10 @@ type Metrics = {
   ordersClosed: number;
   grossCents: number;
   tipCents: number;
+  /** Propinas devueltas por anulación durante el turno (lib/creditNoteTipReturns). */
+  tipReturns?: TipReturnLineView[];
+  tipReturnedCents?: number;
+  tipNetCents?: number;
   cashCents: number;
   consumptionTaxCents: number;
   taxPendingPayments: number;
@@ -278,6 +283,7 @@ function OpenPanel({
   onDismissSoldOut: () => void;
 }) {
   const t = useTranslations("opReports");
+  const tTips = useTranslations("tipReturns");
   const since = useMemo(
     () => relativeTime(state.shift.openedAt, t),
     [state.shift.openedAt, t],
@@ -345,10 +351,23 @@ function OpenPanel({
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={t("statCharged")} value={fmtCOP(state.metrics.grossCents)} hint={t("statChargedHint", { count: state.metrics.payments })} />
-        <Stat label={t("statTipsLower")} value={fmtCOP(state.metrics.tipCents)} />
+        <Stat
+          label={t("statTipsLower")}
+          value={fmtSignedCOP(state.metrics.tipNetCents ?? state.metrics.tipCents)}
+          hint={
+            (state.metrics.tipReturnedCents ?? 0) > 0
+              ? tTips("statHint", {
+                  collected: fmtCOP(state.metrics.tipCents),
+                  returned: fmtCOP(state.metrics.tipReturnedCents ?? 0),
+                })
+              : undefined
+          }
+        />
         <Stat label={t("statCashExpected")} value={fmtCOP(state.expectedCashCents)} hint={t("statCashExpectedHint")} />
         <Stat label={t("statClosedBills")} value={String(state.metrics.ordersClosed)} />
       </div>
+
+      <TipReturnsBox lines={state.metrics.tipReturns ?? []} collectedCents={state.metrics.tipCents} className="mt-3" />
 
       <ShiftConsumptionTax {...state.metrics} className="mt-3" />
 

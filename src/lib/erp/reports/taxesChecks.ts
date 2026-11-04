@@ -39,7 +39,6 @@ export type CheckKey =
   | "dianPendiente"
   | "tarifaDistinta"
   | "sinImpuesto"
-  | "lineasLibres"
   | "retencionOmitida"
   | "retencionBajoUmbral"
   | "ivaNoDescontable"
@@ -59,7 +58,6 @@ export const CHECK_ORDER: readonly CheckKey[] = [
   "dianPendiente",
   "tarifaDistinta",
   "sinImpuesto",
-  "lineasLibres",
   "retencionOmitida",
   "retencionBajoUmbral",
   "ivaNoDescontable",
@@ -79,7 +77,6 @@ const SEVERITY: Record<CheckKey, CheckSeverity> = {
   dianPendiente: "warning",
   tarifaDistinta: "warning",
   sinImpuesto: "warning",
-  lineasLibres: "warning",
   retencionOmitida: "warning",
   retencionBajoUmbral: "warning",
   ivaNoDescontable: "warning",
@@ -154,8 +151,6 @@ export type ChecksInput = {
     party: string | null;
     nit: string | null;
   }[];
-  /** Impuesto que las LÍNEAS LIBRES suman encima, por id de factura. */
-  freeLineTaxByInvoice: ReadonlyMap<string, number>;
   /** Serie de los últimos períodos por impuesto (el último = el actual). */
   trend?: Partial<Record<DrillTaxKey, readonly number[]>>;
 };
@@ -333,13 +328,6 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
     }
   }
 
-  // ── Líneas libres con impuesto encima ───────────────────────────────
-  const libres: AuxRow[] = [];
-  for (const s of input.sales) {
-    const extra = input.freeLineTaxByInvoice.get(s.invoiceId) ?? 0;
-    if (extra > 0) libres.push(saleRow(s, extra));
-  }
-
   // ── Retenciones ──────────────────────────────────────────────────────
   const omitidas: AuxRow[] = [];
   const omitTaxes: DrillTaxKey[] = [];
@@ -457,7 +445,6 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
       params: { kind: currentTax.kind, pct: currentTax.pct },
     }),
   );
-  out.push(result("lineasLibres", libres));
   out.push(result("retencionOmitida", omitidas, { taxes: uniq(omitTaxes) }));
   out.push(result("retencionBajoUmbral", bajoUmbral, { taxes: uniq(bajoTaxes) }));
   out.push(result("ivaNoDescontable", ivaRows, { taxes: ivaRows.length ? ["iva"] : [], params: { reason: ivaReason ?? "" } }));

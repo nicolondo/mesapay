@@ -54,6 +54,8 @@ export type EngineOrder = {
   invoiceId: string | null;
   /** Tramo que el motor le causa (`orderSalesTaxSlice`). */
   slice: { kind: SalesTaxKind; pct: number; baseCents: number; taxCents: number };
+  /** Tramos de sus líneas libres (`orderFreeLineTaxSlices`): impuesto ENCIMA. */
+  freeSlices?: readonly { kind: SalesTaxKind; pct: number; baseCents: number; taxCents: number }[];
 };
 
 /** Asiento del motor de una fuente en un día. */
@@ -165,13 +167,25 @@ const zero = (): Record<ReconComponent, number> => ({
   sinDocumento: 0,
 });
 
+/** Hechos de un pedido sin factura: lo embebido de la carta y lo que suman sus líneas libres. */
+export function orderFacts(o: EngineOrder): DocFact[] {
+  const out: DocFact[] = [];
+  const main = orderFact(o);
+  if (main) out.push(main);
+  for (const f of o.freeSlices ?? []) {
+    const fact = orderFact({ ...o, slice: f }, `ord:${o.orderId}:libre:${f.kind}:${f.pct}`);
+    if (fact) out.push(fact);
+  }
+  return out;
+}
+
 /** Hecho de un pedido sin factura (el impuesto que el motor le causa). */
-export function orderFact(o: EngineOrder): DocFact | null {
+export function orderFact(o: EngineOrder, key = `ord:${o.orderId}`): DocFact | null {
   const { kind, pct, baseCents, taxCents } = o.slice;
   if (kind === "none") return null;
   if (taxCents === 0 && baseCents === 0) return null;
   return {
-    key: `ord:${o.orderId}`,
+    key,
     tax: kind,
     origin: "ventas",
     rateKey: String(pct),
@@ -208,10 +222,7 @@ export function reconcileTaxes(input: ReconInput): Reconciliation {
     const o = f.docId ? orderByInvoice.get(f.docId) : undefined;
     return o ? paidInPeriod(o) : false;
   });
-  const noInvoiceFacts = input.orders
-    .filter((o) => !o.invoiceId && paidInPeriod(o))
-    .map(orderFact)
-    .filter((f): f is DocFact => f !== null);
+  const noInvoiceFacts = input.orders.filter((o) => !o.invoiceId && paidInPeriod(o)).flatMap(orderFacts);
   const expectedPurchases = input.windowPurchaseFacts.filter((f) => {
     const day = dayOf(f);
     return day != null && inPeriod(day, period);

@@ -4522,6 +4522,22 @@ model CreditNote {
   /// null = pendiente de contabilizar.
   postedMonth         String?
 
+  // ── Propina devuelta (erp/creditNoteTips.ts) ────────────────────────
+  // La propina no va en la factura electrónica, pero el cliente la pagó: la
+  // nota de ANULACIÓN (motivo DIAN 2) también se la devuelve. Nada de esto
+  // toca el XML, el CUDE ni los totales fiscales de la nota.
+  /// Propina que la nota le devuelve al cliente. Se fija al crear la nota
+  /// (0 si no es anulación). null = nota anterior a la regla: se calcula y
+  /// fija la primera vez que la contabilidad la ve.
+  tipRefundCents      Int?
+  /// Parte de esa propina que canceló cartera de crédito de cliente
+  /// (Payment.creditNoteCents). null = parte de la propina sin contabilizar.
+  tipReceivableCents  Int?
+  /// Mes (YYYY-MM) del asiento «Notas crédito» que asentó la propina.
+  /// null = pendiente. Igual a postedMonth salvo en notas ya asentadas en un
+  /// mes cerrado antes de la regla (la propina va al primer mes abierto).
+  tipPostedMonth      String?
+
   @@unique([restaurantId, requestId])
   @@unique([seriesId, number])
   @@index([restaurantId, createdAt])

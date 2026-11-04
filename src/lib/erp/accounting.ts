@@ -145,6 +145,14 @@ export type TaxSummary = {
     /** Tramos con impuesto (kind ≠ none y taxCents > 0), de mayor a menor. */
     byRate: SalesTaxSlice[];
     /**
+     * Impuesto que las LÍNEAS LIBRES (servicios, cargos sueltos) sumaron
+     * ENCIMA de su precio, por tramo — lo que declaró cada factura línea por
+     * línea. No está en `grossCents` (el subtotal no lo incluye) ni en
+     * `taxCents` (que es lo embebido de la carta); sí en `net`, que es lo que
+     * se declara, y en el asiento «Ventas del día».
+     */
+    freeLines: { taxCents: number; byRate: SalesTaxSlice[] };
+    /**
      * Notas crédito ACEPTADAS por la DIAN con fecha fiscal en el mes (lo
      * que restan). Mismo corte que el libro de ventas y que «Impuestos del
      * período». Montos positivos.
@@ -156,7 +164,7 @@ export type TaxSummary = {
      * «Devoluciones del mes». Montos positivos.
      */
     refunds: SalesAdjustment;
-    /** Bruto − notas crédito − devoluciones: lo que se declara. */
+    /** Bruto (carta + líneas libres) − notas crédito − devoluciones: lo que se declara. */
     net: {
       baseCents: number;
       taxCents: number;
@@ -166,6 +174,12 @@ export type TaxSummary = {
   purchases: {
     /** IVA pagado en compras (Σ por línea desde taxPct). */
     ivaCents: number;
+    /**
+     * Parte de `ivaCents` que es DESCONTABLE (la que el motor lleva a 2408):
+     * sin el IVA que es mayor valor del costo o del gasto (comercio con IVA
+     * de compras no descontable, o recepciones no inventariables).
+     */
+    ivaDeductibleCents: number;
     /** INC/impoconsumo pagado en compras. */
     incCents: number;
     retefuenteCents: number;

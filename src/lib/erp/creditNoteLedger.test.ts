@@ -11,6 +11,7 @@ import {
   creditNoteTargetMonth,
   creditNoteTaxSlices,
   matchOrderNotesAndRefunds,
+  NO_TIP_POSTING,
   nextMonth,
   prorateSlices,
   refundLinkedCents,
@@ -216,6 +217,7 @@ describe("creditNotePosting — aporte de una nota al asiento", () => {
       slices,
       receivableCents: 0,
       liabilityCents: 119_000,
+      tip: NO_TIP_POSTING,
     });
   });
   it("con cartera: Clientes por lo que canceló y el pasivo por el resto; cuadra", () => {
@@ -225,6 +227,6 @@ describe("creditNotePosting — aporte de una nota al asiento", () => {
   });
   it("cubierta por un reembolso anterior: sólo asienta lo que el reembolso no cubrió", () => {
     const p = creditNotePosting({ id: "n", slices, totalCents: 119_000, receivableCents: 0, coveredByPriorRefundsCents: 119_000 });
-    expect(p).toEqual({ id: "n", slices: [], receivableCents: 0, liabilityCents: 0 });
+    expect(p).toEqual({ id: "n", slices: [], receivableCents: 0, liabilityCents: 0, tip: NO_TIP_POSTING });
   });
 });

@@ -36,7 +36,14 @@ import {
 } from "../creditNoteAccounting";
 import { creditNoteFiscalDate } from "../creditNoteLedger";
 import { centsToNumber } from "../ledgerCents";
-import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals, receivedPurchaseLineAmounts } from "../purchaseTax";
+import {
+  PURCHASE_IN_MOVEMENTS_SELECT,
+  PURCHASE_LINE_AMOUNTS_SELECT,
+  purchaseOrderTotals,
+  RECEIVED_VAT_LINE_SELECT,
+  receivedNonDeductibleTaxByLine,
+  receivedPurchaseLineAmounts,
+} from "../purchaseTax";
 import { UVT_DEFAULT_CENTS } from "../retenciones";
 import { uvtDelAno } from "./normativa";
 import {
@@ -202,11 +209,13 @@ export async function loadCreditReceivables(
     where: {
       ...acceptedCreditNoteWhere(restaurantId),
       accountingStampedAt: { not: null },
-      receivableCents: { gt: 0 },
+      // La parte fiscal y la propina devuelta que cancelaron cartera.
+      OR: [{ receivableCents: { gt: 0 } }, { tipReceivableCents: { gt: 0 } }],
       originalInvoice: { orderId: { in: orderIds } },
     },
     select: {
       receivableCents: true,
+      tipReceivableCents: true,
       createdAt: true,
       dianDocument: { select: { issuedAt: true } },
       originalInvoice: { select: { orderId: true } },
@@ -229,7 +238,7 @@ export async function loadCreditReceivables(
     abonos.map((a) => ({ customerId: a.billingCustomerId, amountCents: a.amountCents })),
     notes.map((n) => ({
       orderId: n.originalInvoice.orderId,
-      receivableCents: n.receivableCents ?? 0,
+      receivableCents: (n.receivableCents ?? 0) + (n.tipReceivableCents ?? 0),
       fiscalDate: creditNoteFiscalDate(creditNoteInstant(n)),
     })),
     hasta,
@@ -268,9 +277,12 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
           items: {
             select: {
               ...PURCHASE_LINE_AMOUNTS_SELECT,
-              nonInventoryReceivedNonDeductibleTaxCents: true,
+              ...RECEIVED_VAT_LINE_SELECT,
             },
           },
+          // El IVA que la recepción dejó en el costo del inventario (IVA de
+          // compras no descontable) es mayor valor del costo (`inded`).
+          movements: PURCHASE_IN_MOVEMENTS_SELECT,
         },
       }),
       // Gastos manuales del año con proveedor (sin plantillas).
@@ -391,7 +403,7 @@ export async function loadExogenaInputs(restaurantId: string, year: number): Pro
       supplier: o.supplier,
       netCents: sum(o.items.map((it) => it.receivedCostCents)),
       ivaCents: sum(o.items.map((it) => receivedPurchaseLineAmounts(it).taxCents)),
-      indedCents: sum(o.items.map((it) => it.nonInventoryReceivedNonDeductibleTaxCents)),
+      indedCents: sum(receivedNonDeductibleTaxByLine(o.items, o.movements ?? [])),
       retefuenteCents: o.retefuenteCents,
       reteIvaCents: o.reteIvaCents,
     })),

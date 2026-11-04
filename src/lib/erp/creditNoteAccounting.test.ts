@@ -13,6 +13,9 @@ type NoteFixture = {
   snapshot: unknown;
   receivableCents: number | null;
   postedMonth: string | null;
+  tipRefundCents: number | null;
+  tipReceivableCents: number | null;
+  tipPostedMonth: string | null;
   createdAt: Date;
   dianDocument: { issuedAt: Date | null };
   originalInvoice: { orderId: string };
@@ -37,7 +40,8 @@ vi.mock("@/lib/db", () => {
     findMany: vi.fn(async (args: { where: Record<string, unknown> }) => {
       m.noteFindManyCalls.push(args);
       const where = args.where;
-      if (where.accountingStampedAt === null) return m.pendingStamps;
+      const or = where.OR as Array<Record<string, unknown>> | undefined;
+      if (or?.some((c) => c.accountingStampedAt === null)) return m.pendingStamps;
       const byOrder = (where.originalInvoice as { orderId?: { in: string[] } } | undefined)?.orderId?.in;
       const notes = m.notes as NoteFixture[];
       return byOrder ? notes.filter((n) => byOrder.includes(n.originalInvoice.orderId)) : notes;
@@ -78,6 +82,7 @@ vi.mock("./cierre", () => ({
   getAccountingConfig: async () => ({ uvtCents: 0, closedThrough: m.closedThrough, nextVoucherNumber: 1 }),
 }));
 
+import { NO_TIP_POSTING } from "./creditNoteLedger";
 import {
   acceptedCreditNoteWhere,
   loadCreditNoteMonthPosting,
@@ -117,6 +122,9 @@ function fixture(over: Partial<NoteFixture> & { id: string; lines: ReturnType<ty
     snapshot: { version: 1, lines, original: { invoiceNumber: "FE1" } },
     receivableCents: 0,
     postedMonth: null,
+    tipRefundCents: 0,
+    tipReceivableCents: 0,
+    tipPostedMonth: null,
     createdAt: new Date(issuedAt),
     dianDocument: { issuedAt: new Date(issuedAt) },
     originalInvoice: { orderId: orderId ?? `o-${over.id}` },
@@ -145,14 +153,14 @@ describe("sólo cuentan las notas aceptadas por la DIAN y no descartadas", () =>
   it("la consulta del mes usa ese filtro y sólo notas ya fijadas", async () => {
     await loadCreditNoteMonthPosting("r1", "2026-10");
     const candidates = m.noteFindManyCalls.find(
-      (c) => (c as { where: { OR?: unknown } }).where.OR !== undefined,
+      (c) => (c as { where: { accountingStampedAt?: unknown } }).where.accountingStampedAt !== undefined,
     ) as { where: Record<string, unknown> };
     expect(candidates.where).toMatchObject({
       restaurantId: "r1",
       abandonedAt: null,
       dianDocument: { is: { state: "accepted" } },
       accountingStampedAt: { not: null },
-      OR: [{ postedMonth: "2026-10" }, { postedMonth: null }],
+      OR: [{ postedMonth: "2026-10" }, { postedMonth: null }, { tipPostedMonth: "2026-10" }, { tipPostedMonth: null }],
     });
   });
 });
@@ -174,8 +182,11 @@ describe("loadCreditNoteMonthPosting — mes contable", () => {
       ],
       receivableCents: 0,
       liabilityCents: 173_000,
+      tip: NO_TIP_POSTING,
       // Día fiscal (colombiano): el motor asienta la nota ese día.
       fiscalDate: "2026-09-30",
+      postsFiscal: true,
+      postsTip: true,
     });
     const oct = await loadCreditNoteMonthPosting("r1", "2026-10");
     expect(oct.noteIds).toEqual(["oct"]);
@@ -220,7 +231,19 @@ describe("loadCreditNoteMonthPosting — mes contable", () => {
     const r = await loadCreditNoteMonthPosting("r1", "2026-10");
     expect(r).toEqual({
       noteIds: ["n"],
-      notes: [{ id: "n", slices: [], receivableCents: 0, liabilityCents: 0, fiscalDate: "2026-10-05" }],
+      tipNoteIds: ["n"],
+      notes: [
+        {
+          id: "n",
+          slices: [],
+          receivableCents: 0,
+          liabilityCents: 0,
+          tip: NO_TIP_POSTING,
+          fiscalDate: "2026-10-05",
+          postsFiscal: true,
+          postsTip: true,
+        },
+      ],
     });
   });
 });
@@ -255,25 +278,41 @@ describe("reembolsos y notas del mismo pedido", () => {
 });
 
 describe("stampCreditNoteAccounting — cartera de cliente", () => {
+  const note = (over: Record<string, unknown> = {}) => ({
+    id: "n",
+    totalCents: 100_000,
+    reasonCode: "1",
+    receivableCents: null,
+    accountingStampedAt: null,
+    tipRefundCents: 0,
+    originalInvoice: { orderId: "o1", order: { tipCents: 0 } },
+    ...over,
+  });
+  const creditCharge = { id: "p1", method: "customer_credit", status: "approved", tipCents: 0, billingCustomerId: "c1" };
   beforeEach(() => {
-    m.noteFindFirst.mockResolvedValue({ id: "n", totalCents: 100_000, originalInvoice: { orderId: "o1" } });
+    m.noteFindFirst.mockResolvedValue(note());
     m.noteUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   it("cuenta a crédito con saldo: baja la deuda del cargo y fija esa parte en la nota", async () => {
-    m.paymentFindMany.mockResolvedValue([{ id: "p1", billingCustomerId: "c1" }]);
+    m.paymentFindMany.mockResolvedValue([creditCharge]);
     m.summary.mockResolvedValue({ fifo: { charges: [{ chargeId: "p1", outstandingCents: 60_000 }] } });
     expect(await stampCreditNoteAccounting("r1", "n", new Date("2026-10-06T12:00:00Z"))).toBe(true);
     expect(m.summary).toHaveBeenCalledWith("r1", "c1", expect.anything());
     expect(m.paymentUpdate).toHaveBeenCalledWith({ where: { id: "p1" }, data: { creditNoteCents: { increment: 60_000 } } });
     expect(m.noteUpdateMany).toHaveBeenCalledWith({
-      where: { id: "n", restaurantId: "r1", accountingStampedAt: null },
-      data: { receivableCents: 60_000, accountingStampedAt: new Date("2026-10-06T12:00:00Z") },
+      where: { id: "n", restaurantId: "r1", tipReceivableCents: null, accountingStampedAt: null },
+      data: {
+        receivableCents: 60_000,
+        accountingStampedAt: new Date("2026-10-06T12:00:00Z"),
+        tipRefundCents: 0,
+        tipReceivableCents: 0,
+      },
     });
   });
 
   it("cuenta cobrada de contado (o crédito ya pagado): nada a cartera, todo al pasivo", async () => {
-    m.paymentFindMany.mockResolvedValue([]);
+    m.paymentFindMany.mockResolvedValue([{ id: "p1", method: "cash", status: "approved", tipCents: 0, billingCustomerId: null }]);
     expect(await stampCreditNoteAccounting("r1", "n")).toBe(true);
     expect(m.paymentUpdate).not.toHaveBeenCalled();
     expect(m.noteUpdateMany).toHaveBeenCalledWith(
@@ -289,11 +328,168 @@ describe("stampCreditNoteAccounting — cartera de cliente", () => {
         where: expect.objectContaining({
           id: "n",
           abandonedAt: null,
-          accountingStampedAt: null,
+          OR: [{ accountingStampedAt: null }, { tipReceivableCents: null }],
           dianDocument: { is: { state: "accepted" } },
         }),
       }),
     );
     expect(m.noteUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("stampCreditNoteAccounting — propina devuelta con la anulación", () => {
+  beforeEach(() => m.noteUpdateMany.mockResolvedValue({ count: 1 }));
+  const annulment = (over: Record<string, unknown> = {}) => ({
+    id: "n",
+    totalCents: 618_300_00,
+    reasonCode: "2",
+    receivableCents: null,
+    accountingStampedAt: null,
+    tipRefundCents: 61_830_00,
+    originalInvoice: { orderId: "o1", order: { tipCents: 61_830_00 } },
+    ...over,
+  });
+
+  it("cuenta a crédito: la parte fiscal y después la propina bajan la deuda del cargo", async () => {
+    m.noteFindFirst.mockResolvedValue(annulment());
+    m.paymentFindMany.mockResolvedValue([
+      { id: "p1", method: "customer_credit", status: "approved", tipCents: 61_830_00, billingCustomerId: "c1" },
+    ]);
+    m.summary.mockResolvedValue({ fifo: { charges: [{ chargeId: "p1", outstandingCents: 680_130_00 }] } });
+    await stampCreditNoteAccounting("r1", "n", new Date("2026-11-04T12:00:00Z"));
+    // Un solo incremento por cargo: comida + propina = toda la deuda.
+    expect(m.paymentUpdate).toHaveBeenCalledTimes(1);
+    expect(m.paymentUpdate).toHaveBeenCalledWith({ where: { id: "p1" }, data: { creditNoteCents: { increment: 680_130_00 } } });
+    expect(m.noteUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ receivableCents: 618_300_00, tipRefundCents: 61_830_00, tipReceivableCents: 61_830_00 }),
+      }),
+    );
+  });
+
+  it("crédito con abonos: lo que la parte fiscal no cubre del saldo lo toma la propina; el resto va a reintegros", async () => {
+    m.noteFindFirst.mockResolvedValue(annulment());
+    m.paymentFindMany.mockResolvedValue([
+      { id: "p1", method: "customer_credit", status: "approved", tipCents: 61_830_00, billingCustomerId: "c1" },
+    ]);
+    // El cliente ya abonó 650.000: le quedan 30.130 por pagar.
+    m.summary.mockResolvedValue({ fifo: { charges: [{ chargeId: "p1", outstandingCents: 30_130_00 }] } });
+    await stampCreditNoteAccounting("r1", "n");
+    expect(m.paymentUpdate).toHaveBeenCalledWith({ where: { id: "p1" }, data: { creditNoteCents: { increment: 30_130_00 } } });
+    expect(m.noteUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ receivableCents: 30_130_00, tipReceivableCents: 0 }) }),
+    );
+  });
+
+  it("nota ANTERIOR a la regla (ya fijada, sin propina): calcula la propina y sólo fija esa parte", async () => {
+    m.noteFindFirst.mockResolvedValue(
+      annulment({ receivableCents: 0, accountingStampedAt: new Date("2026-10-26T20:00:00Z"), tipRefundCents: null }),
+    );
+    m.paymentFindMany.mockResolvedValue([
+      // Cuenta dividida: dos cobros con su propina (61.830 en total).
+      { id: "p1", method: "kushki_card", status: "approved", tipCents: 40_000_00, billingCustomerId: null },
+      { id: "p2", method: "cash", status: "approved", tipCents: 21_830_00, billingCustomerId: null },
+      { id: "p3", method: "cash", status: "declined", tipCents: 5_000_00, billingCustomerId: null },
+    ]);
+    await stampCreditNoteAccounting("r1", "n", new Date("2026-11-05T10:00:00Z"));
+    expect(m.paymentUpdate).not.toHaveBeenCalled();
+    // No vuelve a tocar la parte fiscal (ni la fecha del sello).
+    expect(m.noteUpdateMany).toHaveBeenCalledWith({
+      where: { id: "n", restaurantId: "r1", tipReceivableCents: null },
+      data: { tipRefundCents: 61_830_00, tipReceivableCents: 0 },
+    });
+  });
+
+  it("nota parcial anterior a la regla: no devuelve propina", async () => {
+    m.noteFindFirst.mockResolvedValue(
+      annulment({ reasonCode: "1", receivableCents: 0, accountingStampedAt: new Date(), tipRefundCents: null }),
+    );
+    m.paymentFindMany.mockResolvedValue([{ id: "p1", method: "cash", status: "approved", tipCents: 61_830_00, billingCustomerId: null }]);
+    await stampCreditNoteAccounting("r1", "n");
+    expect(m.noteUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { tipRefundCents: 0, tipReceivableCents: 0 } }),
+    );
+  });
+});
+
+describe("loadCreditNoteMonthPosting — propina devuelta", () => {
+  const annulment = (over: Partial<NoteFixture> = {}) => ({
+    ...fixture({ id: "nc3", lines: [lineInc(572_500_00)], issuedAt: "2026-10-26T20:00:00Z", orderId: "o3" }),
+    tipRefundCents: 61_830_00,
+    tipReceivableCents: 0,
+    ...over,
+  });
+
+  it("la propina va con su nota: mismo mes y día, todo a reintegros por pagar", async () => {
+    m.notes = [annulment()];
+    const r = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(r.noteIds).toEqual(["nc3"]);
+    expect(r.tipNoteIds).toEqual(["nc3"]);
+    expect(r.notes[0]).toMatchObject({
+      fiscalDate: "2026-10-26",
+      liabilityCents: 618_300_00,
+      tip: { refundCents: 61_830_00, receivableCents: 0, liabilityCents: 61_830_00, coveredByPriorRefundsCents: 0 },
+    });
+  });
+
+  it("nota ya asentada en un mes CERRADO antes de la regla: sólo su propina, en el primer mes abierto", async () => {
+    m.closedThrough = "2026-10";
+    m.notes = [annulment({ postedMonth: "2026-10" })];
+    // (Octubre está cerrado y no se regenera; si se regenerara, sólo traería la parte fiscal.)
+    expect((await loadCreditNoteMonthPosting("r1", "2026-10")).tipNoteIds).toEqual([]);
+    const nov = await loadCreditNoteMonthPosting("r1", "2026-11");
+    expect(nov.noteIds).toEqual([]);
+    expect(nov.tipNoteIds).toEqual(["nc3"]);
+    expect(nov.notes[0]).toMatchObject({
+      slices: [],
+      receivableCents: 0,
+      liabilityCents: 0,
+      postsFiscal: false,
+      postsTip: true,
+      tip: { refundCents: 61_830_00, liabilityCents: 61_830_00 },
+    });
+  });
+
+  it("nota asentada en un mes ABIERTO: la propina entra en ese mismo mes, no en otro", async () => {
+    m.notes = [annulment({ postedMonth: "2026-10" })];
+    expect((await loadCreditNoteMonthPosting("r1", "2026-11")).notes).toEqual([]);
+    expect((await loadCreditNoteMonthPosting("r1", "2026-10")).tipNoteIds).toEqual(["nc3"]);
+  });
+
+  it("propina ya asentada en un mes: no se vuelve a asentar en otro (regenerar es idempotente)", async () => {
+    m.notes = [annulment({ postedMonth: "2026-10", tipPostedMonth: "2026-10" })];
+    const oct1 = await loadCreditNoteMonthPosting("r1", "2026-10");
+    const oct2 = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(oct2).toEqual(oct1);
+    m.closedThrough = "2026-10";
+    expect((await loadCreditNoteMonthPosting("r1", "2026-11")).notes).toEqual([]);
+  });
+
+  it("propina todavía sin fijar (sello pendiente): la nota se asienta, la propina espera", async () => {
+    m.notes = [annulment({ tipRefundCents: null, tipReceivableCents: null })];
+    const r = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(r.noteIds).toEqual(["nc3"]);
+    expect(r.tipNoteIds).toEqual([]);
+  });
+
+  it("reembolso ANTERIOR por todo lo cobrado (comida + propina): la nota no repite nada y la propina se reclasifica", async () => {
+    m.notes = [annulment()];
+    m.refunds = [{ id: "before", amountCents: 680_130_00, createdAt: new Date("2026-10-20T15:00:00Z"), payment: { orderId: "o3" } }];
+    const r = await loadCreditNoteMonthPosting("r1", "2026-10");
+    expect(r.notes[0]).toMatchObject({
+      slices: [],
+      liabilityCents: 0,
+      tip: { refundCents: 61_830_00, liabilityCents: 0, coveredByPriorRefundsCents: 61_830_00 },
+    });
+  });
+
+  it("reembolso POSTERIOR por todo lo cobrado: cancela el pasivo de la nota Y de la propina, sin sobrante", async () => {
+    m.notes = [annulment()];
+    m.refunds = [{ id: "after", amountCents: 680_130_00, createdAt: new Date("2026-10-28T15:00:00Z"), payment: { orderId: "o3" } }];
+    const october = { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-01T00:00:00Z") };
+    const refunds = await loadRefundMonthPosting("r1", october);
+    expect(refunds.refunds[0]).toMatchObject({ amountCents: 680_130_00, liabilityCents: 680_130_00 });
+    // Y los reportes de impuestos no lo restan como devolución sin nota.
+    expect(await loadUnlinkedRefundsCents("r1", october.from, october.to)).toBe(0);
   });
 });

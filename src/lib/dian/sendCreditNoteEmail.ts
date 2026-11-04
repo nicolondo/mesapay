@@ -48,7 +48,11 @@ export async function sendDianCreditNoteEmail(
     }
     const { t, locale } = await getEmailTranslator(note.snapshot.locale, 'emailCreditNote');
     const url = creditNotePublicUrl(note.publicToken);
-    const paragraphs = [t('intro'), t('reference', { number: note.snapshot.original.invoiceNumber }), t('total', { amount: formatMoney(note.totalCents, { locale, currency: 'COP', fractionDigits: 2 }) }), t('attachments')];
+    const money = (cents: number) => formatMoney(cents, { locale, currency: 'COP', fractionDigits: 2 });
+    // La propina devuelta con la anulación va como línea INFORMATIVA del
+    // correo: no hace parte de la nota electrónica (PDF/XML no cambian).
+    const tipRefund = note.tipRefundCents ?? 0;
+    const paragraphs = [t('intro'), t('reference', { number: note.snapshot.original.invoiceNumber }), t('total', { amount: money(note.totalCents) }), ...(tipRefund > 0 ? [t('tipRefund', { amount: money(tipRefund) })] : []), t('attachments')];
     const from = brandedInvoiceFrom(note.snapshot.brandName);
     claim = `sending:${Date.now()}`;
     const acquired = await db.dianDocument.updateMany({

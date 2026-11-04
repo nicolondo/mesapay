@@ -120,12 +120,13 @@ function summary(over: Partial<TaxSummary["sales"]>): TaxSummary {
       taxCents: 0,
       baseCents: 0,
       byRate: [],
+      freeLines: { taxCents: 0, byRate: [] },
       creditNotes: { count: 0, grossCents: 0, baseCents: 0, taxCents: 0 },
       refunds: { grossCents: 0, baseCents: 0, taxCents: 0 },
       net: { baseCents: 0, taxCents: 0, byRate: [] },
       ...over,
     },
-    purchases: { ivaCents: 5_000, incCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0 },
+    purchases: { ivaCents: 5_000, ivaDeductibleCents: 5_000, incCents: 0, retefuenteCents: 0, reteIvaCents: 0, reteIcaCents: 0 },
   };
 }
 

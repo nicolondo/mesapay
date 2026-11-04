@@ -39,13 +39,14 @@ import { ENGINE, ENGINE_SOURCES } from "./engineCodes";
 import { lineCentsToNumbers } from "./ledgerCents";
 import { ivaGeneradoCodeForPct } from "./pucNiif";
 import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNoteAccounting";
-import { sumSlices } from "./creditNoteLedger";
+import { NO_TIP_POSTING, sumSlices } from "./creditNoteLedger";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
 import { type PurchaseBookRowAmounts, sumPurchaseBookRows } from "./purchaseTax";
 import {
   type SalesTaxOrder,
   currentSalesTaxOf,
+  freeLineTaxSlicesFor,
   salesTaxByRate,
   salesTaxLabel,
   salesTaxSlicesFor,
@@ -74,6 +75,8 @@ type DraftEntry = {
    * quedan marcadas con `postedMonth` (en la misma transacción).
    */
   creditNoteIds?: string[];
+  /** Ídem, notas cuya propina devuelta incluye: se marcan con `tipPostedMonth`. */
+  creditNoteTipIds?: string[];
 };
 
 /** Total asentado por fuente en el mes (Σ de sus asientos del día). */
@@ -234,6 +237,7 @@ async function buildMonthEntries(
   const toTaxOrder = (o: SalesPostingOrder): SalesTaxOrder => ({
     subtotalCents: o.subtotalCents,
     invoiceSnapshot: o.invoiceSnapshot,
+    freeLines: o.freeLines,
   });
   // Sólo los pedidos en estado pagado causan impuesto (misma regla que la
   // tarjeta de impuestos); los cobros y propinas cuentan por `paidAt`.
@@ -247,7 +251,12 @@ async function buildMonthEntries(
   const entries: DraftEntry[] = [];
 
   // 1) VENTAS — por día de negocio del pago del pedido. D caja/banco/pasarela
-  // (bruto) · C ingresos + impuesto + propinas.
+  // (bruto) · C ingresos + impuesto + propinas. El impuesto es el EMBEBIDO
+  // de la carta más el que las LÍNEAS LIBRES suman encima (servicios,
+  // cargos sueltos con IVA/INC propio): la base de la línea libre queda en
+  // ingresos y su impuesto va al generado de su tipo y tarifa, igual que lo
+  // declaró la factura. Antes ese impuesto caía en 4135 (el ingreso es la
+  // cuenta que cuadra el asiento).
   for (const [day, dayOrders] of groupByDay(orders, (o) => dayOf(o.paidAt))) {
     const lines: Line[] = [];
     // Consolidar por cuenta destino (varios métodos caen en la misma cuenta).
@@ -263,7 +272,11 @@ async function buildMonthEntries(
     // tarifa lleva un crédito por código (241205 + el auxiliar de IVA);
     // un día normal, uno solo. Nunca "tarifa de hoy × ventas del día".
     const taxByCode = new Map<string, number>();
-    for (const slice of salesTaxByRate(salesTaxSlicesFor(taxable(dayOrders), current))) {
+    const dayTaxable = taxable(dayOrders);
+    for (const slice of [
+      ...salesTaxByRate(salesTaxSlicesFor(dayTaxable, current)),
+      ...salesTaxByRate(freeLineTaxSlicesFor(dayTaxable)),
+    ]) {
       const code = salesTaxCodeFor(slice.kind, slice.pct);
       if (!code || slice.taxCents <= 0) continue;
       taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
@@ -307,6 +320,17 @@ async function buildMonthEntries(
   // 2) COMPRAS — por día de negocio de la recepción. D inventario + IVA
   // descontable · C proveedores − retenciones. La misma suma del libro de
   // compras, sobre las facturas de cada día.
+  //
+  // Compra recibida con IVA NO descontable (`purchaseIvaDeductible = false`
+  // al recibir): ese IVA es mayor valor del costo, no un crédito fiscal. El
+  // de las líneas inventariables va a 143505 —el kardex ya valoró esa
+  // mercancía al bruto y el costo de ventas lo saca de ahí: el inventario
+  // del libro queda igual al del kardex— y el de las no inventariables al
+  // gasto; nada a 2408. Antes el de las inventariables se debitaba a
+  // 24081001 aunque el inventario ya lo incluía: contado dos veces. Lo que
+  // se capitalizó lo dice el kardex (`capitalizedInventoryVatByLine`), no el
+  // ajuste de hoy; una compra recibida con IVA descontable tiene
+  // `inventoryNonDeductibleTaxCents` 0 y su asiento es el de siempre.
   const purchaseRows = purchasesBook.rows.filter(
     (r): r is typeof r & { receivedAt: Date } => r.receivedAt != null,
   );
@@ -315,8 +339,14 @@ async function buildMonthEntries(
     const purchaseCost = t.receivedCents + t.incCents;
     const nonInventoryNetCost = t.nonInventoryReceivedCents + t.nonInventoryIncCents;
     const expenseDebit = nonInventoryNetCost + t.nonInventoryNonDeductibleTaxCents;
-    const invDebit = purchaseCost - nonInventoryNetCost;
-    const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents;
+    // Nunca más que el IVA que queda después del del gasto: así el asiento
+    // cuadra aunque una línea traiga datos raros.
+    const inventoryVat = Math.min(
+      t.inventoryNonDeductibleTaxCents,
+      Math.max(0, t.ivaCents - t.nonInventoryNonDeductibleTaxCents),
+    );
+    const invDebit = purchaseCost - nonInventoryNetCost + inventoryVat;
+    const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents - inventoryVat;
     if (purchaseCost <= 0 && t.ivaCents <= 0) continue;
     const lines: Line[] = [];
     if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });
@@ -559,23 +589,44 @@ async function buildMonthEntries(
   // contabilizada en un mes distinto al de su fecha fiscal (su mes estaba
   // cerrado → primer mes abierto, o quedó fijada con `postedMonth`) va al
   // último día del mes.
+  //
+  // PROPINA DEVUELTA con la anulación (no es venta ni tiene impuesto): D
+  // propinas por pagar (238030) · C Clientes por lo que canceló cartera · C
+  // reintegros por pagar por lo que se le debe al cliente. Si un reembolso
+  // ANTERIOR a la nota ya devolvió la propina, ese reembolso la asentó como
+  // devolución estimada (con impuesto embebido del régimen): esa parte se
+  // reclasifica con C devoluciones + impuesto estimado, en vez de crear un
+  // pasivo que ya se pagó. Cada cuenta va neteada en una sola línea.
   const noteDay = (fiscalDate: string) => (fiscalDate.slice(0, 7) === month ? fiscalDate : lastDay);
   for (const [day, notes] of groupByDay(creditNotes.notes, (n) => noteDay(n.fiscalDate))) {
     const slices = sumSlices(notes.map((n) => n.slices));
-    const lines: Line[] = [];
-    const base = slices.reduce((s, x) => s + x.baseCents, 0);
-    if (base > 0) lines.push({ code: ENGINE.DEVOLUCIONES, debit: base });
-    const taxByCode = new Map<string, number>();
+    // Neto por cuenta: positivo = débito, negativo = crédito.
+    const net = new Map<string, number>();
+    const add = (code: string, cents: number) => {
+      if (cents !== 0) net.set(code, (net.get(code) ?? 0) + cents);
+    };
+    add(ENGINE.DEVOLUCIONES, slices.reduce((s, x) => s + x.baseCents, 0));
     for (const slice of slices) {
       const code = salesTaxCodeFor(slice.kind, slice.pct);
       if (!code || slice.taxCents <= 0) continue;
-      taxByCode.set(code, (taxByCode.get(code) ?? 0) + slice.taxCents);
+      add(code, slice.taxCents);
     }
-    for (const [code, debit] of taxByCode) lines.push({ code, debit });
-    const receivable = notes.reduce((s, n) => s + n.receivableCents, 0);
-    const liability = notes.reduce((s, n) => s + n.liabilityCents, 0);
-    if (receivable > 0) lines.push({ code: ENGINE.CLIENTES, credit: receivable });
-    if (liability > 0) lines.push({ code: ENGINE.DEVOLUCIONES_POR_PAGAR, credit: liability });
+    const tipOf = (n: (typeof notes)[number]) => n.tip ?? NO_TIP_POSTING;
+    add(ENGINE.PROPINAS_POR_PAGAR, notes.reduce((s, n) => s + tipOf(n).refundCents, 0));
+    add(ENGINE.CLIENTES, -notes.reduce((s, n) => s + n.receivableCents + tipOf(n).receivableCents, 0));
+    add(ENGINE.DEVOLUCIONES_POR_PAGAR, -notes.reduce((s, n) => s + n.liabilityCents + tipOf(n).liabilityCents, 0));
+    const tipCovered = notes.reduce((s, n) => s + tipOf(n).coveredByPriorRefundsCents, 0);
+    if (tipCovered > 0) {
+      // Mismo estimado que el asiento «Devoluciones» de un reembolso sin nota.
+      const tipTax = monthLabel.kind === "none" || !refundTaxCode ? 0 : embeddedTaxCents(tipCovered, monthLabel.pct);
+      add(ENGINE.DEVOLUCIONES, -(tipCovered - tipTax));
+      if (tipTax > 0 && refundTaxCode) add(refundTaxCode, -tipTax);
+    }
+    const lines: Line[] = [];
+    for (const [code, cents] of net) {
+      if (cents > 0) lines.push({ code, debit: cents });
+      else if (cents < 0) lines.push({ code, credit: -cents });
+    }
     // Con líneas vacías (notas que ya cubrieron por completo reembolsos
     // anteriores) no se asienta nada, pero las notas quedan contabilizadas.
     entries.push({
@@ -584,7 +635,8 @@ async function buildMonthEntries(
       date: dateOf(day),
       day,
       lines,
-      creditNoteIds: notes.map((n) => n.id),
+      creditNoteIds: notes.filter((n) => n.postsFiscal !== false).map((n) => n.id),
+      creditNoteTipIds: notes.filter((n) => n.postsTip).map((n) => n.id),
     });
   }
 
@@ -647,6 +699,7 @@ export async function generateJournalForMonth(
     // Notas de asientos sin monto (ya cubiertas por reembolsos anteriores):
     // no hay nada que asentar, pero quedan contabilizadas en este mes.
     const emptyNoteIds: string[] = [];
+    const emptyTipIds: string[] = [];
     for (const e of sourceDrafts) {
       const debit = e.lines.reduce((s, l) => s + (l.debit ?? 0), 0);
       const credit = e.lines.reduce((s, l) => s + (l.credit ?? 0), 0);
@@ -663,6 +716,7 @@ export async function generateJournalForMonth(
       }
       if (debit === 0) {
         if (e.creditNoteIds?.length) emptyNoteIds.push(...e.creditNoteIds);
+        if (e.creditNoteTipIds?.length) emptyTipIds.push(...e.creditNoteTipIds);
         continue;
       }
       // Cada código base se resuelve a su cuenta IMPUTABLE: si el contador
@@ -693,9 +747,10 @@ export async function generateJournalForMonth(
     }
     // Nada válido y nada que marcar: la fuente queda como estaba (igual que
     // antes, un asiento que no se puede asentar no borra el anterior).
-    if (valid.length === 0 && emptyNoteIds.length === 0) continue;
+    if (valid.length === 0 && emptyNoteIds.length === 0 && emptyTipIds.length === 0) continue;
 
     const noteIds = [...valid.flatMap((v) => v.draft.creditNoteIds ?? []), ...emptyNoteIds];
+    const tipIds = [...valid.flatMap((v) => v.draft.creditNoteTipIds ?? []), ...emptyTipIds];
     await db.$transaction(
       async (tx) => {
         await tx.journalEntry.deleteMany({
@@ -735,6 +790,17 @@ export async function generateJournalForMonth(
               OR: [{ postedMonth: null }, { postedMonth: month }],
             },
             data: { postedMonth: month },
+          });
+        }
+        // Ídem la propina devuelta de las notas (en general el mismo mes).
+        if (tipIds.length > 0) {
+          await tx.creditNote.updateMany({
+            where: {
+              restaurantId,
+              id: { in: tipIds },
+              OR: [{ tipPostedMonth: null }, { tipPostedMonth: month }],
+            },
+            data: { tipPostedMonth: month },
           });
         }
       },

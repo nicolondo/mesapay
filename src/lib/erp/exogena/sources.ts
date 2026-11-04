@@ -302,7 +302,11 @@ export type CreditChargeInput = {
   creditNoteCents: number;
 };
 
-/** Una nota crédito aceptada que bajó cartera (`CreditNote.receivableCents`). */
+/**
+ * Una nota crédito aceptada que bajó cartera: `CreditNote.receivableCents` +
+ * `tipReceivableCents` (la propina devuelta con la anulación que también
+ * canceló el cargo a crédito).
+ */
 export type CreditReceivableNoteInput = {
   orderId: string;
   receivableCents: number;

@@ -226,7 +226,7 @@
         "operator",
         "mesero"
       ],
-      "body": "A pré-conta é o papel que você leva à mesa para o cliente conferir o consumo antes de pagar. Não é uma nota fiscal: não usa a numeração de faturamento nem fecha a conta, então você pode imprimi-la quantas vezes precisar.\n\n## Imprima\n\n1. Em [Mesas](/operator/tables), abra a ficha da mesa.\n2. Toque em **Imprimir pré-conta**. Aparece **Enviando pré-conta…** e depois **Pré-conta enviada para** com o nome da impressora.\n3. Para vê-la na tela, toque em **Ver pré-conta**. Dali você também pode tocar em **Imprimir** e voltar com **Voltar para Mesas**.\n\nOs botões aparecem enquanto a conta está aberta e tem consumo. Administradores e garçons podem usá-los, também quando a cobrança está reservada ao administrador.\n\n## Por onde sai\n\n- Pela impressora de faturas do agente de impressão: a que você escolheu em Configurações › Impressoras de rede, em **Impressora para faturas**, ou, se não escolheu nenhuma, as impressoras do tipo fatura ativas. Veja [Confira suas impressoras pelo painel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Se você não tem impressora de faturas, aparece **Sem impressora de recibos: imprime-se pelo navegador.**\n- Se o agente de impressão não responde, aparece **O agente de impressão não responde: imprime-se pelo navegador.**\n- Um administrador vê também o link **Escolher impressora do agente** para deixá-la configurada.\n\n## O que ela traz\n\n- O nome do estabelecimento, o documento fiscal, o endereço e o telefone.\n- **PRÉ-CONTA** e **Este documento não é uma fatura**.\n- A data, a mesa, o código da conta e o garçom.\n- Os pratos agrupados, o subtotal, o imposto incluído, o desconto e o total.\n- Se já houve pagamentos: **Pago** e **Saldo a pagar**.\n- **Gorjeta sugerida 10%** e **Total com gorjeta**, calculados sobre o pendente, com uma nota de que a gorjeta é voluntária.\n\nA gorjeta sugerida da pré-conta é sempre de 10%. Na cobrança, o cliente pode escolher outra.\n\nA pré-conta sai no idioma em que o pedido foi feito.\n\n## Casos frequentes\n\n- **Não vejo Imprimir pré-conta**: a conta já foi paga, foi cancelada ou não tem pratos.\n- **A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.**: acontece ao abrir **Ver pré-conta** de uma conta fechada ou vazia.\n- **Não foi possível imprimir a pré-conta.**: confira o agente de impressão. Veja [O que fazer quando não sai uma comanda ou uma fatura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **O navegador não deixou imprimir aqui nem abrir a aba.**: permita janelas pop-up do MESAPAY no navegador e tente de novo.\n- **O cliente quer a nota**: a nota é gerada ao cobrar. Veja [Cobre uma conta passo a passo](/operator/ayuda/cobro-y-caja/cobrar-una-cuenta).\n",
+      "body": "A pré-conta é o papel que você leva à mesa para o cliente conferir o consumo antes de pagar. Não é uma nota fiscal: não usa a numeração de faturamento nem fecha a conta, então você pode imprimi-la quantas vezes precisar.\n\n## Imprima\n\n1. Em [Mesas](/operator/tables), abra a ficha da mesa.\n2. Toque em **Imprimir pré-conta**. Aparece **Enviando pré-conta…** e depois **Pré-conta enviada para** com o nome da impressora.\n3. Para vê-la na tela, toque em **Ver pré-conta**. Dali você também pode tocar em **Imprimir** e voltar com **Voltar para Mesas**.\n\nOs botões aparecem enquanto a conta está aberta e tem consumo. Administradores e garçons podem usá-los, também quando a cobrança está reservada ao administrador.\n\n## Por onde sai\n\n- Pela impressora de faturas do agente de impressão: a que você escolheu em Configurações › Impressoras de rede, em **Impressora para faturas**, ou, se não escolheu nenhuma, as impressoras do tipo fatura ativas. Veja [Confira suas impressoras pelo painel](/operator/ayuda/impresion-y-equipos/impresoras-de-red).\n- Se você não tem impressora de faturas, aparece **Sem impressora de recibos: imprime-se pelo navegador.**\n- Se o agente de impressão não responde, aparece **O agente de impressão não responde: imprime-se pelo navegador.**\n- Um administrador vê também o link **Escolher impressora do agente** para deixá-la configurada.\n\n## O que ela traz\n\n- O nome do estabelecimento, o documento fiscal, o endereço e o telefone.\n- **PRÉ-CONTA** e **Este documento não é uma fatura**.\n- A data, a mesa, o código da conta e o garçom.\n- Os pratos agrupados, o subtotal, o imposto incluído, o desconto e o total.\n- Se já houve pagamentos: **Pago** e **Saldo a pagar**.\n- **Gorjeta sugerida 10%** e **Total com gorjeta**, calculados sobre o pendente, com uma nota de que a gorjeta é voluntária.\n\nA gorjeta sugerida da pré-conta é sempre de 10%. Na cobrança, o cliente pode escolher outra.\n\nA pré-conta sai no idioma em que o pedido foi feito.\n\n## Casos frequentes\n\n- **Não vejo Imprimir pré-conta**: a conta já foi paga, foi cancelada ou não tem pratos.\n- **A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.**: acontece ao abrir **Ver pré-conta** de uma conta fechada ou vazia.\n- **Não foi possível imprimir a pré-conta.**: confira o agente de impressão. Veja [O que fazer quando não sai uma comanda ou uma fatura](/operator/ayuda/impresion-y-equipos/cuando-no-imprime).\n- **O navegador não deixou imprimir aqui nem abrir a aba.**: permita janelas pop-up do MESAPAY no navegador e tente de novo.\n- **O cliente quer a fatura e ainda não sabe como vai pagar**: imprima sem esperar a cobrança com **Imprimir fatura**; ela também traz a gorjeta sugerida. Veja [Imprima a fatura antes de cobrar](/operator/ayuda/cobro-y-caja/factura-antes-de-cobrar).\n",
       "links": [
         {
           "label": "Ir para Mesas",
@@ -241,7 +241,44 @@
           "href": "/operator/settings/impresoras"
         }
       ],
-      "updated": "2026-10-31"
+      "updated": "2026-11-04"
+    },
+    {
+      "slug": "factura-antes-de-cobrar",
+      "title": "Imprima a fatura antes de cobrar",
+      "summary": "Quando o cliente pede a fatura e ainda não disse como vai pagar: emita na mesa ou na tela de cobrança, sem meio de pagamento, e cobre depois com qualquer meio.",
+      "keywords": [
+        "fatura antes de pagar",
+        "imprimir fatura",
+        "fatura sem meio de pagamento",
+        "pagamento pendente",
+        "fatura eletronica",
+        "conta faturada",
+        "instrumento nao definido",
+        "foi embora sem pagar",
+        "nota de credito",
+        "pre-fatura"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "Quando o cliente pede a fatura, não precisa mais perguntar antes como ele vai pagar. Com **Imprimir fatura** a fatura da conta é emitida como está, sem meio de pagamento, e você leva até a mesa. Depois ele paga como quiser.\n\n## Imprima\n\n1. Em [Mesas](/operator/tables) ou no app do garçom, abra a ficha da mesa e toque em **Imprimir fatura**. Também está na tela de cobrança, abaixo da pergunta sobre a fatura.\n2. Confira **Cliente da fatura**. Se você não escolher ninguém, sai para **Consumidor final**. Com **No nome do cliente** você informa o NIT ou o documento, ou escolhe um cliente cadastrado; com **Adicionar e-mail** ela é enviada para um e-mail.\n3. Toque em **Emitir e imprimir fatura**.\n\nVocê vê por onde saiu: a impressora de faturas ou, se não houver impressora ou o programa de impressão não responder, o navegador do seu aparelho.\n\n## Com faturação eletrônica\n\n- A fatura é enviada à DIAN na hora e sai na impressora assim que a DIAN aceita, com o CUFE e o QR.\n- Se a DIAN demorar, a ficha avisa e não precisa fazer nada: a fatura sai sozinha na impressora quando for aceita. Enquanto isso, toque em **Imprimir pré-conta** para levar o detalhe à mesa. Com **Consultar a DIAN** você vê se já foi aceita.\n- Como ainda não se sabe como o cliente vai pagar, a fatura vai para a DIAN com o meio de pagamento «Instrumento não definido».\n\n## O que o papel mostra\n\n- Os pratos, o subtotal, o imposto incluído e o **TOTAL**, como qualquer fatura.\n- **Pagamento pendente** no lugar da forma de pagamento.\n- **Gorjeta sugerida 10%** e **TOTAL COM GORJETA**, com o aviso de que a gorjeta é voluntária. Assim ela substitui a pré-conta.\n\n## Cobre\n\nCobre a conta como sempre: dinheiro, maquininha, link de pagamento, dividida por pessoa ou a crédito. Ao cobrar **não sai outra fatura nem outra impressão**: a que o cliente já tem é a fatura da conta. A gorjeta que ele deixar pode ser diferente da sugerida; a gorjeta não entra na fatura.\n\n## A conta fica fechada\n\nDepois de faturada, a ficha mostra **Faturada · pagamento pendente** e a conta não muda:\n\n- Não dá para adicionar nem tirar pratos, nem mudar o desconto.\n- Se o cliente pedir mais alguma coisa, cobre esta conta e abra uma nova para o adicional: ela terá a própria fatura.\n- Se a fatura tiver um erro, um administrador anula com **Anular com nota de crédito**. Veja [Emita uma nota de crédito eletrônica](/operator/ayuda/facturacion/notas-credito).\n\n> ⚠ Se o cliente ainda vai pedir algo, imprima a pré-conta e deixe a fatura para o final.\n\n## Se o cliente foi embora sem pagar\n\nA conta fica aberta como **Faturada · pagamento pendente** e aparece em [Fechamento](/operator/reports) entre as contas abertas: não dá para fechar o turno sem resolvê-la. Um administrador anula a fatura com uma nota de crédito e, já anulada, fecha a conta sem cobrança na tela de cobrança, como cortesia. O MESAPAY nunca anula sozinho.\n\n## Casos frequentes\n\n- **Não vejo Imprimir fatura**: a conta já foi paga, foi cancelada, não tem consumo ou já tem fatura.\n- **Esta conta já está faturada: não dá para adicionar pratos.**: acontece ao tentar adicionar algo a uma conta faturada.\n- **A numeração da resolução da DIAN acabou.**: veja [Carregue sua resolução de numeração](/operator/ayuda/facturacion/resolucion-de-facturacion).\n",
+      "links": [
+        {
+          "label": "Ir para Mesas",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Ir para Mesas (app do garçom)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Ir para Notas de crédito",
+          "href": "/operator/facturas/notas-credito"
+        }
+      ],
+      "updated": "2026-11-04"
     },
     {
       "slug": "cobrar-a-credito",

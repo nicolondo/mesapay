@@ -139,6 +139,17 @@ describe("sólo cuentan las notas aceptadas por la DIAN y no descartadas", () =>
       restaurantId: "r1",
       abandonedAt: null,
       dianDocument: { is: { state: "accepted" } },
+      originalInvoice: { is: { order: { is: { paidAt: { not: null }, compedAt: null } } } },
+    });
+  });
+
+  it("una nota sobre una factura emitida antes de cobrar y NUNCA cobrada (anulada y cerrada como cortesía) no toca libros: ni la venta ni su anulación entraron", () => {
+    // Lo que entra a libros es la cuenta COBRADA (paidAt) que no es
+    // cortesía: la misma regla que la venta en posting.ts. Una cuenta
+    // abierta (paidAt null) o cerrada sin cobro (compedAt) queda fuera.
+    const where = acceptedCreditNoteWhere("r1");
+    expect(where.originalInvoice).toEqual({
+      is: { order: { is: { paidAt: { not: null }, compedAt: null } } },
     });
   });
 

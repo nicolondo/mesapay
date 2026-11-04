@@ -144,7 +144,9 @@
     "identifyAs": "Sou {name} · usar minha conta",
     "identifying": "Identificando…",
     "identifiedAs": "Identificado como {name}. Seu desconto já está aplicado.",
-    "haveAccount": "Tem conta MESAPAY? Entre para usar seu desconto"
+    "haveAccount": "Tem conta MESAPAY? Entre para usar seu desconto",
+    "orderInvoicedDiner": "Esta conta já tem a fatura. Para pedir mais alguma coisa, avise o garçom.",
+    "orderInvoicedStaff": "Esta conta já está faturada: não dá para adicionar pratos. Cobre e abra uma conta nova para o adicional."
   },
   "landing": {
     "viewMenu": "Só ver o cardápio",
@@ -1338,7 +1340,8 @@
     "einvoiceLabel": "FATURA ELETRÔNICA DE VENDA",
     "finalConsumer": "Consumidor final",
     "einvoiceVerify": "Consulte esta fatura na DIAN:",
-    "einvoiceRepresentation": "Representação impressa da fatura eletrônica de venda"
+    "einvoiceRepresentation": "Representação impressa da fatura eletrônica de venda",
+    "paymentPending": "Pagamento pendente"
   },
   "emailDianInvoice": {
     "subject": "Sua nota fiscal eletrônica de {brand} — {number}",
@@ -3919,7 +3922,8 @@
     "soldOutReminderTitle": "{count, plural, one {# prato esgotado} other {# pratos esgotados}}",
     "soldOutReminderBody": "Veja se hoje tem e volte a oferecê-los.",
     "soldOutReview": "Revisar",
-    "soldOutDismiss": "Dispensar"
+    "soldOutDismiss": "Dispensar",
+    "openBillInvoiced": "Faturada ({number}), pagamento pendente: cobre ou anule a fatura com nota de crédito"
   },
   "opShifts": {
     "noRestaurant": "Sem restaurante.",
@@ -9205,5 +9209,57 @@
     "linksLabel": "Links legais",
     "footerPrivacy": "Política de privacidade",
     "footerTerms": "Termos de serviço"
+  },
+  "preInvoice": {
+    "action": "Imprimir fatura",
+    "sheetLabel": "Fatura antes de cobrar",
+    "sheetTitle": "Imprimir a fatura",
+    "sheetIntro": "A fatura é emitida com a conta como está agora, por {total}. O cliente paga depois como quiser: dinheiro, maquininha, link ou dividida.",
+    "customerLabel": "Cliente da fatura",
+    "customerFinal": "Consumidor final",
+    "customerFinalHint": "Se você não escolher ninguém, sai para consumidor final (222222222222).",
+    "customerPerson": "{name} · {doc}",
+    "customerGenericEmail": "Consumidor final · enviada para {email}",
+    "toName": "No nome do cliente",
+    "change": "Alterar",
+    "addEmail": "Adicionar e-mail",
+    "changeEmail": "Alterar e-mail",
+    "lockWarning": "Depois de faturar, a conta fica fechada: não dá para adicionar nem tirar pratos. Se o cliente for pedir mais alguma coisa, imprima a pré-conta.",
+    "confirm": "Emitir e imprimir fatura",
+    "issuing": "Emitindo fatura…",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "resultSent": "Fatura {number} enviada para {printer}.",
+    "resultSentNoName": "Fatura {number} enviada para a impressora.",
+    "resultBrowser": "Fatura {number} emitida. Não há impressora de faturas disponível: imprimindo deste aparelho.",
+    "resultDuplicate": "A fatura {number} já tinha sido enviada para a impressora. Para outra cópia use «Reimprimir fatura».",
+    "resultIssued": "Fatura {number} emitida.",
+    "dianPending": "Fatura {number} enviada à DIAN. Ainda sem resposta: sai sozinha na impressora assim que for aceita. Enquanto isso, leve a pré-conta.",
+    "dianBlocked": "A fatura {number} foi numerada, mas não pôde ser enviada à DIAN por causa da configuração da faturação eletrônica. O administrador resolve em Faturas; enquanto isso, leve a pré-conta.",
+    "dianRejected": "A DIAN rejeitou a fatura {number}. O administrador revisa em Faturas; enquanto isso, leve a pré-conta.",
+    "dianError": "A DIAN não respondeu à fatura {number}. Ela é reenviada sozinha; enquanto isso, leve a pré-conta.",
+    "afterIssueHint": "Quando o cliente pagar, cobre com qualquer meio: não sai outra fatura.",
+    "printPrebill": "Imprimir pré-conta",
+    "checkAgain": "Consultar a DIAN",
+    "checking": "Consultando…",
+    "errorNotBillable": "Esta conta não tem nada para faturar.",
+    "errorClosed": "A conta já está paga ou cancelada.",
+    "errorNumbering": "A numeração da resolução da DIAN acabou. O administrador precisa cadastrar uma resolução nova.",
+    "errorGeneric": "Não foi possível emitir a fatura. Tente de novo.",
+    "bannerLabel": "Faturada · pagamento pendente",
+    "bannerAnnulled": "Fatura anulada",
+    "bannerBody": "A conta está fechada: não dá para adicionar nem tirar pratos. Cobre com qualquer meio (não sai outra fatura). Para corrigir, anule a fatura com uma nota de crédito; se pedirem mais alguma coisa, cobre esta conta e abra uma nova.",
+    "bannerBodyCompact": "Cobre com qualquer meio: não sai outra fatura nem outra impressão.",
+    "bannerAnnulledBody": "Uma nota de crédito anulou a fatura {number}. Se o cliente foi embora sem pagar, feche a conta sem cobrança na tela de cobrança (cortesia).",
+    "dianStateAccepted": "Aceita pela DIAN",
+    "dianStatePending": "Aguardando a DIAN",
+    "dianStateBlocked": "Não enviada à DIAN (configuração)",
+    "dianStateRejected": "Rejeitada pela DIAN",
+    "dianStateError": "Sem resposta da DIAN",
+    "reprint": "Reimprimir fatura",
+    "annulLink": "Anular com nota de crédito",
+    "view": "Ver fatura",
+    "tileBadge": "Faturada",
+    "dinerInvoiced": "A fatura desta conta já foi emitida ({number}). Você pode pagar com qualquer meio."
   }
 }

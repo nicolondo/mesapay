@@ -105,6 +105,8 @@ async function DELETEHandler(
       id: orderId,
       restaurantId: scope.restaurantId,
       status: { not: "paid" },
+      // Cuenta facturada: el descuento quedó en la factura.
+      simpleInvoice: { is: null },
     },
     select: { id: true, subtotalCents: true },
   });

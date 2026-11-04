@@ -87,3 +87,33 @@ describe("invoiceDedupeKey", () => {
     expect(invoiceDedupeKey("inv-1")).toBe("invoice:inv-1");
   });
 });
+
+describe("invoicePrintDecision — factura emitida ANTES de cobrar", () => {
+  it("'Imprimir factura' (pre_issue) imprime siempre: lo pidió un humano, con o sin automático", () => {
+    for (const einvoicing of [true, false]) {
+      expect(invoicePrintDecision({ trigger: "pre_issue", autoPrint: false, einvoicing })).toBe("print");
+      expect(invoicePrintDecision({ trigger: "pre_issue", autoPrint: true, einvoicing })).toBe("print");
+    }
+  });
+
+  it("si la DIAN la acepta más tarde (barrido / consulta), sale aunque el automático esté apagado", () => {
+    expect(
+      invoicePrintDecision({
+        trigger: "dian_accepted",
+        autoPrint: false,
+        einvoicing: true,
+        issuedBeforePayment: true,
+      }),
+    ).toBe("print");
+    // Una factura emitida al cobrar sigue respetando el automático apagado.
+    expect(
+      invoicePrintDecision({ trigger: "dian_accepted", autoPrint: false, einvoicing: true }),
+    ).toBe("skip_auto_off");
+  });
+
+  it("el cobro de una cuenta ya facturada no saca papel con facturación electrónica", () => {
+    expect(
+      invoicePrintDecision({ trigger: "paid", autoPrint: true, einvoicing: true, issuedBeforePayment: true }),
+    ).toBe("skip_waits_dian");
+  });
+});

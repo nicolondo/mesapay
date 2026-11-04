@@ -24,6 +24,7 @@ import { withReplaceable } from "@/lib/payments/pendingRequests";
 import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { onlinePaymentsReady } from "@/lib/payments/onlinePayments";
+import { loadOrderInvoiceView } from "@/lib/orders/invoicedOrder";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -230,6 +231,13 @@ export async function PayFlow({
   // Una factura manual no tiene mesa que nombrar en el encabezado del cobro.
   const tMenu = await getTranslations("menu");
 
+  // Factura emitida ANTES de cobrar ("Imprimir factura" desde la mesa): el
+  // cobro la muestra en vez de volver a preguntar por la factura, y se
+  // cobra con cualquier medio sin emitir otra. Sólo cuenta si la cuenta no
+  // está pagada (pagada, la factura es la de siempre).
+  const preInvoice =
+    order.status === "paid" ? null : await loadOrderInvoiceView(order.id);
+
   return (
     <PayClient
       operatorMode={operatorMode}
@@ -307,6 +315,9 @@ export async function PayFlow({
       // tarjeta para no volver a pedírselo.
       invoiceIntent={invoiceIntent}
       invoicePrefillEmail={order.customerEmail}
+      preInvoice={preInvoice}
+      // Anular con nota crédito: los administradores, no el mesero.
+      canAnnulInvoice={operatorMode && !isMeseroSession}
       // Impuesto de ventas del comercio, sólo para el renglón informativo
       // "Incluye impoconsumo 8%": los platos ya lo traen dentro del precio,
       // así que no toca ningún monto a cobrar.

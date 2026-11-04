@@ -10,6 +10,9 @@ import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { isInvoiceAnnulled } from "@/lib/orders/invoicedOrder";
+import { ORDER_INVOICED } from "@/lib/orders/orderInvoicedError";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -95,6 +98,28 @@ async function POSTHandler(
   }
   if (order.status === "paid" || order.compedAt) {
     return NextResponse.json({ error: "already_closed" }, { status: 409 });
+  }
+  // Cuenta ya facturada (factura antes de cobrar): no se regala una venta
+  // facturada. Sólo cuando una nota crédito la ANULÓ entera se puede cerrar
+  // sin cobro (el cliente se fue sin pagar) — ver orders/invoicedOrder.ts.
+  const invoiced = await db.simpleInvoice.findUnique({
+    where: { orderId: order.id },
+    select: { id: true, invoiceNumber: true, snapshot: true, totalCents: true },
+  });
+  if (invoiced && !(await isInvoiceAnnulled(db, invoiced))) {
+    return NextResponse.json(
+      {
+        error: ORDER_INVOICED,
+        invoice: {
+          invoiceId: invoiced.id,
+          documentNumber: formatInvoiceNumber(
+            invoiced.snapshot as unknown as InvoiceSnapshot,
+            invoiced.invoiceNumber,
+          ),
+        },
+      },
+      { status: 409 },
+    );
   }
 
   // Mismo guardarraíl que el cobro: el mesero sin turno abierto descuadra el

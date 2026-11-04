@@ -144,7 +144,9 @@
     "identifyAs": "I'm {name} · use my account",
     "identifying": "Identifying…",
     "identifiedAs": "Signed in as {name}. Your discount is applied.",
-    "haveAccount": "Have a MESAPAY account? Sign in to use your discount"
+    "haveAccount": "Have a MESAPAY account? Sign in to use your discount",
+    "orderInvoicedDiner": "This bill already has its invoice. To order something else, let your waiter know.",
+    "orderInvoicedStaff": "This bill is already invoiced: no dishes can be added. Charge it and open a new bill for the extra items."
   },
   "landing": {
     "viewMenu": "Just browse the menu",
@@ -1338,7 +1340,8 @@
     "einvoiceLabel": "ELECTRONIC SALES INVOICE",
     "finalConsumer": "Final consumer",
     "einvoiceVerify": "Look up this invoice at DIAN:",
-    "einvoiceRepresentation": "Printed representation of the electronic sales invoice"
+    "einvoiceRepresentation": "Printed representation of the electronic sales invoice",
+    "paymentPending": "Payment pending"
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",
@@ -3919,7 +3922,8 @@
     "soldOutReminderTitle": "{count, plural, one {# dish sold out} other {# dishes sold out}}",
     "soldOutReminderBody": "Check whether you have them today and offer them again.",
     "soldOutReview": "Review",
-    "soldOutDismiss": "Dismiss"
+    "soldOutDismiss": "Dismiss",
+    "openBillInvoiced": "Invoiced ({number}), payment pending: charge it or void the invoice with a credit note"
   },
   "opShifts": {
     "noRestaurant": "No restaurant.",
@@ -9205,5 +9209,57 @@
     "linksLabel": "Legal links",
     "footerPrivacy": "Privacy Policy",
     "footerTerms": "Terms of Service"
+  },
+  "preInvoice": {
+    "action": "Print invoice",
+    "sheetLabel": "Invoice before payment",
+    "sheetTitle": "Print the invoice",
+    "sheetIntro": "The invoice is issued for the bill as it is now, for {total}. The customer pays afterwards however they like: cash, card terminal, link or split.",
+    "customerLabel": "Invoice customer",
+    "customerFinal": "Final consumer",
+    "customerFinalHint": "If you don't pick anyone, it's issued to the final consumer (222222222222).",
+    "customerPerson": "{name} · {doc}",
+    "customerGenericEmail": "Final consumer · sent to {email}",
+    "toName": "In the customer's name",
+    "change": "Change",
+    "addEmail": "Add email",
+    "changeEmail": "Change email",
+    "lockWarning": "Once invoiced, the bill is closed: no dishes can be added or removed. If the customer will order something else, print the pre-bill instead.",
+    "confirm": "Issue and print invoice",
+    "issuing": "Issuing invoice…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "resultSent": "Invoice {number} sent to {printer}.",
+    "resultSentNoName": "Invoice {number} sent to the printer.",
+    "resultBrowser": "Invoice {number} issued. No invoice printer is available: printing from this device.",
+    "resultDuplicate": "Invoice {number} had already been sent to the printer. For another copy use “Reprint invoice”.",
+    "resultIssued": "Invoice {number} issued.",
+    "dianPending": "Invoice {number} sent to the DIAN. No answer yet: it prints by itself as soon as it's accepted. Meanwhile, you can bring the pre-bill.",
+    "dianBlocked": "Invoice {number} was numbered but couldn't be sent to the DIAN because of the e-invoicing setup. The administrator fixes it in Invoices; meanwhile, bring the pre-bill.",
+    "dianRejected": "The DIAN rejected invoice {number}. The administrator reviews it in Invoices; meanwhile, bring the pre-bill.",
+    "dianError": "The DIAN didn't answer for invoice {number}. It retries by itself; meanwhile, bring the pre-bill.",
+    "afterIssueHint": "When the customer pays, charge with any method: no second invoice is issued.",
+    "printPrebill": "Print pre-bill",
+    "checkAgain": "Check with the DIAN",
+    "checking": "Checking…",
+    "errorNotBillable": "This bill has nothing to invoice.",
+    "errorClosed": "The bill is already paid or cancelled.",
+    "errorNumbering": "The DIAN resolution numbering ran out. The administrator has to load a new resolution.",
+    "errorGeneric": "The invoice couldn't be issued. Try again.",
+    "bannerLabel": "Invoiced · payment pending",
+    "bannerAnnulled": "Invoice voided",
+    "bannerBody": "The bill is closed: no dishes can be added or removed. Charge it with any method (no second invoice is issued). To correct it, void the invoice with a credit note; if they order something else, charge this bill and open a new one.",
+    "bannerBodyCompact": "Charge it with any method: no second invoice or print comes out.",
+    "bannerAnnulledBody": "A credit note voided invoice {number}. If the customer left without paying, close the bill without charge from the payment screen (courtesy).",
+    "dianStateAccepted": "Accepted by the DIAN",
+    "dianStatePending": "Waiting for the DIAN",
+    "dianStateBlocked": "Not sent to the DIAN (setup)",
+    "dianStateRejected": "Rejected by the DIAN",
+    "dianStateError": "No answer from the DIAN",
+    "reprint": "Reprint invoice",
+    "annulLink": "Void with credit note",
+    "view": "View invoice",
+    "tileBadge": "Invoiced",
+    "dinerInvoiced": "The invoice for this bill has already been issued ({number}). You can pay with any method."
   }
 }

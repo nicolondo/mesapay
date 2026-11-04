@@ -348,6 +348,38 @@ export function creditPaymentMeans(
 }
 
 /**
+ * Forma y medio de pago de la factura (cac:PaymentMeans), con la factura
+ * emitida ANTES de cobrar en la cuenta.
+ *
+ *   1. Cobro a crédito de cliente ⇒ crédito, como siempre
+ *      (`creditPaymentMeans`: forma "2", medio "1", vencimiento).
+ *   2. Emitida antes de cobrar ⇒ contado con medio "1 – Instrumento no
+ *      definido": cuando la DIAN la recibe nadie sabe todavía si van a
+ *      pagar en efectivo, con datáfono, por link o dividido entre varios.
+ *      Declarar "10 – Efectivo" sería afirmar algo que no se sabe. Anexo
+ *      técnico (Res. 000012/2021, v1.8), tabla 13.3.4.2 «Medios de Pago»:
+ *      el código "1" existe para esto, y las reglas de `cac:PaymentMeans`
+ *      (FAN01–FAN05) no restringen el medio con forma de pago contado —
+ *      sólo exigen que esté en la tabla (FAN03a), que se informe en las
+ *      de contado (FAN03b) y el vencimiento en las de crédito (FAN04).
+ *   3. Si no ⇒ contado "10", como se emitió siempre al cobrar.
+ *
+ * `issuedBeforePayment` sale del SNAPSHOT de la factura, no del estado de
+ * la orden: un reintento de la emisión después de que la cuenta se pagó
+ * tiene que declarar lo mismo que ya dice el papel que tiene el cliente.
+ */
+export function invoicePaymentMeans(
+  payments: readonly { billingCustomer: { creditTermsDays: number } | null }[],
+  issueDate: string,
+  opts: { issuedBeforePayment?: boolean } = {},
+): Pick<DianInvoiceInput, "paymentMeansCode" | "paymentMeansId" | "paymentDueDate"> {
+  const credit = creditPaymentMeans(payments, issueDate);
+  if (credit.paymentMeansId === "2") return credit;
+  if (opts.issuedBeforePayment) return { paymentMeansCode: "1" };
+  return credit;
+}
+
+/**
  * Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. Para documentos nuevos
  * usar `dianIssueDateTime(at)`, que da la fecha Y la hora del mismo
  * instante; esto queda como atajo compatible (lo importa la rama de notas

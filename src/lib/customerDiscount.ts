@@ -99,6 +99,11 @@ export async function applyCustomerDiscount(
   if (await tx.payment.count({ where: { orderId, status: { in: ["approved", "pending"] } } })) {
     return { applied: false, reason: "not_applicable", ...current };
   }
+  // Ni sobre una cuenta ya facturada (factura antes de cobrar): lo cobrable
+  // quedó congelado en la factura — ver `orders/invoicedOrder.ts`.
+  if (await tx.simpleInvoice.count({ where: { orderId } })) {
+    return { applied: false, reason: "not_applicable", ...current };
+  }
   await tx.order.update({
     where: { id: orderId },
     data: {

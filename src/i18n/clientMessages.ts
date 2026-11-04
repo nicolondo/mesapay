@@ -98,6 +98,7 @@ export const CLIENT_NAMESPACES = {
     "pay",
     "paymentPending",
     "pendingPayment",
+    "preInvoice",
     "serve",
     "staffPrint",
     "terminalAttempt",

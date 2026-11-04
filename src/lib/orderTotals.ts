@@ -272,12 +272,20 @@ export async function syncOrderSubtotalFromLiveItems(
       totalCents: true,
       discountPct: true,
       discountCents: true,
+      // Cuenta facturada (factura antes de cobrar): lo cobrable quedó
+      // congelado en la factura; no se "sana" contra los ítems.
+      simpleInvoice: { select: { id: true } },
     },
   });
   if (!order) {
     return { subtotalCents: 0, totalCents: 0, changed: false };
   }
-  if (order.status === "paid" || order.status === "paying" || order.status === "cancelled") {
+  if (
+    order.status === "paid" ||
+    order.status === "paying" ||
+    order.status === "cancelled" ||
+    order.simpleInvoice
+  ) {
     return {
       subtotalCents: order.subtotalCents,
       totalCents: order.totalCents,

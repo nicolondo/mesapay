@@ -190,6 +190,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, la propina sugerida (siempre 10 %), que no es factura ni numera nada, y la impresión por la impresora de facturas del agente o por el navegador.",
     },
     {
+      slug: "factura-antes-de-cobrar",
+      title: "Imprime la factura antes de cobrar",
+      covers:
+        "\"Imprimir factura\" desde la ficha de la mesa (panel y app del mesero) y desde el cobro, sin método de pago: cliente de la factura (consumidor final por defecto, a nombre del cliente o cliente registrado, correo), \"Emitir e imprimir factura\", la DIAN (medio de pago «Instrumento no definido», sale al aceptarse, precuenta mientras), el papel (\"Pendiente de pago\", propina sugerida y TOTAL CON PROPINA), cobrarla con cualquier medio sin otra factura, la cuenta cerrada (\"Facturada · pendiente de pago\", sin agregar ni quitar platos, nota crédito para corregir, cuenta nueva para lo adicional) y el cliente que se fue sin pagar (Cierre, anulación, cortesía).",
+    },
+    {
       slug: "cobrar-a-credito",
       title: "Vende a crédito y registra abonos",
       covers:

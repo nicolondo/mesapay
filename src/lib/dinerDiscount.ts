@@ -83,6 +83,8 @@ export async function applyDinerToOrder(args: {
     const order = await tx.order.findUnique({ where: { id: args.orderId } });
     if (!order || order.restaurantId !== args.restaurantId || ["paid", "cancelled", "paying"].includes(order.status)) return null;
     if (await tx.payment.count({ where: { orderId: order.id, status: { in: ["approved", "pending"] } } })) return null;
+    // Cuenta ya facturada: el descuento quedó en la factura tal como estaba.
+    if (await tx.simpleInvoice.count({ where: { orderId: order.id } })) return null;
     const diner = await tx.diner.findUnique({ where: { id: args.dinerId }, select: { id: true, name: true, restaurantId: true, disabledAt: true } });
     if (!diner || diner.disabledAt || diner.restaurantId !== args.restaurantId) return null;
     const discount = await tx.dinerDiscount.findUnique({ where: { dinerId: diner.id } });
@@ -109,6 +111,7 @@ export async function removeOrderDiscount(args: {
     const order = await tx.order.findUnique({ where: { id: args.orderId } });
     if (!order || order.restaurantId !== args.restaurantId || ["paid", "cancelled", "paying"].includes(order.status)) return false;
     if (await tx.payment.count({ where: { orderId: order.id, status: { in: ["approved", "pending"] } } })) return false;
+    if (await tx.simpleInvoice.count({ where: { orderId: order.id } })) return false;
     await tx.order.update({ where: { id: order.id }, data: {
       discountPct: null, discountCents: 0,
       totalCents: order.subtotalCents + order.taxCents + order.tipCents,

@@ -225,6 +225,31 @@ export default async function OperatorOrderDetail({
         />
       </div>
 
+      {order.compedAt && (
+        <div className="mt-4 rounded-2xl border border-op-border bg-op-surface p-4" role="note">
+          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
+            {t("compTitle")}
+          </div>
+          <p className="text-sm">
+            {t("compBody", {
+              label: order.compLabel ?? t("compDefaultLabel"),
+              amount: fmtCOP(order.compAmountCents ?? 0),
+            })}
+          </p>
+          {order.compNote && (
+            <p className="text-sm text-op-muted mt-1 break-words">
+              {t("compNote", { note: order.compNote })}
+            </p>
+          )}
+          <Link
+            href="/operator/reports/gastos-representacion"
+            className="mt-2 inline-block text-sm underline underline-offset-2 hover:text-op-text"
+          >
+            {t("compReportLink")}
+          </Link>
+        </div>
+      )}
+
       {order.status !== "paid" && order.status !== "cancelled" && (
         <div className="mt-4 bg-op-surface border border-op-border rounded-2xl p-4">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">

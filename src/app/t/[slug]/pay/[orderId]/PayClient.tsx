@@ -21,6 +21,11 @@ import { isCashMethod } from "@/lib/payments/methods";
 import { ApplePayButton } from "./ApplePayButton";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import {
+  InvoicedOrderBanner,
+  PreInvoiceAction,
+  type InvoicedOrderView,
+} from "@/components/invoice/PreInvoicePanel";
 import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
 import {
   PendingPaymentNotice,
@@ -128,6 +133,8 @@ export function PayClient({
   compLabel = null,
   invoiceIntent = null,
   invoicePrefillEmail = null,
+  preInvoice = null,
+  canAnnulInvoice = false,
   salesTax = null,
   vouchersEnabled = false,
   initialTipPct = null,
@@ -242,6 +249,11 @@ export function PayClient({
   invoiceIntent?: InvoiceIntent | null;
   // Correo del último cobro con tarjeta, para prellenar los sheets.
   invoicePrefillEmail?: string | null;
+  // Factura emitida ANTES de cobrar: se muestra (y se reimprime) en vez de
+  // preguntar por la factura; el cobro no emite otra. null = no hay.
+  preInvoice?: InvoicedOrderView | null;
+  // Quien cobra puede anular con nota crédito (administrador, no mesero).
+  canAnnulInvoice?: boolean;
   // Impuesto de ventas del comercio. Los platos ya lo traen DENTRO del
   // precio, así que sólo alimenta el renglón informativo "Incluye
   // impoconsumo 8%" — no toca ningún monto a cobrar. null/none ⇒ nada.
@@ -290,7 +302,17 @@ export function PayClient({
   const isMockMode = kushkiMode === "mock";
   const router = useRouter();
   const t = useTranslations("pay");
+  const tPre = useTranslations("preInvoice");
   const tCommon = useTranslations("common");
+  // Lo pedido de factura en esta cuenta: lo comparten la tarjeta de la
+  // factura y "Imprimir factura" (antes de cobrar), que muestra a quién va.
+  const [checkoutIntent, setCheckoutIntent] = useState<InvoiceIntent | null>(invoiceIntent);
+  const invoiceIntentKey =
+    checkoutIntent?.kind === "formal"
+      ? `f:${checkoutIntent.summary.docType}:${checkoutIntent.summary.docNumber}`
+      : checkoutIntent?.kind === "simple"
+        ? `s:${checkoutIntent.email ?? ""}`
+        : "none";
   const apiError = useApiError();
   // A qué datáfono va el cobro del staff (ver lib/payments/terminalChoice.ts).
   const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
@@ -490,7 +512,10 @@ export function PayClient({
   const amountCents = amountSubtotal + amountTip;
   const pendingBlocksMixed = pendingPayments.some(payment => !isCashMethod(payment.method));
   const interactionLocked = busy !== null || refreshing || cashUncertain;
-  const chargeDisabled = interactionLocked || amountCents <= 0 || (mixed && pendingBlocksMixed);
+  // Factura anulada con nota crédito: la cuenta ya no tiene factura válida y
+  // cobrarla dejaría una venta sin factura. Se cierra sin cobro (cortesía).
+  const chargeDisabled =
+    interactionLocked || amountCents <= 0 || (mixed && pendingBlocksMixed) || !!preInvoice?.annulled;
   const locale = useLocale() as Locale;
   const exactMoney = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: cents % 100 ? 2 : 0 });
   // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
@@ -1371,13 +1396,57 @@ export function PayClient({
           que el comensal todavía tiene el celular en la mano. Los datos se
           guardan al instante; la factura se emite cuando el cobro se confirma
           (puede ser minutos después si paga en efectivo). */}
-      <InvoiceCheckoutCard
-        tenantSlug={tenantSlug}
-        orderId={orderId}
-        initialIntent={invoiceIntent}
-        prefillEmail={invoicePrefillEmail}
-        operatorMode={operatorMode}
-      />
+      {preInvoice ? (
+        // La factura YA está emitida (antes de cobrar): no se vuelve a
+        // preguntar. El staff la ve con su estado y la reimprime; el
+        // comensal sólo sabe que existe.
+        operatorMode ? (
+          <div className="mt-6">
+            <InvoicedOrderBanner
+              orderId={orderId}
+              invoice={preInvoice}
+              compact
+              sameTab={staffHomeHref.startsWith("/mesero")}
+              canConfigurePrinters={!staffHomeHref.startsWith("/mesero")}
+              canAnnul={canAnnulInvoice}
+            />
+          </div>
+        ) : (
+          <p className="mt-6 rounded-2xl border border-hairline bg-paper p-4 text-sm">
+            {tPre("dinerInvoiced", { number: preInvoice.documentNumber })}
+          </p>
+        )
+      ) : (
+        <>
+          <InvoiceCheckoutCard
+            tenantSlug={tenantSlug}
+            orderId={orderId}
+            initialIntent={checkoutIntent}
+            prefillEmail={invoicePrefillEmail}
+            operatorMode={operatorMode}
+            onIntentChange={setCheckoutIntent}
+          />
+          {/* Factura ANTES de cobrar: el cliente la pide y todavía no dijo
+              cómo va a pagar. Se emite ya, sin método de pago; después se
+              cobra con lo que sea. */}
+          {operatorMode && !alreadyPaid && !payLinkMode && outstandingSubtotalCents > 0 && (
+            <div className="mt-3">
+              <PreInvoiceAction
+                key={invoiceIntentKey}
+                orderId={orderId}
+                tenantSlug={tenantSlug}
+                totalLabel={formatMoney(outstandingSubtotalCents, { currency, locale })}
+                initialIntent={checkoutIntent}
+                prefillEmail={invoicePrefillEmail}
+                sameTab={staffHomeHref.startsWith("/mesero")}
+                canConfigurePrinters={!staffHomeHref.startsWith("/mesero")}
+                onIssued={() => router.refresh()}
+                className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
+              />
+            </div>
+          )}
+        </>
+      )}
 
       <div className="mt-6 space-y-2">
         {/* Link de pago: un solo rótulo arriba; el preseleccionado va primero
@@ -1525,7 +1594,10 @@ export function PayClient({
             {t("preparedCancellationAdminOnly")}
           </p>
         )}
-        {operatorMode && !mixed && compEnabled && (
+        {/* Cuenta facturada (factura antes de cobrar): no se regala una venta
+            facturada; sólo con la factura anulada por nota crédito (el
+            cliente se fue sin pagar). El servidor lo exige igual. */}
+        {operatorMode && !mixed && compEnabled && (!preInvoice || preInvoice.annulled) && (
           <button
             type="button"
             disabled={busy !== null}

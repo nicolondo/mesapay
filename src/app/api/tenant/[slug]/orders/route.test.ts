@@ -43,6 +43,8 @@ const h = vi.hoisted(() => {
       }),
       findMany: vi.fn(async () => created.items),
     },
+    // Factura emitida antes de cobrar: ninguna, salvo donde se siembra.
+    simpleInvoice: { findUnique: vi.fn(async (): Promise<unknown> => null) },
   };
   return {
     created,
@@ -100,6 +102,7 @@ vi.mock("@/lib/kds/autoFireTickets", () => ({ notifyAutoFiredTickets: h.tickets 
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "es") }));
 
 import { POST } from "./route";
+import { OrderInvoicedError } from "@/lib/orders/orderInvoicedError";
 
 const send = () =>
   POST(
@@ -252,3 +255,35 @@ describe("POST /api/tenant/[slug]/orders — factura manual", () => {
     );
   });
 });
+
+describe("POST /api/tenant/[slug]/orders — cuenta ya facturada (factura antes de cobrar)", () => {
+  const mesa = { id: "table-x", restaurantId: "rest-1", number: 4, kind: "standard" };
+  const sendTo = (orderId: string) =>
+    POST(
+      new Request("http://localhost/api/tenant/chefburger/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tableId: "table-x", orderId, items: [{ menuItemId: "item-lomo", qty: 1 }] }),
+      }),
+      { params: Promise.resolve({ slug: "chefburger" }) },
+    );
+
+  it("no se le suma una ronda: OrderInvoicedError (secureApi ⇒ 409 order_invoiced) y nada se crea", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.tx.order.findUnique.mockResolvedValue({
+      id: "order-9",
+      restaurantId: "rest-1",
+      tableId: "table-x",
+      status: "served",
+    });
+    h.tx.simpleInvoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      invoiceNumber: 6490,
+      snapshot: { invoicePrefix: "FESM" },
+    });
+    await expect(sendTo("order-9")).rejects.toBeInstanceOf(OrderInvoicedError);
+    expect(h.created.rounds).toHaveLength(0);
+    expect(h.created.items).toHaveLength(0);
+  });
+});
+

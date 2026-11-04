@@ -26,6 +26,7 @@ import {
   type StaffPrintDoc,
 } from "@/lib/print/staffPrint";
 import { PrintButton } from "./PrintButton";
+import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,17 @@ export default async function FacturaPage({
   const inv = await db.simpleInvoice.findUnique({
     where: { id },
     include: {
-      order: { select: { shortCode: true } },
+      order: {
+        select: {
+          shortCode: true,
+          // Factura emitida ANTES de cobrar: lo cobrado decide si todavía
+          // dice "Pendiente de pago" (ver `pendingPaymentOf`).
+          payments: {
+            where: { status: "approved" },
+            select: { method: true, amountCents: true, tipCents: true },
+          },
+        },
+      },
       dianDocument: { select: { state: true, cufe: true } },
       restaurant: {
         select: {
@@ -183,6 +194,11 @@ export default async function FacturaPage({
       ? t("dianDate", { date: dianDate.toLocaleDateString(tag) })
       : null,
   ].filter((l): l is string => !!l);
+
+  // Emitida antes de cobrar y sin saldar: "Pendiente de pago" y la propina
+  // sugerida, como en el papel de la caja (`print/invoiceDoc.ts`).
+  const pending = pendingPaymentOf(snap, inv.order.payments);
+  const showPending = !!pending && pending.outstandingCents > 0;
 
   const customerWhere = snap.customer
     ? [snap.customer.address, snap.customer.city].filter(Boolean).join(", ")
@@ -328,7 +344,30 @@ export default async function FacturaPage({
               <span>{t("total")}</span>
               <span className="right">{fmtCOP(snap.totalCents)}</span>
             </div>
+            {showPending && pending && (
+              <div className="row grand">
+                <span>{t("paymentPending")}</span>
+                <span className="right">{fmtCOP(pending.outstandingCents)}</span>
+              </div>
+            )}
           </div>
+
+          {showPending && pending && pending.suggestedTipCents > 0 && (
+            <>
+              <hr className="dashed" />
+              <div className="totals">
+                <div className="row">
+                  <span>{t("prebillSuggestedTip", { pct: pending.suggestedTipPct })}</span>
+                  <span className="right">{fmtCOP(pending.suggestedTipCents)}</span>
+                </div>
+                <div className="row grand">
+                  <span>{t("prebillTotalWithTip")}</span>
+                  <span className="right">{fmtCOP(pending.totalWithTipCents)}</span>
+                </div>
+                <div className="small">{t("prebillTipVoluntary")}</div>
+              </div>
+            </>
+          )}
 
           {einvoice && (
             <>

@@ -8,6 +8,7 @@ import { getActiveContext } from "./activeRestaurant";
 import { canAccessOrder, canAccessTable } from "./guestAccess";
 import { rateLimit } from "./rateLimit";
 import { CancellationPermissionError } from "./orders/cancellationPolicy";
+import { ORDER_INVOICED, OrderInvoicedError } from "./orders/orderInvoicedError";
 
 const deny = (error: string, status = 403) => NextResponse.json({ error }, { status });
 
@@ -93,6 +94,11 @@ export function secureApi<R extends Request, Args extends unknown[]>(handler: (r
       if (error instanceof PendingPaymentInFlightError) {
         console.warn("api_payment_in_flight", { requestId, path: new URL(req.url).pathname, method: error.pending.method });
         return NextResponse.json({ error: PENDING_PAYMENT_IN_FLIGHT, pending: error.pending, requestId }, { status: 409, headers: { "X-Request-Id": requestId } });
+      }
+      // Cuenta ya facturada: tampoco es un conflicto genérico. Va con su
+      // código y con qué factura la cierra, para que la pantalla lo diga.
+      if (error instanceof OrderInvoicedError) {
+        return NextResponse.json({ error: ORDER_INVOICED, invoice: error.invoice, requestId }, { status: 409, headers: { "X-Request-Id": requestId } });
       }
       const message = error instanceof Error ? error.message : "";
       const conflict = /operation_conflict|amount_exceeds_outstanding|order_closed|payment_amounts_valid|Unique constraint|deadlock|write conflict/.test(message);

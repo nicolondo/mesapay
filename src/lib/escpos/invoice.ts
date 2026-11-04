@@ -137,6 +137,20 @@ export type ThermalInvoice = {
   paymentTitle: string | null;
   /** Un renglón por pago cobrado ("Efectivo · $ 40.000"). */
   paymentRows: ThermalInvoiceRow[];
+  /**
+   * Factura emitida ANTES de cobrar y todavía sin saldar: "Pendiente de
+   * pago $ X", en negrita, en lugar de (o debajo de) la forma de pago.
+   * Opcional: ausente en toda factura emitida al cobrar.
+   */
+  pendingRow?: ThermalInvoiceRow | null;
+  /**
+   * Propina sugerida sobre lo pendiente y "TOTAL CON PROPINA", como en la
+   * precuenta: esta hoja la reemplaza cuando el comensal pide la factura
+   * antes de pagar. Vacío/ausente fuera de ese caso.
+   */
+  tipRows?: ThermalInvoiceRow[];
+  /** "La propina es voluntaria…" debajo de `tipRows`. */
+  tipNotice?: string | null;
   /** Resolución DIAN, numeración autorizada, agradecimiento. */
   footerLines: string[];
   /**
@@ -258,6 +272,12 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     paymentTitle:
       typeof inv.paymentTitle === "string" ? inv.paymentTitle : null,
     paymentRows: rows(inv.paymentRows),
+    // Factura emitida antes de cobrar. Ausentes en todo payload anterior.
+    ...(inv.pendingRow != null && {
+      pendingRow: rows([inv.pendingRow])[0] ?? null,
+    }),
+    ...(Array.isArray(inv.tipRows) && { tipRows: rows(inv.tipRows) }),
+    ...(typeof inv.tipNotice === "string" && { tipNotice: inv.tipNotice }),
     footerLines: stringList(inv.footerLines),
     fiscal,
   };
@@ -371,6 +391,24 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
     }
     for (const row of invoice.paymentRows) {
       for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
+    }
+  }
+
+  // ── Factura emitida ANTES de cobrar ─────────────────────────────────
+  // "Pendiente de pago" fuerte (como el TOTAL) y, aparte, la propina
+  // sugerida con el TOTAL CON PROPINA, como en la precuenta: la propina
+  // NO está en el TOTAL de arriba y el aviso lo dice en letras.
+  if (invoice.pendingRow) chunks.push(...totalRowChunks(invoice.pendingRow, cols));
+  if (invoice.tipRows && invoice.tipRows.length > 0) {
+    chunks.push(separator(cols));
+    for (const row of invoice.tipRows) {
+      if (row.strong) chunks.push(...totalRowChunks(row, cols));
+      else for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
+    }
+    if (invoice.tipNotice) {
+      chunks.push(selectFont("B"));
+      for (const l of wrap(invoice.tipNotice, smallCols)) chunks.push(line(l));
+      chunks.push(selectFont("A"));
     }
   }
 

@@ -261,6 +261,7 @@ const CHECK_LINKS: Partial<Record<CheckResult["key"], { href: string; labelKey: 
   ivaNoDescontable: { href: "/operator/settings/proveedores", labelKey: "linkPurchaseSettings" },
   terceroSinNit: { href: "/operator/settings/proveedores", labelKey: "linkSuppliers" },
   sinDocumento: { href: "/operator/contabilidad/comprobantes", labelKey: "linkVouchers" },
+  facturadaPendiente: { href: "/operator/tables", labelKey: "linkTables" },
 };
 
 const AMOUNT_HEAD: Partial<Record<CheckResult["key"], string>> = {

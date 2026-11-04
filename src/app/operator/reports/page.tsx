@@ -229,6 +229,7 @@ export default async function ReportsPage({
             status: o.status,
             subtotalCents: o.subtotalCents,
             totalCents: o.totalCents,
+            invoiceDocumentNumber: o.invoiceDocumentNumber,
             tableLabel: o.table
               ? o.table.label ?? t("tableLabel", { number: o.table.number })
               : t("noTable"),

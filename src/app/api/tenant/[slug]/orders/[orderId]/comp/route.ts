@@ -10,6 +10,9 @@ import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { isInvoiceAnnulled } from "@/lib/orders/invoicedOrder";
+import { ORDER_INVOICED } from "@/lib/orders/orderInvoicedError";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -96,6 +99,29 @@ async function POSTHandler(
   if (order.status === "paid" || order.compedAt) {
     return NextResponse.json({ error: "already_closed" }, { status: 409 });
   }
+  // Cuenta ya facturada (factura antes de cobrar): no se regala una venta
+  // facturada. Sólo cuando una nota crédito la ANULÓ entera se puede cerrar
+  // sin cobro (el cliente se fue sin pagar) — ver orders/invoicedOrder.ts.
+  const invoiced = await db.simpleInvoice.findUnique({
+    where: { orderId: order.id },
+    select: { id: true, invoiceNumber: true, snapshot: true, totalCents: true },
+  });
+  const annulled = invoiced ? await isInvoiceAnnulled(db, invoiced) : false;
+  if (invoiced && !annulled) {
+    return NextResponse.json(
+      {
+        error: ORDER_INVOICED,
+        invoice: {
+          invoiceId: invoiced.id,
+          documentNumber: formatInvoiceNumber(
+            invoiced.snapshot as unknown as InvoiceSnapshot,
+            invoiced.invoiceNumber,
+          ),
+        },
+      },
+      { status: 409 },
+    );
+  }
 
   // Mismo guardarraíl que el cobro: el mesero sin turno abierto descuadra el
   // arqueo; se bloquea y el front ofrece abrir turno.
@@ -168,6 +194,17 @@ async function POSTHandler(
         compAmountCents,
       },
     });
+    // Factura emitida antes de cobrar y ANULADA con nota crédito (el
+    // cliente se fue sin pagar): la cuenta se cierra CANCELADA, sin
+    // `paidAt`. Así ni la factura ni su anulación entran a libros ni a los
+    // reportes que cortan por la cuenta cobrada (motor, impuestos, exógena,
+    // libro de ventas): se netean entre ellas, como en la DIAN. Cerrarla
+    // "pagada" en $0 metería al motor el impuesto que congeló la factura,
+    // sin plata que lo respalde. Ver orders/invoicedOrder.ts.
+    if (invoiced) {
+      await tx.order.update({ where: { id: order.id }, data: { status: "cancelled", paidAt: null } });
+      return { fullyPaid: false, compAmountCents, fired: [] as Awaited<ReturnType<typeof activateOpenRounds>> };
+    }
     const totals = await recomputeOrderTotalsInTx(tx, order.id);
     // Una cortesía también "paga" la cuenta: activa rondas prepagas y, si
     // la estación marcha sola, `fired` trae qué imprimir después de la tx.
@@ -186,7 +223,9 @@ async function POSTHandler(
     kind: "order.comp",
     restaurantId: tenant.id,
     target: { type: "order", id: order.id },
-    summary: `No cobró la cuenta (${label}) — ${parsed.data.note}`,
+    summary: invoiced
+      ? `Cerró sin cobro la cuenta con la factura anulada (${label}) — ${parsed.data.note}`
+      : `No cobró la cuenta (${label}) — ${parsed.data.note}`,
     diff: {
       after: {
         compAmountCents: result.compAmountCents,

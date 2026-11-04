@@ -34,11 +34,18 @@ export function SimpleInvoiceSheet({
   beforePayment = false,
   operatorMode = false,
   staffPrint = null,
+  closeOnSave = false,
   onClose,
   onSaved,
 }: {
   tenantSlug: string;
   orderId: string;
+  /**
+   * Cerrar apenas se guarda, sin la pantalla de "listo". Lo usa la factura
+   * ANTES de cobrar (`PreInvoiceAction`): ahí el correo es un dato más de la
+   * factura que se va a emitir, no una solicitud que "llega al pagar".
+   */
+  closeOnSave?: boolean;
   /**
    * Quien mira es STAFF (verificado por el server): "Imprimir factura" sale
    * por el agente, como las comandas. null (el comensal): abre la vista.
@@ -97,6 +104,11 @@ export function SimpleInvoiceSheet({
       return;
     }
     const j = (await r.json()) as { invoiceUrl?: string; deferred?: boolean };
+    if (closeOnSave) {
+      onSaved?.(mail);
+      onClose();
+      return;
+    }
     if (j.deferred) {
       setDone({ deferred: true, email: mail });
     } else {

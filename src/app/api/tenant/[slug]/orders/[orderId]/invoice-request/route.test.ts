@@ -207,3 +207,44 @@ it("sin sesión de staff el billingCustomerId se ignora: el comensal no puede da
   expect(m.applyDiscount).not.toHaveBeenCalled();
   expect((await res.json()).discount).toBeNull();
 });
+
+it("factura ya emitida ANTES de cobrar: el adquiriente no cambia (409 order_invoiced; se corrige con nota crédito)", async () => {
+  m.order.mockResolvedValue({
+    id: "order-1",
+    restaurantId: "rest-1",
+    status: "served",
+    simpleInvoice: { id: "inv-1", invoiceNumber: 6490, snapshot: { invoicePrefix: "FESM" } },
+  });
+  const res = await post(payload);
+  expect(res.status).toBe(409);
+  expect(await res.json()).toEqual({
+    error: "order_invoiced",
+    invoice: { invoiceId: "inv-1", documentNumber: "FESM6490" },
+  });
+  expect(m.create).not.toHaveBeenCalled();
+  expect(m.update).not.toHaveBeenCalled();
+  expect(m.issue).not.toHaveBeenCalled();
+});
+
+it("con la cuenta ya pagada sigue el camino de siempre (la solicitud tardía se guarda)", async () => {
+  m.order.mockResolvedValue({
+    id: "order-1",
+    restaurantId: "rest-1",
+    status: "paid",
+    simpleInvoice: { id: "inv-1", invoiceNumber: 6490, snapshot: { invoicePrefix: "FESM" } },
+  });
+  m.issue.mockResolvedValue({
+    ok: true,
+    invoiceId: "inv-1",
+    invoiceUrl: "u",
+    invoiceNumber: 6490,
+    snapshot: {},
+    email: null,
+    locale: null,
+    alreadyIssued: true,
+  });
+  const res = await post(payload);
+  expect(res.status).toBe(200);
+  expect(m.create).toHaveBeenCalled();
+});
+

@@ -47,6 +47,7 @@ export type CheckKey =
   | "corte"
   | "sinDocumento"
   | "notasCredito"
+  | "facturadaPendiente"
   | "variacion";
 
 /** Orden de lectura dentro de una misma severidad. */
@@ -66,6 +67,7 @@ export const CHECK_ORDER: readonly CheckKey[] = [
   "corte",
   "sinDocumento",
   "notasCredito",
+  "facturadaPendiente",
   "variacion",
 ];
 
@@ -85,6 +87,7 @@ const SEVERITY: Record<CheckKey, CheckSeverity> = {
   corte: "info",
   sinDocumento: "info",
   notasCredito: "info",
+  facturadaPendiente: "info",
   variacion: "info",
 };
 
@@ -156,6 +159,13 @@ export type ChecksInput = {
   }[];
   /** Serie de los últimos períodos por impuesto (el último = el actual). */
   trend?: Partial<Record<DrillTaxKey, readonly number[]>>;
+  /**
+   * Facturas emitidas ANTES de cobrar en el período cuya cuenta sigue sin
+   * cobrarse (`loadPendingPaymentSaleDocs`). No están en los documentos ni
+   * en el libro —la venta entra el día que se cobra— y NO son un error:
+   * la revisión las muestra como «facturadas, pendientes de pago».
+   */
+  pendingPaymentSales?: readonly SaleTaxInput[];
 };
 
 const REJECTED = new Set(["rejected"]);
@@ -510,6 +520,18 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
   out.push(result("corte", corte, { taxes: taxesOf(recon.rows.corte) }));
   out.push(result("sinDocumento", sinDocumento, { taxes: taxesOf(recon.rows.sinDocumento) }));
   out.push(result("notasCredito", notasRows, { taxes: taxesOf(notas) }));
+  // Facturas emitidas antes de cobrar y todavía sin cobrar: información,
+  // no hallazgo. La DIAN ya las tiene; su venta (y su impuesto) entra al
+  // período en que se cobren, o se anulan con nota crédito si el cliente se
+  // fue.
+  const pendientes = input.pendingPaymentSales ?? [];
+  out.push(
+    result(
+      "facturadaPendiente",
+      pendientes.map((s) => saleRow(s, s.taxCents, ["pendingPayment"])),
+      { taxes: uniq(pendientes.flatMap(salesTaxKey)) },
+    ),
+  );
   out.push({
     ...result("variacion", [], { taxes: spikes.map((s) => s.tax), count: spikes.length, amountCents: 0 }),
     spikes,

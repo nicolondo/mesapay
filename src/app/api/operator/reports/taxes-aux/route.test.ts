@@ -66,6 +66,8 @@ vi.mock("@/lib/erp/reports/taxesQueries", () => ({
   loadCurrentSalesTax: vi.fn(async () => ({ kind: "inc", pct: 8 })),
   loadTaxAccounts: vi.fn(async () => h.state.accounts),
   loadTaxLedgerLines: h.loadTaxLedgerLines,
+  // Facturas emitidas antes de cobrar y sin cobrar: ninguna en estos casos.
+  loadPendingPaymentSaleDocs: vi.fn(async () => []),
 }));
 vi.mock("@/lib/erp/reports/taxesDrillQueries", () => ({
   loadDrillTenant: vi.fn(async () => ({

@@ -723,6 +723,62 @@ describe("medio de pago (PaymentMeans)", () => {
   });
 });
 
+describe("factura emitida ANTES de cobrar", () => {
+  type Item = ReturnType<typeof invoice>["order"]["items"][number] & { id: string };
+  const preIssued = (over: { payments?: unknown[]; items?: Item[]; orderItemIds?: string[] } = {}) => {
+    const inv = invoice({
+      snapshot: { issuedBeforePayment: true, orderItemIds: over.orderItemIds ?? ["it-1"] },
+    });
+    return {
+      ...inv,
+      order: {
+        ...inv.order,
+        items: over.items ?? [{ ...inv.order.items[0], id: "it-1" }],
+        payments: over.payments ?? [],
+      },
+    };
+  };
+
+  it("sale de contado con medio '1 – Instrumento no definido': todavía nadie sabe cómo va a pagar", async () => {
+    m.invoiceFindUnique.mockResolvedValue(preIssued());
+    expect((await emit()).outcome).toBe("accepted");
+    const xml = sentXml();
+    expect(xml).toContain("<cac:PaymentMeans><cbc:ID>1</cbc:ID><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode>");
+  });
+
+  it("un reintento cuando la cuenta ya se cobró a crédito declara crédito (manda el cobro a crédito)", async () => {
+    m.invoiceFindUnique.mockResolvedValue(
+      preIssued({ payments: [{ billingCustomer: { creditTermsDays: 30 } }] }),
+    );
+    await emit();
+    expect(sentXml()).toContain("<cac:PaymentMeans><cbc:ID>2</cbc:ID><cbc:PaymentMeansCode>1</cbc:PaymentMeansCode>");
+  });
+
+  it("el XML lleva SÓLO los ítems que congeló la factura, aunque se cuele otro en la cuenta", async () => {
+    const base = preIssued();
+    const extra = { ...base.order.items[0], id: "it-2", nameSnapshot: "Postre colado", priceCentsSnapshot: 9_000_00 };
+    m.invoiceFindUnique.mockResolvedValue(preIssued({ items: [base.order.items[0], extra] }));
+    expect((await emit()).outcome).toBe("accepted");
+    const xml = sentXml();
+    expect(xml).toContain("Bandeja paisa");
+    expect(xml).not.toContain("Postre colado");
+  });
+
+  it("con printOnAccept: false la aceptación no encola papel (lo imprime quien la pidió)", async () => {
+    m.invoiceFindUnique.mockResolvedValue(preIssued());
+    const r = await emitDianInvoice({
+      simpleInvoiceId: "inv-1",
+      restaurantId: "rest-1",
+      now: NOW,
+      printOnAccept: false,
+    });
+    expect(r.outcome).toBe("accepted");
+    expect(m.printAcceptedDianInvoice).not.toHaveBeenCalled();
+    // El correo de la factura electrónica sí sale como siempre.
+    expect(m.sendDianInvoiceEmail).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("fecha fiscal — hora de Colombia, no el día UTC", () => {
   // 9 p. m. del 15/09 en Bogotá = 02:00 UTC del 16/09. Antes la factura
   // declaraba IssueDate 2026-09-16 con IssueTime 21:00:00-05:00.

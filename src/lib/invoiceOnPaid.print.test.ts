@@ -44,7 +44,11 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/mailer", () => ({ sendEmail: m.sendEmail }));
-vi.mock("@/lib/invoice", () => ({ renderInvoiceEmail: vi.fn() }));
+vi.mock("@/lib/invoice", () => ({
+  renderInvoiceEmail: vi.fn(),
+  isIssuedBeforePayment: (s: { issuedBeforePayment?: boolean } | null | undefined) =>
+    s?.issuedBeforePayment === true,
+}));
 vi.mock("@/lib/print/invoiceQueue", () => ({
   enqueueInvoicePrintSafe: m.enqueueInvoicePrintSafe,
 }));
@@ -223,3 +227,46 @@ describe("genérica pedida SIN correo — al cobrar se emite y se encola para im
     expect(m.enqueueInvoicePrintSafe).not.toHaveBeenCalled();
   });
 });
+
+describe("cobro de una cuenta con la factura emitida ANTES de cobrar", () => {
+  const preIssued = {
+    id: "inv-pre",
+    restaurantId: "rest-1",
+    orderId: "order-1",
+    invoiceNumber: 7,
+    email: null,
+    snapshot: { restaurantName: "Donde Chucho", issuedBeforePayment: true },
+  };
+
+  it("sin facturación electrónica: devuelve ESA factura, no re-numera y no saca otra hoja", async () => {
+    m.orderFindUnique.mockResolvedValue(orderRow({ simpleInvoice: preIssued }));
+    const r = await call();
+    expect(r).toMatchObject({ status: "issued", invoiceId: "inv-pre", alreadyIssued: true });
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+    expect(m.invoiceCreate).not.toHaveBeenCalled();
+    expect(m.enqueueInvoicePrintSafe).not.toHaveBeenCalled();
+  });
+
+  it("con facturación electrónica y la DIAN ya la aceptó: ni otra emisión ni otra hoja", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      orderRow({ simpleInvoice: preIssued, restaurant: { enabledModules: ["einvoicing"] } }),
+    );
+    m.ensureDianDocument.mockResolvedValue({ id: "doc-1", state: "accepted", attempts: 1, created: false });
+    const r = await call();
+    expect(r).toMatchObject({ status: "issued", invoiceId: "inv-pre", alreadyIssued: true, emit: null });
+    expect(m.resolveEmisor).not.toHaveBeenCalled();
+    expect(m.emitDianInvoice).not.toHaveBeenCalled();
+    expect(m.enqueueInvoicePrintSafe).not.toHaveBeenCalled();
+  });
+
+  it("con la DIAN todavía sin enviarla (quedó en cola): el cobro la vuelve a intentar, sin numerar otra", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      orderRow({ simpleInvoice: preIssued, restaurant: { enabledModules: ["einvoicing"] } }),
+    );
+    m.ensureDianDocument.mockResolvedValue({ id: "doc-1", state: "to_send", attempts: 0, created: false });
+    await call();
+    expect(m.emitDianInvoice).toHaveBeenCalledWith({ simpleInvoiceId: "inv-pre", restaurantId: "rest-1" });
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
+  });
+});
+

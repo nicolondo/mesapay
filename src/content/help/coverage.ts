@@ -38,6 +38,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "cobrar-una-cuenta",
     "pagos-pendientes-del-comensal",
     "imprimir-la-precuenta",
+    "factura-antes-de-cobrar",
     "factura-manual",
   ],
   "/operator/tables/print": ["crear-mesas-e-imprimir-qr"],
@@ -66,7 +67,12 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
 
   /* ── Cobro y caja ── */
   "/operator/payments": ["cobros-reembolsos-y-conciliacion"],
-  "/operator/reports": ["abrir-y-cerrar-el-turno", "la-caja", "cortesias-y-productos-no-cobrados"],
+  "/operator/reports": [
+    "abrir-y-cerrar-el-turno",
+    "la-caja",
+    "cortesias-y-productos-no-cobrados",
+    "factura-antes-de-cobrar",
+  ],
   "/operator/reports/ventas": ["analizar-las-ventas"],
   "/operator/reports/no-cobrados": ["cortesias-y-productos-no-cobrados"],
   "/operator/reports/gastos-representacion": ["cortesias-y-productos-no-cobrados"],
@@ -78,11 +84,16 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },
-  "/mesero/mesas": ["mesas-y-ficha-en-la-app", "por-que-no-puedo-cobrar-o-mover"],
+  "/mesero/mesas": [
+    "mesas-y-ficha-en-la-app",
+    "por-que-no-puedo-cobrar-o-mover",
+    "factura-antes-de-cobrar",
+  ],
   "/mesero/salon": ["salon-en-la-app", "entrar-e-instalar-la-app"],
   "/mesero/pedir/[tableId]": ["pedir-desde-la-app"],
   "/mesero/cobrar/[orderId]": [
     "cobrar-desde-la-app",
+    "factura-antes-de-cobrar",
     "dividir-la-cuenta",
     "por-que-no-puedo-cobrar-o-mover",
   ],
@@ -112,6 +123,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "como-paga-el-comensal",
     "factura-del-comensal",
     "cobrar-una-cuenta",
+    "factura-antes-de-cobrar",
     "cobrar-en-efectivo",
     "cobrar-con-datafono",
     "dividir-la-cuenta",

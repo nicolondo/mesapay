@@ -100,11 +100,14 @@ test("inventory hides archived stock by default and can explicitly reveal its pr
   try {
     await page.goto("/operator/inventario");
     await expect(page.getByText(f.archived.name, { exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Mostrar archivados", exact: true }).click();
+    // Chip «Archivados N» de la barra de filtros de Existencias.
+    await page.getByRole("button", { name: new RegExp(`^${es.opErp.filterArchivedIngredients}`) }).click();
     await expect(page.getByText(f.archived.name, { exact: true }).locator("visible=true")).toHaveCount(1);
     expect(await db.stockLevel.findUniqueOrThrow({ where: { ingredientId: f.archived.id } })).toMatchObject({ qtyBase: 1000, totalValueCents: 500000 });
     await page.getByRole("tab", { name: es.opErp.tabMovements, exact: true }).click();
-    await expect(page.getByText(f.active.name, { exact: true }).first()).toBeVisible();
+    // Las pestañas ya abiertas quedan montadas (ocultas): se busca dentro del
+    // panel de Movimientos y solo lo visible (tabla o tarjetas según el ancho).
+    await expect(page.locator("#inv-panel-movements").getByText(f.active.name, { exact: true }).filter({ visible: true }).first()).toBeVisible();
   } finally { await f.cleanup(); }
 });
 

@@ -3,12 +3,17 @@ import {
   currentMonthPeriod,
   isIsoDate,
   monthRangeUtc,
+  periodIncludes,
   periodKind,
+  periodKindWithDay,
+  periodLengthDays,
   periodToUtcRange,
   resolveReportPeriod,
+  shiftByLength,
   shiftPeriod,
   snapPeriod,
   todayIso,
+  unitRange,
   weekRangeUtc,
 } from "./period";
 
@@ -169,5 +174,48 @@ describe("todayIso", () => {
     // 2026-09-22T03:00Z todavía es 21 de septiembre en Bogotá (UTC−5).
     expect(todayIso(new Date("2026-09-22T03:00:00Z"))).toBe("2026-09-21");
     expect(todayIso(new Date("2026-09-22T06:00:00Z"))).toBe("2026-09-22");
+  });
+});
+
+describe("unidad «día» (lista de Órdenes)", () => {
+  const day = (iso: string) => ({ desde: iso, hasta: iso });
+
+  it("periodKindWithDay: un día suelto es «día», un año completo es un rango", () => {
+    expect(periodKindWithDay(day("2026-11-04"))).toBe("día");
+    expect(periodKindWithDay({ desde: "2026-11-02", hasta: "2026-11-08" })).toBe("semana");
+    expect(periodKindWithDay({ desde: "2026-11-01", hasta: "2026-11-30" })).toBe("mes");
+    expect(periodKindWithDay({ desde: "2026-01-01", hasta: "2026-12-31" })).toBe("rango");
+    expect(periodKindWithDay({ desde: "2026-10-29", hasta: "2026-11-04" })).toBe("rango");
+    // Los reportes no cambian: para ellos un día es un rango.
+    expect(periodKind(day("2026-11-04"))).toBe("rango");
+  });
+
+  it("shiftPeriod por día cruza mes, año y el 29 de febrero", () => {
+    expect(shiftPeriod(day("2026-11-01"), "día", -1)).toEqual(day("2026-10-31"));
+    expect(shiftPeriod(day("2026-12-31"), "día", 1)).toEqual(day("2027-01-01"));
+    expect(shiftPeriod(day("2028-03-01"), "día", -1)).toEqual(day("2028-02-29"));
+  });
+
+  it("snapPeriod a día: hoy si cae en el período, si no el último día", () => {
+    expect(snapPeriod({ desde: "2026-11-02", hasta: "2026-11-08" }, "día", "2026-11-04")).toEqual(day("2026-11-04"));
+    expect(snapPeriod({ desde: "2026-10-01", hasta: "2026-10-31" }, "día", "2026-11-04")).toEqual(day("2026-10-31"));
+    // Y de un día a su semana (lunes a domingo) y a su mes.
+    expect(snapPeriod(day("2026-11-04"), "semana", "2026-11-04")).toEqual({ desde: "2026-11-02", hasta: "2026-11-08" });
+    expect(snapPeriod(day("2026-11-04"), "mes", "2026-11-04")).toEqual({ desde: "2026-11-01", hasta: "2026-11-30" });
+    expect(unitRange("2026-11-04", "día")).toEqual(day("2026-11-04"));
+  });
+
+  it("shiftByLength mueve un rango libre su propio largo, sin solapar", () => {
+    expect(periodLengthDays({ desde: "2026-11-03", hasta: "2026-11-12" })).toBe(10);
+    expect(shiftByLength({ desde: "2026-11-03", hasta: "2026-11-12" }, -1)).toEqual({ desde: "2026-10-24", hasta: "2026-11-02" });
+    expect(shiftByLength({ desde: "2026-11-03", hasta: "2026-11-12" }, 1)).toEqual({ desde: "2026-11-13", hasta: "2026-11-22" });
+    expect(shiftByLength(day("2026-11-04"), -1)).toEqual(day("2026-11-03"));
+  });
+
+  it("periodIncludes compara fechas ISO con ambos extremos incluidos", () => {
+    const week = { desde: "2026-11-02", hasta: "2026-11-08" };
+    expect(periodIncludes(week, "2026-11-02")).toBe(true);
+    expect(periodIncludes(week, "2026-11-08")).toBe(true);
+    expect(periodIncludes(week, "2026-11-09")).toBe(false);
   });
 });

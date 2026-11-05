@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["inventory"];
 
+const MOVEMENTS_PAGE_SIZE = 30;
+
 // Kinds que la API acepta en A1 (sale_consumption/transfer/production
 // llegan con A4/A5 desde sus propios flujos; count_adjust solo lo genera
 // el cierre de conteo).
@@ -80,21 +82,26 @@ async function GETHandler(req: Request) {
   const ingredientId = searchParams.get("ingredientId") ?? undefined;
   const cursor = searchParams.get("cursor") ?? undefined;
 
-  const movements = await db.stockMovement.findMany({
+  // Una fila de más dice si queda otra página (sin un «Cargar más» que
+  // termine vacío); `id` desempata movimientos del mismo instante (un
+  // consumo por venta escribe varios a la vez) para que el cursor no
+  // repita ni salte filas.
+  const page = await db.stockMovement.findMany({
     where: {
       restaurantId: ctx.restaurantId,
       ...(ingredientId ? { ingredientId } : {}),
     },
-    take: 30,
+    take: MOVEMENTS_PAGE_SIZE + 1,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
       ingredient: { select: { id: true, name: true, measureKind: true } },
       createdBy: { select: { id: true, name: true } },
     },
   });
+  const movements = page.slice(0, MOVEMENTS_PAGE_SIZE);
   const nextCursor =
-    movements.length === 30 ? movements[movements.length - 1].id : undefined;
+    page.length > MOVEMENTS_PAGE_SIZE ? movements[movements.length - 1].id : undefined;
   return NextResponse.json({ movements, nextCursor });
 }
 

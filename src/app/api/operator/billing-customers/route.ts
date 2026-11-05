@@ -5,13 +5,24 @@ import { secureApi } from "@/lib/secureApi";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { rateLimit } from "@/lib/rateLimit";
 import { billingCustomerSchema, BILLING_CUSTOMER_READ_ROLES, BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
-import { loadCustomersDebt } from "@/lib/customerCredit";
+import { parseCustomerListParams, parsePageSize } from "@/lib/billingCustomerList";
+import { loadBillingCustomerPage } from "@/lib/billingCustomerListQueries";
 
 /**
- * Listado/búsqueda de clientes de facturación. Cada fila trae `debtCents`
- * (lo que debe por ventas a crédito) para la columna "Deuda" del listado y
- * el "Debe hoy" del cobro. `?credit=1` deja sólo los que tienen crédito
- * habilitado (el selector del cobro a crédito).
+ * Listado/búsqueda de clientes de facturación, paginado en el servidor
+ * sobre TODOS los clientes del comercio (antes devolvía los primeros 50 por
+ * nombre y nada más). Lo usa el buscador de clientes del cobro y de la
+ * factura (`CustomerPicker`), con "Ver más".
+ *
+ *   ?q=        nombre, documento (con o sin puntos/DV) o correo
+ *   ?credit=1  sólo los que tienen crédito habilitado (cobro a crédito)
+ *   ?type= ?status= ?sort=   los mismos filtros de /operator/clientes;
+ *              sort=relevance pone primero el documento exacto
+ *   ?page= ?pageSize=        1-based; pageSize ≤ 50
+ *
+ * Cada fila trae `debtCents` (lo que debe) y `overdueCents` (lo vencido).
+ * La respuesta dice cuántos hay en total y si hay más páginas, para que
+ * ningún buscador corte la lista sin avisar.
  */
 async function GETHandler(req: Request) {
   const scope = await requireOperatorScope(BILLING_CUSTOMER_READ_ROLES);
@@ -19,26 +30,24 @@ async function GETHandler(req: Request) {
   if (!await rateLimit(`billing-customers:read:${scope.restaurantId}:${scope.userId}`, 120, 60)) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
   }
-  const params = new URL(req.url).searchParams;
-  const q = (params.get("q") ?? "").trim().slice(0, 160);
-  const creditOnly = params.get("credit") === "1";
-  const documentQuery = q.replace(/[.\s]/g, "").replace(/-\d$/, "").toUpperCase();
-  const rows = await db.billingCustomer.findMany({
-    where: {
-      restaurantId: scope.restaurantId,
-      ...(creditOnly ? { creditEnabled: true } : {}),
-      ...(q ? { OR: [
-        { customerName: { contains: q, mode: "insensitive" as const } },
-        { email: { contains: q, mode: "insensitive" as const } },
-        ...(documentQuery ? [{ docNumber: { contains: documentQuery, mode: "insensitive" as const } }] : []),
-      ] } : {}),
+  const search = new URL(req.url).searchParams;
+  const params = parseCustomerListParams(Object.fromEntries(search));
+  const list = await loadBillingCustomerPage(
+    scope.restaurantId,
+    { ...params, sort: search.get("sort") === "relevance" ? "relevance" : params.sort },
+    { pageSize: parsePageSize(search.get("pageSize")), creditOnly: search.get("credit") === "1" },
+  );
+  return NextResponse.json(
+    {
+      customers: list.rows,
+      total: list.total,
+      page: list.page,
+      pageCount: list.pageCount,
+      pageSize: list.pageSize,
+      hasMore: list.page < list.pageCount,
     },
-    orderBy: [{ customerName: "asc" }, { id: "asc" }],
-    take: 50,
-  });
-  const debt = rows.length > 0 ? await loadCustomersDebt(scope.restaurantId) : new Map<string, number>();
-  const customers = rows.map((c) => ({ ...c, debtCents: debt.get(c.id) ?? 0 }));
-  return NextResponse.json({ customers }, { headers: { "Cache-Control": "no-store" } });
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 async function POSTHandler(req: Request) {

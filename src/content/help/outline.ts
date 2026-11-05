@@ -133,7 +133,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "buscar-y-revisar-ordenes",
       title: "Busca una orden y revisa su detalle",
       covers:
-        "\"Buscar orden\", el código corto de 6 caracteres (la búsqueda respeta el periodo, que arranca en \"Hoy\"), filtros de \"Órdenes\" (estado y periodo), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
+        "\"Órdenes\": navegador de periodo (Día, Semana, Mes, Rango; flechas, \"Volver a hoy\", días de negocio con la hora de corte), totales del periodo (Órdenes, Pagadas, Ventas brutas), filtro de estado con cantidades, lista paginada de 50, búsqueda por código (en el periodo, o \"Buscar en todas las fechas\") y por número de factura o nota crédito (siempre en todas las fechas), \"Buscar orden o factura\" de la barra de arriba, la factura en la fila (número, estado DIAN y menú ⋯), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
     },
     {
       slug: "reservas",
@@ -407,13 +407,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "inventario-del-dia-a-dia",
       title: "Registra entradas, ajustes y mermas de inventario",
       covers:
-        "\"Existencias\" (filtros \"Bajo mínimo\", \"Con existencias\", \"Mostrar archivados\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
+        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
     },
     {
       slug: "conteo-de-inventario",
       title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), asociar códigos (\"Agregar código de barras\" / \"Agregar otro código\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias (principal, \"Quitar\") y asociarlos desde el conteo (\"Agregar código de barras\" / \"Agregar otro código\"), lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",
@@ -485,7 +485,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "clientes-de-facturacion",
       title: "Crea clientes para facturar",
       covers:
-        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\"), \"Descuento\" comercial, editar y buscar; diferencia con los comensales registrados.",
+        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\", deuda vencida), \"Descuento\" comercial, editar; buscar, filtrar (tipo, condición), ordenar y paginar, resumen de deuda; la pestaña de comensales registrados y su búsqueda.",
     },
   ],
 

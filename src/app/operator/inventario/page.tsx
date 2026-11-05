@@ -3,8 +3,10 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
+import { loadInventoryStock } from "@/lib/erp/inventoryStock";
 import { isModuleEnabled } from "@/lib/modules";
 import { InventarioClient } from "./InventarioClient";
+import { tabFromParam } from "./types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +16,14 @@ export const dynamic = "force-dynamic";
  * propia en la nav (operación diaria, no configuración). Gate estricto:
  * SOLO con el módulo `inventory` activado — mismo gate que la API de stock;
  * apagado, la página no existe (notFound) y el item de nav tampoco.
+ *
+ * `?tab=movimientos|conteos` abre directo esa pestaña (enlaces de la ayuda).
  */
-export default async function InventarioPage() {
-  const t = await getTranslations("opErp");
+export default async function InventarioPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const tSettings = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) {
@@ -35,50 +42,19 @@ export default async function InventarioPage() {
     notFound();
   }
 
-  const excluded = tenant.inventoryExcludedCategories;
-  // Mismo criterio que GET /api/operator/stock: se lista desde el INSUMO
-  // para incluir activos sin movimientos (level null → 0); los inactivos
-  // solo si conservan saldo ≠ 0 (siguen siendo plata en la bodega). Las
-  // categorías sin inventario no aparecen (null-category sí).
-  const ingredients = await db.ingredient.findMany({
-    where: {
-      restaurantId,
-      trackInventory: true,
-      ...(excluded.length > 0
-        ? { OR: [{ category: null }, { category: { notIn: excluded } }] }
-        : {}),
-    },
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      measureKind: true,
-      active: true,
-      barcode: true,
-      barcodes: { where: { restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
-      // A4 — la UI marca "bajo mínimo" con qtyBase <= reorderPointBase.
-      reorderPointBase: true,
-      reorderQtyBase: true,
-      stockLevel: {
-        select: { qtyBase: true, totalValueCents: true, updatedAt: true },
-      },
-    },
-  });
-  const stock = ingredients.filter(
-    (i) => i.active || (i.stockLevel && i.stockLevel.qtyBase !== 0),
-  );
-
+  const stock = await loadInventoryStock(restaurantId, tenant.inventoryExcludedCategories);
   // Moneda = país del comercio; el locale solo define idioma/formato
   // (regla idioma ≠ moneda de @/lib/format).
   const currency = await getCurrencyForCountry(tenant.country);
+  const tabParam = (await searchParams).tab;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">{t("inventarioTitle")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("inventarioIntro")}</p>
-
-      <InventarioClient initial={stock} currency={currency} />
+    <div className="mp-page">
+      <InventarioClient
+        initial={stock}
+        currency={currency}
+        initialTab={tabFromParam(typeof tabParam === "string" ? tabParam : null)}
+      />
     </div>
   );
 }

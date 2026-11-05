@@ -8450,12 +8450,12 @@
     "charge_admin_only": "Solo el administrador puede cobrar en este comercio.",
     "already_settled": "Este pago ya se resolvió. Actualiza para ver cómo quedó la cuenta.",
     "terminal_not_sent": "Este cobro nunca se envió al datáfono: cancela la solicitud en lugar de resolverlo.",
-    "terminal_result_pending": "El datáfono todavía puede responder. Espera unos minutos antes de resolver el cobro a mano.",
+    "terminal_result_pending": "El datáfono todavía no ha confirmado el resultado de este cobro.",
     "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó.",
     "terminal_canceled": "Se canceló en el datáfono. No se cobró nada: puedes volver a enviarlo o cobrar de otra forma.",
-    "terminal_no_answer": "El datáfono no respondió y puede que sí haya cobrado. Revisa la pantalla del datáfono o el comprobante; pasados 3 minutos, el administrador lo resuelve con «Resolver cobro».",
+    "terminal_no_answer": "El datáfono no respondió y puede que sí haya cobrado. Revisa la pantalla del datáfono o el comprobante; el administrador puede usar «Resolver cobro» de inmediato.",
     "confirmation_required": "Confirma en la pantalla del datáfono que el cobro no salió.",
     "terminal_check_unavailable": "Este cobro no se puede consultar en Kushki desde MESAPAY. Revisa el datáfono o la consola de Kushki y resuélvelo con «Resolver cobro»."
   },
@@ -8503,9 +8503,7 @@
     "terminalNoAnswerKicker": "El datáfono no respondió"
   },
   "terminalResolve": {
-    "waitCountdown": "Espera el resultado del datáfono. Si no responde, podrás resolverlo a mano en {time}.",
-    "waitCountdownStaff": "Espera el resultado del datáfono ({time}). Si no responde, el administrador lo resuelve.",
-    "askAdmin": "El datáfono no respondió. Pídele al administrador que resuelva este cobro.",
+    "askAdmin": "Para resolver este cobro manualmente, pídele al administrador.",
     "open": "Resolver cobro",
     "title": "Resolver cobro del datáfono",
     "amount": "Cobro por {amount}",
@@ -8522,7 +8520,8 @@
     "submitApproved": "Marcar como aprobado",
     "saving": "Guardando…",
     "back": "Volver",
-    "error": "No se pudo resolver el cobro. Actualiza e intenta de nuevo."
+    "error": "No se pudo resolver el cobro. Actualiza e intenta de nuevo.",
+    "cancelManually": "Cancelar cobro manualmente"
   },
   "terminalAttempt": {
     "inFlightBody": "El datáfono está esperando la tarjeta. Si la respuesta tarda, MESAPAY la consulta con Kushki y la cuenta se actualiza sola. Si no se va a pagar así, cancélalo en el datáfono.",

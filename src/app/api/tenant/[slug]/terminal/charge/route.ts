@@ -257,7 +257,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -280,7 +280,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -307,7 +307,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -332,7 +332,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }

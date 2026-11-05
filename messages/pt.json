@@ -8450,12 +8450,12 @@
     "charge_admin_only": "Apenas o administrador pode cobrar neste estabelecimento.",
     "already_settled": "Este pagamento já foi resolvido. Atualize para ver como ficou a conta.",
     "terminal_not_sent": "Esta cobrança nunca foi enviada à maquininha: cancele a solicitação em vez de resolvê-la.",
-    "terminal_result_pending": "A maquininha ainda pode responder. Aguarde alguns minutos antes de resolver a cobrança manualmente.",
+    "terminal_result_pending": "A maquininha ainda não confirmou o resultado desta cobrança.",
     "terminal_request_rejected": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha ({detail}). Nada foi cobrado. Confira a Chave Privada Card Present e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
     "terminal_request_rejected_generic": "A Kushki recusou a solicitação na validação antes de enviá-la à maquininha. Nada foi cobrado. Confira a Chave Privada Card Present e o número de série do equipamento em Configurações → Maquininhas e tente de novo, ou cobre de outra forma.",
     "cancellation_admin_required": "Somente o administrador pode cancelar ou deixar de cobrar pratos cujo preparo já começou.",
     "terminal_canceled": "Foi cancelada na maquininha. Nada foi cobrado: você pode enviar de novo ou cobrar de outra forma.",
-    "terminal_no_answer": "A maquininha não respondeu e pode ser que tenha cobrado. Confira a tela da maquininha ou o comprovante; depois de 3 minutos, o administrador resolve com «Resolver cobrança».",
+    "terminal_no_answer": "A maquininha não respondeu e pode ter cobrado. Confira a tela da maquininha ou o comprovante; um administrador pode usar «Resolver cobrança» imediatamente.",
     "confirmation_required": "Confirme na tela da maquininha que a cobrança não passou.",
     "terminal_check_unavailable": "Esta cobrança não pode ser consultada na Kushki pelo MESAPAY. Confira a maquininha ou o console da Kushki e resolva com «Resolver cobrança»."
   },
@@ -8503,9 +8503,7 @@
     "terminalNoAnswerKicker": "A maquininha não respondeu"
   },
   "terminalResolve": {
-    "waitCountdown": "Aguarde o resultado da maquininha. Se não responder, você poderá resolvê-la manualmente em {time}.",
-    "waitCountdownStaff": "Aguarde o resultado da maquininha ({time}). Se não responder, o administrador a resolve.",
-    "askAdmin": "A maquininha não respondeu. Peça ao administrador para resolver esta cobrança.",
+    "askAdmin": "Peça a um administrador para resolver esta cobrança manualmente.",
     "open": "Resolver cobrança",
     "title": "Resolver cobrança da maquininha",
     "amount": "Cobrança de {amount}",
@@ -8522,7 +8520,8 @@
     "submitApproved": "Marcar como aprovado",
     "saving": "Salvando…",
     "back": "Voltar",
-    "error": "Não foi possível resolver a cobrança. Atualize e tente de novo."
+    "error": "Não foi possível resolver a cobrança. Atualize e tente de novo.",
+    "cancelManually": "Cancelar cobrança manualmente"
   },
   "terminalAttempt": {
     "inFlightBody": "A maquininha está esperando o cartão. Se a resposta demorar, o MESAPAY consulta a Kushki e a conta se atualiza sozinha. Se não for pagar assim, cancele na maquininha.",

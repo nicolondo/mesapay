@@ -8450,12 +8450,12 @@
     "charge_admin_only": "Only the administrator can charge at this restaurant.",
     "already_settled": "This payment was already resolved. Refresh to see the bill's status.",
     "terminal_not_sent": "This charge was never sent to the card terminal: cancel the request instead of resolving it.",
-    "terminal_result_pending": "The card terminal may still respond. Wait a few minutes before resolving the charge manually.",
+    "terminal_result_pending": "The terminal has not confirmed the result of this charge yet.",
     "terminal_request_rejected": "Kushki rejected the request during validation before sending it to the card terminal ({detail}). Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
     "terminal_request_rejected_generic": "Kushki rejected the request during validation before sending it to the card terminal. Nothing was charged. Check the Card Present Private Key and the device's serial number in Settings → Card readers and try again, or charge another way.",
     "cancellation_admin_required": "Only an administrator can cancel or waive charges for dishes whose preparation has started.",
     "terminal_canceled": "It was cancelled on the card terminal. Nothing was charged: you can send it again or charge another way.",
-    "terminal_no_answer": "The card terminal didn't respond and it may have charged. Check the terminal's screen or the receipt; after 3 minutes, the administrator resolves it with “Resolve charge”.",
+    "terminal_no_answer": "The card terminal did not respond and it may have charged. Check the terminal screen or receipt; an administrator can use “Resolve charge” immediately.",
     "confirmation_required": "Confirm on the card terminal's screen that the charge didn't go through.",
     "terminal_check_unavailable": "This charge can't be checked with Kushki from MESAPAY. Check the card terminal or the Kushki console and resolve it with “Resolve charge”."
   },
@@ -8503,9 +8503,7 @@
     "terminalNoAnswerKicker": "The card terminal didn't respond"
   },
   "terminalResolve": {
-    "waitCountdown": "Wait for the card terminal's result. If it doesn't respond, you can resolve it manually in {time}.",
-    "waitCountdownStaff": "Wait for the card terminal's result ({time}). If it doesn't respond, the administrator resolves it.",
-    "askAdmin": "The card terminal didn't respond. Ask the administrator to resolve this charge.",
+    "askAdmin": "Ask an administrator to resolve this charge manually.",
     "open": "Resolve charge",
     "title": "Resolve card terminal charge",
     "amount": "Charge of {amount}",
@@ -8522,7 +8520,8 @@
     "submitApproved": "Mark as approved",
     "saving": "Saving…",
     "back": "Back",
-    "error": "The charge couldn't be resolved. Refresh and try again."
+    "error": "The charge couldn't be resolved. Refresh and try again.",
+    "cancelManually": "Cancel charge manually"
   },
   "terminalAttempt": {
     "inFlightBody": "The card terminal is waiting for the card. If the response takes long, MESAPAY checks it with Kushki and the bill updates on its own. If the guest won't pay this way, cancel it on the terminal.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney } from "@/lib/format";
@@ -14,17 +14,10 @@ import {
 } from "@/lib/payments/terminalResolve";
 
 /**
- * Lo que se ve de un cobro del datáfono Kushki YA enviado y sin resultado,
- * debajo del aviso (ficha de la mesa, cobro del staff, Salón):
- *
- *   - antes de 3 minutos desde el envío: la cuenta regresiva ("espera el
- *     resultado");
- *   - después, para el administrador: "Resolver cobro", que abre el diálogo
- *     (rechazado / aprobado, evidencia y confirmación obligatorias); para el
- *     resto (mesero): que se lo pida al administrador.
- *
- * El servidor vuelve a exigir todo (rol, 3 minutos, evidencia): esto sólo
- * evita ofrecer lo que rebotaría. Ver /api/operator/payments/[id]/resolve-terminal.
+ * Resolución manual inmediata de un cobro enviado: sólo el administrador,
+ * tras verificar el datáfono, con evidencia y confirmación explícitas.
+ * No espera una consulta remota ni un temporizador. El servidor valida de
+ * nuevo rol, comercio, envío y estado bajo bloqueo de la cuenta.
  */
 export function TerminalResolveAction({
   paymentId,
@@ -34,6 +27,7 @@ export function TerminalResolveAction({
   canResolve,
   disabled = false,
   onResolved,
+  initialOutcome,
 }: {
   paymentId: string;
   /** Cuándo se envió al datáfono (ISO); null = no se sabe, no se ofrece. */
@@ -44,40 +38,13 @@ export function TerminalResolveAction({
   canResolve: boolean;
   disabled?: boolean;
   onResolved: () => void;
+  /** La cancelación directa abre el mismo diálogo con "no se cobró" elegido. */
+  initialOutcome?: "declined";
 }) {
   const t = useTranslations("terminalResolve");
   const resolvableAt = terminalResolvableAt(pushedAt);
-  // La hora se lee recién en el navegador (no en el render del servidor),
-  // para que la cuenta regresiva no desarme la hidratación.
-  const [now, setNow] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (resolvableAt == null) return;
-    const tick = () => {
-      const current = Date.now();
-      setNow(current);
-      if (current >= resolvableAt) clearInterval(timer);
-    };
-    const first = setTimeout(tick, 0);
-    const timer = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, [resolvableAt]);
-
-  if (resolvableAt == null || now == null) return null;
-  const waiting = now < resolvableAt;
-  if (waiting) {
-    const left = Math.max(0, Math.ceil((resolvableAt - now) / 1000));
-    const time = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    return (
-      <p className="text-[11px] text-op-muted leading-snug" aria-live="off">
-        {canResolve ? t("waitCountdown", { time }) : t("waitCountdownStaff", { time })}
-      </p>
-    );
-  }
+  if (resolvableAt == null) return null;
   if (!canResolve) return <p className="text-[11px] text-op-muted leading-snug">{t("askAdmin")}</p>;
   return (
     <>
@@ -87,13 +54,14 @@ export function TerminalResolveAction({
         onClick={() => setOpen(true)}
         className="min-h-10 px-3 rounded-full bg-terracotta text-bone text-sm font-medium disabled:opacity-60"
       >
-        {t("open")}
+        {t(initialOutcome === "declined" ? "cancelManually" : "open")}
       </button>
       {open && (
         <ResolveTerminalChargeDialog
           paymentId={paymentId}
           amountCents={amountCents}
           currency={currency}
+          initialOutcome={initialOutcome}
           onClose={() => setOpen(false)}
           onDone={() => {
             setOpen(false);
@@ -111,17 +79,19 @@ function ResolveTerminalChargeDialog({
   currency,
   onClose,
   onDone,
+  initialOutcome,
 }: {
   paymentId: string;
   amountCents: number;
   currency: string;
   onClose: () => void;
   onDone: () => void;
+  initialOutcome?: "declined";
 }) {
   const t = useTranslations("terminalResolve");
   const locale = useLocale() as Locale;
   const apiError = useApiError();
-  const [outcome, setOutcome] = useState<"declined" | "approved" | null>(null);
+  const [outcome, setOutcome] = useState<"declined" | "approved" | null>(initialOutcome ?? null);
   const [authorizationCode, setAuthorizationCode] = useState("");
   const [evidence, setEvidence] = useState("");
   const [confirmed, setConfirmed] = useState(false);

@@ -244,7 +244,7 @@ const NO_ANSWER_CODES: ReadonlySet<string> = new Set(["TER-002", "TER-172"]);
  * ¿Esto es una respuesta del equipo que dice que no aprobó (aunque no sea
  * definitiva)? Con ella el staff puede reintentar o cancelar al instante,
  * confirmando en la pantalla del datáfono. Sin ella, el cobro queda como "sin
- * respuesta" (3 minutos + administrador + evidencia).
+ * respuesta" (administrador + evidencia, sin espera obligatoria).
  */
 export function isTerminalDeviceAnswer(answer: CloudTerminalAnswer | null | undefined): boolean {
   if (!answer?.code) return false;

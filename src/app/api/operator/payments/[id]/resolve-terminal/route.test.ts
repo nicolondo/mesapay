@@ -3,7 +3,7 @@ import { createFakePaymentsDb } from "@/test/fakePaymentsDb";
 
 /**
  * "Resolver cobro": el datáfono Kushki SÍ recibió el cobro (reclamo
- * `terminal:<id>`) y el resultado nunca volvió. Pasados 3 minutos, el
+ * `terminal:<id>`) y el resultado nunca volvió. Sin espera obligatoria, el
  * administrador lo marca rechazado o aprobado con evidencia, por la misma
  * conciliación de Cobros (`reconcilePayment`). Ruta real con `secureApi`
  * real y la conciliación real, contra la base en memoria.
@@ -163,21 +163,25 @@ describe("resolve-terminal: Sí se cobró → aprobado", () => {
   });
 });
 
-describe("resolve-terminal: el umbral de 3 minutos", () => {
-  it.each([0, 60_000, 2 * 60_000 + 59_000])("a los %i ms del envío → 409 terminal_result_pending y nada cambia", async (ms) => {
+describe("resolve-terminal: resolución inmediata con comprobación manual", () => {
+  it.each([0, 1, 15_000, 60_000, 179_000, 180_000])("a los %i ms puede cancelar con evidencia sin esperar", async (ms) => {
     seed();
     vi.setSystemTime(at(ms));
     const { status, json } = await resolve(DECLINE);
-    expect(status).toBe(409);
-    expect(json).toEqual({ error: "terminal_result_pending", resolvableAt: at(3 * 60_000).toISOString() });
-    expect(h.fake.payment("smart")).toMatchObject({ status: "pending", reconciliationRequired: false });
-    expect(h.fake.state.auditEvents).toHaveLength(0);
+    expect(status).toBe(200);
+    expect(json).toMatchObject({ ok: true, status: "declined" });
+    expect(h.fake.payment("smart")).toMatchObject({ status: "declined", reconciliationRequired: false });
+    expect(h.fake.state.auditEvents).toHaveLength(1);
+    // afterReconcile invokes the paid-order guard; an unpaid account cannot issue.
+    expect(h.fake.order().status).toBe("served");
   });
 
-  it("justo a los 3 minutos ya se puede", async () => {
+  it("puede registrar un aprobado inmediato solo con voucher y evidencia", async () => {
     seed();
-    vi.setSystemTime(at(3 * 60_000));
-    expect((await resolve(DECLINE)).status).toBe(200);
+    vi.setSystemTime(at(1));
+    expect((await resolve(APPROVE)).status).toBe(200);
+    expect(h.fake.payment("smart")).toMatchObject({ status: "approved", reconciliationRequired: false });
+    expect(h.issueInvoice).toHaveBeenCalledTimes(1);
   });
 });
 

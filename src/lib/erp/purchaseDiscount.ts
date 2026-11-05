@@ -183,3 +183,27 @@ export function discountsReproduceNet(
   );
   return applied.lines.every((a, i) => a.netCents === lines[i]!.netCents);
 }
+
+/**
+ * Descuentos de un formulario (texto + si es % o valor, por línea y del pie)
+ * en la forma que se GUARDA: un % con decimales viaja como su valor. El
+ * servidor recalcula con lo mismo y llega al mismo neto que se ve en
+ * pantalla. Lo usan «Nueva orden» y «Recibir mercancía».
+ */
+export function persistedOrderDiscounts(
+  lines: { listCents: number; discRaw: string; discIsPct: boolean }[],
+  orderRaw: string,
+  orderIsPct: boolean,
+) {
+  const lineDiscounts = lines.map((l) =>
+    toPersistedDiscount(l.listCents, parseDiscountInput(l.discRaw, l.discIsPct)),
+  );
+  const afterLine = lines.reduce(
+    (sum, l, i) => sum + l.listCents - discountAmountCents(l.listCents, lineDiscounts[i]!),
+    0,
+  );
+  return {
+    lines: lineDiscounts,
+    order: toPersistedDiscount(afterLine, parseDiscountInput(orderRaw, orderIsPct)),
+  };
+}

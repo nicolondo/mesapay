@@ -347,3 +347,46 @@ describe("issueSimpleInvoice — factura ANTES de cobrar (beforePayment)", () =>
     expect(m.enqueue).not.toHaveBeenCalled();
   });
 });
+
+describe("issueSimpleInvoice — descuento del cliente dentro de las líneas", () => {
+  // Cuenta de menú con INC 8 % incluido y 20 % de descuento del cliente: la
+  // tirilla congela la base y el impuesto NETOS (lo que declara el XML) y
+  // deja la marca `discountInLines`. Sin descuento, ni marca ni cambio.
+  const items = [
+    { qty: 1, nameSnapshot: "Bandeja paisa", priceCentsSnapshot: 4_200_000, taxKind: null, taxPct: null, cancelledAt: null },
+    { qty: 2, nameSnapshot: "Limonada", priceCentsSnapshot: 1_200_000, taxKind: null, taxPct: null, cancelledAt: null },
+  ];
+
+  it("congela el impuesto embebido sobre lo cobrado y la marca del descuento en las líneas", async () => {
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    m.orderFindUnique.mockResolvedValue({
+      ...order(),
+      items,
+      subtotalCents: 6_600_000,
+      taxCents: 0,
+      discountCents: 1_320_000,
+      discountPct: 20,
+      tipCents: 528_000,
+      totalCents: 5_808_000,
+    });
+    const s = await issuedSnapshot();
+    // Neto cobrado: 52.800 = base 48.888,89 + INC 3.911,11 (antes: 61.111,11 + 4.888,89).
+    expect(s).toMatchObject({
+      discountCents: 1_320_000,
+      discountPct: 20,
+      embeddedTaxCents: 391_111,
+      embeddedBaseCents: 4_888_889,
+      discountInLines: { allowanceCents: 1_222_222 },
+      totalCents: 5_808_000,
+    });
+    expect(s.embeddedTaxCents! + s.embeddedBaseCents!).toBe(6_600_000 - 1_320_000);
+  });
+
+  it("sin descuento no deja la marca: el snapshot de siempre", async () => {
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    m.orderFindUnique.mockResolvedValue({ ...order(), items, subtotalCents: 6_600_000, taxCents: 0, totalCents: 6_600_000 });
+    const s = await issuedSnapshot();
+    expect(s.discountInLines).toBeUndefined();
+    expect(s.embeddedTaxCents! + s.embeddedBaseCents!).toBe(6_600_000);
+  });
+});

@@ -33,10 +33,10 @@ import { groupInvoiceLines, invoiceLineKey } from "./invoiceLines";
 import { asSalesTaxKind } from "./checkoutTax";
 import {
   isOwnTaxLine,
-  lineTaxEmbeddedCents,
   lineTaxOnTopCents,
   type RestaurantTax,
 } from "./salesTax";
+import { saleLines } from "./dian/discountedLines";
 
 /**
  * Propina sugerida por defecto: 10 %, la misma que preselecciona el
@@ -239,8 +239,6 @@ export function buildPrebillData(
   };
 
   let grossSubtotalCents = 0;
-  let embeddedTaxCents = 0;
-  let embeddedBaseCents = 0;
   const taxOnTop = { inc: 0, iva: 0 };
   for (const i of live) {
     const line = {
@@ -253,12 +251,6 @@ export function buildPrebillData(
       const onTop = lineTaxOnTopCents(line);
       if (line.taxKind === "inc") taxOnTop.inc += onTop;
       else if (line.taxKind === "iva") taxOnTop.iva += onTop;
-    } else {
-      // Sobre el bruto de cada plato y sin descontar el descuento del
-      // comensal: es el mismo reparto que congela la factura.
-      const embedded = lineTaxEmbeddedCents(line, tax);
-      embeddedTaxCents += embedded;
-      embeddedBaseCents += line.amountCents - embedded;
     }
   }
   const taxOnTopCents = taxOnTop.inc + taxOnTop.iva;
@@ -268,6 +260,25 @@ export function buildPrebillData(
   const discountCents = order.discountPct
     ? computeDiscountCents(grossSubtotalCents, order.discountPct)
     : Math.max(0, Math.min(order.discountCents, grossSubtotalCents));
+
+  // Impuesto embebido de los platos con el descuento del cliente ya
+  // repartido en las líneas: es el mismo reparto que congela la factura y
+  // que declara el XML (`saleLines`), así la precuenta y la factura dicen
+  // la misma base y el mismo impuesto.
+  const { embedded } = saleLines(
+    live.map((i) => ({
+      nameSnapshot: i.nameSnapshot,
+      qty: i.qty,
+      priceCentsSnapshot: i.priceCentsSnapshot,
+      cancelledAt: null,
+      taxKind: i.taxKind,
+      taxPct: i.taxPct,
+    })),
+    tax,
+    discountCents,
+  );
+  const embeddedTaxCents = tax.kind === "none" ? 0 : embedded.taxCents;
+  const embeddedBaseCents = embedded.baseCents;
   const netSubtotalCents = Math.max(0, grossSubtotalCents - discountCents);
   const totalCents = netSubtotalCents + taxOnTopCents;
 

@@ -160,8 +160,18 @@ export function buildPrebillTicket(args: {
   const totals: ThermalPrebillRow[] = [
     { label: t("subtotal"), amount: money(d.grossSubtotalCents) },
   ];
-  // Impuesto EMBEBIDO en los platos, informativo: base gravable + "Incl.
-  // impoconsumo 8%". Ya está dentro del subtotal, no se suma.
+  // Primero el descuento del cliente y después el impuesto EMBEBIDO en los
+  // platos, informativo (base gravable + "Incl. impoconsumo 8%", ya dentro
+  // del subtotal, no se suma): la base y el impuesto son NETOS del
+  // descuento, como en la factura electrónica (`invoice.summaryRows`).
+  if (d.discountCents > 0) {
+    totals.push({
+      label: d.discountPct
+        ? t("discountRowPct", { pct: d.discountPct })
+        : t("discountRow"),
+      amount: "-" + money(d.discountCents),
+    });
+  }
   if (d.embeddedTax) {
     totals.push({ label: t("taxBase"), amount: money(d.embeddedTax.baseCents) });
     totals.push({
@@ -170,14 +180,6 @@ export function buildPrebillTicket(args: {
           ? t("taxIncIncluded", { pct: d.embeddedTax.pct })
           : t("taxIvaIncluded", { pct: d.embeddedTax.pct }),
       amount: money(d.embeddedTax.taxCents),
-    });
-  }
-  if (d.discountCents > 0) {
-    totals.push({
-      label: d.discountPct
-        ? t("discountRowPct", { pct: d.discountPct })
-        : t("discountRow"),
-      amount: "-" + money(d.discountCents),
     });
   }
   // Impuesto que las líneas libres SUMAN encima: éste sí entra al total.

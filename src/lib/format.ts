@@ -48,6 +48,11 @@ const LOCALE_TAG: Record<Locale, string> = {
 /** Monedas que se muestran sin decimales. */
 const ZERO_DECIMAL = new Set(["COP", "CLP", "PYG", "JPY"]);
 
+/** ¿La moneda se usa sin decimales (COP)? Para redondear precios calculados. */
+export function isZeroDecimalCurrency(currency: string): boolean {
+  return ZERO_DECIMAL.has(currency.toUpperCase());
+}
+
 export function localeTag(locale: Locale = defaultLocale): string {
   return LOCALE_TAG[locale] ?? LOCALE_TAG[defaultLocale];
 }

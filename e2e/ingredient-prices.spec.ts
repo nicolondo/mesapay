@@ -35,6 +35,29 @@ async function setup(page: Page, measureKind: MeasureKind = "mass") {
   } };
 }
 
+/**
+ * «Nueva orden» con el proveedor elegido y el insumo en una línea: en
+ * escritorio la fila de la tabla; en celular la hoja «Agregar producto».
+ * Devuelve los campos de esa línea.
+ */
+async function newOrderLine(page: Page, supplierName: string, ingredientName: string, isMobile: boolean) {
+  await page.locator("#operator-content").getByRole("button", { name: t.newOrder, exact: true }).click();
+  await page.getByRole("combobox", { name: t.fieldSupplier, exact: true }).fill(supplierName);
+  await page.getByRole("option", { name: new RegExp(`^${supplierName}`) }).click();
+  if (isMobile) await page.getByRole("button", { name: t.ocAddProduct, exact: true }).click();
+  const scope = isMobile ? page.getByRole("dialog", { name: t.ocAddProduct, exact: true }) : page.getByTestId("oc-lines-table");
+  await scope.getByRole("combobox", { name: labelStartingWith(t.fieldIngredient) }).fill(ingredientName);
+  await scope.getByRole("option", { name: new RegExp(`^${ingredientName}`) }).click();
+  return {
+    qty: scope.getByRole("textbox", { name: labelStartingWith(t.fieldQty) }),
+    price: scope.getByRole("textbox", { name: labelStartingWith(t.ocColPrice) }),
+    total: scope.getByRole("textbox", { name: labelStartingWith(t.totalLabel) }),
+    done: async () => {
+      if (isMobile) await scope.getByRole("button", { name: t.ocDone, exact: true }).click();
+    },
+  };
+}
+
 async function openEditor(page: Page, name: string) {
   await page.goto("/operator/settings/insumos");
   await page.getByRole("button", { name: t.editIngredientNamed.replace("{name}", name), exact: true }).click();
@@ -89,26 +112,23 @@ test("price changes remain editable after a failed request and can be cleared", 
   } finally { await f.cleanup(); }
 });
 
-test("new purchase suggests the reference price and respects a manual cost", async ({ page }) => {
+test("new purchase suggests the reference price and respects a manual cost", async ({ page, isMobile }) => {
   const f = await setup(page);
   try {
     expect((await page.request.patch(`/api/operator/ingredients/${f.ingredient.id}`, { data: { referencePriceCents: 2500000 } })).ok()).toBe(true);
     const supplier = await db.supplier.create({ data: { restaurantId: f.restaurant.id, name: "Proveedor sin presentación" } });
     await page.goto("/operator/compras");
-    await page.locator("#operator-content").getByRole("button", { name: t.newOrder, exact: true }).click();
-    await page.getByRole("combobox", { name: t.fieldSupplier, exact: true }).fill(supplier.name);
-    await page.getByRole("option", { name: new RegExp(`^${supplier.name}`) }).click();
-    await page.getByPlaceholder(t.ingredientSearchPlaceholder).fill(f.ingredient.name);
-    await page.getByRole("button", { name: new RegExp(f.ingredient.name) }).click();
-    const qty = page.getByRole("textbox", { name: labelStartingWith(t.fieldQty) });
-    const cost = page.getByRole("textbox", { name: labelStartingWith(`${t.fieldExpectedCost} (COP)`) });
-    await qty.fill("2,5");
-    await expect(cost).toHaveValue("62.500");
-    await cost.fill("60000");
-    await qty.fill("3");
-    await expect(cost).toHaveValue("60.000");
-    await page.getByRole("button", { name: t.addLine, exact: true }).click();
-    await page.getByRole("button", { name: t.createOrder, exact: true }).click();
+    const line = await newOrderLine(page, supplier.name, f.ingredient.name, isMobile);
+    // Sin presentación ni historia: en kg, con el precio de referencia por kg.
+    await expect(line.price).toHaveValue("25.000");
+    await line.qty.fill("2,5");
+    await expect(line.total).toHaveValue("62.500");
+    // El total escrito a mano manda aunque cambie la cantidad.
+    await line.total.fill("60000");
+    await line.qty.fill("3");
+    await expect(line.total).toHaveValue("60.000");
+    await line.done();
+    await page.getByTestId("oc-submit").click();
     await expect.poll(async () => db.purchaseOrder.count({ where: { restaurantId: f.restaurant.id } })).toBe(1);
     const order = await db.purchaseOrder.findFirstOrThrow({ where: { restaurantId: f.restaurant.id }, include: { items: true } });
     expect(order.items[0]).toMatchObject({ ingredientId: f.ingredient.id, qtyOrderedBase: 3000, expectedCostCents: 6000000 });
@@ -148,20 +168,18 @@ test("the inventory average disappears after a confirmed stock reset", async ({ 
   } finally { await f.cleanup(); }
 });
 
-test("supplier presentations keep their own price instead of the ingredient reference", async ({ page }) => {
+test("supplier presentations keep their own price instead of the ingredient reference", async ({ page, isMobile }) => {
   const f = await setup(page);
   try {
     await db.ingredient.update({ where: { id: f.ingredient.id }, data: { referencePriceCents: 2500000 } });
     const supplier = await db.supplier.create({ data: { restaurantId: f.restaurant.id, name: "Proveedor con presentación" } });
     await db.supplierIngredient.create({ data: { supplierId: supplier.id, ingredientId: f.ingredient.id, presentationLabel: "Bolsa de 1 kg", contentQty: 1000, lastPriceCents: 1000000 } });
     await page.goto("/operator/compras");
-    await page.locator("#operator-content").getByRole("button", { name: t.newOrder, exact: true }).click();
-    await page.getByRole("combobox", { name: t.fieldSupplier, exact: true }).fill(supplier.name);
-    await page.getByRole("option", { name: new RegExp(`^${supplier.name}`) }).click();
-    await page.getByPlaceholder(t.priceListSearchPlaceholder).fill(f.ingredient.name);
-    await page.getByRole("button", { name: new RegExp(`${f.ingredient.name}.*Bolsa de 1 kg`) }).click();
-    await page.getByRole("spinbutton", { name: labelStartingWith(t.fieldPresentationsCount) }).fill("2");
-    await expect(page.getByRole("textbox", { name: labelStartingWith(`${t.fieldExpectedCost} (COP)`) })).toHaveValue("20.000");
+    const line = await newOrderLine(page, supplier.name, f.ingredient.name, isMobile);
+    await expect(page.getByRole("combobox", { name: labelStartingWith(t.ocColUnit) }).last()).toHaveValue("pres");
+    await expect(line.price).toHaveValue("10.000");
+    await line.qty.fill("2");
+    await expect(line.total).toHaveValue("20.000");
   } finally { await f.cleanup(); }
 });
 

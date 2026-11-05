@@ -7,6 +7,7 @@ import { parseInvoiceListParams } from "@/lib/dian/invoiceList";
 import {
   countRecentRejected,
   loadInvoiceListPage,
+  loadInvoiceStateCounts,
   loadLateInvoiceRequests,
 } from "@/lib/dian/invoiceListQueries";
 import { FacturasClient } from "./FacturasClient";
@@ -21,10 +22,10 @@ export const dynamic = "force-dynamic";
 //     solicitud). Exactamente como siempre; lo fija page.test.ts.
 //   · CON el módulo: MESAPAY emite sola a la DIAN, así que marcar
 //     solicitudes ya no tiene sentido. La pantalla lista las FACTURAS
-//     ELECTRÓNICAS del comercio con su estado DIAN, el correo y la nota
-//     crédito, y avisa lo que pide a alguien: la emisión frenada, las
-//     rechazadas y los clientes que pidieron factura cuando la cuenta ya
-//     había salido a consumidor final.
+//     ELECTRÓNICAS del comercio —una fila compacta por factura con su estado
+//     DIAN, el correo y la nota crédito— y, en «Por atender», lo que pide a
+//     alguien: la emisión frenada, las rechazadas y los clientes que pidieron
+//     factura cuando la cuenta ya había salido a consumidor final.
 
 // Sólo lo que muestran las tarjetas del flujo manual; la tirilla habilita
 // "Imprimir en datáfono".
@@ -57,8 +58,10 @@ export default async function FacturasPage({
   if (isModuleEnabled(restaurant?.enabledModules, "einvoicing")) {
     const cutoffHour = restaurant?.businessDayCutoffHour ?? 0;
     const params = parseInvoiceListParams(sp);
-    const [list, emission, rejected, late] = await Promise.all([
+    const [list, counts, emission, rejected, late] = await Promise.all([
       loadInvoiceListPage(restaurantId, params, cutoffHour),
+      // La cuenta de cada pestaña de estado, con el rango y la búsqueda.
+      loadInvoiceStateCounts(restaurantId, params, cutoffHour),
       // Con emisión automática, una configuración incompleta frena TODAS
       // las facturas del comercio en silencio: el resumen lo hace visible.
       pendingEmissionSummary(restaurantId),
@@ -70,6 +73,7 @@ export default async function FacturasPage({
         params={params}
         cutoffHour={cutoffHour}
         list={list}
+        counts={counts}
         emission={emission}
         rejected={rejected}
         late={late}

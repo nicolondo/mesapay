@@ -12,8 +12,10 @@
 // Los guards de configuración (resolución, ubicación DANE, correo del
 // emisor, certificado, número dentro del rango) corren ANTES de firmar y
 // enviar, a propósito: cada uno de esos faltantes es un rechazo seguro de
-// la DIAN, y cada rechazo quema un consecutivo del rango autorizado.
-// Bloquear antes es gratis. Un documento bloqueado vuelve a `to_send` con
+// la DIAN, y un rechazo deja la venta sin factura válida hasta que alguien
+// lo corrija y la reenvíe (el número NO se pierde: la DIAN no valida ni
+// registra un documento rechazado, y el reenvío sale con el mismo
+// consecutivo). Bloquear antes es gratis. Un documento bloqueado vuelve a `to_send` con
 // el motivo en `lastError` —sin contar intento, sin consumir nada— y el
 // barrido lo retoma cuando el operador completa la configuración.
 import { db } from "@/lib/db";
@@ -43,11 +45,14 @@ import {
   emissionBackoffMs,
   RETRYABLE_STATES,
 } from "@/lib/dian/retry";
-import { sendDianInvoiceEmail } from "@/lib/dian/sendInvoiceEmail";
-import { dianQrUrl } from "@/lib/dian/crypto";
-import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
-import { closeInvoiceRequestsOnAcceptance } from "@/lib/dian/invoiceRequestClosure";
-import { acceptedInvoiceClosureCutoff } from "@/lib/dian/invoiceRequestCoverage";
+import { afterInvoiceAccepted } from "@/lib/dian/invoiceAcceptance";
+import { classifyInvoiceResponse, STATUS_CHECK_UNAVAILABLE } from "@/lib/dian/invoiceResponse";
+import {
+  findAcceptedInvoiceByCufe,
+  persistAcceptedInvoice,
+  resolveClaimedInvoice,
+  type ClaimedInvoice,
+} from "@/lib/dian/invoiceReconcile";
 import {
   formatInvoiceNumber,
   frozenSalesTax,
@@ -335,10 +340,81 @@ export async function emitDianInvoice(opts: {
     }),
   };
 
+  const sendArgs = { environment: config.environment, cert: config.cert };
+  const useTestSet = env === "2" && !!config.testSetId;
+  const attempts = claim.attempts + 1;
+  const claimed: ClaimedInvoice = {
+    documentId: claim.id,
+    restaurantId: opts.restaurantId,
+    simpleInvoiceId: inv.id,
+    orderId: inv.order.id,
+    invoiceNumber,
+    notFoundCount: 0,
+  };
+
+  // ¿La DIAN ya tiene el envío ANTERIOR? Un intento que terminó en timeout
+  // pudo haber sido aceptado sin que nos enteráramos; mandar otro con el
+  // mismo número (y fecha y CUFE nuevos) es exactamente lo que la DIAN
+  // rechaza con la regla 90. Así que, si hubo un envío antes, primero se
+  // pregunta por su CUFE (GetStatus). Aceptado ⇒ listo, sin reenviar. No lo
+  // tiene (o lo tiene rechazado) ⇒ se reenvía con el MISMO número: un
+  // documento rechazado la DIAN no lo valida ni lo registra (Anexo Técnico,
+  // «Documento Rechazado … genera como consecuencia que la DIAN no valide
+  // el documento electrónico»), así que el consecutivo sigue libre. Sin
+  // respuesta ⇒ no se manda nada nuevo: se reintenta más tarde.
+  if (claim.previousCufe && !useTestSet) {
+    const prior = await findAcceptedInvoiceByCufe({
+      candidates: [claim.previousCufe],
+      invoiceNumber,
+      args: sendArgs,
+    });
+    if (prior.kind === "accepted") {
+      const stored = await db.dianDocument.findUnique({
+        where: { id: claim.id },
+        select: { xmlZip: true },
+      });
+      const r = await persistAcceptedInvoice({
+        doc: claimed,
+        lookup: prior,
+        knownZips: stored?.xmlZip ? [{ zip: stored.xmlZip, persisted: true }] : [],
+        config,
+        now,
+        print: opts.printOnAccept !== false,
+      });
+      return {
+        outcome: "accepted",
+        documentId: claim.id,
+        cufe: r.cufe,
+        qrUrl: r.qrUrl,
+        errors: [],
+        statusMessage: null,
+      };
+    }
+    if (prior.kind === "channel_error") {
+      await db.dianDocument.update({
+        where: { id: claim.id },
+        data: {
+          state: "error",
+          errors: [STATUS_CHECK_UNAVAILABLE],
+          lastError: STATUS_CHECK_UNAVAILABLE,
+          attempts: { increment: 1 },
+          nextAttemptAt: new Date(now.getTime() + emissionBackoffMs(attempts)),
+        },
+      });
+      return {
+        outcome: "error",
+        documentId: claim.id,
+        cufe: claim.previousCufe,
+        qrUrl: null,
+        errors: [STATUS_CHECK_UNAVAILABLE],
+        statusMessage: null,
+      };
+    }
+  }
+
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,
   // zip, red fuera del parser SOAP) deja el documento en `error` con
   // backoff, igual que un error de canal: reclamado para siempre no.
-  const attempts = claim.attempts + 1;
   let built: ReturnType<typeof buildDianInvoiceXml>;
   let zip: Buffer;
   let result: Awaited<ReturnType<typeof sendBillSync>>;
@@ -353,16 +429,12 @@ export async function emitDianInvoice(opts: {
     zip = await zipInvoice(`${invoiceNumber}.xml`, signed);
 
     // Habilitación usa test set; producción usa SendBillSync síncrono.
-    result =
-      env === "2" && config.testSetId
-        ? await sendTestSetAsync(zip, config.testSetId, {
-            environment: "habilitacion",
-            cert: config.cert,
-          })
-        : await sendBillSync(zip, {
-            environment: config.environment,
-            cert: config.cert,
-          });
+    result = useTestSet
+      ? await sendTestSetAsync(zip, config.testSetId!, {
+          environment: "habilitacion",
+          cert: config.cert,
+        })
+      : await sendBillSync(zip, sendArgs);
   } catch (err) {
     const message = String((err as Error)?.message ?? err).slice(0, 500);
     console.error("[dian-emit] la emisión reventó antes de tener respuesta", {
@@ -388,79 +460,108 @@ export async function emitDianInvoice(opts: {
       statusMessage: null,
     };
   }
+
+  // Qué quiso decir la DIAN (invoiceResponse.ts): sólo un RECHAZO real deja
+  // la factura rechazada. Las notificaciones nunca; la regla 90 tampoco.
+  const verdict = classifyInvoiceResponse(result);
+
+  // Regla 90: la DIAN YA tiene una factura con este número. Se le pregunta
+  // por CUFE —el que devolvió, el de este XML y el del envío anterior— y,
+  // si alguno está aceptado para este número, queda aceptada. Si no, queda
+  // `pending` sin confirmar: el barrido y «Consultar en la DIAN» la cierran.
+  if (verdict.kind === "duplicate") {
+    const r = await resolveClaimedInvoice({
+      doc: claimed,
+      candidates: [result.cufe, built.cufe, claim.previousCufe],
+      knownZips: [{ zip, persisted: false }],
+      config,
+      now,
+      print: opts.printOnAccept !== false,
+      extra: { attempts: { increment: 1 }, trackId: null },
+      extraIfUnverified: {
+        errors: result.errors,
+        responseXml: result.raw ?? null,
+        xmlZip: new Uint8Array(zip),
+      },
+    });
+    return r.outcome === "accepted"
+      ? {
+          outcome: "accepted",
+          documentId: claim.id,
+          cufe: r.cufe,
+          qrUrl: r.qrUrl,
+          errors: [],
+          statusMessage: result.statusMessage ?? null,
+        }
+      : {
+          outcome: "pending",
+          documentId: claim.id,
+          cufe: r.cufe,
+          qrUrl: null,
+          errors: result.errors,
+          statusMessage: result.statusMessage ?? null,
+        };
+  }
+
   const t = transitionAfterSend(result, built.cufe);
+  // Sin un rechazo real (sólo notificaciones, o la plantilla de la DIAN sin
+  // armar, «{StatusRut}»): no es un rechazo, es un error que se reintenta
+  // solo, con backoff y con el tope de intentos de siempre.
+  const state: "accepted" | "pending" | "rejected" | "error" =
+    verdict.kind === "transient" ? "error" : result.state;
 
   await db.dianDocument.update({
     where: { id: claim.id },
     data: {
-      state: t.state,
+      state,
       cufe: t.cufe ?? built.cufe,
       trackId: t.trackId ?? null,
-      errors: t.errors.length ? t.errors : undefined,
+      // Aceptada ⇒ se limpian los motivos de un rechazo anterior.
+      errors: t.errors.length ? t.errors : state === "accepted" ? [] : undefined,
+      warnings: verdict.warnings.length ? verdict.warnings : undefined,
       // La respuesta cruda se guarda siempre: sin ella no hay forma de
       // saber por qué la DIAN rechazó (ver InvalidSecurity de 2026-09).
       responseXml: result.raw ?? null,
       xmlZip: new Uint8Array(zip),
       attempts: { increment: 1 },
-      // Error de canal ⇒ el barrido lo reintenta con backoff. Rechazo ⇒
-      // queda el motivo pero SIN reintento automático (mismo XML, mismo
-      // rechazo, otro consecutivo quemado): se corrige y se reintenta a
+      // Error de canal o respuesta transitoria ⇒ el barrido lo reintenta
+      // con backoff. Rechazo ⇒ queda el motivo pero SIN reintento
+      // automático (mismo XML, mismo rechazo): se corrige y se reintenta a
       // mano. Aceptada/pendiente ⇒ nada que reintentar.
-      lastError: t.state === "error" || t.state === "rejected" ? (t.errors[0] ?? null) : null,
+      lastError: state === "error" || state === "rejected" ? (t.errors[0] ?? null) : null,
       nextAttemptAt:
-        t.state === "error"
+        state === "error"
           ? new Date(now.getTime() + emissionBackoffMs(attempts))
           : null,
     },
   });
 
   // Aceptada ⇒ al adquiriente le tiene que llegar su factura electrónica
-  // (el AttachedDocument). Se AWAITEA en vez de dispararlo al aire porque
-  // un fire-and-forget en un route handler se muere cuando la respuesta
-  // sale; `sendDianInvoiceEmail` no lanza y es idempotente, así que no
-  // puede tumbar la emisión ni duplicar el correo si además lo manda el
-  // riel de la consulta diferida.
-  if (t.state === "accepted") {
-    // La solicitud que se usó para el adquiriente (y las anteriores de la
-    // misma orden) quedan cumplidas: pasan solas a `generated`. Una que
-    // haya llegado después de leerla no entró en la factura y queda
-    // pendiente — es el caso "llegó después" que muestra la pantalla de
-    // Facturas. No lanza.
-    await closeInvoiceRequestsOnAcceptance({
+  // (el AttachedDocument), se cierran las solicitudes de la cuenta y sale
+  // al PAPEL (con facturación electrónica la tirilla NO sale al cobrar: lo
+  // que se imprime es esta factura, con su CUFE y su QR). Todo
+  // idempotente y sin lanzar — ver invoiceAcceptance.ts. Se AWAITEA en vez
+  // de dispararlo al aire porque un fire-and-forget en un route handler se
+  // muere cuando la respuesta sale. Rechazada o pendiente ⇒ nada.
+  if (state === "accepted") {
+    await afterInvoiceAccepted({
+      documentId: claim.id,
+      simpleInvoiceId: inv.id,
+      restaurantId: opts.restaurantId,
       orderId: inv.order.id,
-      cutoff: acceptedInvoiceClosureCutoff({
+      cufe: t.cufe ?? built.cufe,
+      environment: config.environment,
+      closure: {
         rail: "emit",
         usedRequestCreatedAt: inv.order.invoiceRequests[0]?.createdAt,
-      }),
-      now,
+        now,
+      },
+      print: opts.printOnAccept !== false,
     });
-    await sendDianInvoiceEmail({
-      documentId: claim.id,
-      environment: config.environment,
-    });
-    // Y al PAPEL. Con facturación electrónica la tirilla NO sale al
-    // cobrar: lo que se imprime es esta factura —con su CUFE y su QR— y
-    // sale acá, que es por donde pasan el intento inmediato del cobro y
-    // el barrido (la consulta diferida tiene su gemelo en
-    // dian/documents/[id]/status). Mismo contrato que el correo: no
-    // lanza y es idempotente (dedupeKey `invoice:<id>`), así que si los
-    // dos rieles ven la aceptación sale UNA hoja. Rechazada o pendiente
-    // ⇒ nada de papel. Ver print/invoiceQueue.ts.
-    const cufe = t.cufe ?? built.cufe;
-    if (opts.printOnAccept !== false) {
-      await printAcceptedDianInvoice({
-        simpleInvoiceId: inv.id,
-        restaurantId: opts.restaurantId,
-        cufe,
-        qrUrl: dianQrUrl(cufe, env),
-      });
-    }
   }
 
   return {
-    // `transitionAfterSend` mapea 1:1 el estado del canal (que ya es uno
-    // de estos cuatro) — se toma de ahí para no castear.
-    outcome: result.state,
+    outcome: state,
     documentId: claim.id,
     cufe: t.cufe ?? null,
     qrUrl: t.fiscal ? built.qrUrl : null,

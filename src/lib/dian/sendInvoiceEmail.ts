@@ -33,6 +33,7 @@ import {
   unzipFirstXml,
   zipInvoice,
 } from "@/lib/dian/soap";
+import { invoiceXmlIdentity } from "@/lib/dian/invoiceXml";
 
 /** Por qué NO salió el correo. Se devuelve y se escribe en `emailError`. */
 export type DianEmailFailure =
@@ -291,7 +292,17 @@ async function buildAttachment(args: {
   /** Solicitud de factura de la orden (la más reciente) o null. */
   request: InvoiceRequestParty | null;
 }): Promise<EmailAttachment | null> {
-  const { invoiceXml } = args;
+  // El sobre tiene que llevar la factura de ESE CUFE. Una factura que se
+  // recuperó por consulta (regla 90: la DIAN aceptó un envío anterior cuya
+  // respuesta se perdió) puede tener guardado el XML del último intento,
+  // con otro CUFE: adjuntarlo sería mandarle al cliente un documento que la
+  // DIAN no validó. En ese caso el correo sale sin adjunto (con CUFE y
+  // enlace), igual que cuando falta el acuse.
+  const xmlCufe = args.invoiceXml ? invoiceXmlIdentity(args.invoiceXml).cufe : null;
+  const invoiceXml =
+    args.invoiceXml && xmlCufe && xmlCufe.toLowerCase() !== args.cufe.toLowerCase()
+      ? null
+      : args.invoiceXml;
   const applicationResponseXml = await extractApplicationResponse(
     args.responseXml,
   );

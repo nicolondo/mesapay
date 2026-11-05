@@ -175,6 +175,7 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
   "src/app/admin/restaurants/\\[id\\]/DeleteRestaurantPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/DianRecoveryPanel.tsx",
   "src/app/admin/restaurants/eliminados/**/*.{ts,tsx}",
   "src/components/CashBox.tsx",
   // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació

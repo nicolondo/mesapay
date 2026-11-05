@@ -28,7 +28,7 @@
  */
 
 import { displayOrderCode } from "@/lib/orderCode";
-import { groupInvoiceLines } from "@/lib/invoiceLines";
+import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/invoiceLines";
 import { DEFAULT_TIP_PCT, tipCentsFor } from "@/lib/prebill";
 import {
   formatInvoiceNumber,
@@ -187,6 +187,11 @@ export function buildThermalInvoice(args: {
 }): ThermalInvoice {
   const { snapshot: s, money, t } = args;
   const dian = args.dian ?? null;
+  // Factura electrónica: el detalle dice lo mismo que el XML (sin las
+  // líneas en $0, ver `splitZeroValueLines`). Comprobante: todo, como antes.
+  const { charged, free } = splitZeroValueLines(s.items);
+  const fiscalItems = dian ? charged : s.items;
+  const freeItems = dian ? free : [];
 
   const businessLines = [
     s.taxId ? t("taxId", { id: s.taxId }) : null,
@@ -323,14 +328,19 @@ export function buildThermalInvoice(args: {
     customerLines,
     // Los repetidos AGRUPADOS ("2x Bretaña"): el papel es para una
     // persona. El XML de la DIAN sigue con una línea por ítem, y la suma
-    // de los importes agrupados es la misma al centavo.
-    items: groupInvoiceLines(s.items).map((i) => ({
+    // de los importes agrupados es la misma al centavo. En la factura
+    // ELECTRÓNICA las líneas en $0 no son líneas fiscales (no van en el
+    // XML): salen aparte, en `itemsNote`.
+    items: groupInvoiceLines(fiscalItems).map((i) => ({
       qty: i.qty,
       name: i.name,
       amount: money(i.totalCents),
       ...(i.modifiers && i.modifiers.length > 0 && { modifiers: i.modifiers }),
       ...(i.notes && { notes: i.notes }),
     })),
+    ...(freeItems.length > 0 && {
+      itemsNote: t("freeItemsNote", { items: freeLinesText(freeItems) }),
+    }),
     totals,
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
     paymentRows,

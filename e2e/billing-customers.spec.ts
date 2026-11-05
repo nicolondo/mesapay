@@ -18,6 +18,9 @@ async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((url) => !url.pathname.startsWith("/signin"));
+  // El inicio de sesión termina con una navegación del cliente (al panel del
+  // rol): esperarla evita que el próximo goto la interrumpa (WebKit).
+  await page.waitForLoadState("networkidle");
 }
 
 async function selectRestaurant(page: Page, restaurantId: string) {
@@ -56,6 +59,8 @@ for (const width of [390, 1440]) {
       await page.goto("/operator/clientes");
       await expect(page.getByRole("heading", { name: "Clientes para facturación", exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Crear cliente", exact: true }).click();
+      // El formulario se abre en una hoja sobre la lista.
+      await expect(page.getByRole("dialog", { name: "Nuevo cliente" })).toBeVisible();
       await fillCustomer(page, "Cliente particular de prueba", "CC", "1020304050");
       await page.getByRole("button", { name: "Guardar cliente", exact: true }).click();
       await expect.poll(() => db.billingCustomer.count({ where: { restaurantId: restaurant.id } })).toBe(1);
@@ -65,7 +70,7 @@ for (const width of [390, 1440]) {
       await page.reload();
       await page.getByRole("button", { name: "Crear cliente", exact: true }).click();
       await fillCustomer(page, "Empresa de prueba SAS", "NIT", "901944469");
-      await page.screenshot({ path: `/Users/nicolas/Documents/Codex/2026-09-08/files-mentioned-by-the-user-scr/UI-UX-MESAPAY/cliente-formulario-${width}.png`, fullPage: true });
+      await page.screenshot({ path: test.info().outputPath(`cliente-formulario-${width}.png`), fullPage: true });
       await page.getByRole("button", { name: "Guardar cliente", exact: true }).click();
       await expect.poll(() => db.billingCustomer.count({ where: { restaurantId: restaurant.id } })).toBe(2);
       const nit = await db.billingCustomer.findFirstOrThrow({ where: { restaurantId: restaurant.id, docType: "NIT" } });
@@ -83,10 +88,11 @@ for (const width of [390, 1440]) {
       await page.getByLabel("Teléfono", { exact: true }).fill("3005550202");
       await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
       await expect.poll(async () => (await db.billingCustomer.findUniqueOrThrow({ where: { id: nit.id } })).phone).toBe("3005550202");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
       await page.reload();
       await page.getByLabel("Buscar clientes para facturación", { exact: true }).fill("Empresa");
       await expect(edit).toBeVisible();
-      await page.screenshot({ path: `/Users/nicolas/Documents/Codex/2026-09-08/files-mentioned-by-the-user-scr/UI-UX-MESAPAY/clientes-facturacion-${width}.png`, fullPage: true });
+      await page.screenshot({ path: test.info().outputPath(`clientes-facturacion-${width}.png`), fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
       const duplicate = await page.request.post("/api/operator/billing-customers", {
@@ -109,7 +115,8 @@ for (const width of [390, 1440]) {
       } });
       await page.goto(`/t/${restaurant.slug}/pay/${order.id}?op=1`);
       await page.getByRole("button", { name: "Factura electrónica personalizada", exact: true }).click();
-      await page.getByLabel("Buscar cliente registrado", { exact: true }).fill("901944469");
+      // El recuadro "Cliente" del cobro también tiene un buscador: el de la factura es el último.
+      await page.getByLabel("Buscar cliente registrado", { exact: true }).last().fill("901944469");
       await page.getByRole("button", { name: "Usar Empresa de prueba SAS", exact: true }).click();
       await expect(page.getByLabel("Nombre o razón social", { exact: true })).toHaveValue("Empresa de prueba SAS");
       await expect(page.getByLabel("Tipo", { exact: true })).toHaveValue("NIT");
@@ -128,6 +135,56 @@ for (const width of [390, 1440]) {
     }
   });
 }
+
+test("the billing client list pages past the old 50-row cap and keeps its filters in the URL", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  const token = randomUUID(), password = `Fixture-${token}`;
+  const restaurant = await db.restaurant.create({ data: { name: "Clientes paginados", slug: `billing-pages-${token}` } });
+  const user = await db.user.create({ data: { email: `billing-pages-${token}@example.test`, passwordHash: await bcrypt.hash(password, 10), role: "platform_admin" } });
+  try {
+    // 61 clientes: antes la lista mostraba sólo los primeros 50 por nombre.
+    await db.billingCustomer.createMany({
+      data: Array.from({ length: 61 }, (_, i) => ({
+        restaurantId: restaurant.id,
+        customerName: `Cliente ${String(i + 1).padStart(2, "0")}`,
+        docType: i % 2 === 0 ? ("NIT" as const) : ("CC" as const),
+        docNumber: String(800_000_000 + i),
+        email: `cliente${i + 1}@example.test`,
+      })),
+    });
+    await login(page, user.email, password);
+    await selectRestaurant(page, restaurant.id);
+    await page.goto("/operator/clientes");
+    await expect(page.getByText("Mostrando 1–50 de 61", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Editar Cliente 61", exact: true })).toHaveCount(0);
+    await page.getByRole("link", { name: /Siguiente/ }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page.getByText("Mostrando 51–61 de 61", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Editar Cliente 61", exact: true })).toBeVisible();
+    // La búsqueda corre en el servidor sobre todos: encuentra al último desde la página 1.
+    await page.goto("/operator/clientes");
+    await page.getByLabel("Buscar clientes para facturación", { exact: true }).fill("Cliente 61");
+    await expect(page).toHaveURL(/q=Cliente\+61/);
+    await expect(page.getByRole("button", { name: "Editar Cliente 61", exact: true })).toBeVisible();
+    // Filtros combinables que sobreviven a recargar y a volver atrás.
+    await page.getByLabel("Buscar clientes para facturación", { exact: true }).fill("");
+    await expect(page).not.toHaveURL(/q=/);
+    await page.getByRole("button", { name: "Empresas", exact: true }).click();
+    await expect(page).toHaveURL(/type=company/);
+    await expect(page.getByText("31 clientes de 61", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Empresas", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByLabel("Ordenar por", { exact: true }).selectOption("recent");
+    await expect(page).toHaveURL(/type=company&sort=recent/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\?type=company$/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally {
+    await db.restaurant.delete({ where: { id: restaurant.id } });
+    await db.user.delete({ where: { id: user.id } });
+  }
+});
 
 test("billing clients stay scoped to their restaurant and waiters cannot create them", async ({ page, browser }) => {
   test.setTimeout(90_000);
@@ -149,8 +206,9 @@ test("billing clients stay scoped to their restaurant and waiters cannot create 
     const search = await page.request.get("/api/operator/billing-customers?q=1020304050");
     expect(search.status()).toBe(200);
     expect(await search.text()).not.toContain(customer.id);
-    await page.goto("/operator/clientes");
-    await page.getByLabel("Buscar clientes para facturación", { exact: true }).fill("1020304050");
+    // El comercio B no tiene clientes: la lista sale vacía aunque se busque el documento del A.
+    await page.goto("/operator/clientes?q=1020304050");
+    await expect(page.getByText("Aún no tienes clientes para facturación", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Editar Cliente privado comercio A", exact: true })).toHaveCount(0);
     const patch = await page.request.patch(`/api/operator/billing-customers/${customer.id}`, { data: { ...payload, customerName: "Cambio ajeno" } });
     expect(patch.status()).toBe(404);

@@ -290,18 +290,32 @@ export function ExpenseSheet({
 
   // ── Impuestos: contexto del comercio (conceptos, UVT, IVA descontable) ──
   const [taxCtx, setTaxCtx] = useState<TaxContext | null>(null);
+  const [taxLoadError, setTaxLoadError] = useState(false);
+  const [taxLoadAttempt, setTaxLoadAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    fetch("/api/operator/expenses/tax-context")
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    fetch("/api/operator/expenses/tax-context", { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("load"))))
       .then((j: TaxContext) => {
         if (alive) setTaxCtx(j);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setTaxLoadError(true);
+      })
+      .finally(() => clearTimeout(timeout));
     return () => {
       alive = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, []);
+  }, [taxLoadAttempt]);
+
+  function retryTaxContext() {
+    setTaxLoadError(false);
+    setTaxLoadAttempt((attempt) => attempt + 1);
+  }
 
   const hadTaxes = Boolean(
     expense &&
@@ -418,7 +432,10 @@ export function ExpenseSheet({
     incCents: taxMode ? rawToCents(incRaw) : 0,
   };
   const pre = expenseAmounts({ ...taxInput, retentions: [] });
-  const activeConcepts = (taxCtx?.concepts ?? []).filter((c) => c.active);
+  // La selección explícita usa todo el catálogo. «Activo» controla las
+  // sugerencias automáticas; agregar una línea no cambia esa configuración.
+  const concepts = taxCtx?.concepts ?? [];
+  const activeConcepts = concepts.filter((c) => c.active);
   const uvtCents = taxCtx ? uvtCentsForDate(date || todayDateInput(), taxCtx.uvtCents) : 0;
   // Sugeridas en vivo (siguen a la base, la categoría y la cuenta) mientras
   // el operador no toque la lista.
@@ -440,7 +457,10 @@ export function ExpenseSheet({
   function editLines(fn: (cur: RetLine[]) => RetLine[]) {
     setRetLines((prev) => fn(prev ?? suggested));
   }
-  const addable = activeConcepts.filter((c) => !lines.some((l) => l.conceptId === c.id));
+  const addable = concepts.filter((c) => !lines.some((l) => l.conceptId === c.id));
+  const inactiveRecurringNames = recurring
+    ? lines.filter((l) => concepts.some((c) => c.id === l.conceptId && !c.active)).map((l) => l.name)
+    : [];
 
   // ── Soporte: subir y «Leer con IA» ──
   const fileRef = useRef<HTMLInputElement>(null);
@@ -519,6 +539,11 @@ export function ExpenseSheet({
 
   async function save() {
     setErr(null);
+    // No guardar impuestos con IVA descontable/sugerencias aún desconocidos.
+    if (taxMode && !taxCtx) {
+      setErr(t(taxLoadError ? "expenseTaxLoadError" : "loading"));
+      return;
+    }
     const cat = category.trim();
     if (!cat || !date) {
       setErr(t("errExpenseInvalid"));
@@ -917,12 +942,20 @@ export function ExpenseSheet({
                   </button>
                 )}
               </div>
-              {!taxCtx ? (
+              {taxLoadError ? (
+                <div role="alert" className="space-y-2">
+                  <p className="text-xs text-danger">{t("expenseTaxLoadError")}</p>
+                  <button type="button" onClick={retryTaxContext} className="mp-btn mp-btn--secondary mp-btn--sm">
+                    {t("expenseTaxRetry")}
+                  </button>
+                </div>
+              ) : !taxCtx ? (
                 <p className="text-xs text-op-muted">{t("loading")}</p>
-              ) : activeConcepts.length === 0 && lines.length === 0 ? (
+              ) : concepts.length === 0 && lines.length === 0 ? (
                 <p className="text-xs text-op-muted">{t("expenseRetNoConcepts")}</p>
               ) : (
                 <>
+                  <p className="text-xs text-op-muted">{t("expenseRetManualHint")}</p>
                   {lines.length === 0 ? (
                     <p className="text-xs text-op-muted">{t("expenseRetNone")}</p>
                   ) : (
@@ -966,7 +999,7 @@ export function ExpenseSheet({
                     <select
                       value=""
                       onChange={(e) => {
-                        const c = activeConcepts.find((x) => x.id === e.target.value);
+                        const c = concepts.find((x) => x.id === e.target.value);
                         if (!c) return;
                         editLines((cur) => [
                           ...cur,
@@ -979,7 +1012,7 @@ export function ExpenseSheet({
                       <option value="">{t("expenseRetAdd")}</option>
                       {addable.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name}
+                          {c.active ? c.name : t("expenseRetManualOption", { name: c.name })}
                         </option>
                       ))}
                     </select>
@@ -1142,6 +1175,16 @@ export function ExpenseSheet({
             </Field>
           )}
 
+          {inactiveRecurringNames.length > 0 && (
+            <div role="note" className="rounded-xl border border-op-border bg-op-bg p-3 space-y-2 text-xs text-op-muted">
+              <p>{t("expenseRetRecurringInactive", { names: inactiveRecurringNames.join(", ") })}</p>
+              <a href="/operator/contabilidad?tab=impuestos" target="_blank" rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center font-medium text-op-text underline underline-offset-4">
+                {t("expenseRetConfigure")}
+              </a>
+            </div>
+          )}
+
           {err && (
             <div role="alert" className="text-xs text-danger">
               {err}
@@ -1174,7 +1217,7 @@ export function ExpenseSheet({
               <button
                 type="button"
                 onClick={save}
-                disabled={anyBusy || category.trim() === "" || amountRaw.trim() === ""}
+                disabled={anyBusy || (taxMode && !taxCtx) || category.trim() === "" || amountRaw.trim() === ""}
                 className="mp-btn mp-btn--primary"
               >
                 {busy ? t("saving") : t("save")}

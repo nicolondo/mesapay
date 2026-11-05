@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "../src/lib/db";
-import { POST as createExpense } from "../src/app/api/operator/expenses/route";
+import { GET as listExpenses, POST as createExpense } from "../src/app/api/operator/expenses/route";
 import { PATCH as patchExpense } from "../src/app/api/operator/expenses/[id]/route";
 import { POST as payExpense } from "../src/app/api/operator/expenses/[id]/payments/route";
 import { POST as createSupplier } from "../src/app/api/operator/suppliers/route";
@@ -66,6 +66,58 @@ beforeAll(async () => {
     if (/Servicios|ReteIVA/.test(c.name)) await db.retentionConcept.update({ where: { id: c.id }, data: { active: true } });
   }
   conceptIds = Object.fromEntries(concepts.map((c) => [c.kind === "retefuente" ? c.name.split(" ")[0]! : c.kind, c.id]));
+});
+
+describe("retención seleccionada manualmente de un catálogo inactivo", () => {
+  it("guarda, vuelve a mostrar y permite ajustar la selección sin activar el concepto ni aceptar otro comercio", async () => {
+    const tenant = await db.restaurant.create({ data: {
+      name: "Retenciones manuales de prueba", slug: `retenciones-manuales-${randomUUID()}`,
+      enabledModules: ["accounting"], purchaseIvaDeductible: true,
+    } });
+    const previousRestaurantId = scope.restaurantId;
+    scope.restaurantId = tenant.id;
+    try {
+      const concepts = await loadRetentionConcepts(tenant.id);
+      expect(concepts.every((c) => !c.active)).toBe(true);
+      const concept = concepts.find((c) => c.kind === "retefuente" && c.name.startsWith("Servicios"))!;
+      const supplier = await db.supplier.create({ data: { restaurantId: tenant.id, name: "Proveedor de prueba" } });
+      const body = {
+        category: "Servicio puntual", date: "2026-10-15T17:00:00.000Z", supplierId: supplier.id,
+        subtotalCents: 100_000_000, ivaPct: 19,
+        retentions: [{ conceptId: concept.id, amountCents: 4_000_000 }],
+      };
+      const created = await post(body);
+      expect(created.status).toBe(201);
+      const id = created.body.expense!.id;
+      const reopened = await listExpenses(new Request("http://localhost/api/operator/expenses?month=2026-10"));
+      expect(reopened.status).toBe(200);
+      expect(await reopened.json()).toMatchObject({ expenses: [expect.objectContaining({
+        id, retefuenteCents: 4_000_000, payableCents: 115_000_000,
+        retentions: [expect.objectContaining({ conceptId: concept.id, rateBps: 400, amountCents: 4_000_000 })],
+      })] });
+
+      const patched = await (patchExpense as unknown as Handler)(
+        new Request(`http://localhost/api/operator/expenses/${id}`, {
+          ...json({ retentions: [{ conceptId: concept.id, amountCents: 5_000_000 }] }), method: "PATCH",
+        }),
+        { params: Promise.resolve({ id }) },
+      );
+      expect(patched.status).toBe(200);
+      expect(await db.expense.findUniqueOrThrow({ where: { id }, include: { retentions: true } })).toMatchObject({
+        retefuenteCents: 5_000_000, payableCents: 114_000_000,
+        retentions: [expect.objectContaining({ conceptId: concept.id, amountCents: 5_000_000 })],
+      });
+      expect(await db.retentionConcept.findUniqueOrThrow({ where: { id: concept.id } })).toMatchObject({ active: false });
+      expect(await db.retentionConcept.count({ where: { restaurantId: tenant.id, active: true } })).toBe(0);
+      const foreign = await db.retentionConcept.findFirstOrThrow({ where: { restaurantId } });
+      expect((await post({ ...body, retentions: [{ conceptId: foreign.id, amountCents: 1_000_000 }] })).body)
+        .toEqual({ error: "retention_not_found" });
+      expect(await db.expense.count({ where: { restaurantId: tenant.id } })).toBe(1);
+    } finally {
+      scope.restaurantId = previousRestaurantId;
+      await db.restaurant.delete({ where: { id: tenant.id } });
+    }
+  });
 });
 
 afterAll(async () => {

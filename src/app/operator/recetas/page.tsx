@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
 import { RecetasClient } from "./RecetasClient";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,12 @@ export default async function RecetasPage() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { enabledModules: true, country: true },
+    select: {
+      enabledModules: true,
+      country: true,
+      salesTaxKind: true,
+      salesTaxPct: true,
+    },
   });
   if (!tenant || !isModuleEnabled(tenant.enabledModules, "recipes")) {
     notFound();
@@ -39,13 +45,19 @@ export default async function RecetasPage() {
   // Moneda = país del comercio; el locale solo define idioma/formato
   // (regla idioma ≠ moneda de @/lib/format).
   const currency = await getCurrencyForCountry(tenant.country);
+  // El impuesto de venta va embebido en el precio de carta: el food cost y el
+  // margen se miden sobre el precio sin él.
+  const tax = {
+    kind: asSalesTaxKind(tenant.salesTaxKind),
+    pct: tenant.salesTaxPct,
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("recetasTitle")}</div>
       <p className="text-sm text-op-muted mb-6">{t("recetasIntro")}</p>
 
-      <RecetasClient currency={currency} />
+      <RecetasClient currency={currency} tax={tax} />
     </div>
   );
 }

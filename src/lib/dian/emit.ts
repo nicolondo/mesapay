@@ -204,7 +204,8 @@ function schemeOf(kind: SalesTaxKind): "01" | "04" {
 }
 
 /**
- * Mapea los items vivos de una orden a líneas UBL (pura). Respeta los DOS
+ * Mapea los items vivos de una orden a líneas UBL (pura). Los ítems en $0
+ * no salen (ver `invoiceLineFor`). Respeta los DOS
  * regímenes que conviven en una cuenta (ver src/lib/salesTax.ts):
  *
  *   · Plato de carta (taxKind null) → el impuesto va DENTRO del precio,
@@ -229,8 +230,8 @@ export function orderToInvoiceLines(
 }
 
 /**
- * Una línea UBL a partir de un item (null si está cancelado o sin
- * cantidad). Es el ÚNICO lugar donde se reparte base + impuesto de un
+ * Una línea UBL a partir de un item (null si está cancelado, sin cantidad
+ * o en $0). Es el ÚNICO lugar donde se reparte base + impuesto de un
  * plato: lo usa el XML (`orderToInvoiceLines`) y también la tirilla
  * (`embeddedMenuTax`, que congela el impuesto en el snapshot). Si el
  * reparto viviera en dos funciones, un redondeo distinto bastaría para
@@ -242,6 +243,11 @@ function invoiceLineFor(
 ): { line: DianLine; own: boolean } | null {
   if (it.cancelledAt || it.qty <= 0) return null;
   const grossLine = it.priceCentsSnapshot * it.qty;
+  // Un ítem en $0 (cortesía de la carta, modificador que deja el precio en
+  // cero, línea libre sin valor) no es una venta: no va a la factura. Ver
+  // `billableDianLines` en ubl.ts (regla FAW01 de la DIAN). No aporta base
+  // ni impuesto, así que `embeddedMenuTax` da lo mismo con o sin él.
+  if (grossLine <= 0) return null;
   const own = ownTaxItem(it);
   const kind = (own ? it.taxKind : restaurantTax.kind) as SalesTaxKind;
   const pct = own ? (it.taxPct ?? 0) : restaurantTax.pct;
@@ -393,11 +399,13 @@ export type DianDocumentRef = {
   id: string;
   state: string;
   attempts: number;
+  /** CUFE del último envío (null si nunca salió). */
+  cufe?: string | null;
   /** true si esta llamada lo creó (o adoptó un placeholder). */
   created: boolean;
 };
 
-const DOC_SELECT = { id: true, state: true, attempts: true } as const;
+const DOC_SELECT = { id: true, state: true, attempts: true, cufe: true } as const;
 
 /**
  * Garantiza que la factura simple tenga su DianDocument (en `to_send` si
@@ -476,7 +484,18 @@ export async function claimDianDocument(
   simpleInvoiceId: string,
   restaurantId: string,
   opts: { orderId?: string | null; now?: Date } = {},
-): Promise<{ id: string; attempts: number } | null> {
+): Promise<{
+  id: string;
+  attempts: number;
+  /** Estado antes del reclamo. */
+  previousState: string;
+  /**
+   * CUFE de un envío anterior. Si existe, la DIAN pudo haberlo aceptado
+   * aunque nosotros no nos hayamos enterado (timeout): la emisión pregunta
+   * por él ANTES de mandar uno nuevo con el mismo número (regla 90).
+   */
+  previousCufe: string | null;
+} | null> {
   const doc = await ensureDianDocument({
     simpleInvoiceId,
     restaurantId,
@@ -487,7 +506,12 @@ export async function claimDianDocument(
     data: { state: "sent" },
   });
   if (claimed.count === 0) return null;
-  return { id: doc.id, attempts: doc.attempts };
+  return {
+    id: doc.id,
+    attempts: doc.attempts,
+    previousState: doc.state,
+    previousCufe: doc.cufe ?? null,
+  };
 }
 
 /**

@@ -1,168 +1,137 @@
-import Link from "next/link";
 import { auth } from "@/auth";
 import { BillingCustomers } from "@/components/billingCustomers/BillingCustomers";
-import { getTranslations, getLocale } from "next-intl/server";
+import { CustomersHeader, CustomersTabs } from "@/components/billingCustomers/ListControls";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
-import { formatMoney, formatDate } from "@/lib/format";
-import type { Locale } from "@/i18n/config";
-import { DinerLookup } from "./DinerLookup";
+import { CUSTOMERS_PATH, parseCustomerListParams } from "@/lib/billingCustomerList";
+import { loadBillingCustomerPage } from "@/lib/billingCustomerListQueries";
+import { dinerListHref, parseCustomersView, parseDinerListParams } from "@/lib/dinerList";
+import { loadDinerPage } from "@/lib/dinerListQueries";
+import { BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
+import { DinersList } from "./DinersList";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Lista de comensales del restaurante.
+ * Clientes del restaurante, en dos pestañas (cada una es una URL):
  *
- * ── Por qué esta pantalla ahora puede listar de verdad ────────────────
- * Antes la identidad del comensal era global (`User.email` único en toda la
- * plataforma), así que "los comensales" no era un conjunto que le
- * perteneciera a nadie: listar registrados le habría mostrado a cada
- * restaurante la base de los demás. Por eso la lista solo podía armarse
- * desde las ÓRDENES pagadas acá, y quien se había registrado sin consumir
- * todavía era invisible.
+ *  · Para facturación (`BillingCustomers`): los contactos que el comercio
+ *    crea para facturarles, con su crédito, deuda y descuento. Sólo para
+ *    quien puede gestionarlos (operador y administradores).
+ *  · Comensales registrados (`DinersList`): las cuentas que los comensales
+ *    crearon desde la carta, con lo que han consumido acá.
  *
- * Con el registro por comercio (`Diner.restaurantId`), la base de
- * comensales SÍ es de este local: acá se listan todos los suyos, hayan
- * pedido o no. El consumo se sigue calculando solo sobre las órdenes de
- * este restaurante, que por construcción son las únicas que puede tener.
+ * Las dos listas se buscan, filtran, ordenan y paginan EN LA BASE sobre
+ * todos los registros del comercio (antes la de facturación se cortaba en
+ * 50 y la de comensales en los 500 más recientes). Los filtros viven en la
+ * URL: sobreviven a recargar y al botón atrás.
  *
- * El `restaurantId` viene siempre de la sesión (getActiveRestaurantId),
- * nunca de la URL ni del cliente.
+ * ── Comensales: por qué esta pantalla puede listarlos ─────────────────
+ * Con el registro por comercio (`Diner.restaurantId`) la base de comensales
+ * es de este local; el consumo se calcula sólo con sus órdenes pagadas. El
+ * `restaurantId` viene siempre de la sesión (getActiveRestaurantId), nunca
+ * de la URL ni del cliente.
  */
-export default async function ClientesPage() {
+export default async function ClientesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("opCustomers");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
-  const session = await auth();
-  const canManageCustomers = ["operator", "platform_admin", "group_admin"].includes(session?.user?.role ?? "");
-  const locale = (await getLocale()) as Locale;
-  const restaurant = await db.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { country: true },
-  });
+  const [session, sp, restaurant] = await Promise.all([
+    auth(),
+    searchParams,
+    db.restaurant.findUnique({ where: { id: restaurantId }, select: { country: true } }),
+  ]);
+  const canManageCustomers = (BILLING_CUSTOMER_WRITE_ROLES as readonly string[]).includes(session?.user?.role ?? "");
   const currency = await getCurrencyForCountry(restaurant?.country ?? "CO");
+  const view = parseCustomersView(sp, canManageCustomers);
 
-  const diners = await db.diner.findMany({
-    where: { restaurantId },
-    orderBy: { createdAt: "desc" },
-    take: 500,
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      cedula: true,
-      createdAt: true,
-      discount: { select: { percent: true, active: true } },
-    },
-  });
-
-  // Consumo por comensal, solo con las órdenes pagadas de ESTE restaurante.
-  const spend = diners.length
-    ? await db.order.groupBy({
-        by: ["dinerId"],
-        where: {
-          restaurantId,
-          dinerId: { in: diners.map((d) => d.id) },
-          status: "paid",
-        },
-        _sum: { totalCents: true },
-        _count: { _all: true },
-      })
-    : [];
-  const spendByDiner = new Map(
-    spend.map((g) => [
-      g.dinerId,
-      { orders: g._count._all, totalCents: g._sum.totalCents ?? 0 },
-    ]),
-  );
-
-  // Los que más han consumido arriba; los que todavía no consumieron,
-  // ordenados por registro más reciente (que es como llegaron de la lista).
-  const rows = diners
-    .map((d) => ({
-      id: d.id,
-      name: d.name,
-      email: d.email,
-      cedula: d.cedula,
-      createdAt: d.createdAt,
-      orders: spendByDiner.get(d.id)?.orders ?? 0,
-      totalCents: spendByDiner.get(d.id)?.totalCents ?? 0,
-      discountPct: d.discount?.active ? d.discount.percent : null,
-    }))
-    .sort((a, b) => b.totalCents - a.totalCents);
+  const tabs = (billingCount: number, dinerCount: number) =>
+    canManageCustomers ? (
+      <CustomersTabs
+        // Con clave: el elemento viaja del servidor como prop y el cliente lo
+        // pinta junto a otros hijos (sin ella React avisa "unique key").
+        key="tabs"
+        label={t("tabsLabel")}
+        items={[
+          { href: CUSTOMERS_PATH, label: t("tabBilling"), count: billingCount, active: view === "billing" },
+          { href: dinerListHref({}), label: t("tabDiners"), count: dinerCount, active: view === "diners" },
+        ]}
+      />
+    ) : null;
 
   return (
-    <div className="p-6 max-w-4xl">
-      <h1 className="font-display text-3xl tracking-[-0.015em] mb-1">
-        {t("title")}
-      </h1>
-      <p className="text-sm text-muted mb-6">{t("subtitle")}</p>
-
-      {canManageCustomers && <BillingCustomers currency={currency} />}
-
-      <DinerLookup />
-
-      <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-muted mt-8 mb-3">
-        {t("listTitle")}
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-hairline bg-paper p-8 text-center text-sm text-muted">
-          {t("empty")}
-        </div>
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto w-full">
+      {view === "billing" ? (
+        <BillingView restaurantId={restaurantId} sp={sp} currency={currency} tabs={tabs} />
       ) : (
-        <ul className="space-y-2">
-          {rows.map((r) => (
-            <li key={r.id}>
-              <Link
-                href={`/operator/clientes/${r.id}`}
-                className="block rounded-xl border border-hairline bg-paper p-4 hover:border-terracotta"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="font-display text-lg tracking-[-0.01em] truncate">
-                      {r.name ?? r.email}
-                    </div>
-                    <div className="font-mono text-[11px] text-muted truncate">
-                      {r.cedula ?? r.email}
-                    </div>
-                    {r.discountPct !== null && (
-                      <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta mt-1">
-                        {t("discountBadge", { pct: r.discountPct })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    {r.orders === 0 ? (
-                      <>
-                        <div className="font-mono text-[11px] text-muted">
-                          {t("noOrdersYet")}
-                        </div>
-                        <div className="font-mono text-[10px] text-muted-2">
-                          {t("registeredOn", {
-                            date: formatDate(r.createdAt, { locale }),
-                          })}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-display text-xl tabular">
-                          {formatMoney(r.totalCents, { currency, locale })}
-                        </div>
-                        <div className="font-mono text-[10px] text-muted">
-                          {t("ordersCount", { count: r.orders })}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <DinersView
+          restaurantId={restaurantId}
+          sp={sp}
+          currency={currency}
+          tabs={tabs}
+          showBillingCount={canManageCustomers}
+          header={<CustomersHeader key="header" title={t("title")} subtitle={t(canManageCustomers ? "subtitle" : "subtitleDiners")} />}
+        />
       )}
     </div>
+  );
+}
+
+type Tabs = (billingCount: number, dinerCount: number) => React.ReactNode;
+
+async function BillingView({
+  restaurantId,
+  sp,
+  currency,
+  tabs,
+}: {
+  restaurantId: string;
+  sp: Record<string, string | string[] | undefined>;
+  currency: string;
+  tabs: Tabs;
+}) {
+  const params = parseCustomerListParams(sp);
+  const [list, dinerCount] = await Promise.all([
+    loadBillingCustomerPage(restaurantId, params),
+    db.diner.count({ where: { restaurantId } }),
+  ]);
+  return <BillingCustomers list={list} params={{ ...params, page: list.page }} currency={currency} tabs={tabs(list.allCount, dinerCount)} />;
+}
+
+async function DinersView({
+  restaurantId,
+  sp,
+  currency,
+  tabs,
+  header,
+  showBillingCount,
+}: {
+  restaurantId: string;
+  sp: Record<string, string | string[] | undefined>;
+  currency: string;
+  tabs: Tabs;
+  header: React.ReactNode;
+  showBillingCount: boolean;
+}) {
+  const params = parseDinerListParams(sp);
+  const [list, billingCount] = await Promise.all([
+    loadDinerPage(restaurantId, params),
+    showBillingCount ? db.billingCustomer.count({ where: { restaurantId } }) : Promise.resolve(0),
+  ]);
+  return (
+    <DinersList
+      list={list}
+      params={{ ...params, page: list.page }}
+      currency={currency}
+      header={header}
+      tabs={tabs(billingCount, list.allCount)}
+    />
   );
 }

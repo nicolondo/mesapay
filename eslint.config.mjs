@@ -27,6 +27,9 @@ const MIGRATED = [
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
+  // Clientes (facturación + comensales registrados, y la ficha del
+  // comensal): migrados enteros con el rediseño de la lista, quedan blindados.
+  "src/app/operator/clientes/**/*.{ts,tsx}",
   "src/app/admin/configuracion/MenuAiCard.tsx",
   "src/app/operator/menu/DescriptionAi.tsx",
   "src/i18n/**/*.{ts,tsx}",
@@ -175,6 +178,7 @@ const MIGRATED = [
   "src/app/admin/restaurants/\\[id\\]/AdminAiConfig.tsx",
   "src/app/admin/restaurants/\\[id\\]/DangerZonePanel.tsx",
   "src/app/admin/restaurants/\\[id\\]/DeleteRestaurantPanel.tsx",
+  "src/app/admin/restaurants/\\[id\\]/DianRecoveryPanel.tsx",
   "src/app/admin/restaurants/eliminados/**/*.{ts,tsx}",
   "src/components/CashBox.tsx",
   // Pedido de factura del comensal (checkout + pantalla de "listo"). Nació

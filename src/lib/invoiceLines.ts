@@ -15,9 +15,10 @@
  *     texto), la tirilla del datáfono (`payments/kushki/cloudPrint.ts`) y
  *     la precuenta (`prebill.ts`).
  *   · NUNCA en el XML de la DIAN (`dian/emit.ts` / `ubl.ts`): sigue
- *     saliendo una línea por ítem de la orden. Cada rechazo de la DIAN
- *     consume un consecutivo real, y la emisión no se toca por una
- *     cuestión de presentación. Tampoco se toca el snapshot guardado:
+ *     saliendo una línea por ítem de la orden (las de $0 no van, ver
+ *     `billableDianLines`): un rechazo de la DIAN deja la venta sin
+ *     factura válida, y la emisión no se toca por una cuestión de
+ *     presentación. Tampoco se toca el snapshot guardado:
  *     se agrupa al LEER, así una factura vieja se imprime agrupada igual.
  *
  * Cuándo dos líneas son "el mismo artículo" (todas a la vez):
@@ -144,4 +145,33 @@ export function groupInvoiceLines<T extends InvoiceLineInput>(
     out.push(grouped);
   }
   return out;
+}
+
+/**
+ * FACTURA ELECTRÓNICA: separa las líneas con valor de las que van en $0
+ * (cortesía de la carta, modificador gratis, línea libre en cero). Las de
+ * $0 NO van en el XML de la DIAN (`billableDianLines`, regla FAW01), así
+ * que la representación gráfica y el papel de la factura electrónica
+ * tampoco las listan entre las líneas fiscales: quedan como una nota
+ * informativa aparte («Sin costo: 1× Postre»), para que el comensal vea
+ * que no se le cobró y el detalle siga diciendo lo mismo que el XML. Los
+ * totales no cambian: una línea en cero no suma nada.
+ *
+ * Sólo para la factura electrónica. El comprobante (sin DIAN) sigue
+ * mostrando todo como siempre.
+ */
+export function splitZeroValueLines<T extends InvoiceLineInput>(
+  lines: readonly T[],
+): { charged: T[]; free: T[] } {
+  const charged: T[] = [];
+  const free: T[] = [];
+  for (const l of lines) (l.qty * l.priceCents > 0 ? charged : free).push(l);
+  return { charged, free };
+}
+
+/** «1× Postre Cumpleaños, 2× Café» — las líneas sin costo, agrupadas. */
+export function freeLinesText(free: readonly InvoiceLineInput[]): string {
+  return groupInvoiceLines(free)
+    .map((l) => `${l.qty}× ${l.name}`)
+    .join(", ");
 }

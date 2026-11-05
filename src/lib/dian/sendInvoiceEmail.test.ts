@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   renderEmail: vi.fn(),
   invoiceIssueInstant: vi.fn(),
   buildAttachedDocumentXml: vi.fn(),
+  unzipFirstXml: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -51,7 +52,7 @@ vi.mock("@/lib/dian/config", () => ({
 }));
 vi.mock("@/lib/dian/soap", () => ({
   extractApplicationResponse: async () => "<ApplicationResponse/>",
-  unzipFirstXml: async () => "<Invoice/>",
+  unzipFirstXml: m.unzipFirstXml,
   zipInvoice: async () => Buffer.from("zip"),
 }));
 // Parcial a propósito: `resolveDianRecipient` corre DE VERDAD (decidir a
@@ -135,6 +136,7 @@ beforeEach(() => {
   m.sendEmail.mockResolvedValue(true);
   m.renderEmail.mockResolvedValue({ subject: "s", html: "h", text: "t" });
   m.buildAttachedDocumentXml.mockReturnValue("<AttachedDocument/>");
+  m.unzipFirstXml.mockResolvedValue("<Invoice/>");
   m.invoiceIssueInstant.mockReturnValue({
     at: new Date("2026-09-01T15:00:00.000Z"),
     date: "2026-09-01",
@@ -298,5 +300,23 @@ describe("fecha del sobre y del correo", () => {
       expect.objectContaining({ issueDate: "2026-09-30", issueTime: "20:00:00-05:00" }),
     );
     expect(m.renderEmail).toHaveBeenCalledWith(expect.objectContaining({ issuedAt: paidAt }));
+  });
+});
+
+describe("el sobre lleva la factura de ESE CUFE", () => {
+  it("XML guardado de otro CUFE (recuperada por regla 90) ⇒ el correo sale SIN adjunto, y queda anotado", async () => {
+    m.unzipFirstXml.mockResolvedValue(
+      `<Invoice><ext:UBLExtensions/></ext:UBLExtensions><cbc:ID>FESM6484</cbc:ID><cbc:UUID schemeName="CUFE-SHA384">OTRO-CUFE</cbc:UUID></Invoice>`,
+    );
+    const r = await send();
+    expect(r).toMatchObject({ ok: true, attachment: false });
+    expect(m.buildAttachedDocumentXml).not.toHaveBeenCalled();
+    expect(m.sendEmail).toHaveBeenCalledWith(expect.not.objectContaining({ attachments: expect.anything() }));
+    expect(row.emailError).toBe("attachment_unavailable");
+  });
+
+  it("XML del mismo CUFE ⇒ adjunto como siempre", async () => {
+    m.unzipFirstXml.mockResolvedValue(`<Invoice><cbc:ID>FESM6484</cbc:ID><cbc:UUID>CUFE</cbc:UUID></Invoice>`);
+    expect(await send()).toMatchObject({ ok: true, attachment: true });
   });
 });

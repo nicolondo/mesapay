@@ -1,12 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
-const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), rate: vi.fn() }));
+const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), rate: vi.fn(), queryRaw: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.active }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: m.rate }));
-vi.mock("@/lib/db", () => ({ db: { billingCustomer: { findMany: m.findMany, create: m.create, update: m.update } } }));
+vi.mock("@/lib/db", () => ({ db: { $queryRaw: m.queryRaw, billingCustomer: { findMany: m.findMany, create: m.create, update: m.update } } }));
 import { GET, POST } from "./route";
 import { PATCH } from "./[id]/route";
 // Lo que manda el formulario hoy: sin dirección ni municipio.
@@ -21,6 +21,8 @@ beforeEach(() => {
   m.active.mockResolvedValue("restaurant-1");
   m.rate.mockResolvedValue(true);
   m.findMany.mockResolvedValue([]);
+  // Agregado vacío: ningún cliente coincide (la consulta de la página no corre).
+  m.queryRaw.mockResolvedValue([{ count: 0, creditCount: 0, debtorCount: 0, overdueCount: 0, debtCents: BigInt(0), overdueCents: BigInt(0), allCount: 0, usesCredit: false }]);
   m.create.mockResolvedValue({ id: "customer-1" });
   m.update.mockResolvedValue({ id: "customer-1" });
 });
@@ -38,10 +40,36 @@ it("updates a contact without address or municipality", async () => {
   expect((await PATCH(req("PATCH", minimal), params)).status).toBe(200);
   expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ address: null, municipalityCode: null, city: null, department: null }) }));
 });
+type RawSql = { sql: string; values: unknown[] };
+const rawCalls = () => m.queryRaw.mock.calls.map((c) => c[0] as RawSql);
 it("bounds searches to the current tenant and normalizes formatted document queries", async () => {
   const response = await GET(new Request("http://localhost/api/operator/billing-customers?q=901.944.469-1"));
   expect(response.status).toBe(200);
-  expect(m.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50, where: expect.objectContaining({ restaurantId: "restaurant-1", OR: expect.arrayContaining([{ docNumber: { contains: "901944469", mode: "insensitive" } }]) }) }));
+  const [aggregate] = rawCalls();
+  expect(aggregate.values).toContain("restaurant-1");
+  expect(aggregate.values).toContain("%901944469%");
+  expect(aggregate.values).toContain("%901.944.469-1%");
+  expect(aggregate.sql).toContain(`bc."restaurantId" = ?`);
+  expect(await response.json()).toEqual({ customers: [], total: 0, page: 1, pageCount: 1, pageSize: 50, hasMore: false });
+});
+it("pages past the old 50-row cap and tells the picker there is more", async () => {
+  m.queryRaw
+    .mockResolvedValueOnce([{ count: 130, creditCount: 0, debtorCount: 0, overdueCount: 0, debtCents: BigInt(0), overdueCents: BigInt(0), allCount: 130, usesCredit: false }])
+    .mockResolvedValueOnce([{ id: "customer-21", debtCents: BigInt(0), overdueCents: BigInt(0) }]);
+  m.findMany.mockResolvedValue([{ id: "customer-21", restaurantId: "restaurant-1", customerName: "Cliente 21", docType: "CC", docNumber: "1020304050", verificationDigit: null, email: "c21@example.test", phone: null, address: null, municipalityCode: null, city: null, department: null, country: "CO", creditEnabled: true, creditLimitCents: null, creditTermsDays: 30, discountEnabled: false, discountBps: 0, createdAt: new Date("2026-11-01T00:00:00Z") }]);
+  const response = await GET(new Request("http://localhost/api/operator/billing-customers?q=cliente&credit=1&page=2&pageSize=20&sort=relevance"));
+  const body = await response.json();
+  expect(body).toMatchObject({ total: 130, page: 2, pageCount: 7, pageSize: 20, hasMore: true });
+  expect(body.customers).toEqual([expect.objectContaining({ id: "customer-21", debtCents: 0, overdueCents: 0 })]);
+  const [, page] = rawCalls();
+  // Página 2 de 20: LIMIT 20 OFFSET 20, sólo con crédito, documento exacto primero.
+  expect(page.values.slice(-2)).toEqual([20, 20]);
+  expect(page.sql).toContain(`"creditEnabled"`);
+  expect(page.sql).toContain(`(upper("docNumber") = ?`);
+  expect(m.findMany).toHaveBeenCalledWith({ where: { restaurantId: "restaurant-1", id: { in: ["customer-21"] } } });
+});
+it("caps the page size the API accepts", async () => {
+  expect(await (await GET(new Request("http://localhost/api/operator/billing-customers?pageSize=5000"))).json()).toMatchObject({ pageSize: 50 });
 });
 it("allows the waiter picker but denies waiter creation and updates", async () => {
   m.auth.mockResolvedValue({ user: { id: "waiter", role: "mesero" } });

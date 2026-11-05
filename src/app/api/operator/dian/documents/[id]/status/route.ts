@@ -14,6 +14,7 @@ import { dianQrUrl } from "@/lib/dian/crypto";
 import { printAcceptedDianInvoice } from "@/lib/print/invoiceQueue";
 import { emitDianCreditNote } from "@/lib/dian/emitCreditNote";
 import { closeInvoiceRequestsAfterDeferredAcceptance } from "@/lib/dian/invoiceRequestClosure";
+import { checkDianInvoiceStatus } from "@/lib/dian/invoiceReconcile";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,16 @@ async function POSTHandler(
     return NextResponse.json(result);
   }
   if (!doc.trackId) {
+    // Factura de una venta enviada por SendBillSync: no hay ZipKey, la
+    // clave de la consulta es el CUFE (ver dian/invoiceReconcile.ts). Es el
+    // caso de la regla 90 «Documento procesado anteriormente».
+    if (doc.simpleInvoiceId) {
+      const result = await checkDianInvoiceStatus({
+        documentId: doc.id,
+        restaurantId: ctx.restaurantId,
+      });
+      return NextResponse.json(result, { status: result.outcome === "not_found" ? 404 : 200 });
+    }
     // Sin ZipKey no hay nada que consultar: el envío nunca llegó.
     return NextResponse.json({ error: "no_track_id" }, { status: 400 });
   }

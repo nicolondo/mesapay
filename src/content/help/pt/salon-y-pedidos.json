@@ -272,14 +272,23 @@
     {
       "slug": "buscar-y-revisar-ordenes",
       "title": "Busque um pedido e confira o detalhe",
-      "summary": "Em Pedidos você encontra qualquer conta pelo código, filtra por status e período, e no detalhe vê as rodadas, o que cada pessoa pediu, os pagamentos e a fatura.",
+      "summary": "Em Pedidos você percorre as vendas por dia, semana, mês ou intervalo, com os totais do período; encontra qualquer conta pelo código ou pelo número da fatura, e no detalhe vê as rodadas, o que cada pessoa pediu, os pagamentos e a fatura.",
       "keywords": [
         "pedidos",
         "buscar pedido",
         "codigo",
         "codigo curto",
+        "numero da fatura",
+        "buscar fatura",
+        "nota de credito",
         "historico",
         "pedidos do dia",
+        "semana",
+        "mes",
+        "intervalo",
+        "periodo",
+        "paginas",
+        "vendas brutas",
         "detalhe do pedido",
         "rodadas",
         "por pessoa",
@@ -288,20 +297,19 @@
         "reimprimir fatura",
         "abertos",
         "pagos",
-        "cancelados",
-        "periodo"
+        "cancelados"
       ],
       "audience": [
         "operator"
       ],
-      "body": "Cada conta tem um código de 6 caracteres (por exemplo **4F2A9C**) que aparece na ficha da mesa, nas comandas e nos cupons. Com esse código você a encontra em **Pedidos**, onde também confere o histórico do dia ou de qualquer período.\n\n## Buscar um pedido pelo código\n\n1. Digite o código em **Buscar pedido**, na barra superior do painel, e aperte Enter. Basta uma parte do código.\n2. Abre **Pedidos** com o resultado.\n\nVocê também pode buscar na própria página de [Pedidos](/operator/orders), em **Buscar por código**, e tocar em **Buscar**.\n\n> A busca respeita o período escolhido, que começa em **Hoje**. Se o pedido for de outro dia, mude **Período** para **7 dias**, **30 dias** ou **Tudo**.\n\n## Filtrar a lista\n\n- **Status**: **Todos**, **Abertos**, **Pagos** ou **Cancelados**.\n- **Período**: **Hoje**, **7 dias**, **30 dias** ou **Tudo**.\n\nNo topo aparece o total: quantos pedidos, quantos pagos e quanto somam. A lista mostra a data, o código, a mesa (ou o canal), o status, os itens, o subtotal, o valor pago e a fatura. Mostra os 100 mais recentes do filtro.\n\n\"Hoje\" é o expediente do restaurante: se em [Políticas operacionais](/operator/settings/staff-policies) o expediente começa às 5:00, o que se vende às 2 da manhã conta para a noite anterior.\n\n## O detalhe de um pedido\n\nToque em **Ver** no pedido. No topo estão a mesa, a data e o código, e quatro valores: **Subtotal**, **Gorjeta**, **Pago** e **Restante**.\n\n- **Ações**: se a conta continua aberta, **Cobrar a conta** e, enquanto a cozinha não tiver começado nada, **Cancelar**.\n- **Fatura**: se já foi faturado, o número com **Ver fatura**, **Reimprimir fatura** e, com faturamento eletrônico, **Reenviar por e-mail**.\n- **Rodadas**: cada envio (**Rodada 1 · 20:15**) com o status e os pratos, cada um com o status (**A preparar**, **Preparando**, **Pronto para servir**, **Servido**), as opções, as notas e **de** quem pediu.\n- **Por pessoa**: se na mesa várias pessoas pediram com o nome, o que cada uma pediu e quanto soma.\n- **Pagamentos**: cada pagamento com o meio, o status (**Aprovado**, **Pendente**, **Falhou**, **Reembolsado**) e, se a conta foi dividida, **1 de 3**.\n\nQuem lançou cada rodada aparece na ficha da mesa (em **Mesas**) e no quadro da cozinha, com **Lançou:**.\n\n## Os status de um pedido\n\n**Aberto**, **Enviado** (para a cozinha), **Na cozinha**, **Pronto**, **Servido**, **Cobrando**, **Pago** e **Cancelado**.\n\n## Casos frequentes\n\n- **\"Nenhum pedido com esses filtros.\"**: amplie o **Período** ou ponha **Status** em **Todos**.\n- **Tenho o código longo da fatura ou de um e-mail**: funciona também; a busca encontra o pedido com qualquer parte do código.\n- **Quero corrigir um pedido aberto**: faça pela mesa dele. Veja [Cancele, deixe de cobrar ou mova um prato](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).",
+      "body": "Cada conta tem um código de 6 caracteres (por exemplo **4F2A9C**) que aparece na ficha da mesa, nas comandas e nos cupons. Com esse código, ou com o número da fatura, você a encontra em [Pedidos](/operator/orders), onde também confere o que se vendeu cada dia, semana ou mês.\n\n## Escolha o período\n\nAcima da lista você escolhe como ver os pedidos: **Dia**, **Semana**, **Mês** ou **Intervalo**. Ao entrar, aparece **Hoje**.\n\n- Com as setas **←** e **→** você vai para o dia, a semana ou o mês anterior ou seguinte. Em **Intervalo**, as setas pulam um período do mesmo tamanho.\n- No meio aparece o que você está vendo: **Hoje**, **Ontem**, uma data (por exemplo, «sáb., 1 de nov.»), uma semana («Semana 45 · 2 – 8 de nov.») ou um mês («Novembro de 2026»). As semanas vão de segunda a domingo.\n- Para escolher as datas, toque em **Intervalo** (ou no rótulo do período), preencha **De** e **Até** e toque em **Ver**.\n- Se você se afastou de hoje, toque em **Voltar para hoje**.\n\nO período fica no endereço da página: você pode voltar com o navegador, recarregar ou compartilhar o link, e ele abre igual.\n\n\"Hoje\" é o expediente do restaurante: se em [Políticas operacionais](/operator/settings/staff-policies) o expediente começa às 5:00, o que se vende às 2 da manhã conta para a noite anterior. Uma conta aberta ontem e paga hoje aparece hoje, com a hora do pagamento.\n\n## Os totais e a lista\n\nNo topo aparecem os totais de TODO o período, não só do que cabe na tela: **Pedidos**, **Pagos** e **Vendas brutas**, que é o que foi cobrado com impostos e gorjeta.\n\nFiltre por **Status**: **Todos**, **Abertos**, **Pagos** ou **Cancelados**. Cada opção mostra quantos pedidos tem no período.\n\nCada linha mostra a hora (e o dia, se você olha mais de um dia), a mesa (ou o canal), o código, os itens, o status, o total e a fatura. Nos pagos, o total é o que foi cobrado com gorjeta; nos demais, o que a conta soma até agora. Toque na linha para abrir o detalhe.\n\nA lista vai do mais recente ao mais antigo, 50 pedidos por página. Embaixo aparece, por exemplo, **Mostrando 51–100 de 312**, e você muda de página com **Anterior** e **Próxima**.\n\n## Busque um pedido\n\nDigite em **Código ou fatura**, na mesma página, e toque em **Buscar**. Você pode buscar:\n\n- **O código da conta**, ou uma parte. Essa busca respeita o período escolhido: se não aparecer, toque em **Buscar em todas as datas**.\n- **O número da fatura**, com o prefixo (**FESM7913**) ou só o número (**7913**). Maiúsculas, espaços e hifens não importam.\n- **O número de uma nota de crédito** (**NC12**): leva ao pedido da fatura que ela corrige.\n\nQuando você digita o número de uma fatura, a busca olha todas as datas e avisa com **Resultados da busca «…» em todas as datas.** Toque em **Limpar busca** para voltar ao período.\n\n**Buscar pedido ou fatura**, na barra superior do painel, faz o mesmo em qualquer tela e sempre busca em todas as datas.\n\n## A fatura na lista\n\nSe a conta já foi faturada, a linha mostra o número (por exemplo **FESM7913**) e, com faturamento eletrônico, como está na DIAN: **Aceita**, **Pendente** ou **Rejeitada**. Toque em **⋯** ao lado para **Ver fatura**, **Reimprimir fatura** e, se a DIAN já aceitou, **Reenviar por e-mail**.\n\n## O detalhe de um pedido\n\nToque no pedido na lista. No topo estão a mesa, a data e o código, e quatro valores: **Subtotal**, **Gorjeta**, **Pago** e **Restante**.\n\n- **Ações**: se a conta continua aberta, **Cobrar a conta** e, enquanto a cozinha não tiver começado nada, **Cancelar**.\n- **Fatura**: se já foi faturado, o número com **Ver fatura**, **Reimprimir fatura** e, com faturamento eletrônico, **Reenviar por e-mail**.\n- **Rodadas**: cada envio (**Rodada 1 · 20:15**) com o status e os pratos, cada um com o status (**A preparar**, **Preparando**, **Pronto para servir**, **Servido**), as opções, as notas e **de** quem pediu.\n- **Por pessoa**: se na mesa várias pessoas pediram com o nome, o que cada uma pediu e quanto soma.\n- **Pagamentos**: cada pagamento com o meio, o status (**Aprovado**, **Pendente**, **Falhou**, **Reembolsado**) e, se a conta foi dividida, **1 de 3**.\n\nQuem lançou cada rodada aparece na ficha da mesa (em **Mesas**) e no quadro da cozinha, com **Lançou:**.\n\n## Os status de um pedido\n\n**Aberto**, **Enviado** (para a cozinha), **Na cozinha**, **Pronto**, **Servido**, **Cobrando**, **Pago** e **Cancelado**.\n\n## Casos frequentes\n\n- **\"Nenhum pedido com esses filtros.\"**: mude o período, ponha **Status** em **Todos** ou toque em **Ver todos**.\n- **Busquei um código e não aparece**: pode ser de outro dia. Toque em **Buscar em todas as datas**.\n- **Tenho o código longo da fatura ou de um e-mail**: funciona também; a busca encontra o pedido com qualquer parte do código.\n- **Antes eu via 7 dias ou 30 dias**: escolha **Semana** ou **Mês**, ou monte o **Intervalo** que precisar. Não há mais limite de 100 pedidos: todos estão lá, em páginas.\n- **Quero corrigir um pedido aberto**: faça pela mesa dele. Veja [Cancele, deixe de cobrar ou mova um prato](/operator/ayuda/salon-y-pedidos/corregir-un-pedido).\n",
       "links": [
         {
           "label": "Ir para Pedidos",
           "href": "/operator/orders"
         }
       ],
-      "updated": "2026-10-31"
+      "updated": "2026-11-04"
     },
     {
       "slug": "reservas",

@@ -392,6 +392,51 @@ export type SoapTransport = (
   envelope: string,
 ) => Promise<{ status: number; body: string }>;
 
+/** `charset=` del Content-Type, o null. */
+function charsetOf(contentType: string | null | undefined): string | null {
+  const m = /charset\s*=\s*"?([\w.:-]+)"?/i.exec(contentType ?? "");
+  return m ? m[1] : null;
+}
+
+/** `encoding="…"` de la declaración XML (los primeros bytes, en ASCII). */
+function xmlDeclaredEncoding(bytes: Uint8Array): string | null {
+  const head = Buffer.from(bytes.subarray(0, 200)).toString("latin1");
+  const m = /^\s*<\?xml[^>]*\bencoding\s*=\s*["']([\w.:-]+)["']/i.exec(head);
+  return m ? m[1] : null;
+}
+
+/**
+ * Texto de la respuesta de la DIAN a partir de los BYTES, con el juego de
+ * caracteres correcto.
+ *
+ * `Response.text()` decodifica SIEMPRE como UTF-8, diga lo que diga el
+ * servidor. Cuando la DIAN responde en ISO-8859-1 / windows-1252 (pasa con
+ * algunos mensajes de reglas, p. ej. RUT01), cada letra con tilde o «ñ» se
+ * convertía en «�» (U+FFFD) y así quedaba guardado: «Se�or usuario…».
+ * Orden: el charset declarado (Content-Type o declaración XML) si no es
+ * UTF-8; si no, UTF-8 ESTRICTO; y si los bytes no son UTF-8 válido —un
+ * servidor que dice UTF-8 y manda Latin-1—, windows-1252, que es el
+ * superconjunto de Latin-1 que usan los servidores Windows.
+ */
+export function decodeSoapBody(
+  bytes: Uint8Array,
+  contentType?: string | null,
+): string {
+  const declared = charsetOf(contentType) ?? xmlDeclaredEncoding(bytes);
+  if (declared && !/^utf-?8$/i.test(declared)) {
+    try {
+      return new TextDecoder(declared).decode(bytes);
+    } catch {
+      // Charset desconocido: se sigue con la detección de abajo.
+    }
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 export const fetchTransport: SoapTransport = async (url, action, envelope) => {
   const res = await fetch(url, {
     method: "POST",
@@ -401,7 +446,8 @@ export const fetchTransport: SoapTransport = async (url, action, envelope) => {
     body: envelope,
     signal: AbortSignal.timeout(30_000),
   });
-  return { status: res.status, body: await res.text() };
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  return { status: res.status, body: decodeSoapBody(bytes, res.headers.get("content-type")) };
 };
 
 export type SendArgs = {
@@ -412,11 +458,12 @@ export type SendArgs = {
   transport?: SoapTransport;
 };
 
-async function call(
+/** Envía la operación firmada y devuelve el cuerpo crudo (o el fallo de canal). */
+async function post(
   service: string,
   bodyInner: string,
   args: SendArgs,
-): Promise<DianResult> {
+): Promise<{ body: string } | { error: string }> {
   const envelope = buildSignedSoapEnvelope(service, bodyInner, args.cert, args.environment);
   const transport = args.transport ?? fetchTransport;
   let res: { status: number; body: string };
@@ -427,14 +474,19 @@ async function call(
       envelope,
     );
   } catch (err) {
-    return {
-      state: "error",
-      errors: [err instanceof Error ? err.message : "la DIAN no respondió"],
-    };
+    return { error: err instanceof Error ? err.message : "la DIAN no respondió" };
   }
-  if (!res.body) {
-    return { state: "error", errors: ["la DIAN no respondió"] };
-  }
+  if (!res.body) return { error: "la DIAN no respondió" };
+  return { body: res.body };
+}
+
+async function call(
+  service: string,
+  bodyInner: string,
+  args: SendArgs,
+): Promise<DianResult> {
+  const res = await post(service, bodyInner, args);
+  if ("error" in res) return { state: "error", errors: [res.error] };
   return { ...parseDianResponse(res.body), raw: res.body };
 }
 
@@ -460,4 +512,60 @@ export async function getStatus(trackId: string, args: SendArgs): Promise<DianRe
 }
 export async function getStatusZip(trackId: string, args: SendArgs): Promise<DianResult> {
   return call("GetStatusZip", getStatusZipBody(trackId), args);
+}
+
+export function getXmlByDocumentKeyBody(trackId: string): string {
+  return `<wcf:trackId>${trackId}</wcf:trackId>`;
+}
+
+/**
+ * Saca el XML de un documento de la respuesta de `GetXmlByDocumentKey`: el
+ * documento viaja en base64 (`XmlBytesBase64`), pelado o zipeado. null si
+ * la respuesta no trae un XML de factura (documento inexistente, fault,
+ * respuesta ilegible). Pura, para poder probarla sin red.
+ */
+export async function documentXmlFromResponse(
+  responseXml: string | null | undefined,
+): Promise<string | null> {
+  if (!responseXml) return null;
+  let root: XmlNode;
+  try {
+    root = new DOMParser().parseFromString(responseXml, "text/xml")
+      .documentElement as unknown as XmlNode;
+  } catch {
+    return null;
+  }
+  if (!root) return null;
+  const b64 = (text1(root, "XmlBytesBase64") ?? text1(root, "XmlBase64Bytes"))?.trim();
+  if (!b64) return null;
+  const bytes = Buffer.from(b64, "base64");
+  if (bytes.length === 0) return null;
+  const xml =
+    bytes[0] === 0x50 && bytes[1] === 0x4b
+      ? await unzipFirstXml(bytes)
+      : decodeSoapBody(bytes);
+  if (!xml) return null;
+  // Sólo una factura: el acuse (ApplicationResponse) no sirve como XML del
+  // documento y nunca debe guardarse en su lugar.
+  return /<(?:\w+:)?Invoice[\s>]/.test(xml) ? xml : null;
+}
+
+/**
+ * El XML firmado que la DIAN tiene guardado para un CUFE
+ * (`GetXmlByDocumentKey`, la misma clave que `GetStatus`). Sirve para
+ * recuperar el documento EXACTO de un envío cuya respuesta se perdió: si
+ * la DIAN aceptó un intento anterior, el XML que guardamos es el del
+ * último intento y no el aceptado. Nunca lanza: null si no se pudo.
+ */
+export async function getXmlByDocumentKey(
+  trackId: string,
+  args: SendArgs,
+): Promise<string | null> {
+  const res = await post("GetXmlByDocumentKey", getXmlByDocumentKeyBody(trackId), args);
+  if ("error" in res) return null;
+  try {
+    return await documentXmlFromResponse(res.body);
+  } catch {
+    return null;
+  }
 }

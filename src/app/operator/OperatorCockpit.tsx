@@ -526,9 +526,11 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const term = q.trim();
+    // La búsqueda de arriba es global: en todas las fechas (código de la
+    // cuenta o número de factura), no sólo en el día de hoy.
     router.push(
       term
-        ? `/operator/orders?q=${encodeURIComponent(term)}`
+        ? `/operator/orders?q=${encodeURIComponent(term)}&fechas=todas`
         : "/operator/orders",
     );
   };

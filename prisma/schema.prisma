@@ -1563,6 +1563,12 @@ model Order {
   // Ventas por fecha de pago (análisis de ventas, Resumen, libros): cuentas
   // pagadas de un comercio en un rango de `paidAt`, sin recorrer su historia.
   @@index([restaurantId, status, paidAt])
+  // Lista de Órdenes (`lib/orders/history.ts`): sus dos flujos van por fecha
+  // SIN filtrar estado («Todas»): cobradas por `paidAt`, el resto por
+  // `createdAt`. Sin estos índices cada página recorría la historia entera
+  // del comercio.
+  @@index([restaurantId, paidAt])
+  @@index([restaurantId, createdAt])
   @@index([tableId])
   @@index([restaurantId, needsWaiter])
   @@index([dinerId])
@@ -2742,12 +2748,20 @@ model DianDocument {
   // zipKey/trackId del envío (asíncrono en habilitación).
   trackId     String?
   errors      Json?
+  /// Notificaciones de la DIAN («Regla: X, Notificación: …»). NO son
+  /// rechazos —el anexo técnico las define como indicios que no impiden el
+  /// procesamiento— y por eso no van a `errors` de una factura aceptada;
+  /// quedan acá para diagnóstico.
+  warnings    Json?
   attempts    Int     @default(0)
   /// Notas crédito: respuestas «no encontrado» (66/90) SEGUIDAS de la
   /// consulta de estado DIAN. Cualquier otra respuesta de la DIAN la vuelve a
   /// 0; un fallo de canal no la cambia. Con el umbral de
   /// `creditNoteDeliveryState` (≥3 y ≥24 h desde `issuedAt`) la nota pasa a
   /// «No recibida por la DIAN» y el barrido deja de consultarla.
+  /// Facturas: consultas por CUFE sin confirmar de una factura que la DIAN
+  /// dijo tener (regla 90, `dian_duplicate_unverified`); con el tope de
+  /// `invoiceReconcile.MAX_VERIFY_CHECKS` el barrido deja de consultarla.
   statusNotFoundCount Int @default(0)
   /// Barrido: antes de este instante no se reintenta (backoff exponencial
   /// tras un error de canal; espera fija tras un bloqueo de configuración).

@@ -133,7 +133,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "buscar-y-revisar-ordenes",
       title: "Busca una orden y revisa su detalle",
       covers:
-        "\"Buscar orden\", el código corto de 6 caracteres (la búsqueda respeta el periodo, que arranca en \"Hoy\"), filtros de \"Órdenes\" (estado y periodo), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
+        "\"Órdenes\": navegador de periodo (Día, Semana, Mes, Rango; flechas, \"Volver a hoy\", días de negocio con la hora de corte), totales del periodo (Órdenes, Pagadas, Ventas brutas), filtro de estado con cantidades, lista paginada de 50, búsqueda por código (en el periodo, o \"Buscar en todas las fechas\") y por número de factura o nota crédito (siempre en todas las fechas), \"Buscar orden o factura\" de la barra de arriba, la factura en la fila (número, estado DIAN y menú ⋯), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
     },
     {
       slug: "reservas",
@@ -455,7 +455,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "emision-automatica-de-facturas",
       title: "Cómo se emiten tus facturas y qué hacer si se frenan",
       covers:
-        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, y \"Reintentar emisión\".",
+        "Con facturación electrónica toda venta cobrada se factura sola (personalizada a nombre del cliente o a consumidor final; cortesías y $0 no; productos en $0 fuera de la factura, como nota \"Sin costo\"), fecha en hora de Colombia, impuesto congelado, estados DIAN de la lista de Facturas, reintentos automáticos, avisos de facturas frenadas por configuración o rango, \"Reintentar emisión\", y las rechazadas con causa conocida (producto en $0, regla 90 «documento procesado anteriormente», respuestas temporales de la DIAN): \"Reenviar a la DIAN\" con el mismo número y \"Consultar en la DIAN\" por CUFE.",
     },
     {
       slug: "solicitudes-de-factura",

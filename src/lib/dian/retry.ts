@@ -12,8 +12,11 @@ export const RETRYABLE_STATES = ["to_send", "error", "rejected"] as const;
 
 /**
  * Estados que el BARRIDO reintenta solo. `rejected` NO está: la DIAN ya
- * evaluó ese XML y lo rechazó; mandarlo igual otra vez es el mismo rechazo
- * y cada rechazo quema un consecutivo. Se corrige y se reintenta a mano.
+ * evaluó ese XML y lo rechazó; mandarlo igual otra vez es el mismo
+ * rechazo. Se corrige y se reenvía a mano (con el mismo número: un
+ * rechazado no queda registrado en la DIAN). Lo que la DIAN no evaluó de
+ * verdad —sólo notificaciones, o su plantilla sin armar— no es `rejected`
+ * sino `error`, y ése sí se reintenta solo (ver invoiceResponse.ts).
  */
 export const SWEEP_STATES = ["to_send", "error"] as const;
 

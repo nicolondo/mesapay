@@ -149,6 +149,12 @@ export function currentMonthPeriod(today: string): ReportPeriod {
 export type PeriodKind = "semana" | "mes" | "año" | "rango";
 /** Las unidades completas: lo que pueden saltar las flechas. */
 export type PeriodStep = Exclude<PeriodKind, "rango">;
+/**
+ * Unidades con el DÍA incluido. Los reportes contables no navegan por día
+ * (su `periodKind` nunca devuelve «día»), pero la lista de Órdenes sí:
+ * un día es un rango de una sola fecha (`desde === hasta`).
+ */
+export type PeriodUnit = PeriodStep | "día";
 
 /**
  * Lunes a domingo (ISO 8601) de la semana que contiene `dateIso`, en UTC.
@@ -164,8 +170,9 @@ export function weekRangeUtc(dateIso: string): ReportPeriod {
   return { desde, hasta: isoDateUtc(d) };
 }
 
-/** La semana, el mes o el año completo que contiene `dateIso`. */
-export function unitRange(dateIso: string, step: PeriodStep): ReportPeriod {
+/** El día, la semana, el mes o el año completo que contiene `dateIso`. */
+export function unitRange(dateIso: string, step: PeriodUnit): ReportPeriod {
+  if (step === "día") return { desde: dateIso, hasta: dateIso };
   if (step === "año") return fiscalYearRange(Number(dateIso.slice(0, 4)));
   if (step === "mes") {
     return monthRangeUtc(dateIso.slice(0, 7)) ?? { desde: dateIso, hasta: dateIso };
@@ -198,7 +205,7 @@ export function periodKind(period: ReportPeriod): PeriodKind {
  */
 export function snapPeriod(
   period: ReportPeriod,
-  step: PeriodStep,
+  step: PeriodUnit,
   today: string,
 ): ReportPeriod {
   const anchor = period.desde <= today && today <= period.hasta ? today : period.hasta;
@@ -213,9 +220,15 @@ export function snapPeriod(
  */
 export function shiftPeriod(
   period: ReportPeriod,
-  step: PeriodStep,
+  step: PeriodUnit,
   dir: -1 | 1,
 ): ReportPeriod {
+  if (step === "día") {
+    const day = new Date(`${period.desde}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + dir);
+    const iso = isoDateUtc(day);
+    return { desde: iso, hasta: iso };
+  }
   if (step === "año") {
     return fiscalYearRange(Number(period.desde.slice(0, 4)) + dir);
   }
@@ -227,6 +240,44 @@ export function shiftPeriod(
   const base = new Date(`${period.desde.slice(0, 7)}-01T00:00:00Z`);
   base.setUTCMonth(base.getUTCMonth() + dir);
   return monthRangeUtc(base.toISOString().slice(0, 7)) ?? period;
+}
+
+/**
+ * Como `periodKind`, pero reconoce también el día suelto (`desde === hasta`)
+ * y nunca el año: son los modos de la lista de Órdenes («Día · Semana · Mes
+ * · Rango»). Un año completo ahí es un rango libre.
+ */
+export function periodKindWithDay(period: ReportPeriod): Exclude<PeriodKind, "año"> | "día" {
+  if (period.desde === period.hasta) return "día";
+  const kind = periodKind(period);
+  return kind === "año" ? "rango" : kind;
+}
+
+/** Días que abarca el período, ambos extremos incluidos (≥ 1). */
+export function periodLengthDays(period: ReportPeriod): number {
+  const from = Date.parse(`${period.desde}T00:00:00Z`);
+  const to = Date.parse(`${period.hasta}T00:00:00Z`);
+  return Math.max(1, Math.round((to - from) / 86_400_000) + 1);
+}
+
+/**
+ * Mueve un rango libre su propio largo hacia atrás o adelante: del 3 al 12
+ * se pasa al 23 de octubre–2 de noviembre (los 10 días anteriores), sin
+ * solaparse ni dejar huecos.
+ */
+export function shiftByLength(period: ReportPeriod, dir: -1 | 1): ReportPeriod {
+  const days = periodLengthDays(period) * dir;
+  const move = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return isoDateUtc(d);
+  };
+  return { desde: move(period.desde), hasta: move(period.hasta) };
+}
+
+/** ¿El período incluye la fecha `iso`? (comparación de fechas ISO). */
+export function periodIncludes(period: ReportPeriod, iso: string): boolean {
+  return period.desde <= iso && iso <= period.hasta;
 }
 
 /**

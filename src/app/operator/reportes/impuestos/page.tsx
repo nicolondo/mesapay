@@ -19,6 +19,7 @@ import { ReportFilterForm, ReportShell } from "../_components/ReportShell";
 import { StatusBadge } from "../_components/StatusBadge";
 import { TrendBars } from "../_components/TrendBars";
 import { TaxDrillView } from "./TaxDrillView";
+import { invoiceListHref } from "@/lib/dian/invoiceList";
 
 export const dynamic = "force-dynamic";
 
@@ -250,8 +251,10 @@ function TaxTile({
 }
 
 const CHECK_LINKS: Partial<Record<CheckResult["key"], { href: string; labelKey: string }>> = {
-  dianRechazada: { href: "/operator/facturas", labelKey: "linkInvoices" },
-  dianPendiente: { href: "/operator/facturas", labelKey: "linkInvoices" },
+  // Directo al filtro: ahí está la causa en palabras claras y la acción
+  // («Reenviar a la DIAN» / «Consultar en la DIAN»).
+  dianRechazada: { href: invoiceListHref({ state: "rejected" }), labelKey: "linkInvoices" },
+  dianPendiente: { href: invoiceListHref({ state: "in_process" }), labelKey: "linkInvoices" },
   sinAsiento: { href: "/operator/contabilidad?tab=diario", labelKey: "linkJournal" },
   desactualizado: { href: "/operator/contabilidad?tab=diario", labelKey: "linkJournal" },
   tarifaDistinta: { href: "/operator/settings/impuestos", labelKey: "linkTaxSettings" },

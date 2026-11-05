@@ -340,8 +340,47 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
   it("paginación: página y total, y el siguiente conserva los filtros", async () => {
     const html = await renderOn({ state: "accepted", q: "ana" });
     expect(html).toContain("Página 1 de 2 · 73 facturas");
-    expect(html).toContain('href="/operator/facturas?state=accepted&amp;q=ana&amp;page=2"');
+    expect(html).toContain('href="/operator/facturas?state=accepted&amp;q=ana&amp;page=2#facturas-lista"');
     expect(html).not.toContain(">Anterior<");
+  });
+
+  it("rechazadas con causa conocida: explicación clara primero, el mensaje crudo después, y su acción", async () => {
+    const base = ROWS[1];
+    const FAW01 = "Regla: FAW01, Rechazo: Línea de factura informado con LineExtensionAmount en cero";
+    const RULE_90 = "Regla: 90, Rechazo: Documento procesado anteriormente.";
+    // Mensaje guardado con la tilde rota antes de decodificar bien la respuesta.
+    const RUT01 = "Regla: RUT01, Rechazo: Se�or usuario en este momento el estado de su RUT es {StatusRut}";
+    const row = (id: string, number: string, errors: string[], advice: object, state = "rejected", status = "rejected") => ({
+      ...base,
+      id,
+      number,
+      creditNote: null,
+      dian: { ...base.dian, documentId: `doc-${id}`, state, status, reason: errors[0], errors, advice },
+    });
+    m.loadInvoiceListPage.mockResolvedValue({
+      rows: [
+        row("z", "FESM7913", [FAW01], { cause: "zero_value_line", action: "resend" }),
+        row("d", "FESM7920", [RULE_90], { cause: "already_at_dian", action: "check_status" }),
+        row("t", "FESM7984", [RUT01], { cause: "dian_transient", action: "resend" }),
+        row("u", "FESM7930", [RULE_90], { cause: "already_at_dian", action: "check_status" }, "pending", "in_process"),
+      ],
+      total: 4,
+      page: 1,
+      pageCount: 1,
+    });
+    const html = await renderOn({ state: "rejected" });
+    expect(html).toContain("Tenía un producto en $0 (por ejemplo, una cortesía)");
+    expect(html).toContain("La DIAN dice que ya recibió esta factura en un envío anterior.");
+    expect(html).toContain("La DIAN respondió con un error de su propio sistema, no de la factura.");
+    expect(html).toContain("La DIAN dice que ya tiene esta factura, pero todavía no pudimos confirmarlo.");
+    // Lo claro va ANTES del texto crudo de la DIAN (que queda desplegable).
+    expect(html.indexOf("Tenía un producto en $0")).toBeLessThan(html.indexOf(FAW01));
+    expect(html).toContain("Ver el mensaje de la DIAN");
+    // Dos filas de cada acción, en la tabla (escritorio) y en las tarjetas (celular).
+    expect(html.match(/>Reenviar a la DIAN</g)).toHaveLength(4);
+    expect(html.match(/>Consultar en la DIAN</g)).toHaveLength(4);
+    // Para esas causas no aparece el «Reintentar emisión» de siempre.
+    expect(html).not.toContain("Reintentar emisión");
   });
 
   it("el filtro de estado cambia de estado y vuelve a la página 1", async () => {

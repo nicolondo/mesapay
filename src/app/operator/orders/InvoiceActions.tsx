@@ -45,11 +45,50 @@ export function InvoiceActions({
  */
 function ResendInvoiceEmailButton({ documentId }: { documentId: string }) {
   const t = useTranslations("opOrders");
+  const resend = useResendInvoiceEmail(documentId);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={resend.run}
+        disabled={resend.busy}
+        className="mp-btn mp-btn--ghost mp-btn--sm"
+      >
+        {resend.busy ? t("resending") : t("resendEmail")}
+      </button>
+      {resend.msg && (
+        <span
+          role="status"
+          className={
+            "basis-full text-[11px] " +
+            (resend.msg.ok ? "text-[#1E5339]" : "text-danger")
+          }
+        >
+          {resend.msg.text}
+        </span>
+      )}
+    </>
+  );
+}
+
+export type ResendInvoiceEmailState = {
+  run: () => Promise<void>;
+  busy: boolean;
+  msg: { ok: boolean; text: string } | null;
+};
+
+/**
+ * La lógica del reenvío, sin el botón: Facturas la dispara desde el menú
+ * «⋯» de la fila y muestra el resultado debajo de la fila.
+ */
+export function useResendInvoiceEmail(documentId: string | null): ResendInvoiceEmailState {
+  const t = useTranslations("opOrders");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function resend() {
-    if (busy) return;
+  async function run() {
+    if (busy || !documentId) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -86,27 +125,5 @@ function ResendInvoiceEmailButton({ documentId }: { documentId: string }) {
     }
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={resend}
-        disabled={busy}
-        className="mp-btn mp-btn--ghost mp-btn--sm"
-      >
-        {busy ? t("resending") : t("resendEmail")}
-      </button>
-      {msg && (
-        <span
-          role="status"
-          className={
-            "basis-full text-[11px] " +
-            (msg.ok ? "text-[#1E5339]" : "text-danger")
-          }
-        >
-          {msg.text}
-        </span>
-      )}
-    </>
-  );
+  return { run, busy, msg };
 }

@@ -18,7 +18,11 @@ const GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
  * Solo visible con algún módulo del track A activado; con todo apagado
  * la página no existe (notFound) y la card en settings tampoco aparece.
  */
-export default async function InsumosSettingsPage() {
+export default async function InsumosSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("opErp");
   const tSettings = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
@@ -41,6 +45,7 @@ export default async function InsumosSettingsPage() {
   // Moneda = país del comercio (regla idioma ≠ moneda de @/lib/format).
   const currency = await getCurrencyForCountry(tenant.country);
 
+  const { editar } = await searchParams;
   const ingredients = await db.ingredient.findMany({
     where: { restaurantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
@@ -80,6 +85,8 @@ export default async function InsumosSettingsPage() {
         initial={ingredients}
         currency={currency}
         canImport={canImport}
+        // «Editar insumo» desde el menú ⋯ de Inventario abre su ficha.
+        initialEditId={typeof editar === "string" ? editar : null}
       />
     </div>
   );

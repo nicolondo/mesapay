@@ -6,21 +6,27 @@ import { useTranslations } from "next-intl";
 import type { InvoiceDianStatus } from "@/lib/dian/invoiceList";
 import { blockReasonText } from "./EmissionBanner";
 
+export type RetryEmissionState = {
+  run: () => Promise<void>;
+  busy: boolean;
+  msg: { ok: boolean; text: string } | null;
+  /** La advertencia que se confirma antes de reintentar. */
+  warning: string;
+};
+
 /**
  * "Reintentar emisión" de una factura que no salió: rechazada por la DIAN,
  * con error de envío o frenada por configuración. Es el mismo reintento de
  * siempre (`POST /api/operator/dian/emit/[simpleInvoiceId]`, que reclama el
- * documento y no re-emite lo aceptado ni lo que está en vuelo); acá sólo se
- * muestra con su advertencia, porque cada caso pide algo distinto antes de
- * apretar.
+ * documento y no re-emite lo aceptado ni lo que está en vuelo), con su
+ * advertencia confirmada antes de apretar, porque cada caso pide algo
+ * distinto. Sin botón propio: la fila de Facturas lo dispara como acción
+ * principal o desde el menú «⋯» y muestra el resultado debajo de la fila.
  */
-export function RetryEmissionButton({
-  simpleInvoiceId,
-  status,
-}: {
-  simpleInvoiceId: string;
-  status: InvoiceDianStatus;
-}) {
+export function useRetryEmission(
+  simpleInvoiceId: string,
+  status: InvoiceDianStatus,
+): RetryEmissionState {
   const t = useTranslations("opEInvoices");
   const tf = useTranslations("opFacturas");
   const router = useRouter();
@@ -75,25 +81,5 @@ export function RetryEmissionButton({
     }
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={retry}
-        disabled={busy}
-        className="mp-btn mp-btn--secondary mp-btn--sm"
-      >
-        {busy ? t("retrying") : t("retry")}
-      </button>
-      <span className="basis-full text-[11px] text-op-muted">{warning}</span>
-      {msg && (
-        <span
-          role="status"
-          className={"basis-full text-[11px] " + (msg.ok ? "text-[#1E5339]" : "text-danger")}
-        >
-          {msg.text}
-        </span>
-      )}
-    </>
-  );
+  return { run: retry, busy, msg, warning };
 }

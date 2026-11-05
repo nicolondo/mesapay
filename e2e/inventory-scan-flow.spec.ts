@@ -146,7 +146,8 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
 
     await page.reload();
     await page.getByRole("tab", { name: "Conteos", exact: true }).click();
-    await page.getByRole("button").filter({ hasText: "40 insumos" }).click();
+    // Escritorio: «Continuar» (nombre «Abrir el conteo del …»); celular: la tarjeta entera.
+    await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|40 insumos/ }).filter({ visible: true }).first().click();
     await expect(scanner).toBeFocused();
     const nextQuantity = quantity(page, seed.ingredients.at(-1)!, 3);
     await hidScan(page, scanner, "QA-LAST-ALTERNATE", nextQuantity);

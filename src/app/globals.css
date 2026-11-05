@@ -532,6 +532,23 @@ input[type="time"] {
   padding: 0 22px;
   font-size: 15px;
 }
+/* Compacto: acciones dentro de una fila de tabla densa (Facturas). Sólo
+   con puntero fino; en el celular las filas usan --sm (38px). */
+.mp-btn--xs {
+  height: 32px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  gap: 6px;
+}
+/* Botón de ícono cuadrado con el tamaño del modificador (menú «⋯»). */
+.mp-btn--icon {
+  padding: 0;
+  aspect-ratio: 1;
+}
+.mp-btn--icon[aria-expanded="true"] {
+  background: var(--op-bg);
+  border-color: color-mix(in srgb, var(--op-text) 28%, transparent);
+}
 
 .mp-btn--primary {
   background: var(--ink);
@@ -679,6 +696,26 @@ input[type="time"] {
 }
 .mp-seg__i:hover {
   color: var(--op-text);
+}
+/* Segmentado compacto: filtros dentro de la barra de una lista densa. */
+.mp-seg--sm {
+  padding: 3px;
+}
+.mp-seg--sm .mp-seg__i {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+/* En el celular, las opciones del segmentado van en una grilla de 2 en vez
+   de una tira que se corta (filtros de estado de Facturas). */
+@media (max-width: 639px) {
+  .mp-seg--grid-xs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-seg--grid-xs .mp-seg__i {
+    justify-content: space-between;
+  }
 }
 .mp-seg__i[aria-selected="true"],
 .mp-seg__i[data-active="true"] {

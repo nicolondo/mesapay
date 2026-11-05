@@ -107,10 +107,13 @@ export function InsumosClient({
   initial,
   currency,
   canImport,
+  initialEditId = null,
 }: {
   initial: Ingredient[];
   currency: string;
   canImport: boolean;
+  /** `?editar=<id>`: abre la ficha de ese insumo al entrar. */
+  initialEditId?: string | null;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -119,7 +122,10 @@ export function InsumosClient({
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
-  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(() => {
+    const item = initialEditId ? initial.find((i) => i.id === initialEditId) : undefined;
+    return item ? { mode: "edit", item } : null;
+  });
   const [importing, setImporting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const toggling = useRef(false);
@@ -161,6 +167,17 @@ export function InsumosClient({
       return true;
     });
   }, [items, q, cat, activeFilter]);
+
+  // Al cerrar la ficha abierta por `?editar=`, el parámetro sale de la URL
+  // (recargar no la vuelve a abrir) sin navegar ni mover el scroll.
+  function closeSheet() {
+    setSheet(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("editar")) {
+      url.searchParams.delete("editar");
+      window.history.replaceState(null, "", url);
+    }
+  }
 
   function upsert(saved: Ingredient) {
     setItems((prev) => {
@@ -660,10 +677,10 @@ export function InsumosClient({
           editing={sheet.mode === "edit" ? sheet.item : null}
           currency={currency}
           categories={categories}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onSaved={(saved) => {
             upsert(saved);
-            setSheet(null);
+            closeSheet();
           }}
         />
       )}

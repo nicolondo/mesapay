@@ -21,10 +21,12 @@ const inputClass = "w-full min-w-0 rounded-xl border border-hairline bg-ivory px
  * ("901944469-1") se acepta y, si no corresponde, el error cae sobre el
  * número con un mensaje claro.
  */
-export function CustomerForm({ initial, onSaved, onCancel }: {
+export function CustomerForm({ initial, onSaved, onCancel, className = "rounded-2xl border border-hairline bg-paper p-5 sm:p-6" }: {
   initial: BillingCustomerRecord | null;
   onSaved: (customer: BillingCustomerRecord) => void;
   onCancel: () => void;
+  /** Contenedor del formulario; la hoja de /operator/clientes lo pinta sin borde. */
+  className?: string;
 }) {
   const t = useTranslations("billingCustomers");
   const formId = useId();
@@ -96,8 +98,8 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
       {options.hint && <p className="text-xs text-muted mt-1">{options.hint}</p>}
     </div>;
   }
-  return <form onSubmit={submit} className="rounded-2xl border border-hairline bg-paper p-5 sm:p-6" aria-label={t(initial ? "editTitle" : "createTitle")}>
-    <h3 className="font-display text-2xl mb-1">{t(initial ? "editTitle" : "createTitle")}</h3>
+  return <form onSubmit={submit} className={className} aria-label={t(initial ? "editTitle" : "createTitle")}>
+    <h3 className="font-display text-2xl mb-1 pr-10">{t(initial ? "editTitle" : "createTitle")}</h3>
     <p className="text-sm text-muted mb-5">{t("formHint")}</p>
     <fieldset disabled={busy} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {field("customerName")}
@@ -150,8 +152,8 @@ export function CustomerForm({ initial, onSaved, onCancel }: {
 
     {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
     <div className="flex flex-wrap justify-end gap-3 mt-6">
-      <button type="button" onClick={onCancel} disabled={busy} className="rounded-full border border-hairline px-5 py-2.5 text-sm disabled:opacity-50">{t("cancel")}</button>
-      <button type="submit" disabled={busy} className="rounded-full bg-ink text-bone px-5 py-2.5 text-sm font-medium disabled:opacity-50">{t(busy ? "saving" : initial ? "saveChanges" : "save")}</button>
+      <button type="button" onClick={onCancel} disabled={busy} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
+      <button type="submit" disabled={busy} className="mp-btn mp-btn--primary">{t(busy ? "saving" : initial ? "saveChanges" : "save")}</button>
     </div>
   </form>;
 }

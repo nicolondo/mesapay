@@ -2,46 +2,47 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
-import { displayOrderCode } from "@/lib/orderCode";
-import { formatDate, formatMoney } from "@/lib/format";
-import type { Locale } from "@/i18n/config";
+import { useTranslations } from "next-intl";
 import {
+  INVOICE_PAGE_SIZE,
   INVOICE_STATE_FILTERS,
   invoiceListHref,
-  type InvoiceDianStatus,
   type InvoiceListParams,
   type InvoiceStateFilter,
 } from "@/lib/dian/invoiceList";
 import type {
-  InvoiceCreditNoteInfo,
   InvoiceListPage,
-  InvoiceListRow,
+  InvoiceStateCounts,
   LateInvoiceRequest,
 } from "@/lib/dian/invoiceListQueries";
-import { CREDIT_NOTES_PATH, creditNotePreselectHref } from "@/lib/dian/creditNoteLink";
-import { InvoiceActions } from "../orders/InvoiceActions";
-import { EmissionBanner, blockReasonText, type EmissionInfo } from "./EmissionBanner";
-import { RetryEmissionButton } from "./RetryEmissionButton";
-import { DianCauseNotice, DianRecoveryButton } from "./DianRecovery";
-import { ResolveLateRequestButton } from "./ResolveLateRequestButton";
+import { invoicePageRange } from "@/lib/dian/invoiceRowView";
+import { CREDIT_NOTES_PATH } from "@/lib/dian/creditNoteLink";
+import { AttentionStrip } from "./AttentionStrip";
+import type { EmissionInfo } from "./EmissionBanner";
+import { InvoiceListItem, InvoiceTableRow } from "./InvoiceRow";
 
 /**
  * /operator/facturas con facturación electrónica: las facturas que MESAPAY
  * emitió a la DIAN, con su estado, el correo al cliente y la nota crédito.
- * Arriba, sólo lo que pide a alguien: la emisión frenada (EmissionBanner),
- * las rechazadas de los últimos 30 días y los clientes que pidieron factura
- * cuando la cuenta ya había salido a consumidor final.
+ *
+ *   1. «Por atender» (`AttentionStrip`): sólo lo que pide a alguien —la
+ *      emisión frenada, las rechazadas de los últimos 30 días, los clientes
+ *      que pidieron factura cuando la cuenta ya había salido a consumidor
+ *      final—, en una franja compacta.
+ *   2. La lista en un panel: arriba los filtros en una sola barra (estado
+ *      DIAN con su cuenta, rango de días operativos y búsqueda), en el medio
+ *      una fila compacta por factura (`InvoiceRow`) y abajo la paginación.
  *
  * Los filtros viven en la URL (enlaces y un formulario GET): se pueden
- * compartir y el botón atrás funciona. Las acciones por fila son las de
- * siempre — ver / reimprimir / reenviar (InvoiceActions de Pedidos),
- * reintentar (la ruta de emisión) y anular (Notas crédito, preseleccionada).
+ * compartir y el botón atrás funciona. Cambiarlos recarga la lista SIN
+ * llevar la página arriba (`scroll={false}`), y «Anterior/Siguiente» deja
+ * la vista al comienzo de la lista (`#facturas-lista`).
  */
 export function ElectronicInvoicesClient({
   params,
   cutoffHour,
   list,
+  counts,
   emission,
   rejected,
   late,
@@ -49,6 +50,7 @@ export function ElectronicInvoicesClient({
   params: InvoiceListParams;
   cutoffHour: number;
   list: InvoiceListPage;
+  counts: InvoiceStateCounts;
   emission: EmissionInfo;
   rejected: { count: number; from: string; to: string };
   late: { items: LateInvoiceRequest[]; truncated: boolean };
@@ -56,10 +58,11 @@ export function ElectronicInvoicesClient({
   const t = useTranslations("opEInvoices");
   const tCredit = useTranslations("opCreditNotes");
   const filtered = params.state !== "all" || !!params.from || !!params.to || !!params.q;
+  const range = invoicePageRange(list.page, list.rows.length, INVOICE_PAGE_SIZE);
 
   return (
-    <div className="p-4 lg:p-6 max-w-6xl mx-auto w-full">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+    <div className="p-4 lg:p-6 max-w-7xl mx-auto w-full min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h1 className="font-display text-2xl lg:text-3xl">{t("title")}</h1>
           <p className="text-sm text-op-muted mt-1 max-w-2xl">{t("intro")}</p>
@@ -69,122 +72,66 @@ export function ElectronicInvoicesClient({
         </Link>
       </div>
 
-      <EmissionBanner emission={emission} />
+      <AttentionStrip emission={emission} rejected={rejected} late={late} params={params} />
 
-      {rejected.count > 0 && (
-        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 mb-4 text-sm text-danger flex flex-wrap items-center justify-between gap-2">
-          <span className="font-medium">{t("rejectedNotice", { count: rejected.count })}</span>
-          <Link
-            href={invoiceListHref({ state: "rejected", from: rejected.from, to: rejected.to })}
-            className="text-[12px] font-medium underline"
-          >
-            {t("rejectedNoticeCta")}
-          </Link>
+      {/* Ancla de la paginación: «Anterior/Siguiente» deja la vista al
+          comienzo de la lista (con sus filtros), no arriba de la página. */}
+      <section
+        id="facturas-lista"
+        aria-label={t("listLabel")}
+        className="@container scroll-mt-4 min-w-0 rounded-2xl border border-op-border bg-op-surface"
+      >
+        <Toolbar params={params} cutoffHour={cutoffHour} filtered={filtered} counts={counts} />
+
+        <div className="@container min-w-0 border-t border-op-border">
+          {list.rows.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-op-muted">
+              {filtered || list.total > 0 ? t("emptyFiltered") : t("empty")}
+            </div>
+          ) : (
+            <>
+              {/* Ancho fijo por columna: las de datos cortos no se estiran y
+                  cliente / estado se reparten el resto (con «…» y el texto
+                  completo al pasar el puntero o en el detalle). */}
+              <table className="hidden w-full table-fixed text-sm @4xl:table">
+                <colgroup>
+                  <col className="w-[6rem]" />
+                  <col className="w-[6.25rem]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[6.75rem]" />
+                  <col />
+                  <col className="w-[4rem]" />
+                  <col className="w-[12.5rem]" />
+                </colgroup>
+                <thead>
+                  <tr className="text-left">
+                    <Th>{t("colNumber")}</Th>
+                    <Th>{t("colDate")}</Th>
+                    <Th>{t("colCustomer")}</Th>
+                    <Th align="right">{t("colTotal")}</Th>
+                    <Th>{t("colDian")}</Th>
+                    <Th align="center">{t("colEmail")}</Th>
+                    <Th align="right">
+                      <span className="sr-only">{t("colActions")}</span>
+                    </Th>
+                  </tr>
+                </thead>
+                {list.rows.map((r) => (
+                  <InvoiceTableRow key={r.id} row={r} />
+                ))}
+              </table>
+              <ul className="divide-y divide-op-border @4xl:hidden">
+                {list.rows.map((r) => (
+                  <InvoiceListItem key={r.id} row={r} />
+                ))}
+              </ul>
+            </>
+          )}
         </div>
-      )}
 
-      {late.items.length > 0 && <LateRequests late={late} />}
-
-      <Filters params={params} cutoffHour={cutoffHour} filtered={filtered} />
-
-      {list.rows.length === 0 ? (
-        <div className="text-sm text-op-muted py-12 text-center border border-dashed border-op-border rounded-2xl">
-          {filtered || list.total > 0 ? t("emptyFiltered") : t("empty")}
-        </div>
-      ) : (
-        <>
-          {/* Ancla de la paginación: «Anterior/Siguiente» deja la vista al
-              comienzo de la lista, no arriba de la página. */}
-          <div id="facturas-lista" className="scroll-mt-4">
-            <InvoiceTable rows={list.rows} />
-            <InvoiceCards rows={list.rows} />
-          </div>
-        </>
-      )}
-
-      <Pagination params={params} list={list} />
+        <Pagination params={params} list={list} range={range} />
+      </section>
     </div>
-  );
-}
-
-// ── Avisos ────────────────────────────────────────────────────────────────
-
-/** Cuántos casos "llegó después" se ven sin desplegar. */
-const LATE_VISIBLE = 5;
-
-function LateRequests({ late }: { late: { items: LateInvoiceRequest[]; truncated: boolean } }) {
-  const t = useTranslations("opEInvoices");
-  const visible = late.items.slice(0, LATE_VISIBLE);
-  const rest = late.items.slice(LATE_VISIBLE);
-  return (
-    <section
-      aria-labelledby="late-requests-title"
-      className="rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 p-4 mb-6"
-    >
-      <h2 id="late-requests-title" className="font-medium text-sm text-[#7F5A1F]">
-        {t("lateTitle", { count: late.items.length })}
-      </h2>
-      <p className="text-[12px] text-[#7F5A1F] mt-1">{t("lateHint")}</p>
-      {late.truncated && (
-        <p className="text-[11px] text-op-muted mt-1">{t("lateTruncated")}</p>
-      )}
-      <ul className="mt-3 space-y-2">
-        {visible.map((r) => (
-          <LateRequestItem key={r.id} item={r} />
-        ))}
-      </ul>
-      {rest.length > 0 && (
-        <details className="mt-2">
-          <summary className="text-[12px] text-[#7F5A1F] cursor-pointer">
-            {t("lateShowMore", { count: rest.length })}
-          </summary>
-          <ul className="mt-2 space-y-2">
-            {rest.map((r) => (
-              <LateRequestItem key={r.id} item={r} />
-            ))}
-          </ul>
-        </details>
-      )}
-    </section>
-  );
-}
-
-function LateRequestItem({ item }: { item: LateInvoiceRequest }) {
-  const t = useTranslations("opEInvoices");
-  const locale = useLocale() as Locale;
-  return (
-    <li className="rounded-xl border border-op-border bg-op-surface p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <div className="min-w-0">
-          <span className="font-medium break-words">{item.customerName}</span>{" "}
-          <span className="text-sm text-op-muted">
-            {item.docType} <span className="font-mono tabular">{item.docNumber}</span>
-          </span>
-          <div className="text-[12px] text-op-muted break-all">{item.email}</div>
-        </div>
-        <div className="text-[11px] text-op-muted text-right">
-          {t("lateRequestedAt", { date: formatDate(item.requestedAt, { locale }) })}
-        </div>
-      </div>
-      <p className="mt-1 text-[12px]">
-        {t("lateInvoice", {
-          number: item.invoiceNumber,
-          code: displayOrderCode(item.shortCode),
-          date: formatDate(item.issuedAt, { locale }),
-        })}
-      </p>
-      {item.creditNote && (
-        <p className="mt-1 text-[12px] text-op-muted">
-          <CreditNoteLabel note={item.creditNote} />
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Link href={creditNotePreselectHref(item.invoiceId)} className="mp-btn mp-btn--secondary mp-btn--sm">
-          {t("lateCreditNote")}
-        </Link>
-        <ResolveLateRequestButton requestId={item.id} />
-      </div>
-    </li>
   );
 }
 
@@ -197,14 +144,16 @@ const STATE_LABEL: Record<InvoiceStateFilter, string> = {
   accepted: "stateAccepted",
 };
 
-function Filters({
+function Toolbar({
   params,
   cutoffHour,
   filtered,
+  counts,
 }: {
   params: InvoiceListParams;
   cutoffHour: number;
   filtered: boolean;
+  counts: InvoiceStateCounts;
 }) {
   const t = useTranslations("opEInvoices");
   const router = useRouter();
@@ -219,13 +168,11 @@ function Filters({
     const query = qs.toString();
     router.push(query ? `/operator/facturas?${query}` : "/operator/facturas", { scroll: false });
   }
+  const hintId = "facturas-dia-operativo";
   return (
-    <div className="flex flex-wrap items-end gap-3 mb-4">
-      <div>
-        <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted mb-1">
-          {t("filterState")}
-        </div>
-        <div className="inline-flex flex-wrap border border-op-border rounded-full bg-op-surface p-0.5">
+    <div className="flex min-w-0 flex-col gap-3 px-4 py-3 @6xl:flex-row @6xl:items-start @6xl:justify-between">
+      <nav aria-label={t("filterState")} className="min-w-0 shrink-0">
+        <div className="mp-seg mp-seg--sm mp-seg--grid-xs">
           {INVOICE_STATE_FILTERS.map((state) => {
             const active = params.state === state;
             return (
@@ -235,412 +182,167 @@ function Filters({
                 prefetch={false}
                 scroll={false}
                 aria-current={active ? "page" : undefined}
-                className={
-                  "px-3 h-7 rounded-full text-xs inline-flex items-center " +
-                  (active ? "bg-ink text-bone" : "text-op-text/80")
-                }
+                data-active={active ? "true" : undefined}
+                className="mp-seg__i"
               >
                 {t(STATE_LABEL[state])}
+                <span
+                  className={
+                    "rounded-md px-1.5 font-mono text-[11px] tabular leading-5 " +
+                    (state === "rejected" && counts.rejected > 0
+                      ? "bg-danger/10 text-danger"
+                      : "bg-op-bg text-op-muted")
+                  }
+                >
+                  {counts[state]}
+                </span>
               </Link>
             );
           })}
         </div>
-      </div>
+      </nav>
 
-      <form action="/operator/facturas" onSubmit={applyFilters} className="flex flex-wrap items-end gap-2 w-full lg:w-auto lg:ml-auto">
+      <form
+        // Los campos no son controlados: al cambiar la URL sin recargar
+        // (Quitar filtros, atrás) se vuelven a montar con los valores nuevos.
+        key={`${params.from ?? ""}|${params.to ?? ""}|${params.q}`}
+        action="/operator/facturas"
+        onSubmit={applyFilters}
+        role="search"
+        className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap @6xl:flex-1 @6xl:justify-end"
+      >
         {params.state !== "all" && <input type="hidden" name="state" value={params.state} />}
-        <label className="text-[11px] text-op-muted">
-          <span className="block mb-1">{t("filterFrom")}</span>
+        <label className="col-span-2 min-w-0 sm:flex-1 sm:basis-56 @6xl:max-w-sm @6xl:basis-40">
+          <span className="sr-only">{t("searchLabel")}</span>
+          <span className="flex h-[38px] min-w-0 items-center gap-2 rounded-[var(--radius-btn)] border border-op-border-2 bg-op-surface px-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--terracotta-2)]">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 text-op-muted">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              name="q"
+              defaultValue={params.q}
+              maxLength={100}
+              placeholder={t("searchPlaceholder")}
+              className="h-full min-w-0 flex-1 bg-transparent text-sm text-op-text outline-none placeholder:text-op-muted"
+            />
+          </span>
+        </label>
+        <label className="flex min-w-0 flex-col gap-1 text-xs text-op-muted sm:flex-row sm:items-center sm:gap-1.5">
+          <span className="shrink-0">{t("filterFrom")}</span>
           <input
             type="date"
             name="from"
             defaultValue={params.from ?? ""}
-            className="h-9 px-2 rounded-full border border-op-border bg-op-surface text-sm text-op-text"
+            aria-describedby={hintId}
+            className="h-[38px] w-full min-w-0 rounded-[var(--radius-btn)] border border-op-border-2 bg-op-surface px-2 text-sm text-op-text sm:w-auto"
           />
         </label>
-        <label className="text-[11px] text-op-muted">
-          <span className="block mb-1">{t("filterTo")}</span>
+        <label className="flex min-w-0 flex-col gap-1 text-xs text-op-muted sm:flex-row sm:items-center sm:gap-1.5">
+          <span className="shrink-0">{t("filterTo")}</span>
           <input
             type="date"
             name="to"
             defaultValue={params.to ?? ""}
-            className="h-9 px-2 rounded-full border border-op-border bg-op-surface text-sm text-op-text"
+            aria-describedby={hintId}
+            className="h-[38px] w-full min-w-0 rounded-[var(--radius-btn)] border border-op-border-2 bg-op-surface px-2 text-sm text-op-text sm:w-auto"
           />
         </label>
-        <label className="text-[11px] text-op-muted flex-1 min-w-[12rem]">
-          <span className="block mb-1">{t("searchLabel")}</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={params.q}
-            maxLength={100}
-            placeholder={t("searchPlaceholder")}
-            className="h-9 w-full px-3 rounded-full border border-op-border bg-op-surface text-sm text-op-text"
-          />
-        </label>
-        <button type="submit" className="h-9 px-4 rounded-full bg-ink text-bone text-sm">
+        <button type="submit" className="mp-btn mp-btn--primary mp-btn--sm max-sm:col-span-2">
           {t("filterApply")}
         </button>
-        {filtered && (
-          <Link href="/operator/facturas" prefetch={false} scroll={false} className="h-9 px-3 inline-flex items-center text-sm text-op-muted underline">
-            {t("filterClear")}
-          </Link>
-        )}
-        <p className="basis-full text-[11px] text-op-muted">
-          {t("businessDayHint", { hour: String(cutoffHour).padStart(2, "0") })}
-        </p>
+        {/* La aclaración del día operativo y «Quitar filtros» van en una
+            línea aparte: la barra no se parte cuando hay filtros puestos. */}
+        <div className="col-span-2 flex basis-full flex-wrap items-center justify-between gap-x-4 gap-y-1 @6xl:justify-end">
+          <p id={hintId} className="text-[11px] text-op-muted">
+            {t("businessDayHint", { hour: String(cutoffHour).padStart(2, "0") })}
+          </p>
+          {filtered && (
+            <Link
+              href="/operator/facturas"
+              prefetch={false}
+              scroll={false}
+              className="inline-flex min-h-6 items-center text-xs font-medium text-op-muted underline underline-offset-4 hover:text-op-text"
+            >
+              {t("filterClear")}
+            </Link>
+          )}
+        </div>
       </form>
     </div>
   );
 }
 
-// ── Lista ─────────────────────────────────────────────────────────────────
+// ── Paginación ────────────────────────────────────────────────────────────
 
-function InvoiceTable({ rows }: { rows: InvoiceListRow[] }) {
-  const t = useTranslations("opEInvoices");
-  return (
-    <div className="hidden lg:block bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-op-bg">
-          <tr className="text-left">
-            <Th>{t("colNumber")}</Th>
-            <Th>{t("colDate")}</Th>
-            <Th>{t("colCustomer")}</Th>
-            <Th align="right">{t("colTotal")}</Th>
-            <Th>{t("colDian")}</Th>
-            <Th>{t("colEmail")}</Th>
-            <Th>{t("colCreditNote")}</Th>
-            <Th>{t("colActions")}</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-op-border align-top">
-              <Td>
-                <div className="font-mono font-medium">{r.number}</div>
-                <div className="font-mono text-[10px] text-op-muted" title={r.shortCode}>
-                  {t("orderCode", { code: displayOrderCode(r.shortCode) })}
-                </div>
-              </Td>
-              <Td>
-                <DateCell iso={r.createdAt} />
-              </Td>
-              <Td>
-                <CustomerCell row={r} />
-              </Td>
-              <Td align="right" className="font-mono tabular whitespace-nowrap">
-                <Money cents={r.totalCents} />
-              </Td>
-              <Td>
-                <DianCell row={r} />
-              </Td>
-              <Td>
-                <EmailCell row={r} />
-              </Td>
-              <Td>
-                {r.creditNote ? <CreditNoteLabel note={r.creditNote} /> : <span className="text-op-muted">{"—"}</span>}
-              </Td>
-              <Td>
-                <RowActions row={r} />
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function InvoiceCards({ rows }: { rows: InvoiceListRow[] }) {
-  const t = useTranslations("opEInvoices");
-  return (
-    <ul className="lg:hidden space-y-2">
-      {rows.map((r) => (
-        <li key={r.id} className="bg-op-surface border border-op-border rounded-2xl p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="font-mono font-medium">{r.number}</div>
-              <div className="text-[11px] text-op-muted">
-                <DateCell iso={r.createdAt} inline /> · {t("orderCode", { code: displayOrderCode(r.shortCode) })}
-              </div>
-            </div>
-            <div className="font-mono tabular text-sm shrink-0">
-              <Money cents={r.totalCents} />
-            </div>
-          </div>
-          <div className="mt-2 text-sm">
-            <CustomerCell row={r} />
-          </div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-op-border pt-3 text-sm">
-            <Labeled label={t("colDian")}>
-              <DianCell row={r} />
-            </Labeled>
-            <Labeled label={t("colEmail")}>
-              <EmailCell row={r} />
-            </Labeled>
-            <Labeled label={t("colCreditNote")}>
-              {r.creditNote ? <CreditNoteLabel note={r.creditNote} /> : <span className="text-op-muted">{"—"}</span>}
-            </Labeled>
-          </div>
-          <div className="mt-3">
-            <RowActions row={r} />
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function DateCell({ iso, inline = false }: { iso: string; inline?: boolean }) {
-  const locale = useLocale() as Locale;
-  const date = formatDate(iso, { locale, dateStyle: "medium", timeStyle: undefined });
-  const time = formatDate(iso, { locale, dateStyle: undefined, timeStyle: "short" });
-  if (inline) return <>{`${date} ${time}`}</>;
-  return (
-    <>
-      <div className="whitespace-nowrap">{date}</div>
-      <div className="text-[10px] text-op-muted">{time}</div>
-    </>
-  );
-}
-
-function Money({ cents }: { cents: number }) {
-  const locale = useLocale() as Locale;
-  // Facturación electrónica DIAN: siempre pesos colombianos.
-  return <>{formatMoney(cents, { currency: "COP", locale })}</>;
-}
-
-function CustomerCell({ row }: { row: InvoiceListRow }) {
-  const t = useTranslations("opEInvoices");
-  if (!row.customer) return <span className="text-op-muted">{t("finalConsumer")}</span>;
-  return (
-    <div className="min-w-0">
-      <div className="break-words">{row.customer.name}</div>
-      <div className="text-[11px] text-op-muted">
-        {row.customer.docType} <span className="font-mono tabular">{row.customer.docNumber}</span>
-      </div>
-    </div>
-  );
-}
-
-const STATUS_LABEL: Record<InvoiceDianStatus, string> = {
-  accepted: "statusAccepted",
-  rejected: "statusRejected",
-  error_retrying: "statusError",
-  error_stuck: "statusError",
-  in_process: "statusInProcess",
-  not_sent: "statusNotSent",
-};
-
-const STATUS_TONE: Record<InvoiceDianStatus, string> = {
-  accepted: "bg-ok/15 text-ok",
-  rejected: "bg-danger/15 text-danger",
-  error_stuck: "bg-danger/15 text-danger",
-  error_retrying: "bg-[#C98A2E]/20 text-[#7F5A1F]",
-  in_process: "bg-[#C98A2E]/20 text-[#7F5A1F]",
-  not_sent: "bg-op-bg text-op-muted",
-};
-
-function DianCell({ row }: { row: InvoiceListRow }) {
-  const t = useTranslations("opEInvoices");
-  const tf = useTranslations("opFacturas");
-  const { status, reason, errors, advice } = row.dian;
-  const reasonText = reason ? blockReasonText(reason, tf) : null;
-  // Causa conocida (línea en $0, regla 90, respuesta transitoria): primero
-  // la explicación clara y la acción; el mensaje crudo, desplegable.
-  if (advice) {
-    return (
-      <div className="min-w-0 max-w-[16rem]">
-        <span
-          className={
-            "px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium " + STATUS_TONE[status]
-          }
-        >
-          {t(STATUS_LABEL[status])}
-        </span>
-        <DianCauseNotice
-          advice={advice}
-          errors={errors}
-          waiting={status === "in_process"}
-          fallback={reasonText}
-        />
-      </div>
-    );
-  }
-  let detail: string | null = null;
-  if (status === "rejected" || status === "error_stuck" || status === "error_retrying") {
-    detail = reasonText;
-  } else if (status === "not_sent") {
-    detail = reasonText ? tf("dianWaitingReason", { reason: reasonText }) : t("notSentQueued");
-  }
-  return (
-    <div className="min-w-0 max-w-[16rem]">
-      <span
-        className={
-          "px-2 h-6 inline-flex items-center rounded-full text-[10px] font-medium " + STATUS_TONE[status]
-        }
-      >
-        {t(STATUS_LABEL[status])}
-      </span>
-      {detail && (
-        <p
-          className={
-            "mt-1 text-[11px] break-words " +
-            (status === "rejected" || status === "error_stuck" ? "text-danger" : "text-op-muted")
-          }
-        >
-          {detail}
-        </p>
-      )}
-      {status === "error_retrying" && <p className="mt-1 text-[11px] text-op-muted">{t("errorRetrying")}</p>}
-      {status === "error_stuck" && <p className="mt-1 text-[11px] text-op-muted">{t("errorStuck")}</p>}
-      {(status === "rejected" || status === "error_stuck") && errors.length > 1 && (
-        <details className="mt-1">
-          <summary className="text-[11px] text-danger cursor-pointer">{tf("dianErrorsTitle")}</summary>
-          <ul className="mt-1 space-y-0.5">
-            {errors.map((e, i) => (
-              <li key={i} className="font-mono text-[10px] text-danger break-all">
-                {e}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-}
-
-function EmailCell({ row }: { row: InvoiceListRow }) {
-  const t = useTranslations("opEInvoices");
-  const locale = useLocale() as Locale;
-  const { status, emailedAt, emailError, emailTo } = row.dian;
-  if (status !== "accepted") return <span className="text-op-muted">{"—"}</span>;
-  if (emailedAt) {
-    return (
-      <div className="min-w-0 max-w-[14rem]">
-        <div className="text-ok">{emailTo ? t("emailSentTo", { email: emailTo }) : t("emailSent")}</div>
-        <div className="text-[10px] text-op-muted">{formatDate(emailedAt, { locale })}</div>
-      </div>
-    );
-  }
-  let text: string;
-  if (!emailTo || emailError === "no_recipient") text = t("emailNoRecipient");
-  else if (emailError === "send_failed") text = t("emailFailed", { email: emailTo });
-  else text = t("emailNotYet", { email: emailTo });
-  return <div className="min-w-0 max-w-[14rem] text-[12px] text-op-muted break-words">{text}</div>;
-}
-
-const CREDIT_NOTE_STATES = new Set([
-  "draft",
-  "to_send",
-  "pending",
-  "signed",
-  "sent",
-  "accepted",
-  "rejected",
-  "error",
-]);
-
-function CreditNoteLabel({ note }: { note: InvoiceCreditNoteInfo }) {
-  const t = useTranslations("opEInvoices");
-  const tCredit = useTranslations("opCreditNotes");
-  return (
-    <span className="text-[12px]">
-      {t("creditNote", {
-        number: note.documentNumber,
-        state: tCredit(`state_${CREDIT_NOTE_STATES.has(note.state) ? note.state : "pending"}`),
-      })}
-    </span>
-  );
-}
-
-function RowActions({ row }: { row: InvoiceListRow }) {
-  const t = useTranslations("opEInvoices");
-  const { status, documentId, reason, advice } = row.dian;
-  const accepted = status === "accepted";
-  // El reintento que ya existe ("Reintentar emisión"): lo que la DIAN
-  // rechazó, lo que falló al enviarse y lo frenado por configuración. Lo
-  // que está en cola sin motivo o en manos de la DIAN no se toca.
-  const canRetry =
-    status === "rejected" ||
-    status === "error_retrying" ||
-    status === "error_stuck" ||
-    (status === "not_sent" && !!reason);
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <InvoiceActions orderId={row.orderId} invoiceId={row.id} dianDocumentId={accepted ? documentId : null} />
-      {accepted && (
-        <Link href={creditNotePreselectHref(row.id)} className="mp-btn mp-btn--ghost mp-btn--sm">
-          {t("actionCreditNote")}
-        </Link>
-      )}
-      {advice && advice.action !== "none" ? (
-        <DianRecoveryButton documentId={documentId} action={advice.action} invoiceNumber={row.number} />
-      ) : (
-        canRetry && <RetryEmissionButton simpleInvoiceId={row.id} status={status} />
-      )}
-    </div>
-  );
-}
-
-function Pagination({ params, list }: { params: InvoiceListParams; list: InvoiceListPage }) {
+function Pagination({
+  params,
+  list,
+  range,
+}: {
+  params: InvoiceListParams;
+  list: InvoiceListPage;
+  range: { from: number; to: number };
+}) {
   const t = useTranslations("opEInvoices");
   if (list.total === 0) return null;
   const prev = list.page > 1 ? `${invoiceListHref({ ...params, page: list.page - 1 })}#facturas-lista` : null;
-  const next = list.page < list.pageCount ? `${invoiceListHref({ ...params, page: list.page + 1 })}#facturas-lista` : null;
+  const next =
+    list.page < list.pageCount ? `${invoiceListHref({ ...params, page: list.page + 1 })}#facturas-lista` : null;
   return (
-    <nav aria-label={t("paginationLabel")} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+    <nav
+      aria-label={t("paginationLabel")}
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-op-border px-4 py-3 text-[13px]"
+    >
       <span className="text-op-muted">
-        {t("pageInfo", { page: list.page, pages: list.pageCount, total: list.total })}
+        {range.from > 0
+          ? t("pageRange", { from: range.from, to: range.to, total: list.total })
+          : t("pageTotal", { total: list.total })}
+        {list.pageCount > 1 && (
+          <span className="text-op-muted">
+            {" · "}
+            {t("pageOf", { page: list.page, pages: list.pageCount })}
+          </span>
+        )}
       </span>
-      <span className="flex gap-2">
-        {prev ? (
-          <Link href={prev} prefetch={false} className="mp-btn mp-btn--secondary mp-btn--sm">
-            {t("pagePrev")}
-          </Link>
-        ) : null}
-        {next ? (
-          <Link href={next} prefetch={false} className="mp-btn mp-btn--secondary mp-btn--sm">
-            {t("pageNext")}
-          </Link>
-        ) : null}
-      </span>
+      {(prev || next) && (
+        <span className="flex gap-2">
+          {prev ? (
+            <Link href={prev} prefetch={false} className="mp-btn mp-btn--secondary mp-btn--xs">
+              {t("pagePrev")}
+            </Link>
+          ) : null}
+          {next ? (
+            <Link href={next} prefetch={false} className="mp-btn mp-btn--secondary mp-btn--xs">
+              {t("pageNext")}
+            </Link>
+          ) : null}
+        </span>
+      )}
     </nav>
   );
 }
 
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-op-muted mb-1">{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function Th({ children, align }: { children?: React.ReactNode; align?: "right" }) {
-  return (
-    <th
-      className={
-        "px-3 py-2 font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted font-normal " +
-        (align === "right" ? "text-right" : "")
-      }
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
+function Th({
   children,
   align,
   className = "",
 }: {
   children?: React.ReactNode;
-  align?: "right";
+  align?: "right" | "center";
   className?: string;
 }) {
   return (
-    <td className={"px-3 py-3 " + (align === "right" ? "text-right " : "") + className}>{children}</td>
+    <th
+      scope="col"
+      className={
+        "sticky top-0 z-10 bg-op-surface px-3 py-2 first:pl-4 last:pr-4 whitespace-nowrap font-mono text-[9px] font-normal uppercase tracking-[0.14em] text-op-muted shadow-[inset_0_-1px_0_var(--op-border)] " +
+        (align === "right" ? "text-right " : align === "center" ? "text-center " : "") +
+        className
+      }
+    >
+      {children}
+    </th>
   );
 }

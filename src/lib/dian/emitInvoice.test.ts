@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   resolveEmisor: vi.fn(),
   loadDianConfig: vi.fn(),
   invoiceFindUnique: vi.fn(),
+  invoiceUpdate: vi.fn(),
   docFindUnique: vi.fn(),
   docCreate: vi.fn(),
   docUpdate: vi.fn(),
@@ -27,7 +28,7 @@ const m = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({
   db: {
-    simpleInvoice: { findUnique: m.invoiceFindUnique },
+    simpleInvoice: { findUnique: m.invoiceFindUnique, update: m.invoiceUpdate },
     dianDocument: {
       findUnique: m.docFindUnique,
       create: m.docCreate,
@@ -691,6 +692,48 @@ describe("impuesto congelado — el XML lee la tarifa del snapshot, no del comer
     const f = fiscal(sentXml());
     expect(f.lineExtension).toBe("30000.00");
     expect(f.incAmount).toBeNull();
+  });
+
+  it("descuento del cliente: el XML lo declara dentro de cada línea y PayableAmount es lo cobrado", async () => {
+    // Bandeja de $30.000 con INC 8 % y 20 % de descuento: se cobraron
+    // $24.000 de comida. Antes el XML declaraba $30.000.
+    const snapshot = {
+      salesTaxKind: "inc", salesTaxPct: 8, discountCents: 6_000_00, discountPct: 20,
+      embeddedTaxCents: 177_778, embeddedBaseCents: 2_222_222,
+      discountInLines: { allowanceCents: 555_556 },
+    };
+    m.invoiceFindUnique.mockResolvedValue(invoice({ snapshot }));
+    expect((await emit()).outcome).toBe("accepted");
+    const xml = sentXml();
+    const f = fiscal(xml);
+    expect(f.lineExtension).toBe("22222.22");
+    expect(f.incAmount).toBe("1777.78");
+    expect(f.payable).toBe("24000.00");
+    expect(xml).toContain('<cbc:Amount currencyID="COP">5555.56</cbc:Amount>');
+    expect(xml).toContain('<cbc:BaseAmount currencyID="COP">27777.78</cbc:BaseAmount>');
+    // El snapshot ya decía lo mismo: no se reescribe.
+    expect(m.invoiceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("factura vieja con descuento que se reenvía: sale con el descuento en las líneas y el snapshot pasa a neto", async () => {
+    const snapshot = {
+      salesTaxKind: "inc", salesTaxPct: 8, discountCents: 6_000_00, discountPct: 20,
+      embeddedTaxCents: 222_222, embeddedBaseCents: 2_777_778,
+    };
+    m.invoiceFindUnique.mockResolvedValue(invoice({ snapshot }));
+    expect((await emit()).outcome).toBe("accepted");
+    expect(fiscal(sentXml()).payable).toBe("24000.00");
+    expect(m.invoiceUpdate).toHaveBeenCalledTimes(1);
+    const data = (m.invoiceUpdate.mock.calls[0][0] as { where: { id: string }; data: { snapshot: Record<string, unknown> } });
+    expect(data.where).toEqual({ id: "inv-1" });
+    expect(data.data.snapshot).toMatchObject({
+      embeddedTaxCents: 177_778,
+      embeddedBaseCents: 2_222_222,
+      discountInLines: { allowanceCents: 555_556 },
+      discountCents: 6_000_00,
+    });
+    // Se guarda ANTES de firmar: si la DIAN la acepta, el papel ya sale neto.
+    expect(m.invoiceUpdate.mock.invocationCallOrder[0]).toBeLessThan(m.signXmlDian.mock.invocationCallOrder[0]!);
   });
 
   it("la query no pide la tarifa del comercio y toma sólo los ítems vivos (sin ronda cancelada)", async () => {

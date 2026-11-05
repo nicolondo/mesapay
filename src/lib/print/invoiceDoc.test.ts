@@ -146,6 +146,56 @@ describe("buildThermalInvoice — totales", () => {
     expect(doc.totals.some((r) => r.label === "discountRow")).toBe(true);
   });
 
+  // Factura electrónica con el descuento del cliente DENTRO de las líneas
+  // (snapshot con `discountInLines`): la base y el impuesto que congeló son
+  // NETOS, como el XML, así que el papel pone primero el descuento y
+  // después la base y el impuesto — el orden en que se calculan.
+  it("con el descuento en las líneas: subtotal, descuento y después base e impuesto NETOS", () => {
+    const doc = build({
+      subtotalCents: 11_340_000,
+      discountCents: 2_268_000,
+      discountPct: 20,
+      salesTaxKind: "inc",
+      salesTaxPct: 8,
+      embeddedTaxCents: 672_000,
+      embeddedBaseCents: 8_400_000,
+      discountInLines: { allowanceCents: 2_100_000 },
+      tipCents: 907_200,
+      totalCents: 9_979_200,
+    });
+    expect(doc.totals).toEqual([
+      { label: "subtotal", amount: "$113400" },
+      { label: "discountRowPct(20)", amount: "-$22680" },
+      { label: "taxBase", amount: "$84000" },
+      { label: "taxIncIncluded(8)", amount: "$6720" },
+      { label: "tip", amount: "$9072" },
+      { label: "total", amount: "$99792", strong: true },
+    ]);
+  });
+
+  it("una factura vieja (sin la marca) se imprime como siempre: impuesto de lista y después el descuento", () => {
+    const doc = build({
+      subtotalCents: 11_340_000,
+      discountCents: 2_268_000,
+      discountPct: 20,
+      salesTaxKind: "inc",
+      salesTaxPct: 8,
+      embeddedTaxCents: 840_000,
+      embeddedBaseCents: 10_500_000,
+      tipCents: 907_200,
+      totalCents: 9_979_200,
+    });
+    expect(doc.totals.map((r) => r.label)).toEqual([
+      "subtotal",
+      "taxBase",
+      "taxIncIncluded(8)",
+      "discountRowPct(20)",
+      "tip",
+      "total",
+    ]);
+    expect(doc.totals[1]!.amount).toBe("$105000");
+  });
+
   it("la propina sólo aparece si la hubo", () => {
     expect(build().totals.map((r) => r.label)).not.toContain("tip");
     expect(build({ tipCents: 846_000 }).totals.map((r) => r.label)).toContain(

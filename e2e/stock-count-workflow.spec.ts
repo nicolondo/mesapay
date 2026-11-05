@@ -58,7 +58,7 @@ for (const width of [390, 1440]) {
 
       // Resume a persisted preliminary report after navigating away.
       await page.reload(); await page.getByRole("tab", { name: "Conteos", exact: true }).click();
-      await page.getByRole("button").filter({ hasText: "3 insumos" }).click();
+      await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|3 insumos/ }).filter({ visible: true }).first().click();
       await page.getByRole("button", { name: "Iniciar conteo definitivo", exact: true }).click();
       await expect(page.getByLabel("Conteo de Botellas", { exact: true })).toHaveValue("");
       await expect(page.getByLabel("Conteo de Vasos", { exact: true })).toHaveValue("");

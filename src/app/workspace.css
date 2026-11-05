@@ -1979,3 +1979,472 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-conta-tabs[data-end="true"]::after {
   opacity: 0;
 }
+
+/* ─── Inventario (/operator/inventario) ───────────────────────────────────
+   Cabecera con acciones compactas, barra de filtros de una fila, tarjeta
+   con tira de resumen y tabla de una línea por insumo (≈48px), menú ⋯ por
+   fila y tarjetas en el celular. Los tonos de «bajo mínimo» son los mismos
+   del aviso de reorden que había antes (ámbar sobre papel). */
+.mp-inv-header {
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.mp-inv-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.mp-btngroup {
+  display: inline-flex;
+}
+.mp-btngroup > .mp-btn {
+  border-radius: 0;
+}
+.mp-btngroup > .mp-btn + .mp-btn {
+  margin-left: -1px;
+}
+.mp-btngroup > .mp-btn:first-child {
+  border-top-left-radius: var(--radius-btn);
+  border-bottom-left-radius: var(--radius-btn);
+}
+.mp-btngroup > .mp-btn:last-child {
+  border-top-right-radius: var(--radius-btn);
+  border-bottom-right-radius: var(--radius-btn);
+}
+.mp-btngroup > .mp-btn:hover,
+.mp-btngroup > .mp-btn:active {
+  transform: none;
+}
+.mp-btngroup > .mp-btn:hover,
+.mp-btngroup > .mp-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+.mp-inv-settings {
+  width: 38px;
+  height: 38px;
+}
+.mp-inv-tabsrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.mp-inv-tabsrow > .mp-seg {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.mp-inv-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 8%, var(--op-surface));
+  border-radius: 12px;
+  color: var(--ok);
+  font-size: 13px;
+}
+.mp-inv-notice.is-error {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 7%, var(--op-surface));
+  color: var(--danger);
+}
+.mp-inv-notice__close {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: currentColor;
+}
+.mp-inv-notice__close:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Barra de filtros */
+.mp-inv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.mp-inv-toolbar .mp-search-field {
+  flex: 1 1 240px;
+  width: auto;
+  max-width: 380px;
+  min-height: 40px;
+}
+.mp-inv-select {
+  height: 40px;
+  max-width: 220px;
+  padding: 0 10px;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-surface);
+  color: var(--op-text);
+  font-size: 13px;
+}
+.mp-inv-select--wide {
+  max-width: 320px;
+  min-width: 220px;
+}
+.mp-inv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mp-inv-toolbar .mp-chip {
+  height: 40px;
+  padding: 0 12px;
+}
+.mp-chip__count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--op-text) 8%, transparent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.mp-chip[aria-pressed="true"] .mp-chip__count {
+  background: rgba(255, 253, 249, 0.18);
+}
+.mp-inv-clear {
+  min-height: 40px;
+  padding: 0 6px;
+  color: var(--terracotta-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.mp-inv-clear:hover {
+  text-decoration: underline;
+}
+
+/* Tarjeta + tira de resumen */
+.mp-inv-card {
+  overflow: hidden;
+  border: 1px solid var(--op-border);
+  border-radius: 16px;
+  background: var(--op-surface);
+}
+.mp-inv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--op-border);
+  background: var(--op-bg);
+  color: var(--op-muted);
+  font-size: 13px;
+}
+.mp-inv-summary strong {
+  color: var(--op-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.mp-inv-summary__low {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #7f5a1f;
+  font-weight: 500;
+}
+.mp-inv-summary__low svg {
+  color: var(--warn);
+}
+.mp-inv-summary__low.is-link {
+  min-height: 32px;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, #7f5a1f 40%, transparent);
+  text-underline-offset: 3px;
+}
+.mp-inv-summary__range {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabla compacta (una línea por fila) */
+.mp-inv-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+}
+.mp-inv-table th {
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--op-border);
+  color: var(--op-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--op-surface);
+}
+.mp-inv-table td {
+  height: 48px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--op-border);
+  white-space: nowrap;
+  vertical-align: middle;
+  background: var(--op-surface);
+}
+.mp-inv-table th:first-child,
+.mp-inv-table td:first-child {
+  padding-left: 16px;
+}
+.mp-inv-table th:last-child,
+.mp-inv-table td:last-child {
+  padding-right: 8px;
+}
+.mp-inv-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.mp-inv-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--op-bg) 70%, var(--op-surface));
+}
+/* La primera columna se queda fija si la tabla se desplaza de lado (último
+   recurso en pantallas angostas) y es la que absorbe el ancho libre. */
+.mp-inv-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.mp-inv-namecell {
+  width: 100%;
+  max-width: 0;
+  min-width: 15rem;
+}
+/* Columna que absorbe el ancho libre sin empujar a las demás (notas). */
+.mp-inv-greedy {
+  width: 100%;
+  max-width: 0;
+  min-width: 12rem;
+}
+.mp-inv-name {
+  min-width: 0;
+  font-weight: 500;
+  color: var(--op-text);
+}
+tr.is-archived .mp-inv-name,
+li.is-archived .mp-inv-name {
+  color: var(--op-muted);
+}
+.mp-inv-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  color: inherit;
+  font: inherit;
+}
+.mp-inv-sort:hover,
+.mp-inv-sort.is-active {
+  color: var(--op-text);
+}
+.mp-inv-sort__arrow {
+  opacity: 0.35;
+  font-size: 11px;
+}
+.mp-inv-sort.is-active .mp-inv-sort__arrow {
+  opacity: 1;
+}
+.mp-inv-lowtext {
+  color: #7f5a1f;
+}
+.mp-inv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--op-border);
+  color: var(--op-muted);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mp-inv-pill--low {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: color-mix(in srgb, var(--warn) 14%, var(--op-surface));
+  color: #7f5a1f;
+}
+.mp-inv-pill--low svg {
+  color: var(--warn);
+}
+.mp-inv-pill--icon {
+  width: 22px;
+  padding: 0;
+  justify-content: center;
+}
+.mp-inv-pill--ink {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bone);
+}
+.mp-inv-codechip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--op-border-2);
+  border-radius: 6px;
+  color: var(--op-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mp-inv-codechip:hover {
+  color: var(--op-text);
+  border-color: color-mix(in srgb, var(--op-text) 30%, transparent);
+}
+
+/* «Quitar» un código: rojo suave, sin el peso de un botón destructivo. */
+.mp-btn.mp-inv-remove {
+  color: var(--danger);
+}
+.mp-btn.mp-inv-remove:hover {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  color: var(--danger);
+}
+
+/* Pie: paginación / cargar más */
+.mp-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--op-border);
+}
+.mp-pager__info {
+  color: var(--op-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Menú ⋯ de la fila (en portal, posición fija) */
+.mp-rowmenu__button {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-btn);
+  color: var(--op-muted);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.mp-rowmenu__button:hover,
+.mp-rowmenu__button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--op-text) 8%, transparent);
+  color: var(--op-text);
+}
+.mp-rowmenu {
+  position: fixed;
+  z-index: 70;
+  min-width: 228px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border: 1px solid var(--op-border);
+  border-radius: 12px;
+  background: var(--op-surface);
+  box-shadow: var(--shadow-3);
+  color: var(--op-text);
+}
+.mp-rowmenu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--op-text);
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+.mp-rowmenu__item svg {
+  flex-shrink: 0;
+  color: var(--op-muted);
+}
+.mp-rowmenu__item:not(:disabled):hover,
+.mp-rowmenu__item:focus-visible {
+  background: var(--op-bg);
+}
+.mp-rowmenu__item:focus-visible {
+  outline-offset: -2px;
+}
+.mp-rowmenu__item:disabled {
+  opacity: 0.45;
+}
+.mp-rowmenu__item--danger,
+.mp-rowmenu__item--danger svg {
+  color: var(--danger);
+}
+.mp-rowmenu__sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--op-border);
+}
+@media (pointer: coarse) {
+  .mp-rowmenu__item {
+    min-height: 44px;
+  }
+}
+@media (max-width: 767px) {
+  .mp-rowmenu__button {
+    width: 44px;
+    height: 44px;
+  }
+  .mp-inv-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .mp-inv-actions {
+    width: 100%;
+  }
+  .mp-inv-actions > .mp-btn--primary {
+    flex: 1 1 auto;
+  }
+  .mp-inv-actions > .mp-btngroup {
+    flex: 0 0 auto;
+  }
+  .mp-inv-settings {
+    width: 44px;
+    height: 44px;
+  }
+  .mp-inv-tabsrow .mp-seg__i {
+    padding: 0 12px;
+  }
+  .mp-inv-toolbar .mp-search-field {
+    flex-basis: 100%;
+    max-width: none;
+    min-height: 44px;
+  }
+  .mp-inv-select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    height: 44px;
+    font-size: 16px;
+  }
+  .mp-inv-chips {
+    flex: 1 0 100%;
+  }
+  .mp-inv-toolbar .mp-chip {
+    height: 44px;
+  }
+  .mp-inv-toolbar .mp-search-field input {
+    font-size: 16px;
+  }
+}

@@ -1,7 +1,7 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { loadInventoryStock } from "@/lib/erp/inventoryStock";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -9,39 +9,17 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["inventory"];
 
 /**
- * Existencias del comercio. Se lista desde el lado del INSUMO (no del
- * StockLevel) para incluir insumos activos sin movimientos todavía
- * (level null → 0). Los inactivos solo aparecen si conservan saldo ≠ 0
- * — un insumo descatalogado con stock sigue siendo plata en la bodega.
+ * Existencias del comercio, con el mismo criterio que la carga inicial de
+ * /operator/inventario (ver loadInventoryStock): activos aunque no tengan
+ * movimientos, archivados solo con saldo ≠ 0 y sin las categorías marcadas
+ * «sin inventario».
  */
 async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const ingredients = await db.ingredient.findMany({
-    where: { restaurantId: ctx.restaurantId, trackInventory: true },
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      measureKind: true,
-      active: true,
-      barcode: true,
-      barcodes: { where: { restaurantId: ctx.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
-      // A4 — la UI marca "bajo mínimo" con qtyBase <= reorderPointBase.
-      reorderPointBase: true,
-      reorderQtyBase: true,
-      stockLevel: {
-        select: { qtyBase: true, totalValueCents: true, updatedAt: true },
-      },
-    },
-  });
-  const rows = ingredients.filter(
-    (i) => i.active || (i.stockLevel && i.stockLevel.qtyBase !== 0),
-  );
-  return NextResponse.json({ stock: rows });
+  return NextResponse.json({ stock: await loadInventoryStock(ctx.restaurantId) });
 }
 
 export const GET = secureApi(GETHandler);

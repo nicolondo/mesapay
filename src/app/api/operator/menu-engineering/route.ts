@@ -8,6 +8,8 @@ import {
   engineeringThresholds,
 } from "@/lib/erp/recipes";
 import { loadCostContext } from "@/lib/erp/recipeData";
+import { netMenuPriceCents } from "@/lib/erp/recipeDetail";
+import { asSalesTaxKind } from "@/lib/checkoutTax";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +21,9 @@ const PERIODS = [7, 30, 90];
 /**
  * Matriz de ingeniería de menú (spec D4): popularidad = unidades vendidas
  * en órdenes pagadas del período (items cancelados/comp excluidos); margen
- * = precio de carta − costo ACTUAL de la receta. Umbrales: popularidad ≥
+ * = precio de carta SIN el impuesto embebido − costo ACTUAL de la receta
+ * (el mismo margen que muestran la lista y el detalle de recetas; el
+ * impoconsumo/IVA no es venta del comercio). Umbrales: popularidad ≥
  * 70% del promedio de unidades por plato; margen ≥ promedio. Platos sin
  * receta, con costo incompleto o sin ventas van a la lista "sin datos".
  */
@@ -33,8 +37,12 @@ async function GETHandler(req: Request) {
   const days = PERIODS.includes(daysParam) ? daysParam : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const [{ ctx: costCtx }, menuItems, sold] = await Promise.all([
+  const [{ ctx: costCtx }, tenant, menuItems, sold] = await Promise.all([
     loadCostContext(ctx.restaurantId),
+    db.restaurant.findUnique({
+      where: { id: ctx.restaurantId },
+      select: { salesTaxKind: true, salesTaxPct: true },
+    }),
     db.menuItem.findMany({
       where: { restaurantId: ctx.restaurantId },
       select: {
@@ -61,6 +69,11 @@ async function GETHandler(req: Request) {
       _sum: { qty: true },
     }),
   ]);
+
+  const tax = {
+    kind: asSalesTaxKind(tenant?.salesTaxKind),
+    pct: tenant?.salesTaxPct ?? 0,
+  };
 
   const unitsByItem = new Map(
     sold.map((s) => [s.menuItemId, s._sum.qty ?? 0]),
@@ -112,7 +125,7 @@ async function GETHandler(req: Request) {
       ...base,
       priceCents: mi.priceCents,
       costCents: cost.costCents,
-      marginCents: mi.priceCents - cost.costCents,
+      marginCents: netMenuPriceCents(mi.priceCents, tax) - cost.costCents,
     });
   }
 

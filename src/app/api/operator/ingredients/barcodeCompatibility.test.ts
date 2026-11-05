@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   context: vi.fn(), find: vi.fn(), list: vi.fn(), code: vi.fn(),
   create: vi.fn(), update: vi.fn(), lock: vi.fn(), audit: vi.fn(),
+  restaurant: vi.fn(),
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/erp/access", () => ({ getErpContext: m.context, isDenied: (ctx: { error?: string }) => !!ctx.error }));
@@ -14,7 +15,7 @@ vi.mock("@/lib/db", () => {
     ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update },
     ingredientBarcode: { findUnique: m.code },
   };
-  return { db: { ...tx, $transaction: (callback: (client: typeof tx) => unknown) => callback(tx) } };
+  return { db: { ...tx, restaurant: { findUnique: m.restaurant }, $transaction: (callback: (client: typeof tx) => unknown) => callback(tx) } };
 });
 
 import { GET, POST } from "./route";
@@ -41,6 +42,7 @@ beforeEach(() => {
   m.find.mockImplementation(async ({ where }: { where: { id?: string } }) => where.id ? current : null);
   m.code.mockResolvedValue(null);
   m.list.mockResolvedValue([]);
+  m.restaurant.mockResolvedValue({ inventoryExcludedCategories: [] });
   m.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "new", ...data }));
   m.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...current, ...data }));
 });
@@ -159,6 +161,19 @@ describe("barcode catalog projections", () => {
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
       where: { restaurantId: current.restaurantId, trackInventory: true },
       select: expect.objectContaining({ barcode: true, barcodes: { where: { restaurantId: current.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } } }),
+    }));
+  });
+
+  it("refreshes stock with the same category exclusions as the inventory page", async () => {
+    m.restaurant.mockResolvedValue({ inventoryExcludedCategories: ["Hielo"] });
+    const archivedEmpty = { ...current, id: "old", active: false, barcodes: [], stockLevel: { qtyBase: 0, totalValueCents: 0, updatedAt: new Date(0) } };
+    const archivedStocked = { ...archivedEmpty, id: "kept", stockLevel: { ...archivedEmpty.stockLevel, qtyBase: 5 } };
+    m.list.mockResolvedValue([archivedEmpty, archivedStocked]);
+    const response = await GETStock(new Request("http://localhost/api/operator/stock"));
+    expect((await response.json()).stock.map((row: { id: string }) => row.id)).toEqual(["kept"]);
+    expect(m.restaurant).toHaveBeenCalledWith({ where: { id: current.restaurantId }, select: { inventoryExcludedCategories: true } });
+    expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
+      where: { restaurantId: current.restaurantId, trackInventory: true, OR: [{ category: null }, { category: { notIn: ["Hielo"] } }] },
     }));
   });
 });

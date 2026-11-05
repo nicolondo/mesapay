@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { addIngredientBarcode } from "./barcodeApi";
 
 export function IngredientBarcodes({ ingredient, canAdd, disabled = false, suggestedCode, onSaved, onBusyChange }: {
   ingredient: IngredientBarcodeUpdate & { name: string };
@@ -28,25 +29,11 @@ export function IngredientBarcodes({ ingredient, canAdd, disabled = false, sugge
     if (!barcode) { setError(t("barcodeAddInvalid")); return; }
     setBusy(true); onBusyChange?.(true); setError(null); setSaved(false);
     try {
-      const response = await fetch(`/api/operator/ingredients/${ingredient.id}/barcode`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ barcode }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        const errors: Record<string, string> = {
-          barcode_taken: "barcodeAddTaken", invalid: "barcodeAddInvalid",
-          ingredient_inactive: "barcodeAddInactive", ingredient_not_tracked: "barcodeAddNotTracked",
-          not_found: "barcodeAddUnavailable", forbidden: "barcodeAddUnavailable", unauthorized: "barcodeAddUnavailable",
-          module_disabled: "barcodeAddUnavailable", operation_conflict: "barcodeAddConflict",
-        };
-        setError(t(errors[result.error] ?? "barcodeAddFailed"));
-        return;
-      }
-      if (result.ingredient?.id !== ingredient.id || !Array.isArray(result.ingredient.barcodes)) throw new Error("invalid_response");
-      onSaved(result.ingredient as IngredientBarcodeUpdate);
+      const result = await addIngredientBarcode(ingredient.id, barcode);
+      if (!result.ok) { setError(t(result.errorKey)); return; }
+      onSaved(result.ingredient);
       setValue(""); setOpen(false); setSaved(true);
-    } catch { setError(t("barcodeAddFailed")); }
-    finally { setBusy(false); onBusyChange?.(false); }
+    } finally { setBusy(false); onBusyChange?.(false); }
   }
 
   if (!canAdd && codes.length === 0) return null;

@@ -133,7 +133,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "buscar-y-revisar-ordenes",
       title: "Busca una orden y revisa su detalle",
       covers:
-        "\"Buscar orden\", el código corto de 6 caracteres (la búsqueda respeta el periodo, que arranca en \"Hoy\"), filtros de \"Órdenes\" (estado y periodo), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
+        "\"Órdenes\": navegador de periodo (Día, Semana, Mes, Rango; flechas, \"Volver a hoy\", días de negocio con la hora de corte), totales del periodo (Órdenes, Pagadas, Ventas brutas), filtro de estado con cantidades, lista paginada de 50, búsqueda por código (en el periodo, o \"Buscar en todas las fechas\") y por número de factura o nota crédito (siempre en todas las fechas), \"Buscar orden o factura\" de la barra de arriba, la factura en la fila (número, estado DIAN y menú ⋯), y el detalle: cifras, acciones, factura, rondas y sus estados, \"Por persona\" y pagos. Quién montó cada ronda no está en el detalle: se ve en la ficha de la mesa y en el tablero.",
     },
     {
       slug: "reservas",

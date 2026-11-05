@@ -14,7 +14,7 @@ import {
   taxRows,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
-import { groupInvoiceLines } from "@/lib/invoiceLines";
+import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/invoiceLines";
 import { isModuleEnabled } from "@/lib/modules";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { restaurantLogoSrc } from "@/lib/branding";
@@ -170,6 +170,7 @@ export default async function FacturaPage({
       )
     : null;
   const einvoice = !!(dianCufe && dianQrDataUrl);
+  const fiscalItems = splitZeroValueLines(snap.items);
 
   // NIT · dirección · ciudad · teléfono, corridos en un párrafo.
   const bizMeta = [
@@ -286,7 +287,7 @@ export default async function FacturaPage({
               no entra, sigue abajo con todo el ancho, sin reservar la
               columna del precio. Modificadores y nota, en un renglón chico. */}
           <div className="items">
-            {groupInvoiceLines(snap.items).map((it, idx) => {
+            {groupInvoiceLines(einvoice ? fiscalItems.charged : snap.items).map((it, idx) => {
               const detail = itemDetailText(it);
               return (
                 <div className="item" key={idx}>
@@ -300,6 +301,14 @@ export default async function FacturaPage({
               );
             })}
           </div>
+          {/* Factura electrónica: lo que salió sin costo NO es una línea
+              fiscal (no va en el XML de la DIAN, regla FAW01): se muestra
+              aparte, informativo. El comprobante lo lista como siempre. */}
+          {einvoice && fiscalItems.free.length > 0 && (
+            <div className="small">
+              {t("freeItemsNote", { items: freeLinesText(fiscalItems.free) })}
+            </div>
+          )}
 
           <hr className="dashed" />
 

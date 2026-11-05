@@ -134,6 +134,33 @@ export function lineDeclaresTax(l: DianLine): boolean {
   return l.taxCents > 0;
 }
 
+/**
+ * Líneas que SÍ van a la factura: las que tienen valor. Una línea en $0
+ * (un postre de cumpleaños que no se cobra, un modificador gratis, una
+ * línea libre en cero) NO es una venta y no cambia ningún total, así que
+ * no se informa.
+ *
+ * Por qué omitirla y no mandarla en cero: la DIAN rechaza una línea con
+ * `cbc:LineExtensionAmount` 0.00 sin `cac:PricingReference` (regla FAW01,
+ * «Línea de factura informado con LineExtensionAmount en cero y grupo
+ * cac:PricingReference no informado»). Ese grupo existe para las
+ * «muestras o regalos sin valor comercial» y exige un precio de referencia
+ * comercial MAYOR que cero (FAW03, `PriceTypeCode` 01 «Valor comercial»,
+ * tabla 13.3.9) — Anexo Técnico 1.8, Res. 000012/2021, págs. 94, 406 y
+ * 619; mismas reglas en el 1.9 (Res. 000165/2023). Un plato que la carta
+ * tiene en $0 no tiene ese valor comercial: inventarlo sería declarar un
+ * precio que nadie fijó. El anexo no obliga a informar lo que no se
+ * vende; sólo dice cómo informarlo SI se informa.
+ *
+ * Se filtra acá, en el builder, y no sólo al mapear la orden: así ninguna
+ * ruta (reintento, reenvío, test set) puede mandar una línea en cero, la
+ * numeración `cbc:ID` sale consecutiva sobre las que quedan y
+ * `cbc:LineCountNumeric` cuenta lo mismo que el detalle.
+ */
+export function billableDianLines(lines: readonly DianLine[]): DianLine[] {
+  return lines.filter((l) => l.lineTotalCents > 0);
+}
+
 /** Totales derivados EXACTOS de las líneas (enteros — nada se inventa). */
 export function computeDianTotals(lines: DianLine[]): DianTotals {
   const lineExtensionCents = lines.reduce((a, l) => a + l.lineTotalCents, 0);
@@ -297,7 +324,10 @@ export type BuiltDianInvoice = {
   totals: DianTotals;
 };
 
-export function buildDianInvoiceXml(i: DianInvoiceInput): BuiltDianInvoice {
+export function buildDianInvoiceXml(input: DianInvoiceInput): BuiltDianInvoice {
+  // Sólo las líneas con valor (ver `billableDianLines`). Los totales no
+  // cambian: una línea en cero no suma nada.
+  const i: DianInvoiceInput = { ...input, lines: billableDianLines(input.lines) };
   const totals = computeDianTotals(i.lines);
   const cufeInputs: CufeInputs = {
     invoiceNumber: i.invoiceNumber,

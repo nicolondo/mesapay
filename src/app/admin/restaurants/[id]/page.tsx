@@ -27,6 +27,7 @@ import { RestaurantCountryEditor } from "./RestaurantCountryEditor";
 import { getEnabledCountries, getCurrencyForCountry } from "@/lib/billing/countries";
 import { PaymentMethodsPanel } from "./PaymentMethodsPanel";
 import { ModulesPanel } from "./ModulesPanel";
+import { DianRecoveryPanel } from "./DianRecoveryPanel";
 import { resolveEnabledModules } from "@/lib/modules";
 import { GroupAssignPanel } from "./GroupAssignPanel";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
@@ -349,6 +350,12 @@ export default async function RestaurantDetail({
         restaurantId={id}
         initialEnabled={resolveEnabledModules(rest.enabledModules)}
       />
+
+      {/* Facturas DIAN rechazadas por causas ya corregidas: revisar y
+          recuperar en lote (sólo con facturación electrónica activa). */}
+      {resolveEnabledModules(rest.enabledModules).includes("einvoicing") && (
+        <DianRecoveryPanel restaurantId={id} />
+      )}
 
       <GroupAssignPanel
         restaurantId={id}

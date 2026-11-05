@@ -485,7 +485,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "clientes-de-facturacion",
       title: "Crea clientes para facturar",
       covers:
-        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\"), \"Descuento\" comercial, editar y buscar; diferencia con los comensales registrados.",
+        "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\", deuda vencida), \"Descuento\" comercial, editar; buscar, filtrar (tipo, condición), ordenar y paginar, resumen de deuda; la pestaña de comensales registrados y su búsqueda.",
     },
   ],
 

@@ -267,40 +267,6 @@ export async function loadCustomerCreditSummary(
   };
 }
 
-/**
- * Deuda por cliente del comercio (sólo los que tienen algún cargo o
- * abono). Dos agregados, sin traer las filas: para el listado de clientes
- * y el selector del cobro.
- */
-export async function loadCustomersDebt(restaurantId: string): Promise<Map<string, number>> {
-  const [charged, paid] = await Promise.all([
-    db.payment.groupBy({
-      by: ["billingCustomerId"],
-      where: {
-        billingCustomerId: { not: null },
-        method: "customer_credit",
-        status: { in: [...CHARGE_STATUSES] },
-        order: { restaurantId },
-      },
-      _sum: { amountCents: true, refundedCents: true, creditNoteCents: true },
-    }),
-    db.customerCreditPayment.groupBy({
-      by: ["billingCustomerId"],
-      where: { restaurantId },
-      _sum: { amountCents: true },
-    }),
-  ]);
-  const debt = new Map<string, number>();
-  for (const g of charged) {
-    if (!g.billingCustomerId) continue;
-    const cents = Math.max(
-      0,
-      (g._sum.amountCents ?? 0) - (g._sum.refundedCents ?? 0) - (g._sum.creditNoteCents ?? 0),
-    );
-    debt.set(g.billingCustomerId, cents);
-  }
-  for (const g of paid) {
-    debt.set(g.billingCustomerId, (debt.get(g.billingCustomerId) ?? 0) - (g._sum.amountCents ?? 0));
-  }
-  return debt;
-}
+// La deuda de MUCHOS clientes a la vez (listado y buscador) la calcula la
+// consulta de `billingCustomerListQueries.ts`, en la base y con la misma
+// fórmula, junto con la deuda vencida.

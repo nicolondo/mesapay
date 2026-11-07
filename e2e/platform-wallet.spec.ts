@@ -62,7 +62,7 @@ async function fixture(page: Page) {
     return route.fulfill({ json: { payout } });
   });
   await page.goto("/admin/wallet");
-  await expect(page.getByRole("heading", { name: "Wallet MESAPAY", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Wallet", exact: true })).toBeVisible();
   return { submissions, transfers, statusRequests, loseNextResponse: () => { loseResponse = true; }, failBalance: (value: boolean) => { balanceFails = value; }, unknownNextSend: () => { unknownSend = true; } };
 }
 async function configure(page: Page) {

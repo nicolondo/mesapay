@@ -5068,7 +5068,7 @@
     "resetNothing": "Selecciona al menos una opción.",
     "navAccount": "Mi cuenta",
     "navAccountTitle": "Mi cuenta: cambiar mi contraseña",
-    "navWallet": "Wallet MESAPAY",
+    "navWallet": "Wallet",
     "walletConfigHint": "Consulta el saldo disponible en tu cuenta Kushki y realiza dispersiones desde la plataforma.",
     "walletConfigLink": "Abrir wallet"
   },
@@ -10105,7 +10105,7 @@
   },
   "platformWallet": {
     "eyebrow": "Tesorería de la plataforma",
-    "title": "Wallet MESAPAY",
+    "title": "Wallet",
     "intro": "Consulta el saldo de tu cuenta Kushki y realiza pagos desde la plataforma. Esta cuenta es independiente de las wallets de los comercios.",
     "configureAccount": "Configurar cuenta de dispersión",
     "hideConfig": "Cerrar configuración",
@@ -10269,7 +10269,7 @@
     "quickAccess": "Accesos frecuentes",
     "quickRestaurants": "Gestionar restaurantes",
     "quickRestaurantsBody": "Cuentas, acceso y configuración de cada comercio.",
-    "quickWallet": "Wallet MESAPAY",
+    "quickWallet": "Wallet",
     "quickWalletBody": "Saldo y transferencias de la plataforma.",
     "quickPlans": "Planes y precios",
     "quickPlansBody": "Revisa el catálogo de suscripciones.",

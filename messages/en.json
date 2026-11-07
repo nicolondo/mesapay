@@ -5068,7 +5068,7 @@
     "resetNothing": "Select at least one option.",
     "navAccount": "My account",
     "navAccountTitle": "My account: change my password",
-    "navWallet": "MESAPAY Wallet",
+    "navWallet": "Wallet",
     "walletConfigHint": "Check the available balance in your Kushki account and send payouts from the platform.",
     "walletConfigLink": "Open wallet"
   },
@@ -10105,7 +10105,7 @@
   },
   "platformWallet": {
     "eyebrow": "Platform treasury",
-    "title": "MESAPAY Wallet",
+    "title": "Wallet",
     "intro": "View your Kushki account balance and send payments from the platform. This account is separate from merchant wallets.",
     "configureAccount": "Configure payout account",
     "hideConfig": "Close settings",
@@ -10269,7 +10269,7 @@
     "quickAccess": "Quick access",
     "quickRestaurants": "Manage restaurants",
     "quickRestaurantsBody": "Accounts, access and settings for each merchant.",
-    "quickWallet": "MESAPAY wallet",
+    "quickWallet": "Wallet",
     "quickWalletBody": "Platform balance and transfers.",
     "quickPlans": "Plans and pricing",
     "quickPlansBody": "Review the subscription catalog.",

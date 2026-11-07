@@ -126,6 +126,8 @@ export const UNRELATED_MODELS: Readonly<Record<string, string>> = {
     "Razón social del grupo: la numeración DIAN compartida sigue viva para los demás locales.",
   PlanConfig: "Catálogo de planes de la plataforma.",
   PlatformConfig: "Configuración global de la plataforma.",
+  PlatformWalletAccount: "Cuenta de dispersión de MESAPAY: sus credenciales y versiones no pertenecen a un comercio.",
+  PlatformPayout: "Transferencias de fondos de MESAPAY: el historial y la idempotencia sobreviven al borrado de cualquier comercio.",
   Translation: "Caché global de traducciones, por texto.",
   RateLimitBucket: "Contadores con vencimiento propio.",
   CreditNoteSeries:

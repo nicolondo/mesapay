@@ -637,6 +637,74 @@ model PlatformConfig {
   // Secret de firma del webhook de suscripciones (X-Kushki-Signature).
   // Cifrado AES-GCM igual que la private key; editable desde /admin/configuracion.
   kushkiBillingWebhookSecretEnc String?
+  // The platform's payout account is independent of subscription credentials.
+  platformWalletAccountId       String?
+  platformWalletAccount         PlatformWalletAccount? @relation(fields: [platformWalletAccountId], references: [id], onDelete: Restrict)
+}
+
+enum PlatformWalletMode {
+  sandbox
+  production
+}
+
+enum PlatformPayoutStatus {
+  submitting
+  initialized
+  approved
+  declined
+  unknown
+  failed
+}
+
+/// Immutable credential versions keep old transfers queryable after rotation.
+model PlatformWalletAccount {
+  id               String @id @default(cuid())
+  label            String
+  mode             PlatformWalletMode
+  publicKey        String
+  privateKeyEnc    String
+  webhookSecretEnc String
+  createdById      String?
+  createdByEmail   String?
+  createdAt        DateTime @default(now())
+  activeConfigs    PlatformConfig[]
+  payouts          PlatformPayout[]
+}
+
+/// Platform money never belongs to a restaurant or its deletion lifecycle.
+model PlatformPayout {
+  id                 String @id @default(cuid())
+  accountId          String
+  account            PlatformWalletAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  idempotencyKey     String @unique
+  payloadFingerprint String
+  amountCents        BigInt
+  currency           String @default("COP")
+  bankId             String
+  bankName           String
+  accountType        String
+  accountLast4       String
+  holderName         String
+  description        String?
+  status             PlatformPayoutStatus @default(submitting)
+  reference          String @unique
+  providerRef        String?
+  ticketNumber       String?
+  errorCode          String?
+  // A worker must claim init while its lease is valid; expiry can only release
+  // preparation that provably never crossed the provider-init boundary.
+  submissionLeaseUntil DateTime
+  initStartedAt      DateTime?
+  createdById        String?
+  createdByEmail     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  settledAt          DateTime?
+  @@index([createdAt, id])
+  @@index([status])
+  @@index([accountId, createdAt])
+  @@unique([accountId, providerRef])
+  @@unique([accountId, ticketNumber])
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints

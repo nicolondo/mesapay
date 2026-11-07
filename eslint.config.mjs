@@ -18,6 +18,7 @@ import i18next from "eslint-plugin-i18next";
  * MIGRATED cubra `src/**` entero.
  */
 const MIGRATED = [
+  "src/app/admin/wallet/**/*.{ts,tsx}",
   // Reportes contables: nacieron trilingües, quedan blindados de una.
   "src/app/operator/reportes/**/*.{ts,tsx}",
   // Análisis de ventas y los gráficos reutilizables: nacieron trilingües.

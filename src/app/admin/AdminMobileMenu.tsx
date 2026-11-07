@@ -48,7 +48,7 @@ export function AdminMobileMenu({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t("openMenu")}
-        className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
+        className="2xl:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-op-border bg-op-surface text-op-text active:scale-95 transition-transform"
       >
         <svg
           width="20"
@@ -67,7 +67,7 @@ export function AdminMobileMenu({
 
       {open && (
         <div
-          className="md:hidden fixed inset-0 z-50 bg-black/40"
+          className="2xl:hidden fixed inset-0 z-50 bg-black/40"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
@@ -128,6 +128,9 @@ export function AdminMobileMenu({
               </DrawerLink>
               <DrawerLink href="/admin/comisiones" pathname={pathname}>
                 {t("navComisiones")}
+              </DrawerLink>
+              <DrawerLink href="/admin/wallet" pathname={pathname}>
+                {t("navWallet")}
               </DrawerLink>
               <DrawerLink href="/comercial" pathname={pathname}>
                 {t("navCrm")}

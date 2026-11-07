@@ -83,18 +83,19 @@ async function AdminLayoutContent({
             </div>
             {/* Inline nav hidden on small screens — see AdminMobileMenu
                 for the hamburger drawer that takes its place. */}
-            <nav className="hidden md:flex gap-1">
+            <nav className="hidden 2xl:flex gap-1">
               <NavLink href="/admin/restaurants">{t("navRestaurants")}</NavLink>
               <NavLink href="/admin/resumen">{t("navSummary")}</NavLink>
               <NavLink href="/admin/groups">{t("navGroups")}</NavLink>
               <NavLink href="/admin/plans">{t("navPlans")}</NavLink>
               <NavLink href="/admin/audit">{t("navAudit")}</NavLink>
               <NavLink href="/admin/comisiones">{t("navComisiones")}</NavLink>
+              <NavLink href="/admin/wallet">{t("navWallet")}</NavLink>
               <NavLink href="/comercial">{t("navCrm")}</NavLink>
               <NavLink href="/admin/configuracion">{t("navConfig")}</NavLink>
             </nav>
           </div>
-          <div className="hidden md:flex items-center gap-3 text-sm">
+          <div className="hidden 2xl:flex items-center gap-3 text-sm">
             <Link
               href="/operator"
               className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"

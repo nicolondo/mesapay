@@ -175,7 +175,7 @@ export default async function RestaurantDetail({
   }
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
+    <div className="mp-page mp-page--narrow">
       <Link
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
@@ -216,7 +216,7 @@ export default async function RestaurantDetail({
 
       {/* 5 tarjetas en 2 columnas dejan una huérfana: la última ocupa las
           dos columnas en móvil para que la grilla cierre pareja. */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3 mb-6 [&>*:last-child]:col-span-2 xl:[&>*:last-child]:col-span-1">
         <Stat label={t("colOperators")} value={operators.length} />
         <Stat label={t("statCategories")} value={counts?._count.categories ?? 0} />
         <Stat label={t("statDishes")} value={counts?._count.menuItems ?? 0} />

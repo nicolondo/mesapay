@@ -89,9 +89,9 @@ export function WalletClient() {
     if (config?.account) void loadBalance(config.account);
   }, [config, loadBalance]);
   const account = config?.account;
-  return <div className="mx-auto w-full max-w-6xl space-y-6 p-4 pb-10 md:p-6 md:pb-12">
+  return <div className="mp-page space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="max-w-3xl"><p className="font-mono text-[10px] uppercase tracking-[0.16em] text-op-muted">{t("eyebrow")}</p><h1 className="mt-2 font-display text-4xl leading-tight">{t("title")}</h1><p className="mt-3 text-sm leading-relaxed text-op-muted">{t("intro")}</p></div>
+      <div className="max-w-3xl"><p className="mp-eyebrow">{t("eyebrow")}</p><h1 className="mp-page-title mt-2">{t("title")}</h1><p className="mt-3 text-sm leading-relaxed text-op-muted">{t("intro")}</p></div>
       {account && <button className={secondaryButton} type="button" onClick={() => { setSaved(false); setConfigOpen((value) => !value); }}>{t(configOpen ? "hideConfig" : "configureAccount")}</button>}
     </header>
     {saved && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{t("accountSaved")}</p>}

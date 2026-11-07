@@ -15,7 +15,13 @@ export type IconName =
   | "search"
   | "arrow"
   | "close"
-  | "plus";
+  | "plus"
+  | "store"
+  | "groups"
+  | "wallet"
+  | "audit"
+  | "user"
+  | "logout";
 const paths: Record<IconName, React.ReactNode> = {
   overview: (
     <>
@@ -89,6 +95,12 @@ const paths: Record<IconName, React.ReactNode> = {
   arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  store: <><path d="M4 10v10h16V10M3 10l2-6h14l2 6M9 20v-6h6v6" /><path d="M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" /></>,
+  groups: <><rect x="8" y="3" width="8" height="6" rx="1.5" /><rect x="2" y="16" width="7" height="5" rx="1.5" /><rect x="15" y="16" width="7" height="5" rx="1.5" /><path d="M12 9v4M5.5 16v-3h13v3" /></>,
+  wallet: <><path d="M20 8V5H6a3 3 0 0 0 0 6h15v9H6a3 3 0 0 1-3-3V8" /><path d="M21 13h-5v5h5M17.5 15.5h.01" /></>,
+  audit: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6m-6 4 2 2 4-4" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
+  logout: <><path d="M9 4H4v16h5m0-8h12m-4-4 4 4-4 4" /></>,
 };
 export function Icon({
   name,
@@ -131,6 +143,14 @@ export function routeIcon(href: string): IconName {
         menus: "menu",
         settings: "settings",
         ayuda: "help",
+        resumen: "overview",
+        restaurants: "store",
+        groups: "groups",
+        wallet: "wallet",
+        plans: "orders",
+        audit: "audit",
+        configuracion: "settings",
+        cuenta: "user",
       } as Record<string, IconName>
     )[part] ?? "business"
   );

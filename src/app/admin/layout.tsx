@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
-import { AdminMobileMenu } from "./AdminMobileMenu";
+import { AdminShell } from "./AdminShell";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { Icon } from "@/components/ui/Icon";
+import "./admin-workspace.css";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /**
@@ -26,112 +28,27 @@ async function AdminLayoutContent({
   if (session.user.role !== "platform_admin") redirect("/");
   const t = await getTranslations("opAdmin");
 
-  // The signout server-action is the same one rendered inline in the
-  // desktop header AND inside the mobile drawer. We define it once and
-  // pass both shapes around so there's a single source of truth for
-  // the logout flow.
-  const signOutFormDesktop = (
-    <form
-      action={async () => {
-        "use server";
-        await signOut({ redirectTo: "/" });
-      }}
-    >
-      <button className="text-terracotta hover:underline">{t("signOut")}</button>
-    </form>
-  );
-  const signOutFormMobile = (
-    <form
-      action={async () => {
-        "use server";
-        await signOut({ redirectTo: "/" });
-      }}
-    >
-      <button
-        type="submit"
-        className="w-full h-11 rounded-full bg-ink text-bone text-sm font-medium"
-      >
-        {t("signOutFull")}
-      </button>
-    </form>
-  );
-
   return (
-    <div className="op-admin flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
-      {/* Instalado como app en iOS (status bar black-translucent, viewport-fit
-          cover) el contenido corre debajo de la barra de estado: sin esta
-          reserva, la cabecera y el botón del menú quedaban tapados por el
-          reloj. El padding pinta la franja con el fondo de la cabecera y baja
-          la fila de controles (0 en navegador y escritorio). */}
-      <header
-        className="border-b border-op-border bg-op-surface sticky top-0 z-10"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          paddingLeft: "env(safe-area-inset-left)",
-          paddingRight: "env(safe-area-inset-right)",
-        }}
-      >
-        <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">
-          <div className="flex items-center gap-4 md:gap-6 min-w-0">
-            <div className="shrink-0">
-              <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-terracotta">
-                {t("shellTag")}
-              </div>
-              <div className="font-display text-xl tracking-[-0.015em]">
-                {"MESAPAY"}
-              </div>
-            </div>
-            {/* Inline nav hidden on small screens — see AdminMobileMenu
-                for the hamburger drawer that takes its place. */}
-            <nav className="hidden 2xl:flex gap-1">
-              <NavLink href="/admin/restaurants">{t("navRestaurants")}</NavLink>
-              <NavLink href="/admin/resumen">{t("navSummary")}</NavLink>
-              <NavLink href="/admin/groups">{t("navGroups")}</NavLink>
-              <NavLink href="/admin/plans">{t("navPlans")}</NavLink>
-              <NavLink href="/admin/audit">{t("navAudit")}</NavLink>
-              <NavLink href="/admin/comisiones">{t("navComisiones")}</NavLink>
-              <NavLink href="/admin/wallet">{t("navWallet")}</NavLink>
-              <NavLink href="/comercial">{t("navCrm")}</NavLink>
-              <NavLink href="/admin/configuracion">{t("navConfig")}</NavLink>
-            </nav>
-          </div>
-          <div className="hidden 2xl:flex items-center gap-3 text-sm">
-            <Link
-              href="/operator"
-              className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
-            >
-              {t("backToOperator")}
-            </Link>
-            <Link
-              href="/admin/cuenta"
-              title={t("navAccountTitle")}
-              className="inline-flex items-center gap-2 text-op-muted hover:text-op-text"
-            >
-              <span className="font-mono text-[10px] tracking-wider uppercase">
-                {t("navAccount")}
-              </span>
-              <span>{session.user.email}</span>
-            </Link>
-            {signOutFormDesktop}
-          </div>
-          <AdminMobileMenu
-            userEmail={session.user.email}
-            signOutAction={signOutFormMobile}
-          />
-        </div>
-      </header>
-      <main className="flex flex-1 flex-col">{children}</main>
-    </div>
+    <AdminShell
+      userEmail={session.user.email ?? ""}
+      localeSwitcher={<LocaleSwitcher />}
+      signOut={
+        <form action={async () => {
+          "use server";
+          await signOut({ redirectTo: "/" });
+        }}>
+          <button type="submit" className="mp-admin-signout" aria-label={t("signOutFull")}>
+            <Icon name="logout" width="15" height="15" />{t("signOut")}
+          </button>
+        </form>
+      }
+    >
+      {children}
+    </AdminShell>
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="px-3 h-8 inline-flex items-center rounded-lg text-sm text-op-muted hover:text-op-text hover:bg-op-bg"
-    >
-      {children}
-    </Link>
-  );
+export async function generateMetadata() {
+  const t = await getTranslations("adminWorkspace");
+  return { title: t("portalName"), robots: { index: false, follow: false } };
 }

@@ -17,9 +17,12 @@ type Balance = { availableCents: number; pendingCents?: number | null; pendingSt
 async function captureAtTop(page: Page, path: string) {
   await page.evaluate(async () => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    for (const id of ["admin-content", "operator-content"]) {
+      document.getElementById(id)?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
-  await page.screenshot({ path, fullPage: true });
+  await page.screenshot({ path, fullPage: true, animations: "disabled" });
 }
 
 async function fixture(page: Page, surface: Surface, initial: Balance) {

@@ -12,6 +12,7 @@ import { ScrollerNavigationReset } from "@/components/ScrollerNavigationReset";
 import { NavigationSearch } from "./NavigationSearch";
 import type { NavEntry } from "./OperatorMobileMenu";
 import { useActiveNav } from "./useActiveNav";
+import { WORKSPACE_RAIL_THEME } from "@/components/ui/workspaceRailTheme";
 
 /**
  * Shell "cockpit" del operador (rediseño detrás del flag mp_shell=cockpit):
@@ -24,18 +25,6 @@ import { useActiveNav } from "./useActiveNav";
  * Los enlaces no precargan: cada refresh en vivo invalida el prefetch de
  * Next y volvería a solicitar todas las pantallas visibles del riel.
  */
-
-const RAIL_VARS = {
-  ["--rail" as string]: "#151109",
-  ["--rail-2" as string]: "#1C1710",
-  ["--rail-line" as string]: "#2C2418",
-  ["--rail-line-2" as string]: "#3A3020",
-  ["--rail-text" as string]: "#F1EADD",
-  ["--rail-muted" as string]: "#9C9184",
-  // --rail-accent NO va acá: vive en :root (globals.css) para que el aviso
-  // de "pidieron la cuenta", que se pinta fuera del riel, use el mismo
-  // naranja sin duplicar el hex. El riel lo hereda igual.
-} as React.CSSProperties;
 
 export function OperatorCockpit({
   navItems,
@@ -103,7 +92,7 @@ export function OperatorCockpit({
           (páginas como los QRs de mesa se imprimen desde acá). */}
       <aside
         className="hidden md:flex print:hidden sticky top-0 h-full min-h-0"
-        style={RAIL_VARS}
+        style={WORKSPACE_RAIL_THEME}
       >
         {rail}
       </aside>
@@ -175,7 +164,7 @@ export function OperatorCockpit({
           onClose={() => setDrawerOpen(false)}
           mobileOnly
           className="mp-navigation-drawer"
-          style={RAIL_VARS}
+          style={WORKSPACE_RAIL_THEME}
         >
           <button
             type="button"

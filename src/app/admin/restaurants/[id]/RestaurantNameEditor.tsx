@@ -81,7 +81,7 @@ export function RestaurantNameEditor({
     <div className="flex items-center gap-3 flex-wrap">
       {/* 2xl en móvil (igual que el título de la lista); min-w-0 +
           break-words para que un nombre largo parta en vez de desbordar. */}
-      <div className="font-display text-2xl md:text-3xl min-w-0 break-words">{name}</div>
+      <h1 className="mp-page-title min-w-0 break-words">{name}</h1>
       <button
         type="button"
         onClick={() => setEditing(true)}

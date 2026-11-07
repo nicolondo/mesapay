@@ -2,6 +2,7 @@ import { requestTime } from "@/lib/requestTime";
 import Link from "next/link";
 import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/lib/db";
+import { Icon } from "@/components/ui/Icon";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import {
   deriveMembershipStatus,
@@ -17,20 +18,24 @@ export const dynamic = "force-dynamic";
 export default async function RestaurantsAdmin({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; country?: string; city?: string; welcome?: string }>;
+  searchParams: Promise<{ ok?: string; q?: string | string[]; country?: string | string[]; city?: string | string[]; welcome?: string }>;
 }) {
   const sp = await searchParams;
   const now = await requestTime();
   const t = await getTranslations("opAdmin");
+  const ui = await getTranslations("adminWorkspacePage");
   const tDeleted = await getTranslations("adminDelete");
   const tl = await getTranslations("location");
   const locale = await getLocale();
 
   // Filtros de ubicación (opcionales). País en ISO uppercase; ciudad
   // case-insensitive porque viene del autocompletado / texto libre.
-  const country = sp.country?.trim().toUpperCase() || undefined;
-  const city = sp.city?.trim() || undefined;
+  const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 120) : "";
+  const country = typeof sp.country === "string" ? sp.country.trim().toUpperCase() || undefined : undefined;
+  const city = typeof sp.city === "string" ? sp.city.trim() || undefined : undefined;
+  const hasFilters = Boolean(q || country || city);
   const where = {
+    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { slug: { contains: q, mode: "insensitive" as const } }] } : {}),
     ...(country ? { country } : {}),
     ...(city ? { city: { equals: city, mode: "insensitive" as const } } : {}),
   };
@@ -113,37 +118,42 @@ export default async function RestaurantsAdmin({
   const opsByRest = new Map(
     operatorCounts.map((o) => [o.restaurantId, o._count._all]),
   );
+  const membershipByRest = new Map(restaurants.map((r) => [r.id, deriveMembershipStatus({
+    plan: r.plan, periodEndsAt: r.periodEndsAt, suspended: r.suspended, now: new Date(now),
+  })]));
+  const membershipCounts = Array.from(membershipByRest.values()).reduce(
+    (counts, status) => ({ ...counts, [status]: counts[status] + 1 }),
+    { al_dia: 0, trial: 0, por_vencer: 0, vencido: 0, suspendido: 0 },
+  );
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full">
-      {/* Móvil: título arriba y la fila de acciones debajo a todo el ancho
-          (enlace a la izquierda, botón a la derecha). En sm+ vuelve a la
-          fila única con baseline compartida. */}
-      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-3">
-        <div className="min-w-0">
-          <div className="font-display text-2xl md:text-3xl">{t("restaurantsTitle")}</div>
-          <div className="text-sm text-op-muted mt-1">
-            {t("accountsInPlatform", { count: restaurants.length })}
-          </div>
+    <div className="mp-page">
+      <header className="mp-page-header flex-wrap">
+        <div className="min-w-0 max-w-2xl">
+          <p className="mp-eyebrow">{ui("listEyebrow")}</p>
+          <h1 className="mp-page-title">{t("restaurantsTitle")}</h1>
+          <p className="mp-page-description">{ui("listIntro")}</p>
         </div>
-        <div className="flex items-center justify-between gap-3 sm:justify-end sm:shrink-0">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Link
             href="/admin/restaurants/eliminados"
-            className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
+            prefetch={false}
+            className="inline-flex min-h-11 items-center text-xs font-medium text-op-muted underline-offset-4 hover:text-op-text hover:underline"
           >
             {tDeleted("listLink")}
           </Link>
           <Link
             href="/admin/restaurants/new"
-            className="h-10 px-4 rounded-full bg-ink text-bone text-sm font-medium inline-flex items-center shrink-0"
+            prefetch={false}
+            className="mp-btn mp-btn--primary"
           >
             {t("newRestaurant")}
           </Link>
         </div>
-      </div>
+      </header>
 
       {sp.ok && (
-        <div className="mb-4 rounded-lg border border-ok/30 bg-ok/10 text-[#1E5339] px-3 py-2 text-sm">
+        <div role="status" className="mb-6 rounded-xl border border-ok/30 bg-ok/10 text-[#1E5339] px-4 py-3 text-sm leading-relaxed">
           {t.rich("restaurantCreated", {
             slug: sp.ok,
             code: (chunks) => <span className="font-mono">{chunks}</span>,
@@ -152,24 +162,29 @@ export default async function RestaurantsAdmin({
         </div>
       )}
 
-      {/* Cada filtro es un <label> en columna (etiqueta ARRIBA del
-          control). Antes era label.block + select inline-block y en el
-          celular la etiqueta "Filtrar por país" quedaba pegada al lado
-          del selector. En móvil los filtros se apilan a todo el ancho y
-          los dos botones comparten una fila; en md+ todo en una fila. */}
-      {(countryOptions.length > 0 || cityOptions.length > 0) && (
         <form
           method="GET"
-          className="mb-4 flex flex-col gap-3 rounded-2xl border border-op-border bg-op-surface p-3 md:flex-row md:flex-wrap md:items-end"
+          action="/admin/restaurants"
+          role="search"
+          aria-label={ui("searchLabel")}
+          className="mb-6 grid grid-cols-2 gap-4 rounded-2xl border border-op-border bg-op-surface p-4 xl:grid-cols-[minmax(200px,1.6fr)_minmax(140px,1fr)_minmax(140px,1fr)_auto] xl:items-end print:hidden"
         >
-          <label className="flex flex-col gap-1 w-full md:w-auto">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+          <label className="flex min-w-0 flex-col gap-2 col-span-2 xl:col-span-1">
+            <span className="text-xs font-medium text-op-muted">{ui("searchLabel")}</span>
+            <span className="relative">
+              <Icon name="search" className="pointer-events-none absolute left-3 top-3 text-op-muted" />
+              <input name="q" type="search" defaultValue={q} maxLength={120} placeholder={ui("searchPlaceholder")}
+                className="h-11 w-full rounded-lg border border-op-border bg-op-bg pl-10 pr-3 text-sm text-op-text placeholder:text-op-muted" />
+            </span>
+          </label>
+          <label className="flex min-w-0 flex-col gap-2">
+            <span className="text-xs font-medium text-op-muted">
               {tl("filterCountry")}
             </span>
             <select
               name="country"
               defaultValue={country ?? ""}
-              className="h-10 w-full md:w-auto rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+              className="h-11 w-full rounded-lg border border-op-border bg-op-bg px-3 text-sm"
             >
               <option value="">{tl("allCountries")}</option>
               {countryOptions.map((c) => (
@@ -179,14 +194,14 @@ export default async function RestaurantsAdmin({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 w-full md:w-auto">
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+          <label className="flex min-w-0 flex-col gap-2">
+            <span className="text-xs font-medium text-op-muted">
               {tl("filterCity")}
             </span>
             <select
               name="city"
               defaultValue={city ?? ""}
-              className="h-10 w-full md:w-auto rounded-lg border border-op-border bg-op-bg px-3 text-sm focus:outline-none focus:border-terracotta"
+              className="h-11 w-full rounded-lg border border-op-border bg-op-bg px-3 text-sm"
             >
               <option value="">{tl("allCities")}</option>
               {cityOptions.map((c) => (
@@ -196,44 +211,60 @@ export default async function RestaurantsAdmin({
               ))}
             </select>
           </label>
-          <div className="flex gap-2 w-full md:w-auto md:gap-3">
+          <div className="flex flex-wrap gap-2 col-span-2 xl:col-span-1">
             <button
               type="submit"
-              className="h-10 px-4 rounded-lg bg-ink text-bone text-sm font-medium flex-1 md:flex-none"
+              className="mp-btn mp-btn--primary flex-1 xl:flex-none"
             >
-              {t("filters")}
+              {ui("searchAction")}
             </button>
-            {(country || city) && (
+            {hasFilters && (
               <Link
                 href="/admin/restaurants"
-                className="h-10 px-4 rounded-lg border border-op-border text-sm inline-flex items-center justify-center flex-1 md:flex-none"
+                prefetch={false}
+                className="mp-btn mp-btn--secondary flex-1 xl:flex-none"
               >
                 {t("clearFilters")}
               </Link>
             )}
           </div>
         </form>
-      )}
+
+      <section aria-label={ui("resultsLabel")} className="mb-7">
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-op-border bg-op-border lg:grid-cols-4 print:grid-cols-4">
+          <DirectoryStat label={ui("resultsLabel")} value={restaurants.length} />
+          <DirectoryStat label={ui("currentLabel")} value={membershipCounts.al_dia} />
+          <DirectoryStat label={ui("trialLabel")} value={membershipCounts.trial} />
+          <DirectoryStat label={ui("attentionLabel")} value={membershipCounts.por_vencer + membershipCounts.vencido + membershipCounts.suspendido} hint={ui("attentionHint")} />
+        </dl>
+        <p className="mt-2 text-xs leading-relaxed text-op-muted">{ui("viewScope")}</p>
+      </section>
 
       {restaurants.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface p-10 text-center">
-          <div className="font-display text-2xl mb-1">{t("noAccountsTitle")}</div>
-          <div className="text-sm text-op-muted mb-4">
-            {t("noAccountsBody")}
-          </div>
+        <section className="rounded-2xl border border-dashed border-op-border bg-op-surface px-6 py-12 text-center">
+          <Icon name={hasFilters ? "search" : "business"} className="mx-auto mb-4 h-8 w-8 text-op-muted" />
+          <h2 className="mb-2 text-xl font-semibold tracking-tight">{hasFilters ? ui("filteredEmptyTitle") : t("noAccountsTitle")}</h2>
+          <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-op-muted">
+            {hasFilters ? ui("filteredEmptyBody") : t("noAccountsBody")}
+          </p>
           <Link
-            href="/admin/restaurants/new"
-            className="h-10 px-4 rounded-xl bg-ink text-bone text-sm font-medium inline-flex items-center"
+            href={hasFilters ? "/admin/restaurants" : "/admin/restaurants/new"}
+            prefetch={false}
+            className="mp-btn mp-btn--primary"
           >
-            {t("newRestaurant")}
+            {hasFilters ? t("clearFilters") : t("newRestaurant")}
           </Link>
-        </div>
+        </section>
       ) : (
         <>
+        <div className="mb-4">
+          <h2 className="text-base font-semibold tracking-tight">{ui("resultsCount", { count: restaurants.length })}</h2>
+          <p className="mt-1 text-sm text-op-muted">{ui("resultsHelp")}</p>
+        </div>
         {/* Mobile: card list — much friendlier than horizontal-scrolling
             a 10-column table. Shows the same data the operator needs
             to triage at a glance (name, plan/status pills, key counts). */}
-        <ul className="md:hidden space-y-3">
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:hidden print:hidden">
           {restaurants.map((r) => {
             const paid = paidByRest.get(r.id) ?? 0;
             const last = lastByRest.get(r.id) ?? null;
@@ -244,15 +275,11 @@ export default async function RestaurantsAdmin({
               lastOrderAt: last,
               operators: ops,
             });
-            const membership = deriveMembershipStatus({
-              plan: r.plan,
-              periodEndsAt: r.periodEndsAt,
-              suspended: r.suspended,
-            });
+            const membership = membershipByRest.get(r.id)!;
             return (
               <li
                 key={r.id}
-                className="relative rounded-2xl border border-op-border bg-op-surface p-4"
+                className="relative min-w-0 rounded-2xl border border-op-border bg-op-surface p-5 transition-colors hover:border-terracotta/35"
               >
                 {/* La cabecera (nombre · slug · badges) sigue siendo el enlace
                     al comercio. Las seis cifras van PLEGADAS por defecto: con
@@ -264,11 +291,12 @@ export default async function RestaurantsAdmin({
                     esquina para que el enlace y el toggle no se pisen. */}
                 <Link
                   href={`/admin/restaurants/${r.id}`}
+                  prefetch={false}
                   className="block min-w-0 pr-12 active:opacity-70 transition-opacity"
                 >
-                  <div className="font-display text-lg leading-tight truncate">
+                  <h3 className="break-words text-base font-semibold leading-snug tracking-tight">
                     {r.name}
-                  </div>
+                  </h3>
                   <div className="font-mono text-[11px] text-op-muted truncate">
                     /{r.slug}
                   </div>
@@ -281,7 +309,7 @@ export default async function RestaurantsAdmin({
                   <summary
                     aria-label={t("cardToggleFigures")}
                     title={t("cardToggleFigures")}
-                    className="absolute top-4 right-4 flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-op-border bg-op-bg text-op-muted [&::-webkit-details-marker]:hidden"
+                    className="absolute top-4 right-4 flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg border border-op-border bg-op-bg text-op-muted [&::-webkit-details-marker]:hidden"
                   >
                     <svg
                       aria-hidden
@@ -296,7 +324,7 @@ export default async function RestaurantsAdmin({
                       <path d="M5 7.5l5 5 5-5" />
                     </svg>
                   </summary>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-op-border pt-4 text-xs">
                     <MiniStat label={t("colOperators")} value={ops} />
                     <MiniStat label={t("colMenu")} value={r._count.menuItems} />
                     <MiniStat label={t("colTables")} value={r._count.tables} />
@@ -313,10 +341,12 @@ export default async function RestaurantsAdmin({
           })}
         </ul>
 
-        {/* Desktop: full table view. Hidden on mobile because horizontal
-            scroll on a 10-column table is borderline unusable on a phone. */}
-        <div className="hidden md:block rounded-2xl border border-op-border bg-op-surface overflow-hidden">
-          <table className="w-full text-sm">
+        {/* The desktop rail reduces content width: keep compact cards on
+            tablets and contain horizontal scrolling inside the desktop table. */}
+        <div className="hidden rounded-2xl border border-op-border bg-op-surface xl:block print:block print:overflow-visible">
+          <div role="region" aria-label={ui("tableLabel")} tabIndex={0} className="overflow-x-auto rounded-2xl print:overflow-visible">
+          <table className="w-full min-w-[1000px] text-sm print:min-w-0 print:text-[9px]">
+            <caption className="sr-only">{ui("tableLabel")}</caption>
             <thead className="bg-op-bg">
               <tr className="text-left">
                 <Th>{t("colRestaurant")}</Th>
@@ -343,11 +373,7 @@ export default async function RestaurantsAdmin({
                   lastOrderAt: last,
                   operators: ops,
                 });
-                const membership = deriveMembershipStatus({
-                  plan: r.plan,
-                  periodEndsAt: r.periodEndsAt,
-                  suspended: r.suspended,
-                });
+                const membership = membershipByRest.get(r.id)!;
                 return (
                   <tr
                     key={r.id}
@@ -356,12 +382,13 @@ export default async function RestaurantsAdmin({
                     <Td>
                       <Link
                         href={`/admin/restaurants/${r.id}`}
-                        className="block"
+                        prefetch={false}
+                        className="block min-w-[160px] max-w-[240px] print:min-w-0 print:break-all"
                       >
-                        <div className="font-medium hover:underline">
+                        <div className="break-words font-semibold hover:underline">
                           {r.name}
                         </div>
-                        <div className="font-mono text-[11px] text-op-muted">
+                        <div className="font-mono text-[11px] text-op-muted print:break-all print:text-[8px]">
                           {r.slug}
                         </div>
                       </Link>
@@ -397,9 +424,22 @@ export default async function RestaurantsAdmin({
               })}
             </tbody>
           </table>
+          </div>
         </div>
         </>
       )}
+    </div>
+  );
+}
+
+function DirectoryStat({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  return (
+    <div className="min-w-0 bg-op-surface px-4 py-5 sm:px-5">
+      <dt className="text-xs font-medium text-op-muted">{label}</dt>
+      <dd className="mt-2">
+        <span className="text-3xl font-semibold tabular leading-none tracking-tight print:text-xl">{value}</span>
+        {hint && <span className="mt-2 block text-xs leading-relaxed text-op-muted">{hint}</span>}
+      </dd>
     </div>
   );
 }
@@ -413,23 +453,23 @@ function MiniStat({
 }) {
   return (
     <div className="rounded-lg border border-op-border px-2 py-1.5">
-      <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted">
+      <div className="text-[11px] text-op-muted">
         {label}
       </div>
-      <div className="text-sm mt-0.5 truncate">{value}</div>
+      <div className="mt-1 truncate text-sm font-medium tabular">{value}</div>
     </div>
   );
 }
 
 function Th({ children }: { children: React.ReactNode }) {
   return (
-    <th className="px-3 py-2 font-mono text-[10px] tracking-wider uppercase text-op-muted font-normal">
+    <th scope="col" className="px-3 py-3 text-xs font-medium text-op-muted print:break-words print:px-1 print:py-2 print:text-[8px]">
       {children}
     </th>
   );
 }
 function Td({ children }: { children: React.ReactNode }) {
-  return <td className="px-3 py-3 align-top">{children}</td>;
+  return <td className="px-3 py-3 align-top print:min-w-0 print:break-words print:px-1 print:py-2">{children}</td>;
 }
 
 type State = "activo" | "en_uso" | "configurando" | "inactivo" | "nuevo";
@@ -484,7 +524,7 @@ function StatePill({ state, t }: { state: State; t: Translate }) {
   return (
     <span
       className={
-        "font-mono text-[10px] tracking-wider uppercase px-2 py-1 rounded border " +
+        "text-xs font-medium px-2 py-1 rounded border " +
         cls
       }
     >
@@ -523,10 +563,10 @@ function MembershipPill({
         inline ? "flex flex-wrap items-center gap-1.5" : "flex flex-col gap-1"
       }
     >
-      <span className="font-mono text-[11px]">{planLabel[plan]}</span>
+      <span className="text-xs font-medium">{planLabel[plan]}</span>
       <span
         className={
-          "font-mono text-[9px] tracking-wider uppercase px-2 py-0.5 rounded border inline-block w-fit " +
+          "text-[11px] font-medium px-2 py-1 rounded border inline-block w-fit " +
           map[status]
         }
       >

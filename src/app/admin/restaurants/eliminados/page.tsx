@@ -37,14 +37,14 @@ export default async function DeletedRestaurantsPage({
   const rows = await listDeletedRestaurants();
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
+    <div className="mp-page mp-page--narrow">
       <Link
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
         {t("backToRestaurants")}
       </Link>
-      <h1 className="font-display text-2xl md:text-3xl mt-4">{t("listTitle")}</h1>
+      <h1 className="mp-page-title mt-4">{t("listTitle")}</h1>
       <p className="text-sm text-op-muted mt-1 mb-6">{t("listIntro")}</p>
 
       {sp.deleted && (

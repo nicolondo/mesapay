@@ -85,14 +85,14 @@ export default async function NewRestaurantPage({
   const countryCodes = enabledCountries.map((c) => c.code);
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full">
+    <div className="mp-page mp-page--form">
       <Link
         href="/admin/restaurants"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
       >
         {t("detailBack")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">{t("newTitle")}</div>
+      <h1 className="mp-page-title mb-2">{t("newTitle")}</h1>
       <div className="text-sm text-op-muted mb-6">{t("newIntro")}</div>
 
       {sp.err && (

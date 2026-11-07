@@ -28,13 +28,13 @@ export default async function AdminPlansPage() {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full">
+    <div className="mp-page mp-page--narrow">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
         {t("platformLabel")}
       </div>
-      <div className="font-display text-3xl tracking-[-0.015em] mb-1">
+      <h1 className="mp-page-title mb-2">
         {t("title")}
-      </div>
+      </h1>
       <p className="text-sm text-op-muted mb-6">
         {t("intro")}
       </p>

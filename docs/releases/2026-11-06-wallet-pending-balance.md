@@ -2,7 +2,7 @@
 
 ## Estado
 
-Preparación local de la presentación y del contrato de datos. **No está resuelta la obtención del importe pendiente real ni se ha publicado este cambio.** El diagnóstico de las cuentas reales requiere la autorización específica solicitada al usuario tras el rechazo de revisión automática. No volver a ejecutarlo sin esa autorización.
+La presentación y el contrato de datos se incluyen en la versión del rediseño del administrador. **No está resuelta la obtención del importe pendiente real.** El diagnóstico de las cuentas reales requiere la autorización específica solicitada al usuario tras el rechazo de revisión automática. No volver a ejecutarlo sin esa autorización.
 
 ## Comportamiento preparado
 

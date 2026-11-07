@@ -4539,7 +4539,11 @@
     "kindDebit": "Débito",
     "kindFee": "Taxa",
     "kindDispersion": "Transferência para o banco",
-    "kindAdjustment": "Ajuste"
+    "kindAdjustment": "Ajuste",
+    "refreshBalance": "Atualizar saldo",
+    "refreshingBalance": "Consultando…",
+    "balanceUnavailable": "Saldo indisponível",
+    "balanceFailedHint": "Não foi possível consultar o saldo. Atualize para continuar."
   },
   "opPrint": {
     "titleKitchen": "Impressora — Cozinha",
@@ -10213,5 +10217,16 @@
     },
     "recoverTicket": "Ticket Kushki (opcional)",
     "recoverTicketHint": "Se a Kushki mostrar o pagamento, informe o ticket para verificá-lo. Ele só será vinculado se corresponder a esta transferência."
+  },
+  "walletPending": {
+    "title": "Valores pendentes de entrada",
+    "loading": "Consultando…",
+    "unavailable": "Indisponível",
+    "notReported": "Não informado pela Kushki",
+    "notSpendable": "Ainda não disponível para transferências.",
+    "notReportedHint": "A Kushki não informa esse valor na consulta disponível. Isso não significa que os valores pendentes sejam zero.",
+    "unavailableHint": "Não foi possível consultar os valores pendentes. O saldo disponível é exibido separadamente.",
+    "retry": "Consultar valores pendentes novamente",
+    "updatedAt": "Atualização dos valores pendentes: {date}"
   }
 }

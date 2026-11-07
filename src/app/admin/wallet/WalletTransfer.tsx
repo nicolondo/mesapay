@@ -142,7 +142,7 @@ export function WalletTransfer({ account, balance, banks, banksError, reloadBank
       <label className="text-sm">{t("docNumber")}<input className={fieldClass} value={destination.docNumber} onChange={(e) => setDestination({ ...destination, docNumber: e.target.value })} autoComplete="off" pattern="[A-Za-z0-9\-]{4,20}" required minLength={4} maxLength={20} disabled={formDisabled} /></label>
       <label className="text-sm sm:col-span-2">{t("holderName")}<input className={fieldClass} value={destination.holderName} onChange={(e) => setDestination({ ...destination, holderName: e.target.value })} autoComplete="off" required minLength={3} maxLength={120} disabled={formDisabled} /></label>
       <label className="text-sm sm:col-span-2">{t("description")}<input className={fieldClass} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} disabled={formDisabled} /></label>
-      <div className="sm:col-span-2"><button type="submit" className={primaryButton} disabled={formDisabled || !balance || banks.length === 0}>{t("reviewTransfer")}</button></div>
+      <div className="sm:col-span-2"><button type="submit" className={primaryButton} disabled={formDisabled || !balance || balance.availableCents <= 0 || banks.length === 0}>{t("reviewTransfer")}</button></div>
     </form>}
   </section>;
 }

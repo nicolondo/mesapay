@@ -9,6 +9,7 @@ import {
   getRestaurantPayoutCredentials,
 } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { UNREPORTED_WALLET_PENDING } from "@/lib/payments/walletPending";
 
 /**
  * Returns the live balance from the provider. We don't cache here — the
@@ -35,7 +36,7 @@ async function GETHandler() {
     return NextResponse.json(
       {
         availableCents: 0,
-        pendingCents: 0,
+        ...UNREPORTED_WALLET_PENDING,
         currency: await getCurrencyForCountry(tenant?.country),
         onboarded: false,
       },
@@ -55,6 +56,8 @@ async function GETHandler() {
     return NextResponse.json({
       availableCents: balance.availableCents,
       pendingCents: balance.pendingCents,
+      pendingStatus: balance.pendingStatus,
+      pendingUpdatedAt: balance.pendingUpdatedAt,
       // Kushki devuelve currency vacío en el balance → usamos la del país.
       currency: await getCurrencyForCountry(tenant.country),
       onboarded: true,

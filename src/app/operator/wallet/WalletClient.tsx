@@ -1,12 +1,15 @@
 "use client";
 
 import { MoneyInput } from "@/components/MoneyInput";
+import { WalletPendingBalance } from "@/components/WalletPendingBalance";
+import type { WalletPendingBalance as PendingBalance } from "@/lib/payments/walletPending";
+import type { Locale } from "@/i18n/config";
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatMoney } from "@/lib/format";
 
 type Movement = {
   id: string;
@@ -56,12 +59,12 @@ export function WalletClient({
   initialPolicy: AutoPolicy;
 }) {
   const t = useTranslations("opWallet");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [, startTx] = useTransition();
-  const [balance, setBalance] = useState<{
-    availableCents: number;
-    pendingCents: number;
-  } | null>(null);
+  const [balance, setBalance] = useState<({ availableCents: number; currency: string } & Partial<PendingBalance>) | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(onboarded);
+  const [balanceReload, setBalanceReload] = useState(0);
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
   const [disperseOpen, setDisperseOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -71,24 +74,35 @@ export function WalletClient({
   useEffect(() => {
     if (!onboarded) return;
     let alive = true;
-    fetch("/api/operator/wallet/balance")
-      .then((r) => r.json())
-      .then((j) => {
-        if (!alive) return;
-        if (j.error) {
-          setBalanceErr(j.error);
-        } else {
-          setBalance({
-            availableCents: j.availableCents,
-            pendingCents: j.pendingCents,
-          });
-        }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    fetch("/api/operator/wallet/balance", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || data.error || !Number.isSafeInteger(data.availableCents) || data.availableCents < 0) throw new Error("balance_failed");
+        return data;
       })
-      .catch(() => alive && setBalanceErr("balance_failed"));
-    return () => {
-      alive = false;
-    };
-  }, [onboarded]);
+      .then((data) => {
+        if (!alive) return;
+        setBalanceErr(null);
+        setBalance({
+          availableCents: data.availableCents,
+          currency: typeof data.currency === "string" && /^[A-Z]{3}$/.test(data.currency) ? data.currency : "COP",
+          pendingCents: data.pendingCents,
+          pendingStatus: data.pendingStatus,
+          pendingUpdatedAt: data.pendingUpdatedAt,
+        });
+      })
+      .catch(() => { if (alive) { setBalance(null); setBalanceErr("balance_failed"); } })
+      .finally(() => { clearTimeout(timer); if (alive) setBalanceLoading(false); });
+    return () => { alive = false; clearTimeout(timer); controller.abort(); };
+  }, [onboarded, balanceReload]);
+
+  function refreshBalance() {
+    setBalanceLoading(true);
+    setBalanceErr(null);
+    setBalanceReload((value) => value + 1);
+  }
 
   async function savePolicy(next: AutoPolicy) {
     setSavingPolicy(true);
@@ -133,28 +147,23 @@ export function WalletClient({
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("subtitle")}</p>
 
-      <div className="rounded-2xl bg-ink text-bone p-6 mb-6">
-        <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70 mb-1">
-          {t("availableBalance")}
-        </div>
-        <div className="font-display text-4xl tabular">
-          {balance ? fmtCOP(balance.availableCents) : t("loadingEllipsis")}
-        </div>
-        {balance && balance.pendingCents > 0 && (
-          <div className="text-xs opacity-70 mt-1">
-            {t("pending", { amount: fmtCOP(balance.pendingCents) })}
+      <div className="rounded-2xl bg-ink text-bone p-5 sm:p-6 mb-6">
+        <div className="grid items-start gap-5 sm:grid-cols-2">
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70 mb-1">{t("availableBalance")}</div>
+            <div className="break-words font-display text-4xl leading-tight tabular-nums" aria-live="polite">
+              {balance ? formatMoney(balance.availableCents, { currency: balance.currency, locale }) : t(balanceLoading ? "loadingEllipsis" : "balanceUnavailable")}
+            </div>
+            {balanceErr && <p role="alert" className="mt-3 text-xs text-amber-100">{t("balanceFailedHint")}</p>}
+            <button type="button" onClick={refreshBalance} disabled={balanceLoading} className="mt-4 min-h-11 rounded-full border border-bone/30 px-4 py-2 text-xs font-medium hover:bg-bone/10 disabled:opacity-50">{t(balanceLoading ? "refreshingBalance" : "refreshBalance")}</button>
           </div>
-        )}
-        {balanceErr && (
-          <div className="text-xs text-danger mt-2">
-            {t("balanceError", { code: balanceErr })}
-          </div>
-        )}
+          <WalletPendingBalance balance={balance} currency={balance?.currency ?? "COP"} loading={balanceLoading} failed={Boolean(balanceErr)} onRetry={refreshBalance} dark />
+        </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setDisperseOpen(true)}
-            disabled={!balance || balance.availableCents <= 0 || !bankLabel}
+            disabled={balanceLoading || !balance || balance.availableCents <= 0 || !bankLabel}
             className="h-10 px-5 rounded-full bg-bone text-ink text-sm font-medium disabled:opacity-50"
           >
             {t("toBank")}
@@ -162,7 +171,7 @@ export function WalletClient({
           <button
             type="button"
             onClick={() => setTransferOpen(true)}
-            disabled={!balance || balance.availableCents <= 0}
+            disabled={balanceLoading || !balance || balance.availableCents <= 0}
             className="h-10 px-5 rounded-full border border-bone/30 text-bone text-sm font-medium disabled:opacity-50"
           >
             {t("toOther")}
@@ -329,6 +338,7 @@ export function WalletClient({
           onClose={() => setDisperseOpen(false)}
           onSuccess={() => {
             setDisperseOpen(false);
+            refreshBalance();
             startTx(() => router.refresh());
           }}
         />
@@ -339,6 +349,7 @@ export function WalletClient({
           onClose={() => setTransferOpen(false)}
           onSuccess={() => {
             setTransferOpen(false);
+            refreshBalance();
             startTx(() => router.refresh());
           }}
         />

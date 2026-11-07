@@ -1,7 +1,7 @@
 export type WalletMode = "sandbox" | "production";
 export type WalletAccountDTO = { id: string; label: string; mode: WalletMode; publicKey: string; hasPrivateKey: boolean; createdAt: string };
 export type WalletConfigDTO = { account: WalletAccountDTO | null; billingConfigured: boolean };
-export type WalletBalanceDTO = { accountId: string; availableCents: number; currency: "COP"; balanceDate: string | null; queriedAt: string };
+export type WalletBalanceDTO = import("@/lib/payments/walletPending").WalletPendingBalance & { accountId: string; availableCents: number; currency: "COP"; balanceDate: string | null; queriedAt: string };
 export type WalletBank = { id: string; name: string };
 export type WalletPayoutInput = {
   accountId: string; idempotencyKey: string; amountCents: number; confirmed: true; description?: string;

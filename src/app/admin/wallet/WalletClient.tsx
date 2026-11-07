@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
+import { WalletPendingBalance } from "@/components/WalletPendingBalance";
 import { WalletConfig } from "./WalletConfig";
 import { WalletHistory } from "./WalletHistory";
 import { WalletTransfer } from "./WalletTransfer";
@@ -98,9 +99,20 @@ export function WalletClient() {
     {!config && !configError && <p role="status" className="rounded-2xl border border-op-border bg-op-surface p-6 text-sm text-op-muted">{t("loading")}</p>}
     {config && (!account || configOpen) && <WalletConfig key={account?.id ?? "new"} config={config} onSaved={(next) => { setBalance(null); setBanks([]); setConfig(next); setConfigOpen(false); setSaved(true); }} onCancel={account ? () => setConfigOpen(false) : undefined} />}
     {account && <>
-      <section className="grid overflow-hidden rounded-2xl border border-op-border bg-op-surface md:grid-cols-[1.2fr_1fr]" aria-labelledby="wallet-balance-title">
-        <div className="p-5 md:p-7"><div className="flex flex-wrap items-center gap-2"><p className="font-mono text-[10px] uppercase tracking-wider text-op-muted">{account.label}</p><span className={`rounded-full px-2 py-1 text-xs ${account.mode === "production" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{t(`mode_${account.mode}`)}</span></div><h2 id="wallet-balance-title" className="mt-4 text-sm text-op-muted">{t("balanceTitle")}</h2><p className="mt-2 break-words font-display text-4xl leading-tight sm:text-5xl" aria-live="polite">{balance ? formatMoney(balance.availableCents, { currency: "COP", locale }) : t(balanceBusy ? "loadingBalance" : "balanceUnavailable")}</p><p className="mt-2 font-mono text-xs text-op-muted">{t("currencyLabel")}</p></div>
-        <div className="flex flex-col items-start justify-center border-t border-op-border p-5 md:border-l md:border-t-0 md:p-7"><p className="text-sm leading-relaxed text-op-muted">{t("balanceHint")}</p>{balance && <p className="mt-3 text-xs text-op-muted">{t("queriedAt", { date: formatDate(balance.queriedAt, { locale, timeZone: "America/Bogota" }) })}</p>}{balance?.balanceDate && <p className="mt-1 text-xs text-op-muted">{t("balanceDate", { date: formatDate(balance.balanceDate, { locale, timeZone: "America/Bogota" }) })}</p>}<button type="button" className={`${secondaryButton} mt-4`} disabled={balanceBusy} onClick={() => loadBalance(account)}>{t(balanceBusy ? "checking" : "refreshBalance")}</button>{balanceError && <p role="alert" className="mt-3 text-sm text-red-700">{t(t.has(`errors.${balanceError}`) ? `errors.${balanceError}` : "errors.balance_failed")}</p>}</div>
+      <section className="overflow-hidden rounded-2xl border border-op-border bg-op-surface" aria-labelledby="wallet-balance-title">
+        <div className="grid items-start gap-5 p-5 sm:grid-cols-2 md:p-7">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><p className="font-mono text-[10px] uppercase tracking-wider text-op-muted">{account.label}</p><span className={`rounded-full px-2 py-1 text-xs ${account.mode === "production" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>{t(`mode_${account.mode}`)}</span></div>
+            <h2 id="wallet-balance-title" className="mt-4 text-sm text-op-muted">{t("balanceTitle")}</h2>
+            <p className="mt-2 break-words font-display text-4xl leading-tight sm:text-5xl" aria-live="polite">{balance ? formatMoney(balance.availableCents, { currency: "COP", locale }) : t(balanceBusy ? "loadingBalance" : "balanceUnavailable")}</p>
+            <p className="mt-2 font-mono text-xs text-op-muted">{t("currencyLabel")}</p>
+          </div>
+          <WalletPendingBalance balance={balance} currency="COP" loading={balanceBusy} failed={Boolean(balanceError)} onRetry={() => loadBalance(account)} />
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-4 border-t border-op-border p-5 md:px-7">
+          <div className="max-w-3xl"><p className="text-sm leading-relaxed text-op-muted">{t("balanceHint")}</p>{balance && <p className="mt-3 text-xs text-op-muted">{t("queriedAt", { date: formatDate(balance.queriedAt, { locale, timeZone: "America/Bogota" }) })}</p>}{balance?.balanceDate && <p className="mt-1 text-xs text-op-muted">{t("balanceDate", { date: formatDate(balance.balanceDate, { locale, timeZone: "America/Bogota" }) })}</p>}{balanceError && <p role="alert" className="mt-3 text-sm text-red-700">{t(t.has(`errors.${balanceError}`) ? `errors.${balanceError}` : "errors.balance_failed")}</p>}</div>
+          <button type="button" className={secondaryButton} disabled={balanceBusy} onClick={() => loadBalance(account)}>{t(balanceBusy ? "checking" : "refreshBalance")}</button>
+        </div>
       </section>
       <WalletTransfer key={account.id} account={account} balance={balance} banks={banks} banksError={banksError} reloadBanks={() => loadBanks(account)} onPayout={updatePayout} payouts={payouts} blocked={payouts.some((payout) => payout.status === "submitting" || payout.status === "unknown")} />
     </>}

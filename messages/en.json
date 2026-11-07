@@ -4539,7 +4539,11 @@
     "kindDebit": "Debit",
     "kindFee": "Fee",
     "kindDispersion": "Bank transfer",
-    "kindAdjustment": "Adjustment"
+    "kindAdjustment": "Adjustment",
+    "refreshBalance": "Refresh balance",
+    "refreshingBalance": "Checking…",
+    "balanceUnavailable": "Balance unavailable",
+    "balanceFailedHint": "We could not check the balance. Refresh it to continue."
   },
   "opPrint": {
     "titleKitchen": "Printer — Kitchen",
@@ -10213,5 +10217,16 @@
     },
     "recoverTicket": "Kushki ticket (optional)",
     "recoverTicketHint": "If Kushki shows the payment, enter its ticket to verify it. It will only be linked if it matches this transfer."
+  },
+  "walletPending": {
+    "title": "Incoming funds pending",
+    "loading": "Checking…",
+    "unavailable": "Unavailable",
+    "notReported": "Not reported by Kushki",
+    "notSpendable": "Not yet available for payouts.",
+    "notReportedHint": "Kushki does not report this amount in the available balance query. This does not mean that pending funds are zero.",
+    "unavailableHint": "We could not check incoming funds. The available balance is shown separately.",
+    "retry": "Retry incoming funds query",
+    "updatedAt": "Incoming funds updated: {date}"
   }
 }

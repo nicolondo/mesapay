@@ -10,7 +10,7 @@ beforeEach(() => vi.resetAllMocks());
 describe("platform wallet provider boundary", () => {
   it("reads COP balance, converts to cents and preserves provider timestamp", async () => {
     m.fetch.mockResolvedValue({ currentBalance: 1234.56, currency: "COP", balanceDate: 1675874081783 });
-    expect(await walletBalance(account)).toEqual({ availableCents: 123456, balanceDate: "2023-02-08T16:34:41.783Z" });
+    expect(await walletBalance(account)).toEqual({ availableCents: 123456, balanceDate: "2023-02-08T16:34:41.783Z", pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
     expect(m.fetch).toHaveBeenCalledWith("/wallet/v1/merchant/balance", expect.objectContaining({ method: "GET", mode: "sandbox", auth: { kind: "submerchant", privateKey: "private-test" } }));
   });
   it("rejects other currencies and nonnumeric/unsafe balances", async () => {
@@ -20,9 +20,13 @@ describe("platform wallet provider boundary", () => {
   });
   it("maps exact WLT400 to zero but not authentication failures", async () => {
     m.fetch.mockRejectedValueOnce(new KushkiHttpError(400, '{"code":"WLT400"}', "test"));
-    expect((await walletBalance(account)).availableCents).toBe(0);
+    expect(await walletBalance(account)).toEqual({ availableCents: 0, balanceDate: null, pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
     m.fetch.mockRejectedValueOnce(new KushkiHttpError(403, '{"code":"WLT400"}', "test"));
     await expect(walletBalance(account)).rejects.toThrow("balance_failed");
+  });
+  it("does not treat unrelated fields or the available timestamp as a pending amount", async () => {
+    m.fetch.mockResolvedValue({ currentBalance: 0, currency: "COP", balanceDate: 1675874081783, pending: 500, totalBalance: 500 });
+    expect(await walletBalance(account)).toMatchObject({ availableCents: 0, pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
   });
   it("validates bank schema and normalizes code/id", async () => {
     m.fetch.mockResolvedValue([{ code: "000051", name: "Bank" }, { id: "007", name: "Bank2" }]);

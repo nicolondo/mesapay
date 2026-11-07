@@ -127,7 +127,7 @@ describe("platform wallet API with PostgreSQL and simulated Kushki transport", (
   it("queries the configured wallet and its environment without consulting merchant credentials", async () => {
     await configure({ mode: "production" });
     const balance = await (await getBalance(json("/api/admin/wallet/balance"))).json();
-    expect(balance).toMatchObject({ accountId, availableCents: 50_000_000_000, currency: "COP" });
+    expect(balance).toMatchObject({ accountId, availableCents: 50_000_000_000, currency: "COP", pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
     const call = providerCalls("/merchant/balance")[0];
     expect(call[0]).toBe("https://api.kushkipagos.com/wallet/v1/merchant/balance");
     expect(new Headers(call[1]?.headers).get("Private-Merchant-Id")).toBe(configInput.privateKey);

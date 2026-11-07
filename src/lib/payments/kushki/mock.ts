@@ -245,6 +245,8 @@ export class MockKushkiProvider implements PaymentProvider {
     return {
       availableCents: m.balanceCents,
       pendingCents: 0,
+      pendingStatus: "reported",
+      pendingUpdatedAt: new Date().toISOString(),
       currency: "COP",
     };
   }

@@ -3,6 +3,7 @@ import { kushkiFetch, KushkiHttpError } from "@/lib/payments/kushki/client";
 import type { WalletMode, WalletPayoutInput, WalletBank } from "./contracts";
 import { providerStatusSchema } from "./validation";
 import { WalletError } from "./errors";
+import { UNREPORTED_WALLET_PENDING } from "@/lib/payments/walletPending";
 
 export type WalletCredentials = { mode: WalletMode; publicKey: string; privateKey: string };
 const idSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -22,10 +23,10 @@ export async function walletBalance(account: WalletCredentials) {
     const availableCents = Math.round(balance.currentBalance * 100);
     if (!Number.isSafeInteger(availableCents) || availableCents < 0) throw new Error("invalid_balance");
     const date = balance.balanceDate === undefined ? null : new Date(balance.balanceDate);
-    return { availableCents, balanceDate: date && !Number.isNaN(date.getTime()) ? date.toISOString() : null };
+    return { availableCents, balanceDate: date && !Number.isNaN(date.getTime()) ? date.toISOString() : null, ...UNREPORTED_WALLET_PENDING };
   } catch (error) {
     if (error instanceof KushkiHttpError && error.status === 400) {
-      try { if (JSON.parse(error.body)?.code === "WLT400") return { availableCents: 0, balanceDate: null }; } catch { /* Not a recognized empty-wallet response. */ }
+      try { if (JSON.parse(error.body)?.code === "WLT400") return { availableCents: 0, balanceDate: null, ...UNREPORTED_WALLET_PENDING }; } catch { /* Not a recognized empty-wallet response. */ }
     }
     throw new WalletError("balance_failed", 502);
   }

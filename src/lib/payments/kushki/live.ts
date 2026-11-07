@@ -16,6 +16,7 @@ import type {
 } from "../types";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 import { kushkiFetch, KushkiHttpError } from "./client";
+import { UNREPORTED_WALLET_PENDING } from "../walletPending";
 import {
   pushPaymentToCloudTerminal,
   cancelCloudTerminalPayment,
@@ -358,8 +359,12 @@ export class LiveKushkiProvider implements PaymentProvider {
       // responde como 400 cuando el wallet aún no tiene fondos liquidados
       // (comercio recién en producción). Semánticamente es saldo $0, no un
       // error — sin esto la billetera muestra balance_failed en vez de $0.
-      if (err instanceof KushkiHttpError && err.body.includes("WLT400")) {
-        return { availableCents: 0, pendingCents: 0, currency: "COP" };
+      if (err instanceof KushkiHttpError && err.status === 400) {
+        try {
+          if (JSON.parse(err.body)?.code === "WLT400") {
+            return { availableCents: 0, ...UNREPORTED_WALLET_PENDING, currency: "COP" };
+          }
+        } catch { /* An unrecognized response must remain an error. */ }
       }
       throw err;
     }
@@ -370,7 +375,7 @@ export class LiveKushkiProvider implements PaymentProvider {
     const currency = resp.currency === "MXN" ? "MXN" : "COP";
     return {
       availableCents: Math.round(resp.currentBalance * 100),
-      pendingCents: 0,
+      ...UNREPORTED_WALLET_PENDING,
       currency,
     };
   }

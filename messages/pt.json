@@ -1888,7 +1888,12 @@
     "compBody": "Esta conta foi fechada como «{label}»: não foi cobrada. Valor oferecido: {amount}. Os pratos baixam o estoque, mas não contam como venda.",
     "compDefaultLabel": "Cortesia",
     "compNote": "Nota: {note}",
-    "compReportLink": "Ver o relatório de despesas de representação"
+    "compReportLink": "Ver o relatório de despesas de representação",
+    "dayPickerTitle": "Escolher um dia",
+    "dayPickerClose": "Fechar calendário",
+    "dayPickerDate": "Data",
+    "dayPickerApply": "Ver dia",
+    "dayPickerHelp": "Use as setas para navegar pelos dias e Enter para escolher. Home e End vão para o primeiro e o último dia da semana. Page Up e Page Down mudam o mês; com Shift, mudam o ano."
   },
   "opCustomers": {
     "title": "Clientes",

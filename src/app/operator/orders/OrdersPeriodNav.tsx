@@ -18,6 +18,7 @@ import {
 } from "@/lib/erp/reports/period";
 import { monthLabel, rangeLabel, weekdayDateLabel } from "@/lib/erp/reports/periodLabel";
 import { ordersHref, type OrdersView } from "@/lib/orders/ordersView";
+import { OrdersDayPicker } from "./OrdersDayPicker";
 
 type Kind = ReturnType<typeof periodKindWithDay>;
 
@@ -82,6 +83,7 @@ export function OrdersPeriodNav({ view, today }: { view: OrdersView; today: stri
   const period = view.period;
   const kind = periodKindWithDay(period);
   const [editing, setEditing] = useState(kind === "rango");
+  const [choosingDay, setChoosingDay] = useState(false);
   const selected: Kind = editing ? "rango" : kind;
 
   const href = (next: Period) => ordersHref(view, today, { period: next });
@@ -157,9 +159,14 @@ export function OrdersPeriodNav({ view, today }: { view: OrdersView; today: stri
         </Link>
         <button
           type="button"
-          onClick={() => setEditing((v) => !v)}
-          title={t("periodEditDates")}
-          aria-expanded={editing}
+          onClick={(event) => {
+            // Safari does not focus buttons on touch; restore this trigger on Escape.
+            event.currentTarget.focus({ preventScroll: true });
+            setChoosingDay(true);
+          }}
+          title={t("dayPickerTitle")}
+          aria-haspopup="dialog"
+          aria-expanded={choosingDay}
           className="h-11 min-w-0 truncate rounded-lg border border-op-border bg-op-bg px-3 text-center text-sm font-medium"
         >
           <span aria-live="polite">{label}</span>
@@ -238,6 +245,18 @@ export function OrdersPeriodNav({ view, today }: { view: OrdersView; today: stri
             {t("rangeApply")}
           </button>
         </form>
+      )}
+      {choosingDay && (
+        <OrdersDayPicker
+          selectedDate={snapPeriod(period, "día", today).desde}
+          today={today}
+          onClose={() => setChoosingDay(false)}
+          onSelect={(day) => {
+            setChoosingDay(false);
+            setEditing(false);
+            router.push(href({ desde: day, hasta: day }), { scroll: false });
+          }}
+        />
       )}
     </div>
   );

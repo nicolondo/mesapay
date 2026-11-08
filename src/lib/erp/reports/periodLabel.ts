@@ -17,12 +17,13 @@ function utcDate(iso: string): Date {
 
 /**
  * Espacios finos/duros de Intl → espacio normal. El ICU de Node y el del
- * navegador no usan los mismos alrededor del «–» de un rango («2 – 8 nov»):
+ * navegador no usan los mismos alrededor del «–» de un rango («2 – 8 nov»).
+ * También difieren en los puntos de abreviaturas («oct» frente a «oct.»):
  * el rótulo que arma el servidor no coincidía con el del cliente (error de
  * hidratación en el selector de período).
  */
-function plainSpaces(s: string): string {
-  return s.replace(/[\u00a0\u2009\u202f]/g, " ");
+function stableLabel(s: string): string {
+  return s.replace(/[\u00a0\u2009\u202f]/g, " ").replace(/(\p{L})\./gu, "$1");
 }
 
 /**
@@ -44,7 +45,7 @@ export function rangeLabel(
   });
   const a = utcDate(period.desde);
   const b = utcDate(period.hasta);
-  return plainSpaces(
+  return stableLabel(
     typeof f.formatRange === "function" ? f.formatRange(a, b) : `${f.format(a)} – ${f.format(b)}`,
   );
 }
@@ -61,7 +62,7 @@ export function monthLabel(iso: string, locale: Locale): string {
     month: "long",
     year: "numeric",
   });
-  return plainSpaces(s.charAt(0).toLocaleUpperCase(localeTag(locale)) + s.slice(1));
+  return stableLabel(s.charAt(0).toLocaleUpperCase(localeTag(locale)) + s.slice(1));
 }
 
 /**
@@ -69,7 +70,7 @@ export function monthLabel(iso: string, locale: Locale): string {
  * del día de referencia («mié, 31 dic 2025»).
  */
 export function weekdayDateLabel(iso: string, locale: Locale, referenceIso: string): string {
-  return plainSpaces(formatDate(utcDate(iso), {
+  return stableLabel(formatDate(utcDate(iso), {
     locale,
     timeZone: "UTC",
     dateStyle: undefined,

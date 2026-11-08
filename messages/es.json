@@ -1888,7 +1888,12 @@
     "compBody": "Esta cuenta se cerró como «{label}»: no se cobró. Valor regalado: {amount}. Los platos descuentan inventario, pero no cuentan como venta.",
     "compDefaultLabel": "Cortesía",
     "compNote": "Nota: {note}",
-    "compReportLink": "Ver el reporte de gastos de representación"
+    "compReportLink": "Ver el reporte de gastos de representación",
+    "dayPickerTitle": "Elegir un día",
+    "dayPickerClose": "Cerrar calendario",
+    "dayPickerDate": "Fecha",
+    "dayPickerApply": "Ver día",
+    "dayPickerHelp": "Usa las flechas para moverte por los días y Enter para elegir. Inicio y Fin cambian al primer y último día de la semana. Re Pág y Av Pág cambian de mes; con Mayús, de año."
   },
   "opCustomers": {
     "title": "Clientes",

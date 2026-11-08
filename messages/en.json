@@ -1888,7 +1888,12 @@
     "compBody": "This bill was closed as «{label}»: it wasn't charged. Value given away: {amount}. The items reduce inventory but don't count as sales.",
     "compDefaultLabel": "Courtesy",
     "compNote": "Note: {note}",
-    "compReportLink": "See the entertainment expenses report"
+    "compReportLink": "See the entertainment expenses report",
+    "dayPickerTitle": "Choose a day",
+    "dayPickerClose": "Close calendar",
+    "dayPickerDate": "Date",
+    "dayPickerApply": "View day",
+    "dayPickerHelp": "Use the arrow keys to move between days and Enter to select. Home and End move to the first and last day of the week. Page Up and Page Down change months; hold Shift to change years."
   },
   "opCustomers": {
     "title": "Customers",

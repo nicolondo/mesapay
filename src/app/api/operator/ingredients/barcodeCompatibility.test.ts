@@ -10,6 +10,10 @@ vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }))
 vi.mock("@/lib/erp/access", () => ({ getErpContext: m.context, isDenied: (ctx: { error?: string }) => !!ctx.error }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
+vi.mock("@/lib/erp/recipeData", () => ({
+  loadIngredientCostViews: async () => new Map(),
+  EMPTY_INGREDIENT_COST_VIEW: { costPerBase: null, costSource: null, purchaseCost: null },
+}));
 vi.mock("@/lib/db", () => {
   const tx = {
     ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update },
@@ -146,7 +150,7 @@ describe("barcode catalog projections", () => {
     const row = { ...current, barcodes: [{ barcode: "PRIMARY" }, { barcode: "ALIAS" }] };
     m.list.mockResolvedValue([row]);
     const response = await GET(new Request("http://localhost/api/operator/ingredients"));
-    expect((await response.json()).ingredients).toEqual([row]);
+    expect((await response.json()).ingredients).toEqual([{ ...row, costPerBase: null, costSource: null, purchaseCost: null }]);
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
       where: { restaurantId: current.restaurantId },
       include: expect.objectContaining({ barcodes: { where: { restaurantId: current.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } } }),

@@ -254,6 +254,28 @@ export function RecetasClient({
   );
 
   useEffect(() => {
+    let frame: number | null = null;
+    const refreshCosts = () => {
+      if (document.visibilityState !== "visible" || frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        setEngCache({});
+        setReloadSeq(sequence => sequence + 1);
+      });
+    };
+    // Refresh catalog costs when returning from Purchases or Ingredients in
+    // another tab. RecipeDetail keeps its own unsaved lines and uses this new
+    // catalog only for cost resolution, so quantities and notes stay intact.
+    window.addEventListener("focus", refreshCosts);
+    document.addEventListener("visibilitychange", refreshCosts);
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      window.removeEventListener("focus", refreshCosts);
+      document.removeEventListener("visibilitychange", refreshCosts);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {

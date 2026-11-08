@@ -22,8 +22,10 @@ import { useBackdropClose } from "@/lib/useBackdropClose";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
+import type { IngredientCostView } from "@/lib/erp/recipeData";
+import { IngredientCostSummary } from "./IngredientCostSummary";
 
-type Ingredient = {
+type Ingredient = IngredientCostView & {
   id: string;
   name: string;
   category: string | null;
@@ -607,11 +609,12 @@ export function InsumosClient({
                 className="accent-terracotta w-4 h-4 shrink-0"
                 aria-label={t("bulkSelectRow", { name: i.name })}
               />
-              <button
-                type="button"
-                onClick={() => setSheet({ mode: "edit", item: i })}
-                className="col-span-2 flex-1 min-w-0 min-h-[44px] py-1.5 text-left"
-              >
+              <div className="col-span-2 flex-1 min-w-0 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSheet({ mode: "edit", item: i })}
+                  className="w-full min-w-0 min-h-[44px] text-left"
+                >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={
@@ -635,7 +638,11 @@ export function InsumosClient({
                     t("supplierCount", { count: i._count.supplierItems }),
                   ].join(" · ")}
                 </div>
-                <div className="text-xs text-op-muted mt-1">
+                </button>
+                <div className="mt-2">
+                  <IngredientCostSummary ingredient={i} currency={currency} />
+                </div>
+                <div className="text-xs text-op-muted mt-2">
                   {i.referencePriceCents != null
                     ? t("ingredientReferenceSummary", {
                         price: formatMoney(i.referencePriceCents, { currency, locale, fractionDigits: 2 }),
@@ -643,7 +650,7 @@ export function InsumosClient({
                       })
                     : t("ingredientReferenceUnset")}
                 </div>
-              </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}
@@ -988,6 +995,12 @@ function IngredientSheet({
           </Field>
 
           <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="ingredient" disabled={busy} />
+
+          {current && (
+            <div className="rounded-xl border border-op-border bg-op-bg p-3">
+              <IngredientCostSummary ingredient={current} currency={currency} purchaseOpensNewTab />
+            </div>
+          )}
 
           <Field
             label={t("ingredientReferenceLabel", { currency, unit: referencePriceUnit(measureKind) })}

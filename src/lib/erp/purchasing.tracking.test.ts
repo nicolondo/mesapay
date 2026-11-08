@@ -16,6 +16,16 @@ function fixture() {
 }
 beforeEach(() => { movement.mockReset(); });
 describe("frozen non-stock reception values", () => {
+  it("records a stable receipt timestamp for a non-stock line, independent of later PO edits", async () => {
+    const { tx, client } = fixture();
+    movement.mockResolvedValue(null);
+    const before = Date.now();
+    await receivePurchaseOrder(client, { restaurantId: "r", purchaseOrderId: "po", lines: [{ itemId: "line", qtyBase: 1, costCents: 10000 }] });
+    const date = tx.purchaseOrderItem.update.mock.calls[0][0].data.lastReceivedAt;
+    expect(date).toBeInstanceOf(Date);
+    expect(date.getTime()).toBeGreaterThanOrEqual(before);
+    expect(date.getTime()).toBeLessThanOrEqual(Date.now());
+  });
   it("rejects duplicate receipt lines before any claims or stock writes", async () => {
     const { tx, client } = fixture();
     await expect(receivePurchaseOrder(client, { restaurantId: "r", purchaseOrderId: "po", lines: [
@@ -32,6 +42,7 @@ describe("frozen non-stock reception values", () => {
     await receivePurchaseOrder(client, { restaurantId: "r", purchaseOrderId: "po", ivaDeductible, lines: [{ itemId: "line", qtyBase: 1, costCents: 10000 }] });
     expect(tx.purchaseOrderItem.update).toHaveBeenCalledWith({ where: { id: "line" }, data: {
       receivedQtyBase: 1, receivedCostCents: 10000,
+      lastReceivedAt: expect.any(Date),
       nonInventoryReceivedCostCents: { increment: 10000 },
       nonInventoryReceivedNonDeductibleTaxCents: { increment: ivaDeductible ? 0 : 1900 },
       nonInventoryReceivedIncCents: { increment: 0 },

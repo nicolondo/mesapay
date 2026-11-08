@@ -19,6 +19,8 @@ export function useLineCopy() {
           return t("rdSourceSubrecipe");
         case "reference":
           return t("rdSourceReference");
+        case "purchase":
+          return t("rdSourcePurchase");
         case "supplier":
           return t("rdSourceSupplier");
         default:

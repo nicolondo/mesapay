@@ -4,6 +4,10 @@ vi.mock('@/lib/secureApi', () => ({ secureApi: (handler: unknown) => handler }))
 vi.mock('@/lib/erp/access', () => ({ getErpContext: m.context, isDenied: (ctx: {error?: string}) => !!ctx.error }));
 vi.mock('@/lib/orderLock', () => ({ lockStock: m.lock }));
 vi.mock('@/lib/auditLog', () => ({ recordAuditEvent: vi.fn() }));
+vi.mock('@/lib/erp/recipeData', () => ({
+ loadIngredientCostViews: async () => new Map(),
+ EMPTY_INGREDIENT_COST_VIEW: { costPerBase: null, costSource: null, purchaseCost: null },
+}));
 vi.mock('@/lib/db', () => { const tx = { ingredient: { findUnique: m.find, create: m.create, update: m.update }, stockLevel: { findUnique: m.level, update: m.levelUpdate }, stockMovement: { count: m.movementCount, create: m.movementCreate } }; return { db: { ...tx, $transaction: (fn: (db: unknown) => unknown) => fn(tx) } }; });
 import { POST } from './route';
 import { PATCH } from './[id]/route';

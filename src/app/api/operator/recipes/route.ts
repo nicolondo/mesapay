@@ -24,7 +24,7 @@ async function GETHandler() {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
 
-  const [{ ctx: costCtx, meta }, menuItems] = await Promise.all([
+  const [{ ctx: costCtx, meta, purchaseCosts }, menuItems] = await Promise.all([
     loadCostContext(ctx.restaurantId),
     db.menuItem.findMany({
       where: { restaurantId: ctx.restaurantId },
@@ -159,6 +159,7 @@ async function GETHandler() {
         measureKind: m.measureKind,
         costPerBase: cost?.costPerBase ?? null,
         costSource: cost?.source ?? null,
+        purchaseCost: purchaseCosts.get(m.id) ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

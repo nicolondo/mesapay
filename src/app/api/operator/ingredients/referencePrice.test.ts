@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ context: vi.fn(), find: vi.fn(), code: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), level: vi.fn(), lock: vi.fn(), movementCount: vi.fn(), audit: vi.fn() }));
+const m = vi.hoisted(() => ({ context: vi.fn(), find: vi.fn(), code: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), level: vi.fn(), lock: vi.fn(), movementCount: vi.fn(), audit: vi.fn(), costs: vi.fn() }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/erp/access", () => ({ getErpContext: m.context, isDenied: (ctx: { error?: string }) => !!ctx.error }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
+vi.mock("@/lib/erp/recipeData", () => ({
+  loadIngredientCostViews: m.costs,
+  EMPTY_INGREDIENT_COST_VIEW: { costPerBase: null, costSource: null, purchaseCost: null },
+}));
 vi.mock("@/lib/db", () => {
   const tx = { ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update }, ingredientBarcode: { findUnique: m.code }, stockLevel: { findUnique: m.level }, stockMovement: { count: m.movementCount } };
   return { db: { ...tx, $transaction: (fn: (tx: unknown) => unknown) => fn(tx) } };
@@ -27,14 +31,23 @@ beforeEach(() => {
   m.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "new", ...data }));
   m.level.mockResolvedValue(null);
   m.movementCount.mockResolvedValue(0);
+  m.costs.mockResolvedValue(new Map());
 });
 
 describe("ingredient reference price writes", () => {
   it("returns prices with the tenant-scoped catalog used by purchase selectors", async () => {
     const response = await GET(new Request("http://localhost/api/operator/ingredients"));
     expect(response.status).toBe(200);
-    expect((await response.json()).ingredients).toEqual([current]);
+    expect((await response.json()).ingredients).toEqual([{ ...current, costPerBase: null, costSource: null, purchaseCost: null }]);
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({ where: { restaurantId: current.restaurantId } }));
+    expect(m.costs).toHaveBeenCalledWith(current.restaurantId);
+  });
+
+  it("includes the derived cost separately from an unchanged manual reference", async () => {
+    const view = { costPerBase: 240, costSource: "stock", purchaseCost: null };
+    m.costs.mockResolvedValue(new Map([[current.id, view]]));
+    const body = await (await GET(new Request("http://localhost/api/operator/ingredients"))).json();
+    expect(body.ingredients).toEqual([{ ...current, ...view }]);
   });
 
   it("rejects catalog reads and creates before querying or writing when the ERP gate denies access", async () => {
@@ -44,6 +57,7 @@ describe("ingredient reference price writes", () => {
     expect(m.list).not.toHaveBeenCalled();
     expect(m.find).not.toHaveBeenCalled();
     expect(m.create).not.toHaveBeenCalled();
+    expect(m.costs).not.toHaveBeenCalled();
   });
 
   it.each([0, 2500000, 2_000_000_000, null])("creates a price of %s without supplier or stock writes", async (referencePriceCents) => {

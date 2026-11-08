@@ -2420,6 +2420,9 @@ model PurchaseOrderItem {
 
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
   receivedQtyBase   Int @default(0)
+  /// Actual reception time, independent of later invoice/payment edits.
+  /// Legacy rows remain null; cost provenance uses existing receipt evidence.
+  lastReceivedAt    DateTime?
   // NETO acumulado recibido (sin IVA). El bruto de la CxP se deriva con taxPct.
   nonInventoryReceivedCostCents Int @default(0)
   nonInventoryReceivedNonDeductibleTaxCents Int @default(0)

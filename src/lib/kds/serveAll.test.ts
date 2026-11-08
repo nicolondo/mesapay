@@ -32,21 +32,28 @@ function round(
   };
 }
 
-describe("canServeAll — sólo la administración del comercio", () => {
+describe("canServeAll — permisos por estación", () => {
   it.each(["operator", "group_admin", "platform_admin"])("%s puede", (role) => {
-    expect(canServeAll(role)).toBe(true);
+    expect(canServeAll(role, "kitchen")).toBe(true);
+    expect(canServeAll(role, "bar")).toBe(true);
   });
 
-  it.each(["kitchen", "bar", "mesero", "terminal", "comercial", "gerente_comercial", "customer", "", null, undefined])(
+  it("el personal del bar sólo puede servir su estación", () => {
+    expect(canServeAll("bar", "bar")).toBe(true);
+    expect(canServeAll("bar", "kitchen")).toBe(false);
+  });
+
+  it.each(["kitchen", "mesero", "terminal", "comercial", "gerente_comercial", "customer", "", null, undefined])(
     "%s no puede",
     (role) => {
-      expect(canServeAll(role)).toBe(false);
+      expect(canServeAll(role, "kitchen")).toBe(false);
+      expect(canServeAll(role, "bar")).toBe(false);
     },
   );
 
   it("es exactamente el mismo conjunto que OPERATOR_ROLES (no se separan)", () => {
     const all = ["customer", "operator", "platform_admin", "terminal", "mesero", "kitchen", "bar", "group_admin", "comercial", "gerente_comercial"];
-    expect(all.filter(canServeAll).sort()).toEqual([...OPERATOR_ROLES].sort());
+    expect(all.filter(role => canServeAll(role, "kitchen")).sort()).toEqual([...OPERATOR_ROLES].sort());
   });
 });
 

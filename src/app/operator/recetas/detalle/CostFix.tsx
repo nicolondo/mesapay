@@ -98,7 +98,9 @@ export function ReferencePriceFix({
     state === "zero"
       ? source === "subrecipe"
         ? t("rdFixZeroSub", { name })
-        : t("rdFixZero", { name })
+        : source === "reference"
+          ? t("rdFixZero", { name })
+          : t("rdFixZeroOther", { name })
       : isSubRecipe
         ? t("rdFixNoneSub", { name })
         : t("rdFixNone", { name });

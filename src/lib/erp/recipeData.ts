@@ -3,7 +3,9 @@
 // resuelve la detección de ciclos al escribir sub-recetas.
 import { db } from "@/lib/db";
 import type { MeasureKind, Prisma } from "@prisma/client";
-import type { CostContext, RecipeLine } from "@/lib/erp/recipes";
+import { resolveIngredientCost, type CostContext, type CostSource, type RecipeLine } from "@/lib/erp/recipes";
+import { loadPurchaseCosts } from "@/lib/erp/purchaseCostData";
+import type { PurchaseCostDTO } from "@/lib/erp/purchaseCost";
 
 export type IngredientMeta = {
   id: string;
@@ -13,14 +15,25 @@ export type IngredientMeta = {
   trackInventory: boolean;
 };
 
+export type IngredientCostView = {
+  costPerBase: number | null;
+  costSource: CostSource;
+  purchaseCost: PurchaseCostDTO | null;
+};
+
+export const EMPTY_INGREDIENT_COST_VIEW: IngredientCostView = {
+  costPerBase: null, costSource: null, purchaseCost: null,
+};
+
 /**
  * Carga TODOS los insumos del comercio con lo que la cascada D3 necesita
- * (stock, referencia manual, proveedor preferido, sub-receta). Una pasada por request:
+ * (stock, referencia manual, compra recibida, proveedor preferido, sub-receta). Una pasada por request:
  * el costeo después es puro y en memoria.
  */
 export async function loadCostContext(restaurantId: string): Promise<{
   ctx: CostContext;
   meta: Map<string, IngredientMeta>;
+  purchaseCosts: Map<string, PurchaseCostDTO>;
 }> {
   const ingredients = await db.ingredient.findMany({
     where: { restaurantId },
@@ -48,12 +61,15 @@ export async function loadCostContext(restaurantId: string): Promise<{
     },
   });
 
+  const purchaseCosts = await loadPurchaseCosts(restaurantId, ingredients.map((ingredient) => ingredient.id));
+
   const ctx: CostContext = new Map();
   const meta = new Map<string, IngredientMeta>();
   for (const ing of ingredients) {
     ctx.set(ing.id, {
       stock: ing.stockLevel,
       referencePriceCents: ing.referencePriceCents,
+      purchase: purchaseCosts.get(ing.id) ?? null,
       preferred: ing.supplierItems[0] ?? null,
       recipe: ing.recipe,
     });
@@ -65,7 +81,20 @@ export async function loadCostContext(restaurantId: string): Promise<{
       trackInventory: ing.trackInventory,
     });
   }
-  return { ctx, meta };
+  return { ctx, meta, purchaseCosts };
+}
+
+/** Catalog and mutation DTOs share exactly the recipe cost cascade. */
+export async function loadIngredientCostViews(restaurantId: string): Promise<Map<string, IngredientCostView>> {
+  const { ctx, purchaseCosts } = await loadCostContext(restaurantId);
+  return new Map([...ctx.keys()].map((id) => {
+    const cost = resolveIngredientCost(ctx, id);
+    return [id, {
+      costPerBase: cost?.costPerBase ?? null,
+      costSource: cost?.source ?? null,
+      purchaseCost: purchaseCosts.get(id) ?? null,
+    }];
+  }));
 }
 
 /**

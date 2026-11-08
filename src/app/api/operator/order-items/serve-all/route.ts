@@ -67,11 +67,9 @@ async function POSTHandler(req: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  // SOLO la administración del comercio. Cocina, bar y mesero siguen
-  // sirviendo plato por plato con el PATCH individual; esto vacía el tablero
-  // de un toque y por eso se reserva. El botón ni se muestra a otros roles,
-  // pero el guard vive acá porque cualquiera puede pegarle a la API directo.
-  if (!canServeAll(session.user.role)) {
+  // La administración puede servir ambas estaciones; el bar sólo la suya.
+  // El permiso por estación se vuelve a comprobar con el cuerpo validado.
+  if (!canServeAll(session.user.role, "kitchen") && !canServeAll(session.user.role, "bar")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const restaurantId = await getActiveRestaurantId();
@@ -83,6 +81,9 @@ async function POSTHandler(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
+  }
+  if (!canServeAll(session.user.role, parsed.data.station)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const scope: ServeAllScope = {
     restaurantId,

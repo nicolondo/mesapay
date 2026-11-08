@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/format";
 import { parseDecimalInput } from "@/lib/decimalInput";
 import { REFERENCE_PRICE_QTY_BASE, referencePriceUnit } from "@/lib/erp/ingredientPrice";
 import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
+import type { CostSource } from "@/lib/erp/recipes";
 import {
   BASE_SYMBOL_FACTOR,
   BASE_UNIT_SYMBOL,
@@ -19,7 +20,7 @@ import {
 
 /* ───────────────────────────── DTO ─────────────────────────────────── */
 
-export type CostSource = "stock" | "subrecipe" | "reference" | "supplier" | null;
+export type { CostSource } from "@/lib/erp/recipes";
 
 export type RecipeItemDto = {
   ingredientId: string;

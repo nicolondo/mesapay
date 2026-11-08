@@ -38,7 +38,6 @@ export function AdminShell({ userEmail, localeSwitcher, signOut, children }: {
       { href: "/admin/restaurants/new", label: ux("newRestaurant") },
       { href: "/admin/restaurants/eliminados", label: ux("deletedRestaurants") },
       { href: ADMIN_ACCOUNT.href, label: t(ADMIN_ACCOUNT.labelKey) },
-      { href: "/operator", label: ux("operatorPortal") },
     ] },
   ];
 
@@ -72,11 +71,6 @@ export function AdminShell({ userEmail, localeSwitcher, signOut, children }: {
       </nav>
 
       <div className="mp-rail-footer mp-admin-footer">
-        <Link href="/operator" prefetch={false} onClick={() => setDrawerOpen(false)} className="mp-admin-operator-link">
-          <Icon name="store" />
-          <span>{ux("operatorPortal")}</span>
-          <Icon name="arrow" />
-        </Link>
         <Link href={ADMIN_ACCOUNT.href} prefetch={false} onClick={() => setDrawerOpen(false)} aria-current={location?.item.href === ADMIN_ACCOUNT.href ? "page" : undefined} className="mp-admin-account-link" title={userEmail}>
           <span className="mp-user-avatar">{(userEmail[0] || "M").toUpperCase()}</span>
           <span className="min-w-0 flex-1">

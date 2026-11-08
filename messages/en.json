@@ -10269,8 +10269,7 @@
     "deletedRestaurants": "Deleted restaurants",
     "restaurantDetail": "Restaurant details",
     "restaurantPayments": "Restaurant payments",
-    "groupDetail": "Group details",
-    "operatorPortal": "Merchant portal"
+    "groupDetail": "Group details"
   },
   "adminWorkspacePage": {
     "listEyebrow": "Merchant directory",

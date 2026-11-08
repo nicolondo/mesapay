@@ -10269,8 +10269,7 @@
     "deletedRestaurants": "Restaurantes eliminados",
     "restaurantDetail": "Detalle del restaurante",
     "restaurantPayments": "Pagos del restaurante",
-    "groupDetail": "Detalle del grupo",
-    "operatorPortal": "Portal del comercio"
+    "groupDetail": "Detalle del grupo"
   },
   "adminWorkspacePage": {
     "listEyebrow": "Directorio de comercios",

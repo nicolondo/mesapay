@@ -1165,6 +1165,11 @@ const API_UPLOAD_ERROR_KEYS: Record<string, string> = {
   bad_format: "invUploadErrBadFormat",
   bad_size: "invUploadErrBadSize",
   module_disabled: "invUploadErrModuleDisabled",
+  ai_response_incomplete: "invUploadErrIncomplete",
+  ai_invalid_response: "invUploadErrInvalidResponse",
+  ai_timeout: "invUploadErrTimeout",
+  no_lines: "invUploadErrNoLines",
+  not_a_document: "invUploadErrNotDocument",
 };
 
 // Errores del POST de confirmación → clave i18n (fallback errSaveFailed).
@@ -1190,9 +1195,17 @@ function InvoiceUploadButton({
   const t = useTranslations("opErp");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const requestInFlight = useRef(false);
   const inputId = "inv-upload-file";
+  const errorId = "inv-upload-error";
 
   async function handleFile(file: File) {
+    // The ref also covers a second click before React renders disabled controls.
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setSelectedFile(file);
     setErr(null);
     setBusy(true);
     try {
@@ -1202,18 +1215,29 @@ function InvoiceUploadButton({
         method: "POST",
         body,
       });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        const key = API_UPLOAD_ERROR_KEYS[j.error as string];
+      const j = await r.json().catch(() => null) as (InvoiceUploadResult & { error?: unknown }) | null;
+      if (!r.ok || j?.error) {
+        const key = typeof j?.error === "string" ? API_UPLOAD_ERROR_KEYS[j.error] : undefined;
         setErr(key ? t(key) : t("invUploadErrFailed"));
-        setBusy(false);
         return;
       }
-      const j = (await r.json()) as InvoiceUploadResult;
-      setBusy(false);
+      // A failed/legacy extraction must never look like an invoice worth $0.
+      if (!j || typeof j.uploadId !== "string" || typeof j.fileUrl !== "string"
+        || !Array.isArray(j.extraction?.lines) || !Array.isArray(j.match?.lines)
+        || !j.match.supplier) {
+        setErr(t("invUploadErrInvalidResponse"));
+        return;
+      }
+      if (j.extraction.lines.length === 0 || j.match.lines.length === 0) {
+        setErr(t("invUploadErrNoLines"));
+        return;
+      }
+      setSelectedFile(null);
       onUploaded(j);
     } catch {
       setErr(t("invUploadErrFailed"));
+    } finally {
+      requestInFlight.current = false;
       setBusy(false);
     }
   }
@@ -1221,16 +1245,21 @@ function InvoiceUploadButton({
   return (
     <>
       {/* La carga ocupa las 2 columnas del grid (fila propia). */}
-      <label
-        htmlFor={inputId}
-        className="col-span-2 min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg flex items-center justify-center cursor-pointer"
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        aria-describedby={err ? errorId : undefined}
+        className="col-span-2 min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
       >
-        {t("invUploadButton")}
-      </label>
+        {t(err ? "invUploadChooseAnother" : "invUploadButton")}
+      </button>
       <input
+        ref={inputRef}
         id={inputId}
         type="file"
         accept=".pdf,image/*"
+        disabled={busy}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -1239,13 +1268,24 @@ function InvoiceUploadButton({
           if (file) void handleFile(file);
         }}
       />
-      {err && <div className="col-span-2 text-xs text-danger">{err}</div>}
+      {err && (
+        <div className="col-span-2 rounded-2xl border border-danger/20 bg-danger/5 p-4">
+          <p id={errorId} role="alert" className="text-sm leading-relaxed text-danger">{err}</p>
+          {selectedFile && <>
+            <p className="mt-2 break-all text-xs text-op-muted">{t("invUploadSelectedFile", { name: selectedFile.name })}</p>
+            <button type="button" disabled={busy} onClick={() => void handleFile(selectedFile)}
+              className="mt-3 min-h-[44px] rounded-full border border-op-border bg-op-surface px-4 text-sm font-medium hover:bg-op-bg disabled:opacity-50">
+              {t("invUploadRetry")}
+            </button>
+          </>}
+        </div>
+      )}
 
       {busy && (
         <div className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-6">
           <div className="bg-op-surface rounded-3xl border border-op-border p-8 max-w-xs w-full text-center">
             <div className="mx-auto mb-4 h-8 w-8 rounded-full border-2 border-op-border border-t-ink animate-spin" />
-            <div className="text-sm font-medium">{t("invUploadReading")}</div>
+            <div role="status" className="text-sm font-medium">{t("invUploadReading")}</div>
             <p className="text-[11px] text-op-muted mt-1">
               {t("invUploadReadingHint")}
             </p>

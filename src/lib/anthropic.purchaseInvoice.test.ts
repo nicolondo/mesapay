@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mock = vi.hoisted(() => ({ create: vi.fn() }));
+const mock = vi.hoisted(() => ({ create: vi.fn(), stream: vi.fn(), env: { ANTHROPIC_MODEL: "claude-haiku-4-5" } }));
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: class { messages = { create: mock.create }; },
+  default: class { messages = {
+    create: mock.create,
+    stream: (...args: unknown[]) => {
+      mock.stream(...args);
+      return { finalMessage: () => mock.create(...args) };
+    },
+  }; },
 }));
 vi.mock("./env", () => ({
-  env: { ANTHROPIC_MODEL: "isolated-extraction-test" },
+  env: mock.env,
   requireAnthropicKey: () => "not-a-real-key",
 }));
 
@@ -25,10 +31,125 @@ const invoice = (fields: Record<string, unknown> = {}) => ({
   ...fields,
 });
 async function extract(fields: Record<string, unknown> = {}) {
-  mock.create.mockResolvedValue({ content: [{ type: "text", text: JSON.stringify(invoice(fields)) }] });
+  mock.create.mockResolvedValue(reply(JSON.stringify(invoice(fields))));
   return extractPurchaseInvoice(source);
 }
-beforeEach(() => mock.create.mockReset());
+function reply(text: string, stop_reason = "end_turn") {
+  return { content: [{ type: "text", text }], stop_reason, usage: { output_tokens: 500 } };
+}
+beforeEach(() => { mock.create.mockReset(); mock.stream.mockReset(); mock.env.ANTHROPIC_MODEL = "claude-haiku-4-5"; });
+
+describe("purchase invoice response recovery", () => {
+  it("accepts complete fenced JSON without changing amounts or retrying", async () => {
+    mock.create.mockResolvedValue(reply(`\uFEFF\n\`\`\`json\n${JSON.stringify(invoice())}\n\`\`\``));
+    const result = await extractPurchaseInvoice(source);
+    expect(result.lines[0]).toMatchObject({ quantity: 2, lineTotalCents: 13_885_000 });
+    expect(mock.create).toHaveBeenCalledTimes(1);
+    expect(mock.stream).toHaveBeenCalledTimes(1);
+  });
+
+  it("rereads a truncated response from the original document with a larger bounded budget", async () => {
+    mock.create.mockResolvedValueOnce(reply('```json {"documentType":"factura","lines":[', "max_tokens"))
+      .mockResolvedValueOnce(reply(JSON.stringify(invoice({ invoiceTotal: "138.850,00" }))));
+    const result = await extractPurchaseInvoice(source);
+    expect(result.lines).toHaveLength(1);
+    expect(result.invoiceTotalCents).toBe(13_885_000);
+    expect(mock.stream).toHaveBeenCalledTimes(2);
+    const [first, second] = mock.create.mock.calls;
+    expect(first[0].max_tokens).toBeGreaterThan(8192);
+    expect(second[0].max_tokens).toBeGreaterThan(first[0].max_tokens);
+    expect(second[0].max_tokens).toBeLessThanOrEqual(64_000);
+    expect(second[0].messages).toHaveLength(1);
+    expect(second[0].messages[0].content[0]).toEqual(first[0].messages[0].content[0]);
+    expect(second[1].maxRetries).toBe(0);
+    expect(second[1].signal).toBe(first[1].signal);
+  });
+
+  it("rejects even parseable JSON when the provider reports truncation", async () => {
+    mock.create.mockResolvedValue(reply(JSON.stringify(invoice()), "max_tokens"));
+    await expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_response_incomplete" });
+    expect(mock.create).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["not JSON", '{"lines":false}', JSON.stringify(invoice({ lines: [line({ description: null })] }))])(
+    "retries an invalid response once, then fails without returning an empty invoice: %s", async text => {
+      mock.create.mockResolvedValue(reply(text));
+      await expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_invalid_response", message: "ai_invalid_response" });
+      expect(mock.create).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("recovers malformed JSON with one complete fresh reading", async () => {
+    mock.create.mockResolvedValueOnce(reply('{"supplierName":"private supplier",'))
+      .mockResolvedValueOnce(reply(JSON.stringify(invoice())));
+    expect((await extractPurchaseInvoice(source)).lines).toHaveLength(1);
+    expect(mock.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a provider refusal or expose its response", async () => {
+    mock.create.mockResolvedValue(reply("private document details", "refusal"));
+    await expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_invalid_response", message: "ai_invalid_response" });
+    expect(mock.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one deadline across both reads and does not retry request failures", async () => {
+    const error = Object.assign(new Error("provider timeout"), { name: "APIConnectionTimeoutError" });
+    mock.create.mockRejectedValue(error);
+    await expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_timeout" });
+    expect(mock.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a stalled stream at the shared deadline and clears its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      mock.create.mockImplementation((_params, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }));
+      const result = expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_timeout" });
+      await vi.advanceTimersByTimeAsync(480_000);
+      await result;
+      expect(mock.create).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("does not reset the deadline when rereading an invalid response", async () => {
+    vi.useFakeTimers();
+    try {
+      mock.create.mockImplementationOnce(() => new Promise(resolve => {
+        setTimeout(() => resolve(reply("invalid")), 300_000);
+      })).mockImplementationOnce((_params, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }));
+      const result = expect(extractPurchaseInvoice(source)).rejects.toMatchObject({ code: "ai_timeout" });
+      await vi.advanceTimersByTimeAsync(480_000);
+      await result;
+      expect(mock.create).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("preserves every line of a complete long invoice", async () => {
+    const lines = Array.from({ length: 100 }, (_, index) => line({ description: `Producto ${index + 1}` }));
+    const result = await extract({ lines });
+    expect(result.lines).toHaveLength(100);
+    expect(result.lines[99]).toMatchObject({ description: "Producto 100", quantity: 2, lineTotalCents: 13_885_000 });
+    expect(mock.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a valid document with no product lines available to the expense reader", async () => {
+    expect((await extract({ lines: [], invoiceTotal: "50.000" })).invoiceTotalCents).toBe(5_000_000);
+  });
+
+  it("does not increase the requested output limit for an unrecognized custom model", async () => {
+    mock.env.ANTHROPIC_MODEL = "custom-invoice-model";
+    mock.create.mockResolvedValueOnce(reply("{", "max_tokens"))
+      .mockResolvedValueOnce(reply(JSON.stringify(invoice())));
+    expect((await extractPurchaseInvoice(source)).lines).toHaveLength(1);
+    expect(mock.create.mock.calls.map(([params]) => params.max_tokens)).toEqual([8192, 8192]);
+    expect(mock.create.mock.calls.map(([params]) => params.model)).toEqual(["custom-invoice-model", "custom-invoice-model"]);
+  });
+});
 
 describe("purchase invoice extraction preserves printed tax meaning", () => {
   it("keeps the net unit, gross final, line consumption and document discount from the reported layout", async () => {
@@ -173,17 +294,6 @@ describe("nullable monetary parsing and extraction instructions", () => {
     // A discount is a subtraction by definition: suppliers print it as
     // "-$1" or "$1" and both mean the same positive discount.
     expect(result.invoiceDiscountCents).toBe(value === "-1" ? 100 : null);
-  });
-
-  it("returns empty nullable totals for malformed model responses", async () => {
-    mock.create.mockResolvedValue({ content: [{ type: "text", text: "not json" }] });
-    expect(await extractPurchaseInvoice(source)).toMatchObject({
-      lines: [], confidence: 0, invoiceDiscountCents: null, invoiceIncCents: null,
-    });
-    mock.create.mockResolvedValue({ content: [{ type: "text", text: '{"lines":false}' }] });
-    expect(await extractPurchaseInvoice(source)).toMatchObject({
-      lines: [], confidence: 0, invoiceDiscountCents: null, invoiceIncCents: null,
-    });
   });
 
   it("discards non-product quantities without inventing units", async () => {

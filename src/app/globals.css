@@ -726,13 +726,13 @@ input[type="time"] {
 
 /* Botones «píldora» sueltos (clase `rounded-full` de Tailwind) en los
    paneles del equipo: mismas esquinas que .mp-btn. Sólo botones y enlaces
-   que hacen de botón; los pills de estado (span), avatares y puntos siguen
-   redondos. Regla sin @layer: pisa a la utilidad. La carta del comensal no
-   entra (tiene su propio lenguaje visual). */
-.op-app-shell :is(button, a, [role="button"]).rounded-full,
-.op-admin :is(button, a, [role="button"]).rounded-full,
-.crm-app-shell :is(button, a, [role="button"]).rounded-full,
-.mesero-shell :is(button, a, [role="button"]).rounded-full {
+   que hacen de botón; los interruptores, pills de estado (span), avatares
+   y puntos siguen redondos. Regla sin @layer: pisa a la utilidad. La carta
+   del comensal no entra (tiene su propio lenguaje visual). */
+.op-app-shell :is(button, a, [role="button"]).rounded-full:not([role="switch"]),
+.op-admin :is(button, a, [role="button"]).rounded-full:not([role="switch"]),
+.crm-app-shell :is(button, a, [role="button"]).rounded-full:not([role="switch"]),
+.mesero-shell :is(button, a, [role="button"]).rounded-full:not([role="switch"]) {
   border-radius: var(--radius-btn);
 }
 /* Lo mismo para los botones sueltos con `rounded-xl`/`rounded-2xl` (12 y

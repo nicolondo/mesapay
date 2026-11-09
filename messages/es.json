@@ -10246,12 +10246,13 @@
     "title": "Pendiente por ingresar",
     "loading": "Consultando…",
     "unavailable": "No disponible",
-    "notReported": "No informado por Kushki",
+    "notReported": "Abonos por confirmar",
     "notSpendable": "Todavía no disponible para dispersar.",
-    "notReportedHint": "Kushki no informa este importe en la consulta disponible. No significa que el pendiente sea cero.",
+    "notReportedHint": "MESAPAY registra los cobros, pero necesita confirmar los abonos que ingresaron a esta wallet para calcular un pendiente exacto.",
     "unavailableHint": "No pudimos consultar los fondos pendientes. El saldo disponible se muestra por separado.",
     "retry": "Reintentar consulta de pendientes",
-    "updatedAt": "Actualización de pendientes: {date}"
+    "updatedAt": "Actualización de pendientes: {date}",
+    "viewActivity": "Ver cobros y conciliación"
   },
   "adminWorkspace": {
     "portalName": "Administración general",
@@ -10302,5 +10303,58 @@
     "merchantActivitySection": "Actividad de los comercios",
     "attentionIntro": "Revisa las cuentas por vencer, vencidas o suspendidas.",
     "noRecentRestaurants": "Los nuevos restaurantes aparecerán aquí cuando crees el primero."
+  },
+  "walletIncoming": {
+    "title": "Cobros de MESAPAY y conciliación",
+    "intro": "Compara los cobros registrados en MESAPAY con el reporte de liquidaciones de Kushki.",
+    "refresh": "Actualizar conciliación",
+    "loading": "Consultando…",
+    "loadingDetail": "Consultando los cobros y el reporte de liquidaciones…",
+    "errors": {
+      "scopeChanged": "La cuenta cambió. Actualiza la conciliación para consultar los datos actuales.",
+      "rateLimited": "Espera un momento antes de volver a actualizar la conciliación.",
+      "requestFailed": "No pudimos actualizar la conciliación. Inténtalo de nuevo; el saldo disponible se consulta por separado."
+    },
+    "dateUnknown": "Fecha no confirmada",
+    "currencyUnknown": "Moneda sin confirmar",
+    "sources": {
+      "order": "Cobro de pedido",
+      "subscription": "Cobro de suscripción",
+      "reservation": "Cobro de reserva",
+      "voucher": "Cobro de bono"
+    },
+    "recordDate": "Fecha de registro: {date}",
+    "chargeDate": "Fecha de cobro: {date}",
+    "grossCharged": "Bruto cobrado",
+    "refundRecorded": "Devolución registrada",
+    "grossReported": "Bruto reportado",
+    "netReported": "Neto reportado",
+    "reportDate": "Fecha informada en el reporte",
+    "noMatch": "Sin coincidencia en el reporte. Esto no confirma que el cobro esté pendiente de ingresar.",
+    "reportNotChecked": "Sin contraste con el reporte de liquidaciones.",
+    "period": "Cobros del {start} al {end}",
+    "chargeCount": "{count, plural, one {# cobro registrado} other {# cobros registrados}}",
+    "statuses": {
+      "available": "Reporte de liquidaciones disponible para contrastar los cobros.",
+      "permission_required": "Kushki no tiene habilitada la consulta de liquidaciones de esta cuenta.",
+      "credentials_missing": "Falta configurar la cuenta de recaudo para consultar liquidaciones. Los cobros locales se muestran por separado.",
+      "unavailable": "No pudimos consultar el reporte de liquidaciones. Los cobros registrados en MESAPAY siguen visibles.",
+      "unsupported": "La consulta de liquidaciones no está disponible para esta cuenta o ambiente."
+    },
+    "unknownCurrencyCount": "{count, plural, one {# cobro tiene la moneda sin confirmar. Su importe se muestra sin símbolo de moneda.} other {# cobros tienen la moneda sin confirmar. Sus importes se muestran sin símbolo de moneda.}}",
+    "localTruncated": "Mostramos sólo una parte de los cobros registrados en este período.",
+    "reportIncomplete": "El reporte no está completo; pueden faltar coincidencias.",
+    "unmatchedReportCount": "{count, plural, one {# registro del reporte no coincide con los cobros mostrados.} other {# registros del reporte no coinciden con los cobros mostrados.}}",
+    "empty": "No hay cobros de MESAPAY en este período. Esto no confirma que la wallet no tenga abonos pendientes.",
+    "showMore": "Ver más cobros",
+    "notWalletCredit": "Este reporte no confirma ingresos en esta wallet ni aumenta el saldo disponible. Sus fechas e importes no son una confirmación de abono.",
+    "billingAccountHint": "El reporte corresponde a la cuenta de recaudo de las suscripciones. Puede ser distinta de la cuenta configurada para dispersar.",
+    "reportThrough": "Reporte consultado hasta el {date}.",
+    "queriedAt": "Última consulta: {date}.",
+    "registeredAmount": "Importe registrado",
+    "reportMode": {
+      "sandbox": "Reporte de pruebas",
+      "production": "Reporte de producción"
+    }
   }
 }

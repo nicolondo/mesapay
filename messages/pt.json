@@ -10246,12 +10246,13 @@
     "title": "Valores pendentes de entrada",
     "loading": "Consultando…",
     "unavailable": "Indisponível",
-    "notReported": "Não informado pela Kushki",
+    "notReported": "Créditos a confirmar",
     "notSpendable": "Ainda não disponível para transferências.",
-    "notReportedHint": "A Kushki não informa esse valor na consulta disponível. Isso não significa que os valores pendentes sejam zero.",
+    "notReportedHint": "O MESAPAY registra as cobranças, mas precisa confirmar os créditos recebidos nesta wallet para calcular o valor pendente exato.",
     "unavailableHint": "Não foi possível consultar os valores pendentes. O saldo disponível é exibido separadamente.",
     "retry": "Consultar valores pendentes novamente",
-    "updatedAt": "Atualização dos valores pendentes: {date}"
+    "updatedAt": "Atualização dos valores pendentes: {date}",
+    "viewActivity": "Ver cobranças e conciliação"
   },
   "adminWorkspace": {
     "portalName": "Administração geral",
@@ -10302,5 +10303,58 @@
     "merchantActivitySection": "Atividade dos estabelecimentos",
     "attentionIntro": "Revise as contas a vencer, vencidas ou suspensas.",
     "noRecentRestaurants": "Os novos restaurantes aparecerão aqui quando você criar o primeiro."
+  },
+  "walletIncoming": {
+    "title": "Cobranças do MESAPAY e conciliação",
+    "intro": "Compare as cobranças registradas no MESAPAY com o relatório de liquidações da Kushki.",
+    "refresh": "Atualizar conciliação",
+    "loading": "Consultando…",
+    "loadingDetail": "Consultando as cobranças e o relatório de liquidações…",
+    "errors": {
+      "scopeChanged": "A conta mudou. Atualize a conciliação para consultar os dados atuais.",
+      "rateLimited": "Aguarde um momento antes de atualizar a conciliação novamente.",
+      "requestFailed": "Não foi possível atualizar a conciliação. Tente novamente; o saldo disponível é consultado separadamente."
+    },
+    "dateUnknown": "Data não confirmada",
+    "currencyUnknown": "Moeda não confirmada",
+    "sources": {
+      "order": "Cobrança de pedido",
+      "subscription": "Cobrança de assinatura",
+      "reservation": "Cobrança de reserva",
+      "voucher": "Cobrança de vale"
+    },
+    "recordDate": "Data de registro: {date}",
+    "chargeDate": "Data da cobrança: {date}",
+    "grossCharged": "Bruto cobrado",
+    "refundRecorded": "Devolução registrada",
+    "grossReported": "Bruto informado",
+    "netReported": "Líquido informado",
+    "reportDate": "Data informada no relatório",
+    "noMatch": "Sem correspondência no relatório. Isso não confirma que a cobrança esteja aguardando crédito.",
+    "reportNotChecked": "Sem comparação com o relatório de liquidações.",
+    "period": "Cobranças de {start} a {end}",
+    "chargeCount": "{count, plural, one {# cobrança registrada} other {# cobranças registradas}}",
+    "statuses": {
+      "available": "Relatório de liquidações disponível para comparar as cobranças.",
+      "permission_required": "A Kushki não habilitou a consulta de liquidações desta conta.",
+      "credentials_missing": "Configure a conta de recebimentos para consultar as liquidações. As cobranças locais são exibidas separadamente.",
+      "unavailable": "Não foi possível consultar o relatório de liquidações. As cobranças registradas no MESAPAY continuam visíveis.",
+      "unsupported": "A consulta de liquidações não está disponível para esta conta ou ambiente."
+    },
+    "unknownCurrencyCount": "{count, plural, one {# cobrança está com a moeda não confirmada. Seu valor é exibido sem símbolo de moeda.} other {# cobranças estão com a moeda não confirmada. Seus valores são exibidos sem símbolo de moeda.}}",
+    "localTruncated": "Exibimos apenas parte das cobranças registradas neste período.",
+    "reportIncomplete": "O relatório está incompleto; algumas correspondências podem estar ausentes.",
+    "unmatchedReportCount": "{count, plural, one {# registro do relatório não corresponde às cobranças exibidas.} other {# registros do relatório não correspondem às cobranças exibidas.}}",
+    "empty": "Não há cobranças do MESAPAY neste período. Isso não confirma que a wallet não tenha créditos pendentes.",
+    "showMore": "Ver mais cobranças",
+    "notWalletCredit": "Este relatório não confirma entradas nesta wallet nem aumenta o saldo disponível. As datas e os valores não confirmam um crédito na wallet.",
+    "billingAccountHint": "O relatório pertence à conta de recebimento das assinaturas. Ela pode ser diferente da conta configurada para transferências.",
+    "reportThrough": "Relatório consultado até {date}.",
+    "queriedAt": "Última consulta: {date}.",
+    "registeredAmount": "Valor registrado",
+    "reportMode": {
+      "sandbox": "Relatório de testes",
+      "production": "Relatório de produção"
+    }
   }
 }

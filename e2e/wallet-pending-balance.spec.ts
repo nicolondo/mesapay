@@ -54,6 +54,12 @@ async function fixture(page: Page, surface: Surface, initial: Balance) {
     if (route.request().method() !== "GET") payouts++;
     return route.fulfill({ json: { payouts: [], nextCursor: null } });
   });
+  await page.route(`**/api/${surface}/wallet/incoming?*`, route => route.fulfill({ json: {
+    accountId: "wallet-pending-account", restaurantId, status: "credentials_missing", reportMode: null,
+    periodStart: "2026-11-01T05:00:00.000Z", periodEnd: "2026-11-06T15:00:00.000Z",
+    queriedAt: "2026-11-06T15:00:00.000Z", reportThrough: "2026-11-05",
+    localCharges: [], localTruncated: false, unmatchedReportCount: 0, reportComplete: false,
+  } }));
   await page.route("**/api/operator/wallet/disperse", route => { payouts++; return route.fulfill({ status: 409, json: { error: "test_no_real_payout" } }); });
   if (surface === "admin") await page.route("**/api/admin/wallet/config", route => route.fulfill({ json: { account: { id: "wallet-pending-account", label: "Suscripciones de prueba", mode: "sandbox", publicKey: "local-public-fixture", hasPrivateKey: true, createdAt: "2026-11-06T15:00:00.000Z" }, billingConfigured: true } }));
   await page.goto(`/${surface}/wallet`);
@@ -81,12 +87,12 @@ for (const surface of ["admin", "operator"] as const) {
     await expect(pending).toContainText(/\$\s*0/);
     h.setBalance({ availableCents: 45_000_000, pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
     await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending).toContainText("No informado por Kushki");
+    await expect(pending).toContainText("Abonos por confirmar");
     await expect(pending).not.toContainText(/\$\s*0/);
     await captureAtTop(page, info.outputPath(`${surface}-pending-not-reported.png`));
     h.setBalance({ availableCents: 45_000_000 });
     await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending).toContainText("No informado por Kushki");
+    await expect(pending).toContainText("Abonos por confirmar");
     h.setBalance({ availableCents: 45_000_000, pendingCents: null, pendingStatus: "unavailable", pendingUpdatedAt: null });
     await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
     await expect(pending.getByRole("alert")).toContainText("No pudimos consultar los fondos pendientes");

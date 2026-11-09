@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { WalletPendingBalance } from "@/components/WalletPendingBalance";
+import { WalletIncomingActivity } from "@/components/WalletIncomingActivity";
 import { WalletConfig } from "./WalletConfig";
 import { WalletHistory } from "./WalletHistory";
 import { WalletTransfer } from "./WalletTransfer";
@@ -107,7 +108,7 @@ export function WalletClient() {
             <p className="mt-2 break-words font-display text-4xl leading-tight sm:text-5xl" aria-live="polite">{balance ? formatMoney(balance.availableCents, { currency: "COP", locale }) : t(balanceBusy ? "loadingBalance" : "balanceUnavailable")}</p>
             <p className="mt-2 font-mono text-xs text-op-muted">{t("currencyLabel")}</p>
           </div>
-          <WalletPendingBalance balance={balance} currency="COP" loading={balanceBusy} failed={Boolean(balanceError)} onRetry={() => loadBalance(account)} />
+          <WalletPendingBalance balance={balance} currency="COP" loading={balanceBusy} failed={Boolean(balanceError)} onRetry={() => loadBalance(account)} activityHref="#wallet-incoming" />
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4 border-t border-op-border p-5 md:px-7">
           <div className="max-w-3xl"><p className="text-sm leading-relaxed text-op-muted">{t("balanceHint")}</p>{balance && <p className="mt-3 text-xs text-op-muted">{t("queriedAt", { date: formatDate(balance.queriedAt, { locale, timeZone: "America/Bogota" }) })}</p>}{balance?.balanceDate && <p className="mt-1 text-xs text-op-muted">{t("balanceDate", { date: formatDate(balance.balanceDate, { locale, timeZone: "America/Bogota" }) })}</p>}{balanceError && <p role="alert" className="mt-3 text-sm text-red-700">{t(t.has(`errors.${balanceError}`) ? `errors.${balanceError}` : "errors.balance_failed")}</p>}</div>
@@ -115,6 +116,7 @@ export function WalletClient() {
         </div>
       </section>
       <WalletTransfer key={account.id} account={account} balance={balance} banks={banks} banksError={banksError} reloadBanks={() => loadBanks(account)} onPayout={updatePayout} payouts={payouts} blocked={payouts.some((payout) => payout.status === "submitting" || payout.status === "unknown")} />
+      <WalletIncomingActivity key={"incoming-" + account.id} surface="admin" scopeId={account.id} />
     </>}
     {config && <WalletHistory payouts={payouts} loading={historyBusy} error={historyError} hasMore={Boolean(nextCursor)} onLoadMore={() => { if (nextCursor) void loadHistory(nextCursor); }} onReload={() => loadHistory()} onUpdate={updatePayout} />}
   </div>;

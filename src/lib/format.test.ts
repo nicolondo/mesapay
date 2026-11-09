@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney } from "./format";
+import { formatMoney, formatNumber } from "./format";
+
+describe("amounts whose currency is not recorded", () => {
+  it("shows localized numbers without inventing a currency", () => {
+    expect(formatNumber(15000.25, { locale: "es" })).toBe("15.000,25");
+    expect(formatNumber(15000.25, { locale: "en" })).toBe("15,000.25");
+    expect(formatNumber(-15000.25, { locale: "pt" })).toBe("-15.000,25");
+  });
+});
 
 describe("exact fiscal amounts", () => {
   it("keeps the existing COP default", () => {

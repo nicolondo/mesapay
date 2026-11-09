@@ -7,13 +7,14 @@ import type { Locale } from "@/i18n/config";
 import type { WalletPendingBalance as PendingBalance } from "@/lib/payments/walletPending";
 
 /** A missing pending amount is unknown, never zero or additional spending power. */
-export function WalletPendingBalance({ balance, currency = "COP", loading = false, failed = false, onRetry, dark = false }: {
+export function WalletPendingBalance({ balance, currency = "COP", loading = false, failed = false, onRetry, dark = false, activityHref }: {
   balance: Partial<PendingBalance> | null;
   currency?: string;
   loading?: boolean;
   failed?: boolean;
   onRetry: () => void;
   dark?: boolean;
+  activityHref?: string;
 }) {
   const t = useTranslations("walletPending");
   const locale = useLocale() as Locale;
@@ -33,6 +34,7 @@ export function WalletPendingBalance({ balance, currency = "COP", loading = fals
     </p>
     <p className={`mt-2 text-xs leading-relaxed ${muted}`}>{t("notSpendable")}</p>
     {!waiting && !reported && !unavailable && <p className={`mt-2 text-xs leading-relaxed ${muted}`}>{t("notReportedHint")}</p>}
+    {!waiting && !reported && activityHref && <a href={activityHref} className="mt-3 inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">{t("viewActivity")}</a>}
     {date && Number.isFinite(date.getTime()) && <p className={`mt-2 text-xs ${muted}`}>{t("updatedAt", { date: formatDate(date, { locale, timeZone: "America/Bogota" }) })}</p>}
     {!waiting && unavailable && <div className="mt-3">
       <p role="alert" className={`text-xs leading-relaxed ${dark ? "text-amber-100" : "text-amber-900"}`}>{t("unavailableHint")}</p>

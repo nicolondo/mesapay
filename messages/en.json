@@ -10246,12 +10246,13 @@
     "title": "Incoming funds pending",
     "loading": "Checking…",
     "unavailable": "Unavailable",
-    "notReported": "Not reported by Kushki",
+    "notReported": "Credits awaiting confirmation",
     "notSpendable": "Not yet available for payouts.",
-    "notReportedHint": "Kushki does not report this amount in the available balance query. This does not mean that pending funds are zero.",
+    "notReportedHint": "MESAPAY records charges but needs to confirm credits received in this wallet to calculate an exact pending amount.",
     "unavailableHint": "We could not check incoming funds. The available balance is shown separately.",
     "retry": "Retry incoming funds query",
-    "updatedAt": "Incoming funds updated: {date}"
+    "updatedAt": "Incoming funds updated: {date}",
+    "viewActivity": "View charges and reconciliation"
   },
   "adminWorkspace": {
     "portalName": "Platform administration",
@@ -10302,5 +10303,58 @@
     "merchantActivitySection": "Merchant activity",
     "attentionIntro": "Review expiring, overdue or suspended accounts.",
     "noRecentRestaurants": "New restaurants will appear here once you create the first one."
+  },
+  "walletIncoming": {
+    "title": "MESAPAY charges and reconciliation",
+    "intro": "Compare charges recorded in MESAPAY with Kushki’s settlement report.",
+    "refresh": "Refresh reconciliation",
+    "loading": "Checking…",
+    "loadingDetail": "Checking charges and the settlement report…",
+    "errors": {
+      "scopeChanged": "The account changed. Refresh reconciliation to see the current data.",
+      "rateLimited": "Wait a moment before refreshing reconciliation again.",
+      "requestFailed": "We could not refresh reconciliation. Try again; available funds are checked separately."
+    },
+    "dateUnknown": "Date not confirmed",
+    "currencyUnknown": "Currency not confirmed",
+    "sources": {
+      "order": "Order charge",
+      "subscription": "Subscription charge",
+      "reservation": "Reservation charge",
+      "voucher": "Voucher charge"
+    },
+    "recordDate": "Record date: {date}",
+    "chargeDate": "Charge date: {date}",
+    "grossCharged": "Gross charged",
+    "refundRecorded": "Recorded refund",
+    "grossReported": "Reported gross",
+    "netReported": "Reported net",
+    "reportDate": "Date shown in the report",
+    "noMatch": "No match in the report. This does not confirm that the charge is awaiting credit.",
+    "reportNotChecked": "Not compared with the settlement report.",
+    "period": "Charges from {start} to {end}",
+    "chargeCount": "{count, plural, one {# recorded charge} other {# recorded charges}}",
+    "statuses": {
+      "available": "The settlement report is available to compare with charges.",
+      "permission_required": "Kushki has not enabled settlement queries for this account.",
+      "credentials_missing": "Set up the collection account to query settlements. Local charges are shown separately.",
+      "unavailable": "We could not query the settlement report. Charges recorded in MESAPAY remain visible.",
+      "unsupported": "Settlement queries are not available for this account or environment."
+    },
+    "unknownCurrencyCount": "{count, plural, one {# charge has an unconfirmed currency. Its amount is shown without a currency symbol.} other {# charges have an unconfirmed currency. Their amounts are shown without a currency symbol.}}",
+    "localTruncated": "Only some of the charges recorded in this period are shown.",
+    "reportIncomplete": "The report is incomplete; some matches may be missing.",
+    "unmatchedReportCount": "{count, plural, one {# report entry does not match the charges shown.} other {# report entries do not match the charges shown.}}",
+    "empty": "There are no MESAPAY charges in this period. This does not confirm that the wallet has no pending credits.",
+    "showMore": "Show more charges",
+    "notWalletCredit": "This report does not confirm incoming funds in this wallet or increase available funds. Its dates and amounts do not confirm a wallet credit.",
+    "billingAccountHint": "The report belongs to the subscription collection account. It may differ from the account configured for payouts.",
+    "reportThrough": "Report queried through {date}.",
+    "queriedAt": "Last checked: {date}.",
+    "registeredAmount": "Recorded amount",
+    "reportMode": {
+      "sandbox": "Sandbox report",
+      "production": "Production report"
+    }
   }
 }

@@ -82,6 +82,8 @@ export default async function WalletPage() {
 
   return (
     <WalletClient
+      key={restaurantId}
+      restaurantId={restaurantId}
       tenantName={tenant.name}
       onboarded={
         !!tenant.kushkiMerchantId &&

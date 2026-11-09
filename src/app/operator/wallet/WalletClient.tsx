@@ -2,6 +2,7 @@
 
 import { MoneyInput } from "@/components/MoneyInput";
 import { WalletPendingBalance } from "@/components/WalletPendingBalance";
+import { WalletIncomingActivity } from "@/components/WalletIncomingActivity";
 import type { WalletPendingBalance as PendingBalance } from "@/lib/payments/walletPending";
 import type { Locale } from "@/i18n/config";
 
@@ -44,6 +45,7 @@ type AutoPolicy =
     };
 
 export function WalletClient({
+  restaurantId,
   tenantName,
   onboarded,
   bankLabel,
@@ -51,6 +53,7 @@ export function WalletClient({
   initialPayouts,
   initialPolicy,
 }: {
+  restaurantId: string;
   tenantName: string;
   onboarded: boolean;
   bankLabel: string | null;
@@ -157,7 +160,7 @@ export function WalletClient({
             {balanceErr && <p role="alert" className="mt-3 text-xs text-amber-100">{t("balanceFailedHint")}</p>}
             <button type="button" onClick={refreshBalance} disabled={balanceLoading} className="mt-4 min-h-11 rounded-full border border-bone/30 px-4 py-2 text-xs font-medium hover:bg-bone/10 disabled:opacity-50">{t(balanceLoading ? "refreshingBalance" : "refreshBalance")}</button>
           </div>
-          <WalletPendingBalance balance={balance} currency={balance?.currency ?? "COP"} loading={balanceLoading} failed={Boolean(balanceErr)} onRetry={refreshBalance} dark />
+          <WalletPendingBalance balance={balance} currency={balance?.currency ?? "COP"} loading={balanceLoading} failed={Boolean(balanceErr)} onRetry={refreshBalance} dark activityHref="#wallet-incoming" />
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <button
@@ -193,6 +196,8 @@ export function WalletClient({
           </p>
         )}
       </div>
+
+      <div className="mb-8"><WalletIncomingActivity key={restaurantId} surface="operator" scopeId={restaurantId} /></div>
 
       {initialPayouts.length > 0 && (
         <section className="mb-8">

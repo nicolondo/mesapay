@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * POST /api/operator/orders/[id]/pay-link: gate (factura manual abierta con
@@ -76,6 +76,9 @@ const post = (body?: unknown) =>
   );
 
 beforeEach(() => {
+  // Expiry fixtures must not become expired merely because the suite runs later.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-02T12:00:00Z"));
   vi.clearAllMocks();
   m.scope.mockResolvedValue({ restaurantId: "r1", role: "operator", userId: "u1" });
   m.order.mockResolvedValue(order);
@@ -86,6 +89,7 @@ beforeEach(() => {
   m.linkUpdate.mockResolvedValue({ id: "pl1", token: "tok", expiresAt: EXPIRES, payerEmail: "a@b.co", emailSentAt: new Date() });
   m.sendEmail.mockResolvedValue(true);
 });
+afterEach(() => vi.useRealTimers());
 
 describe("gate", () => {
   it("sólo caja: un mesero no genera links", async () => {

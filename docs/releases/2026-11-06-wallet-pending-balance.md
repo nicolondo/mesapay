@@ -2,7 +2,9 @@
 
 ## Estado
 
-La presentación y el contrato de datos se incluyen en la versión del rediseño del administrador. **No está resuelta la obtención del importe pendiente real.** El diagnóstico de las cuentas reales requiere la autorización específica solicitada al usuario tras el rechazo de revisión automática. No volver a ejecutarlo sin esa autorización.
+La presentación y el contrato de datos se incluyeron en la versión del rediseño del administrador. **No está resuelta la obtención del importe pendiente real.** El usuario autorizó posteriormente el diagnóstico de sólo lectura para la cuenta de suscripciones de MESAPAY y Son y Melona. La consulta se realizó sin cobros, devoluciones ni dispersiones.
+
+Actualización del 9 de noviembre: el reporte de suscripciones responde correctamente al indicar `switch=ecommerce` y limitar `endDate` al día anterior. Son y Melona devuelve `403/E003`, falta de permisos para consultar liquidaciones. El reporte de suscripciones puede incluir `payment_date` futura y no identifica la wallet de destino; una fila de ese reporte no basta para afirmar que hubo un abono. Ver [conciliación informativa](2026-11-09-wallet-collection-reconciliation.md).
 
 ## Comportamiento preparado
 

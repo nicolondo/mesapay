@@ -57,6 +57,17 @@ export function localeTag(locale: Locale = defaultLocale): string {
   return LOCALE_TAG[locale] ?? LOCALE_TAG[defaultLocale];
 }
 
+/** Localized numeric value, without assuming a currency or changing units. */
+export function formatNumber(
+  value: number,
+  opts?: { locale?: Locale; maximumFractionDigits?: number; minimumFractionDigits?: number },
+): string {
+  return new Intl.NumberFormat(localeTag(opts?.locale), {
+    minimumFractionDigits: opts?.minimumFractionDigits ?? 0,
+    maximumFractionDigits: opts?.maximumFractionDigits ?? 2,
+  }).format(value);
+}
+
 export function formatMoney(
   cents: number,
   opts?: { currency?: string; locale?: Locale; fractionDigits?: 0 | 2 },

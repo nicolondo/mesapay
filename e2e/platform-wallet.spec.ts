@@ -40,6 +40,12 @@ async function fixture(page: Page) {
     const config = await db.platformConfig.findUnique({ where: { id: "singleton" } });
     await route.fulfill({ json: { accountId: config?.platformWalletAccountId, banks: [{ id: "1007", name: "Bancolombia" }] } });
   });
+  await page.route("**/api/admin/wallet/incoming?*", route => route.fulfill({ json: {
+    accountId: new URL(route.request().url()).searchParams.get("accountId"), status: "credentials_missing", reportMode: null,
+    periodStart: "2026-11-01T05:00:00.000Z", periodEnd: "2026-11-06T15:00:00.000Z",
+    queriedAt: "2026-11-06T15:00:00.000Z", reportThrough: "2026-11-05",
+    localCharges: [], localTruncated: false, unmatchedReportCount: 0, reportComplete: false,
+  } }));
   await page.route(/\/api\/admin\/wallet\/payouts(?:\?.*)?$/, async route => {
     if (route.request().method() === "GET") {
       const key = new URL(route.request().url()).searchParams.get("idempotencyKey");

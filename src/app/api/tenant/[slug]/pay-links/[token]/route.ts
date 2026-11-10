@@ -6,6 +6,7 @@ import { getPaymentProvider, getRestaurantPrivateKey } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { paymentLinkIsOpen, settlePaymentLinkInTx } from "@/lib/paymentLinks";
 import { kushkiDeclineReason } from "@/lib/payments/kushki/declineReason";
+import { captureLinkTrackingFields } from "@/lib/walletTrackingCapture";
 
 /**
  * Cobra un LINK DE PAGO con un token de tarjeta / Apple Pay (Kushki).
@@ -58,11 +59,14 @@ async function POSTHandler(
     );
   }
 
-  const provider = await getPaymentProvider(await getRestaurantKushkiMode(tenant));
+  const mode = await getRestaurantKushkiMode(tenant);
+  const provider = await getPaymentProvider(mode);
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
+  const tracking = await captureLinkTrackingFields({ restaurantId: tenant.id, mode, currency: link.currency, privateKey });
+  if (Object.keys(tracking).length) await db.paymentLink.updateMany({ where: { id: link.id, status: "pending" }, data: tracking });
 
   let charge;
   try {

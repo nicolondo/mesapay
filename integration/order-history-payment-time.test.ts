@@ -18,7 +18,7 @@ let carriedSale: string;
 let invoicedOrder: string;
 
 const view = (patch: Partial<OrdersView> = {}): OrdersView => ({
-  status: "all", q: "", period: { desde: DAY, hasta: DAY }, allDates: false, page: 1, ...patch,
+  status: "all", source: "all", tableId: "", q: "", period: { desde: DAY, hasta: DAY }, allDates: false, page: 1, ...patch,
 });
 const codes = async (patch: Partial<OrdersView> = {}, pageSize?: number) =>
   (await loadOrdersList(restaurantId, view(patch), CUTOFF, pageSize)).rows.map((r) => r.shortCode);

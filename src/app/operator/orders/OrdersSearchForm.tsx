@@ -31,6 +31,8 @@ export function OrdersSearchForm({ view, today }: { view: OrdersView; today: str
       className="flex w-full min-w-0 items-center gap-2 lg:w-auto"
     >
       {view.status !== "all" && <input type="hidden" name="status" value={view.status} />}
+      {view.source !== "all" && <input type="hidden" name="source" value={view.source} />}
+      {view.source === "tables" && view.tableId && <input type="hidden" name="tableId" value={view.tableId} />}
       {customPeriod && (
         <>
           <input type="hidden" name="desde" value={view.period.desde} />

@@ -32,6 +32,7 @@ async function fixture(page: Page) {
   let balanceFails = false;
   let unknownSend = false;
   const statusRequests: unknown[] = [];
+  await page.route("**/api/admin/wallet/tracking**", route => route.fulfill({ status: 503, json: { error: "tracking_unavailable" } }));
   await page.route("**/api/admin/wallet/balance", async route => {
     const config = await db.platformConfig.findUnique({ where: { id: "singleton" } });
     await route.fulfill({ status: balanceFails ? 502 : 200, json: balanceFails ? { error: "balance_failed" } : { accountId: config?.platformWalletAccountId, availableCents: 50_000_000_000, currency: "COP", queriedAt: new Date().toISOString(), balanceDate: new Date().toISOString() } });

@@ -7,7 +7,8 @@ import type {
   CardMeta,
 } from "@/lib/payments/subscription";
 import { kushkiFetch } from "@/lib/payments/kushki/client";
-import { getBillingCredentials, type KushkiMode } from "@/lib/platformConfig";
+import { getBillingCredentials, getKushkiMode, type KushkiMode } from "@/lib/platformConfig";
+import { captureWalletTrackingContext } from "@/lib/walletTracking/context";
 
 /**
  * Kushki One-click & scheduled payments con la cuenta de PLATAFORMA.
@@ -73,9 +74,11 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
 
     // VERIFY vs sandbox: confirmar que POST /subscriptions/v1/card acepta este body.
     const billingKey = await this.resolveBillingPrivateKey();
+    const mode = this.mode ?? await getKushkiMode();
+    const tracking = await captureWalletTrackingContext({ kind: "platform" }, { mode, currency: req.currency, collectionPrivateKey: billingKey });
     const resp = await kushkiFetch<Record<string, unknown>>(
       "/subscriptions/v1/card",
-      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode, body },
+      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode, body },
     );
     console.log("[billing] createCardSubscription resp shape", {
       subscriptionId: resp.subscriptionId,
@@ -85,6 +88,7 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     return {
       subscriptionId: String(resp.subscriptionId ?? ""),
       card: cardFrom(resp),
+      ...(tracking ? { tracking } : {}),
     };
   }
 
@@ -110,9 +114,11 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     // Puede ser /subscriptions/v1/card/{id}/charge en vez de /subscriptions/v1/card/{id} (POST distinto al de crear)
     // El body de arriba es best-guess.
     const billingKey = await this.resolveBillingPrivateKey();
+    const mode = this.mode ?? await getKushkiMode();
+    const tracking = await captureWalletTrackingContext({ kind: "platform" }, { mode, currency: req.currency, collectionPrivateKey: billingKey });
     const resp = await kushkiFetch<Record<string, unknown>>(
       `/subscriptions/v1/card/${req.subscriptionId}`,
-      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode: this.mode, body },
+      { method: "POST", auth: { kind: "billing", privateKey: billingKey }, mode, body },
     );
 
     // VERIFY vs sandbox: confirmar qué campo indica aprobación.
@@ -127,7 +133,7 @@ export class LiveSubscriptionProvider implements SubscriptionProvider {
     });
 
     return approved
-      ? { status: "approved", transactionId: String(ticket) }
+      ? { status: "approved", transactionId: String(ticket), ...(tracking ? { tracking } : {}) }
       : { status: "declined", transactionId: null, message: String(resp.message ?? resp.text ?? "declined") };
   }
 

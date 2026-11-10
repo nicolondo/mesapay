@@ -65,6 +65,7 @@ vi.mock("@/lib/db", () => ({ db: {
     aggregate: async () => ({ _avg: { totalCents: 0 }, _sum: { totalCents: 0 } }),
   },
   orderItem: { groupBy: async () => [] },
+  table: { findMany: async () => [] },
 } }));
 vi.mock("@/lib/membership", () => ({ deriveMembershipStatus: () => "activo" }));
 vi.mock("./boardActivity", () => ({ computeBoardActivity: async () => ({ kitchen: 0, bar: 0, floor: 0 }) }));

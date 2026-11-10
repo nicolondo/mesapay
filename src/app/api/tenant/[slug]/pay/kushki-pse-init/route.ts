@@ -1,4 +1,5 @@
 import { reservePayment, markPaymentUncertain } from "@/lib/payments/intent";
+import { capturePaymentTrackingFields } from "@/lib/walletTrackingCapture";
 import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
@@ -214,7 +215,8 @@ async function POSTHandler(
   // host/x-forwarded-* del request; nunca req.url.
   const origin = appOrigin(req);
   // Reserve before network I/O; retries reuse the token's request key.
-  const intent = await reservePayment({ orderId: order.id, method: "kushki_pse", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId }, parsed.data.token ?? req.headers.get("Idempotency-Key") ?? undefined);
+  const tracking = await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency: "COP", privateKey: privateKey ?? undefined });
+  const intent = await reservePayment({ orderId: order.id, method: "kushki_pse", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId, ...tracking }, parsed.data.token ?? req.headers.get("Idempotency-Key") ?? undefined);
   const payment = intent.payment;
   if (!intent.created) return NextResponse.json({ error: "payment_pending", paymentId: payment.id, pending: payment.status === "pending", approved: payment.status === "approved" }, { status: 202 });
 

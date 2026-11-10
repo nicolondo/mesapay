@@ -18,6 +18,7 @@ import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { staffForRestaurant, COLLECTOR_ROLES } from "@/lib/staffAccess";
+import { capturePaymentTrackingFields } from "@/lib/walletTrackingCapture";
 
 /**
  * Token-based charge through Kushki. Maneja DOS variantes:
@@ -93,9 +94,12 @@ async function POSTHandler(
     return NextResponse.json({ error: "order not found" }, { status: 404 });
   }
 
-  const provider = await getPaymentProvider(await getRestaurantKushkiMode(tenant));
+  const mode = await getRestaurantKushkiMode(tenant);
+  const provider = await getPaymentProvider(mode);
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) return NextResponse.json({ error: "credentials_missing" }, { status: 503 });
+  const currency = await getCurrencyForCountry(tenant.country);
+  const tracking = await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, privateKey });
   // Quién inicia el cobro (mismo criterio que pse-init y terminal-request):
   // si lo lanza alguien del equipo desde su PWA (PayFlow op=1) queda
   // registrado para reportes y para que Mesas NO lo tome por un pago que el
@@ -103,11 +107,9 @@ async function POSTHandler(
   // comensal pagando desde su QR llega sin sesión → null.
   const staffSession = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
   const collectedByUserId = staffSession?.user.id ?? null;
-  const intent = await reservePayment({ orderId: order.id, method: parsed.data.method, status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId }, parsed.data.token);
+  const intent = await reservePayment({ orderId: order.id, method: parsed.data.method, status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents, collectedByUserId, ...tracking }, parsed.data.token);
   const pendingPayment = intent.payment;
   if (!intent.created) return NextResponse.json({ paymentId: pendingPayment.id, approved: pendingPayment.status === "approved", pending: pendingPayment.status === "pending" });
-
-  const currency = await getCurrencyForCountry(tenant.country);
 
   // contactDetails para Kushki (lo pide en el charge para el 3DS). Su API
   // exige firstName y lastName por separado, así que partimos el nombre
@@ -165,6 +167,7 @@ async function POSTHandler(
       kind: "charge",
       status: charge.status,
       amountCents: parsed.data.amountCents,
+      currency,
       raw: charge.raw as object,
       message: charge.message,
       ...cardInfo,

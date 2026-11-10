@@ -79,6 +79,7 @@ describe("cobertura de modelos al eliminar un comercio", () => {
     expect(PLATFORM_MODEL_POLICY.CommissionEntry.action).toBe("detach");
     expect(PLATFORM_MODEL_POLICY.AuditEvent.action).toBe("detach");
     expect(PLATFORM_MODEL_POLICY.CrmLead.action).toBe("detach");
+    expect(PLATFORM_MODEL_POLICY.WalletTrackingAccount.action).toBe("detach");
   });
 
   it("lo que se borra por política se puede ubicar por restaurantId (o es FinancialOperation, por paymentId)", () => {

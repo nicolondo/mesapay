@@ -8,6 +8,7 @@ import { WalletError } from "./errors";
 import { walletBalance, walletBanks, tokenizePayout, initializePayout, definiteInitRejection } from "./provider";
 import { payoutSchema, payloadFingerprint, safeCents } from "./validation";
 import type { PlatformPayoutDTO, WalletPayoutInput } from "./contracts";
+import { walletAccountFingerprint } from "@/lib/walletTracking/fingerprint";
 
 export type PayoutWithAccount = PlatformPayout & { account: PlatformWalletAccount };
 export function payoutDTO(p: PayoutWithAccount): PlatformPayoutDTO {
@@ -33,8 +34,13 @@ async function reserve(input: WalletPayoutInput, actor: WalletActor) {
     // rotation. Initialized transfers already have a provider receipt and debit.
     const uncertain = await tx.platformPayout.findFirst({ where: { status: { in: ["submitting", "unknown"] } }, select: { id: true } });
     if (uncertain) throw new WalletError("payout_in_progress");
+    // Tracking metadata must not turn an otherwise recorded preparation failure
+    // into an unrecorded attempt. Actual credentials are checked before init.
+    let walletFingerprint: string | null = null;
+    try { walletFingerprint = walletAccountFingerprint(credentials(config.platformWalletAccount)); } catch { /* Unbound outgoing stays explicitly unverified for tracking. */ }
     const payout = await tx.platformPayout.create({ data: {
       accountId: input.accountId, idempotencyKey: input.idempotencyKey, payloadFingerprint: fingerprint,
+      walletAccountFingerprint: walletFingerprint,
       amountCents: BigInt(input.amountCents), currency: "COP", bankId: input.destination.bankId,
       bankName: input.destination.bankId, accountType: input.destination.accountType, accountLast4: input.destination.accountNumber.slice(-4),
       holderName: input.destination.holderName, description: input.description || null, status: "submitting",

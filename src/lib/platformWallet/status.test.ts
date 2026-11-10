@@ -4,6 +4,7 @@ vi.mock("@/lib/db", () => { const tx = { $queryRaw: vi.fn(), platformPayout: { f
 vi.mock("./config", () => ({ credentials: () => ({ privateKey: "private" }), webhookSecret: () => "secret" }));
 vi.mock("./provider", () => ({ queryPayout: m.query }));
 vi.mock("./service", () => ({ payoutDTO: (p: unknown) => p }));
+vi.mock("@/lib/walletTracking/fingerprint", () => ({ walletAccountFingerprint: () => "verified-wallet-context" }));
 import { authorizePlatformWebhook, refreshPlatformPayout } from "./status";
 let row: Record<string, unknown>;
 const result = { ticketNumber: "1234", transactionReference: "provider-ref", totalAmount: 1000, currency: "COP", bankId: "000051", metadata: { reference: "our-ref" }, transactionStatus: "APPROVAL", transactionType: "PAYOUT" };
@@ -26,6 +27,8 @@ describe("verified payout reconciliation", () => {
     expect((await refreshPlatformPayout("p1")).status).toBe("approved");
     expect((await refreshPlatformPayout("p1")).status).toBe("approved");
     expect(m.query).toHaveBeenCalledTimes(1); expect(m.audit).toHaveBeenCalledTimes(1);
+    expect(row.providerVerifiedAt).toBeInstanceOf(Date);
+    expect(row.walletAccountFingerprint).toBe("verified-wallet-context");
   });
   it("rejects foreign tickets, amounts, currency and reference", async () => {
     for (const change of [{ ticketNumber: "9999" }, { totalAmount: 1 }, { currency: "MXN" }, { transactionReference: "foreign" }]) {

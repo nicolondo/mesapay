@@ -1,163 +1,52 @@
-import { secureApi } from "@/lib/secureApi";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { getCurrencyForCountry } from "@/lib/billing/countries";
-import {
-  getPaymentProvider,
-  getRestaurantPayoutCredentials,
-} from "@/lib/payments";
-import { getRestaurantKushkiMode } from "@/lib/platformConfig";
-import type { BankInfo } from "@/lib/payments";
-import { env } from "@/lib/env";
+import { secureApi } from "@/lib/secureApi";
+import { rateLimit } from "@/lib/rateLimit";
+import { walletJson, walletResponse } from "@/lib/platformWallet/api";
+import { WalletError } from "@/lib/platformWallet/errors";
+import { submitMerchantPayout } from "@/lib/merchantWallet/service";
+import { refreshMerchantPayout } from "@/lib/merchantWallet/status";
+import { merchantPayoutDTO } from "@/lib/merchantWallet/dto";
 
-const schema = z.object({
-  amountCents: z.number().int().min(100),
-  // Transferencia a OTRA cuenta (proveedor, empleado, etc.). Ausente ⇒
-  // dispersión a la cuenta propia registrada en el onboarding.
-  destination: z
-    .object({
-      bankId: z.string().min(1).max(20),
-      bankName: z.string().min(2).max(120),
-      accountType: z.enum(["ahorros", "corriente"]),
-      accountNumber: z.string().min(4).max(34),
-      docType: z.enum(["CC", "CE", "NIT", "PA"]),
-      docNumber: z.string().min(4).max(20),
-      holderName: z.string().min(3).max(120),
-    })
-    .optional(),
-});
-
-async function POSTHandler(req: Request) {
+async function scope(req: Request) {
   const session = await auth();
-  if (
-    !session?.user ||
-    (session.user.role !== "operator" && session.user.role !== "platform_admin" && session.user.role !== "group_admin")
-  ) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  if (!session?.user?.id || !["operator", "platform_admin", "group_admin"].includes(session.user.role)) throw new WalletError("unauthorized", 401);
   const restaurantId = await getActiveRestaurantId();
-  if (!restaurantId) {
-    return NextResponse.json({ error: "no restaurant" }, { status: 400 });
-  }
-  const body = await req.json().catch(() => null);
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
-  }
-  const tenant = await db.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: {
-      kushkiMerchantId: true,
-      kushkiPublicKey: true,
-      bankInfo: true,
-      kushkiMode: true,
-      country: true,
-    },
-  });
-  // La cuenta propia sólo es requisito cuando NO hay destino custom.
-  if (!tenant?.kushkiMerchantId || (!parsed.data.destination && !tenant.bankInfo)) {
-    return NextResponse.json({ error: "not_onboarded" }, { status: 409 });
-  }
-  // Llaves de Transfer Out: en producción son un par DISTINTO al de cobros
-  // (fallback al par principal si no están configuradas — UAT usa uno solo).
-  const payoutCreds = await getRestaurantPayoutCredentials(restaurantId);
-  if (!payoutCreds.publicKey || !payoutCreds.privateKey) {
-    return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
-  }
-  // Destino: la cuenta propia del onboarding, o la que el operador tipeó
-  // en "Transferir a otra cuenta" (con bankId directo del dropdown).
-  const dest = parsed.data.destination;
-  const bankInfo: BankInfo = dest
-    ? {
-        bankName: dest.bankName,
-        accountType: dest.accountType,
-        accountNumber: dest.accountNumber,
-        holderName: dest.holderName,
-        holderDocType: dest.docType,
-        holderDocNumber: dest.docNumber,
-        source: "manual",
-      }
-    : (tenant.bankInfo as unknown as BankInfo);
-
-  const reference = `mp-${Date.now()}`;
-  const currency = await getCurrencyForCountry(tenant.country);
-  const baseUrl = env.APP_PUBLIC_BASE_URL ?? "https://mesapay.co";
-
-  try {
-    const provider = await getPaymentProvider(
-      await getRestaurantKushkiMode(tenant),
-    );
-    const result = await provider.disburse({
-      merchantId: payoutCreds.privateKey,
-      publicKey: payoutCreds.publicKey,
-      amount: { amountCents: parsed.data.amountCents, currency },
-      bankInfo,
-      ...(dest ? { bankId: dest.bankId } : {}),
-      reference,
-      webhookUrl: `${baseUrl}/api/webhooks/kushki-payout`,
-    });
-
-    // Historial: registramos el Transfer Out iniciado. El webhook de payouts
-    // lo pasa a approved/declined. No guardamos el número de cuenta completo.
-    const payout = await db.payout.create({
-      data: {
-        restaurantId,
-        amountCents: parsed.data.amountCents,
-        currency,
-        toOwnAccount: !dest,
-        bankName: bankInfo.bankName,
-        bankId: dest?.bankId ?? null,
-        accountType: bankInfo.accountType,
-        accountLast4: bankInfo.accountNumber.slice(-4),
-        holderName: bankInfo.holderName,
-        status: "initialized",
-        providerRef: result.providerRef,
-        ticketNumber: result.ticketNumber ?? null,
-        reference,
-        createdByEmail: session.user.email ?? null,
-      },
-      select: { id: true },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      payoutId: payout.id,
-      providerRef: result.providerRef,
-      status: result.status,
-      estimatedSettlementAt: result.estimatedSettlementAt?.toISOString(),
-    });
-  } catch (err) {
-    // Registro informativo del intento fallido (no se pudo ni iniciar).
-    await db.payout
-      .create({
-        data: {
-          restaurantId,
-          amountCents: parsed.data.amountCents,
-          currency,
-          toOwnAccount: !dest,
-          bankName: bankInfo.bankName,
-          bankId: dest?.bankId ?? null,
-          accountType: bankInfo.accountType,
-          accountLast4: bankInfo.accountNumber.slice(-4),
-          holderName: bankInfo.holderName,
-          status: "failed",
-          reference,
-          responseText: err instanceof Error ? err.message.slice(0, 300) : null,
-          createdByEmail: session.user.email ?? null,
-        },
-      })
-      .catch(() => undefined);
-    return NextResponse.json(
-      {
-        error: "disperse_failed",
-        message: err instanceof Error ? err.message : "unknown",
-      },
-      { status: 502 },
-    );
-  }
+  if (!restaurantId) throw new WalletError("no_restaurant", 400);
+  if (!await rateLimit(`merchant-payout:${session.user.id}:${restaurantId}:${req.method}`, req.method === "GET" ? 60 : 20, 60)) throw new WalletError("rate_limited", 429);
+  return { restaurantId, actor: { id: session.user.id, email: session.user.email ?? "", role: session.user.role } };
 }
 
-export const POST = secureApi(POSTHandler);
+export const POST = secureApi(async (req: Request) => {
+  try {
+    const { restaurantId, actor } = await scope(req);
+    return walletResponse(await submitMerchantPayout(restaurantId, await walletJson(req), actor));
+  } catch (error) {
+    return walletResponse({ error: error instanceof WalletError ? error.code : "payout_unavailable" }, error instanceof WalletError ? error.status : 503);
+  }
+});
+
+/** Recovery consults one durable attempt; it never tokenizes or resends it. */
+export const GET = secureApi(async (req: Request) => {
+  try {
+    const { restaurantId } = await scope(req);
+    const params = new URL(req.url).searchParams;
+    const parsed = z.object({ restaurantId: z.string().min(1).max(100), idempotencyKey: z.string().uuid() }).safeParse({ restaurantId: params.get("restaurantId"), idempotencyKey: params.get("idempotencyKey") });
+    if (!parsed.success) throw new WalletError("invalid_payload", 400);
+    if (parsed.data.restaurantId !== restaurantId) throw new WalletError("tenant_changed");
+    const payout = await db.payout.findUnique({ where: { idempotencyKey: parsed.data.idempotencyKey } });
+    if (!payout || payout.restaurantId !== restaurantId) return walletResponse({ payout: null });
+    try { return walletResponse({ payout: await refreshMerchantPayout(restaurantId, payout.id) }); }
+    catch (error) {
+      // An early webhook may have updated the row during a failed GET. Return
+      // the newest persisted state instead of restoring the initial snapshot.
+      const current = await db.payout.findUnique({ where: { id: payout.id } });
+      if (!current || current.restaurantId !== restaurantId) throw new WalletError("payout_not_found", 404);
+      return walletResponse({ payout: merchantPayoutDTO(current), refreshError: error instanceof WalletError ? error.code : "payout_status_unavailable" });
+    }
+  } catch (error) {
+    return walletResponse({ error: error instanceof WalletError ? error.code : "payout_unavailable" }, error instanceof WalletError ? error.status : 503);
+  }
+});

@@ -95,6 +95,18 @@ beforeEach(() => {
 });
 
 describe("restoreSnapshot", () => {
+  it("never rewinds payouts or wallet tracking even when an old snapshot contains them", async () => {
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: snapshot({
+      Payout: [{ id: "old-payout", restaurantId: "r1", status: "initialized" }],
+      WalletTrackingAccount: [{ id: "old-cut", restaurantId: "r1" }],
+      WalletTrackingEntry: [], WalletBalanceSnapshot: [],
+    }) });
+    await restoreSnapshot({ restaurantId: "r1", backupId: "old-backup" });
+    for (const name of ["payout", "walletTrackingAccount", "walletTrackingEntry", "walletBalanceSnapshot"]) {
+      expect(mocks.delegateFor(name).deleteMany).not.toHaveBeenCalled();
+      expect(mocks.delegateFor(name).createMany).not.toHaveBeenCalled();
+    }
+  });
   it("rejects a backup of another restaurant before touching anything", async () => {
     mocks.backupFind.mockResolvedValue({ restaurantId: "other", data: snapshot() });
     await expect(restoreSnapshot({ restaurantId: "r1", backupId: "b1" })).rejects.toMatchObject({ code: "backup_not_found" });

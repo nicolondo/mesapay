@@ -74,6 +74,16 @@ export const PLATFORM_MODEL_POLICY: Readonly<Record<string, PlatformModelPolicy>
     archive: true,
     reason: "Pago de la mensualidad a MESAPAY: ingreso de la plataforma. Queda con deletedRestaurantName.",
   },
+  WalletTrackingAccount: {
+    action: "detach",
+    archive: true,
+    reason: "Estimación y registro de movimientos de la plataforma: el corte, los asientos y su idempotencia se conservan sin vínculo al comercio.",
+  },
+  Payout: {
+    action: "delete",
+    archive: true,
+    reason: "Los intentos de dispersión sobreviven a las restauraciones para conservar idempotencia; al eliminar definitivamente el comercio se archivan y borran.",
+  },
   CommissionEntry: {
     action: "detach",
     archive: true,
@@ -128,6 +138,9 @@ export const UNRELATED_MODELS: Readonly<Record<string, string>> = {
   PlatformConfig: "Configuración global de la plataforma.",
   PlatformWalletAccount: "Cuenta de dispersión de MESAPAY: sus credenciales y versiones no pertenecen a un comercio.",
   PlatformPayout: "Transferencias de fondos de MESAPAY: el historial y la idempotencia sobreviven al borrado de cualquier comercio.",
+  WalletTrackingEntry: "Asientos inmutables del seguimiento de wallet, conservados con WalletTrackingAccount.",
+  WalletBalanceSnapshot: "Observaciones de saldo conservadas con WalletTrackingAccount; no autorizan transferencias.",
+  WalletTrackingJob: "Cursor y coordinación del procesamiento global de seguimiento de wallets.",
   Translation: "Caché global de traducciones, por texto.",
   RateLimitBucket: "Contadores con vencimiento propio.",
   CreditNoteSeries:
@@ -208,6 +221,7 @@ export const ARCHIVE_REDACTED_FIELDS: Readonly<Record<string, readonly string[]>
   DianConfig: ["certP12Enc", "certPasswordEnc", "softwarePinEnc"],
   PrintAgent: ["tokenHash"],
   PaymentLink: ["token"],
+  Payout: ["webhookSecretEnc"],
 };
 export const SECRET_FIELD_PATTERN = /passwordHash|tokenHash|Enc$/;
 

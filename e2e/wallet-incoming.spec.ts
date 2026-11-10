@@ -53,6 +53,7 @@ async function fixture(page: Page, surface: Surface) {
   let accountId = "incoming-account-a", wrongScope = false, requestFailure = false, requests = 0, payoutRequests = 0;
   const held: Route[] = [], scopes: string[] = [];
   let hold = false;
+  await page.route("**/api/" + surface + "/wallet/tracking**", route => route.fulfill({ status: 503, json: { error: "tracking_unavailable" } }));
   await page.route("**/api/" + surface + "/wallet/balance", route => route.fulfill({ status: 502, json: { error: "balance_failed" } }));
   await page.route("**/api/" + surface + "/wallet/banks", route => route.fulfill({ json: { accountId, banks: [] } }));
   await page.route("**/api/" + surface + "/wallet/payouts", route => {
@@ -74,7 +75,7 @@ async function fixture(page: Page, surface: Surface) {
     return route.fulfill({ json: { ...view, ...(surface === "admin" ? { accountId: wrongScope ? "other-account" : accountId } : { restaurantId: wrongScope ? "other-restaurant" : restaurantId }) } });
   });
   return {
-    goto: () => page.goto("/" + surface + "/wallet"), setView: (value: View) => { view = value; }, getView: () => view,
+    goto: async () => { await page.goto("/" + surface + "/wallet"); await page.getByText("Consultar reportes de Kushki (opcional)", { exact: true }).click(); }, setView: (value: View) => { view = value; }, getView: () => view,
     wrongScope: (value: boolean) => { wrongScope = value; }, fail: (value: boolean) => { requestFailure = value; },
     hold: () => { hold = true; }, requests: () => requests, payoutRequests: () => payoutRequests,
     heldCount: () => held.length, requestedScopes: () => scopes,

@@ -5,6 +5,7 @@ import { WalletError } from "./errors";
 import { queryPayout } from "./provider";
 import { statusMatches, terminalStatus, verifyWebhookToken } from "./validation";
 import { payoutDTO } from "./service";
+import { walletAccountFingerprint } from "@/lib/walletTracking/fingerprint";
 
 export async function authorizePlatformWebhook(id: string, authorization: string | null) {
   const payout = await db.platformPayout.findUnique({ where: { id }, include: { account: true } });
@@ -41,6 +42,7 @@ export async function refreshPlatformPayout(id: string, callback?: { authorizati
     await tx.platformPayout.update({
       where: { id },
       data: { status, ticketNumber: verified.ticketNumber, providerRef: verified.transactionReference, errorCode: null,
+        providerVerifiedAt: new Date(), walletAccountFingerprint: walletAccountFingerprint(credentials(payout.account)),
         ...(status === "initialized" ? {} : { settledAt: new Date() }) },
     });
     await tx.auditEvent.create({ data: { actorEmail: "system", actorRole: "system", kind: "platform.wallet.payout.status", targetType: "platform_payout", targetId: id, summary: "Kushki", diff: { after: { status } } } });

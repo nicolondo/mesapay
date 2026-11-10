@@ -1,0 +1,11 @@
+[Unit]
+Description=MESAPAY wallet collection tracking every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=mesapay-wallet-tracking.service
+
+[Install]
+WantedBy=timers.target

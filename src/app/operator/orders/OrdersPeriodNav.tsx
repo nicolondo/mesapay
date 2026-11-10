@@ -215,6 +215,8 @@ export function OrdersPeriodNav({ view, today }: { view: OrdersView; today: stri
           className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:basis-full lg:max-w-xl"
         >
           {view.status !== "all" && <input type="hidden" name="status" value={view.status} />}
+          {view.source !== "all" && <input type="hidden" name="source" value={view.source} />}
+          {view.source === "tables" && view.tableId && <input type="hidden" name="tableId" value={view.tableId} />}
           {view.q && <input type="hidden" name="q" value={view.q} />}
           <label className="min-w-0">
             <span className={hintCls}>{t("rangeFrom")}</span>

@@ -11,6 +11,8 @@ const m = vi.hoisted(() => ({
   charge: vi.fn(),
   privateKey: vi.fn(),
   mode: vi.fn(),
+  capture: vi.fn(),
+  captureUpdate: vi.fn(),
 }));
 
 const tx = {
@@ -23,7 +25,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
     restaurant: { findUnique: m.restaurantFindUnique },
-    paymentLink: { findUnique: m.linkFindUnique },
+    paymentLink: { findUnique: m.linkFindUnique, updateMany: m.captureUpdate },
     kushkiTransaction: { create: m.txCreate },
   },
 }));
@@ -32,6 +34,7 @@ vi.mock("@/lib/payments", () => ({
   getRestaurantPrivateKey: m.privateKey,
 }));
 vi.mock("@/lib/platformConfig", () => ({ getRestaurantKushkiMode: m.mode }));
+vi.mock("@/lib/walletTrackingCapture", () => ({ captureLinkTrackingFields: m.capture }));
 
 import { POST } from "./route";
 
@@ -69,6 +72,7 @@ beforeEach(() => {
   m.txCreate.mockResolvedValue({});
   m.privateKey.mockResolvedValue("pk");
   m.mode.mockResolvedValue("mock");
+  m.capture.mockResolvedValue({});
   m.charge.mockResolvedValue({ providerRef: "tx-1", status: "approved", raw: {} });
 });
 
@@ -106,6 +110,19 @@ describe("estado del link", () => {
 });
 
 describe("cobro", () => {
+  it("freezes the effective collection account before charging and retains it if the response is lost", async () => {
+    m.mode.mockResolvedValue("production");
+    const binding = { walletTrackingKey: "opaque-binding", walletTrackingMode: "production" };
+    m.capture.mockResolvedValue(binding);
+    m.charge.mockImplementation(async () => {
+      expect(m.captureUpdate).toHaveBeenCalledWith({ where: { id: "link-1", status: "pending" }, data: binding });
+      throw new Error("response lost");
+    });
+    expect((await call()).status).toBe(502);
+    expect(m.capture).toHaveBeenCalledWith({ restaurantId: "rest-1", mode: "production", currency: "COP", privateKey: "pk" });
+    expect(m.captureUpdate).toHaveBeenCalledTimes(1);
+    expect(m.linkUpdateMany).not.toHaveBeenCalled();
+  });
   it("aprobado: cobra el monto del link y lo cierra con el lote", async () => {
     const res = await call();
     expect(res.status).toBe(200);

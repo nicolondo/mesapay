@@ -43,6 +43,10 @@ describe("tenant model discovery", () => {
       "CrmLead",
       "AuditEvent",
       "DianConfig",
+      "WalletTrackingAccount",
+      "WalletTrackingEntry",
+      "WalletBalanceSnapshot",
+      "Payout",
     ]) {
       expect(names, excluded).not.toContain(excluded);
     }

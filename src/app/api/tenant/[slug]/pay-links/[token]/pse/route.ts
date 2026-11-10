@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { captureLinkTrackingFields } from "@/lib/walletTrackingCapture";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -94,6 +95,8 @@ async function POSTHandler(
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
+  const tracking = await captureLinkTrackingFields({ restaurantId: tenant.id, mode, currency: "COP", privateKey });
+  if (Object.keys(tracking).length) await db.paymentLink.updateMany({ where: { id: link.id, status: "pending" }, data: tracking });
   try {
     const res = await fetch(`${kushkiApiBase(mode)}/transfer/v1/init`, {
       method: "POST",

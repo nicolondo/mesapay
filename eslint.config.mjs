@@ -19,6 +19,8 @@ import i18next from "eslint-plugin-i18next";
  */
 const MIGRATED = [
   "src/components/WalletPendingBalance.tsx",
+  "src/components/WalletTrackingPanel.tsx",
+  "src/components/walletTracking/**/*.{ts,tsx}",
   "src/components/WalletIncomingActivity.tsx",
   "src/app/admin/wallet/**/*.{ts,tsx}",
   // Reportes contables: nacieron trilingües, quedan blindados de una.

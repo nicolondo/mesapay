@@ -17,6 +17,8 @@ describe("parseOrdersView — la URL", () => {
   it("sin nada: hoy, todas, página 1", () => {
     expect(parseOrdersView({}, today)).toEqual({
       status: "all",
+      source: "all",
+      tableId: "",
       q: "",
       period: day(today),
       allDates: false,
@@ -57,7 +59,7 @@ describe("parseOrdersView — la URL", () => {
 });
 
 describe("ordersHref — la URL de vuelta", () => {
-  const base: OrdersView = { status: "all", q: "", period: day(today), allDates: false, page: 1 };
+  const base: OrdersView = { status: "all", source: "all", tableId: "", q: "", period: day(today), allDates: false, page: 1 };
 
   it("hoy sin parámetros; otro período con desde/hasta", () => {
     expect(ordersHref(base, today)).toBe("/operator/orders");
@@ -74,7 +76,7 @@ describe("ordersHref — la URL de vuelta", () => {
   });
 
   it("ida y vuelta: lo que arma se lee igual", () => {
-    const v: OrdersView = { status: "cancelled", q: "a b", period: { desde: "2026-10-01", hasta: "2026-10-31" }, allDates: true, page: 2 };
+    const v: OrdersView = { status: "cancelled", source: "all", tableId: "", q: "a b", period: { desde: "2026-10-01", hasta: "2026-10-31" }, allDates: true, page: 2 };
     const href = ordersHref(v, today, { page: 2 });
     const sp = Object.fromEntries(new URLSearchParams(href.split("?")[1]));
     expect(parseOrdersView(sp, today)).toEqual(v);

@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => { const tx = { $queryRaw: vi.fn(), platformConfig: { f
 vi.mock("./config", () => ({ walletLock: vi.fn(), credentials: () => ({ mode: "sandbox", publicKey: "public", privateKey: "private" }), webhookSecret: () => "secret" }));
 vi.mock("./provider", () => ({ walletBalance: m.balance, walletBanks: m.banks, tokenizePayout: m.token, initializePayout: m.init, queryPayout: m.query, definiteInitRejection: () => false }));
 vi.mock("@/lib/env", () => ({ env: { APP_PUBLIC_BASE_URL: "https://mesapay.co" } }));
+vi.mock("@/lib/walletTracking/fingerprint", () => ({ walletAccountFingerprint: () => "frozen-wallet-context" }));
 import { submitPlatformPayout } from "./service";
 import { WalletError } from "./errors";
 import { payloadFingerprint } from "./validation";
@@ -26,7 +27,7 @@ beforeEach(() => {
 });
 describe("platform payouts are durable and never duplicated on uncertain results", () => {
   it("records before external calls and omits account/document numbers from persistence", async () => {
-    m.token.mockImplementation(async () => { expect(row?.status).toBe("submitting"); return "token"; });
+    m.token.mockImplementation(async () => { expect(row?.status).toBe("submitting"); expect(row?.walletAccountFingerprint).toBe("frozen-wallet-context"); return "token"; });
     const result = await submitPlatformPayout(input, actor);
     expect(result.status).toBe("initialized"); expect(result.amountCents).toBe(100000);
     expect(JSON.stringify(m.create.mock.calls, (_key, value) => typeof value === "bigint" ? String(value) : value)).not.toContain("123456789");

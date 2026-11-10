@@ -1,0 +1,14 @@
+[Unit]
+Description=MESAPAY wallet collection tracking
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+EnvironmentFile=/opt/mesapay/shared/.env.production
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 300 -X POST -H "x-cron-secret: ${CRON_SECRET}" https://mesapay.co/api/cron/wallet-tracking
+TimeoutStartSec=315
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mesapay-wallet-tracking

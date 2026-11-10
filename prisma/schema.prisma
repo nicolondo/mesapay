@@ -427,6 +427,7 @@ model Restaurant {
   kushkiDocuments        KushkiDocument[]
   kushkiTransactions     KushkiTransaction[]
   walletMovements        WalletMovement[]
+  walletTrackingAccounts WalletTrackingAccount[]
   payouts                Payout[]
   accountingConfig       AccountingConfig?
   retentionConcepts      RetentionConcept[]
@@ -673,6 +674,8 @@ model PlatformWalletAccount {
 
 /// Platform money never belongs to a restaurant or its deletion lifecycle.
 model PlatformPayout {
+  walletAccountFingerprint String?
+  providerVerifiedAt DateTime?
   id                 String @id @default(cuid())
   accountId          String
   account            PlatformWalletAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -767,6 +770,9 @@ model MembershipPayment {
   createdAt       DateTime         @default(now())
   providerRef     String? // id de transacción Kushki (null en pagos manuales)
   kind            String           @default("manual") // "initial" | "recurring" | "proration" | "manual"
+  currency        String?
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
 
   commissionEntry CommissionEntry?
 
@@ -780,6 +786,8 @@ model MembershipPayment {
 /// periodEndsAt/suspended); este modelo agrega el medio de pago + estado
 /// de cobro recurrente. Ver docs/superpowers/specs/2026-06-19-operator-subscription-billing-design.md
 model BillingSubscription {
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
   id                   String     @id @default(cuid())
   restaurantId         String     @unique
   restaurant           Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -1317,6 +1325,10 @@ model Reservation {
   holdExpiresAt    DateTime?
   appliedOrderId   String?
   depositPaymentId String?
+  depositTrackingKey String?
+  depositSourceMode PlatformWalletMode?
+  depositCurrency String?
+  depositPaidAt DateTime?
 
   // Idioma del comensal al reservar (cookie MESAPAY_LOCALE). El email de
   // confirmación se manda en este idioma aunque lo dispare un webhook de
@@ -1863,6 +1875,9 @@ enum PaymentStatus {
 }
 
 model Payment {
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
+  walletTrackingCurrency String?
   id              String        @id @default(cuid())
   orderId         String
   order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -3125,6 +3140,8 @@ model WalletMovement {
 }
 
 enum PayoutStatus {
+  submitting
+  unknown
   initialized // Transfer Out iniciado (INITIALIZED de Kushki), aún sin liquidar
   approved // acreditado (webhook approvedTransaction)
   declined // rechazado por el banco (webhook declinedTransaction)
@@ -3137,6 +3154,14 @@ enum PayoutStatus {
 /// payouts a approved/declined. El número de cuenta NO se guarda completo
 /// (solo los últimos 4) — es PII y no hace falta para el historial.
 model Payout {
+  idempotencyKey String? @unique
+  payloadFingerprint String?
+  walletAccountFingerprint String?
+  sourceMode PlatformWalletMode?
+  initStartedAt DateTime?
+  submissionLeaseUntil DateTime?
+  providerVerifiedAt DateTime?
+  webhookSecretEnc String?
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -4577,6 +4602,8 @@ enum PaymentLinkStatus {
 }
 
 model PaymentLink {
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
   id           String            @id @default(cuid())
   restaurantId String
   restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -4760,4 +4787,98 @@ model DeletedRestaurantArchive {
 
   @@index([deletedAt])
   @@index([slug])
+}
+
+
+/// Separate estimate ledger. No entries in this ledger authorize transfers.
+/// Scope is retained independently of tenant deletion/restoration.
+model WalletTrackingAccount {
+  id String @id @default(cuid())
+  scopeKey String
+  scopeKind String
+  restaurantId String?
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  trackingKey String @unique
+  walletAccountFingerprint String
+  platformWalletAccountId String?
+  mode PlatformWalletMode
+  currency String
+  active Boolean @default(true)
+  startedAt DateTime
+  baselineAvailableCents BigInt
+  openingPendingCents BigInt @default(0)
+  excludesEarlier Boolean @default(true)
+  leaseToken String?
+  leaseUntil DateTime?
+  nextCheckAt DateTime @default(now())
+  lastSuccessAt DateTime?
+  lastErrorCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries WalletTrackingEntry[]
+  snapshots WalletBalanceSnapshot[]
+  @@index([scopeKey, active, createdAt])
+  @@index([active, nextCheckAt])
+}
+
+model WalletTrackingEntry {
+  id BigInt @id @default(autoincrement())
+  accountId String
+  account WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  /// Includes owner + original source, not the credential version.
+  sourceKey String @unique
+  operationKey String? @unique
+  sourceKind String
+  sourceId String
+  kind String
+  amountCents BigInt
+  currency String
+  payloadHash String
+  sourceAmountCents BigInt @default(0)
+  sourceRefundedCents BigInt @default(0)
+  occurredAt DateTime
+  recordedAt DateTime @default(now())
+  dateBasis String
+  evidence String
+  actorId String?
+  actorEmail String?
+  reason String?
+  @@index([accountId, id])
+  @@index([accountId, kind])
+  @@index([accountId, sourceKind, sourceId])
+}
+
+model WalletBalanceSnapshot {
+  id String @id @default(cuid())
+  accountId String
+  account WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  runKey String @unique
+  requestedAt DateTime
+  observedAt DateTime
+  providerBalanceDate DateTime?
+  availableCents BigInt
+  ledgerWatermark BigInt
+  chargesCents BigInt
+  refundsCents BigInt
+  registeredFeesCents BigInt
+  effectiveOutgoingCents BigInt
+  adjustmentsCents BigInt
+  incorporatedHistoryCents BigInt
+  signedDifferenceCents BigInt?
+  status String
+  ambiguousOutgoingCount Int @default(0)
+  excludedSourceCount Int @default(0)
+  historicalChangeToken String?
+  reasons String[]
+  algorithmVersion Int @default(1)
+  @@index([accountId, observedAt])
+}
+
+/// Durable round-robin cursor prevents failed/new merchants starving later ones.
+model WalletTrackingJob {
+  id String @id @default("singleton")
+  restaurantCursor String?
+  leaseToken String?
+  leaseUntil DateTime?
+  updatedAt DateTime @updatedAt
 }

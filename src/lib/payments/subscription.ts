@@ -1,6 +1,7 @@
 import { getKushkiMode, getKushkiModeSync, type KushkiMode } from "@/lib/platformConfig";
 import { MockSubscriptionProvider } from "@/lib/payments/kushki/subscriptionMock";
 import { LiveSubscriptionProvider } from "@/lib/payments/kushki/subscriptionLive";
+import type { TrackingCapture } from "@/lib/walletTracking/contracts";
 
 export type CardMeta = {
   brand: string | null;
@@ -18,7 +19,7 @@ export type CreateSubscriptionReq = {
   contactDetails: { firstName: string; lastName: string; email: string };
   metadata?: Record<string, string>;
 };
-export type CreateSubscriptionResult = { subscriptionId: string; card: CardMeta };
+export type CreateSubscriptionResult = { subscriptionId: string; card: CardMeta; tracking?: TrackingCapture };
 
 export type ChargeNowReq = {
   subscriptionId: string;
@@ -30,6 +31,7 @@ export type ChargeNowResult = {
   status: "approved" | "declined";
   transactionId: string | null;
   message?: string;
+  tracking?: TrackingCapture;
 };
 
 export interface SubscriptionProvider {

@@ -44,6 +44,14 @@ async function fixture(page: Page, surface: Surface, initial: Balance) {
   let requests = 0;
   let balanceFailed = false;
   let payouts = 0;
+  let trackingStatus: "active" | "unavailable" = "active";
+  let estimate: number | null = 12_500_000;
+  await page.route(`**/api/${surface}/wallet/tracking**`, route => route.fulfill({ json: {
+    accountId: "wallet-pending-account", restaurantId, trackingId: "local-tracking", trackingKey: "local-key", mode: "sandbox", currency: "COP",
+    startedAt: "2026-11-10T15:00:00Z", excludesEarlier: true, baselineAvailableCents: 45_000_000, openingPendingCents: 0,
+    snapshotAt: "2026-11-10T15:05:00Z", lastComparedAt: "2026-11-10T15:05:00Z", status: trackingStatus,
+    estimatedPendingCents: estimate, signedDifferenceCents: estimate, totals: { chargesCents: estimate ?? 0, refundsCents: 0, registeredFeesCents: 0, effectiveOutgoingCents: 0, adjustmentsCents: 0, incorporatedHistoryCents: 0 }, ambiguousOutgoingCount: 0, excludedSourceCount: 0, reasons: [],
+  } }));
   await page.route(`**/api/${surface}/wallet/balance`, async route => {
     requests++;
     if (balanceFailed) return route.fulfill({ status: 502, json: { error: "balance_failed" } });
@@ -64,7 +72,7 @@ async function fixture(page: Page, surface: Surface, initial: Balance) {
   if (surface === "admin") await page.route("**/api/admin/wallet/config", route => route.fulfill({ json: { account: { id: "wallet-pending-account", label: "Suscripciones de prueba", mode: "sandbox", publicKey: "local-public-fixture", hasPrivateKey: true, createdAt: "2026-11-06T15:00:00.000Z" }, billingConfigured: true } }));
   await page.goto(`/${surface}/wallet`);
   await expect.poll(() => requests).toBeGreaterThan(0);
-  return { setBalance: (value: Balance) => { current = value; }, requests: () => requests, failBalance: (value: boolean) => { balanceFailed = value; }, payouts: () => payouts };
+  return { setEstimate: (value: number | null) => { estimate = value; trackingStatus = value === null ? "unavailable" : "active"; }, setBalance: (value: Balance) => { current = value; }, requests: () => requests, failBalance: (value: boolean) => { balanceFailed = value; }, payouts: () => payouts };
 }
 
 test.afterEach(async () => {
@@ -75,59 +83,33 @@ test.afterEach(async () => {
 test.afterAll(() => db.$disconnect());
 
 for (const surface of ["admin", "operator"] as const) {
-  test(`${surface}: distinguishes reported pending funds, confirmed zero, unknown and partial failure`, async ({ page }, info) => {
-    const h = await fixture(page, surface, { availableCents: 45_000_000, pendingCents: 12_500_000, pendingStatus: "reported", pendingUpdatedAt: "2026-11-06T14:30:00.000Z" });
-    const pending = page.getByRole("region", { name: "Pendiente por ingresar", exact: true });
-    await expect(pending).toBeVisible();
-    await expect(pending).toContainText(/\$\s*125[.,]000/);
-    await expect(pending).toContainText("Todavía no disponible para dispersar");
+  test(`${surface}: local estimate stays independent of legacy provider fields and balance failures`, async ({ page }, info) => {
+    const h = await fixture(page, surface, { availableCents: 45_000_000, pendingCents: 99_000_000, pendingStatus: "reported", pendingUpdatedAt: "2026-11-06T14:30:00Z" });
+    const pending = page.getByRole("region", { name: "Pendiente estimado por ingresar", exact: true });
+    const tracking = page.getByRole("region", { name: "Seguimiento de cobros", exact: true });
+    await expect(pending).toContainText("125.000,00"); await expect(pending).not.toContainText("990.000");
+    await expect(pending).toContainText("No disponible para dispersar");
     await expect(page.getByText(/\$\s*450[.,]000/, { exact: true }).first()).toBeVisible();
-    h.setBalance({ availableCents: 45_000_000, pendingCents: 0, pendingStatus: "reported", pendingUpdatedAt: null });
-    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending).toContainText(/\$\s*0/);
-    h.setBalance({ availableCents: 45_000_000, pendingCents: null, pendingStatus: "not_reported", pendingUpdatedAt: null });
-    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending).toContainText("Abonos por confirmar");
-    await expect(pending).not.toContainText(/\$\s*0/);
-    await captureAtTop(page, info.outputPath(`${surface}-pending-not-reported.png`));
-    h.setBalance({ availableCents: 45_000_000 });
-    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending).toContainText("Abonos por confirmar");
-    h.setBalance({ availableCents: 45_000_000, pendingCents: null, pendingStatus: "unavailable", pendingUpdatedAt: null });
-    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending.getByRole("alert")).toContainText("No pudimos consultar los fondos pendientes");
-    await captureAtTop(page, info.outputPath(`${surface}-pending-partial-error.png`));
+    h.setBalance({ availableCents: 45_000_000, pendingCents: null, pendingStatus: "unavailable" });
+    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click(); await expect(pending).toContainText("125.000,00");
+    h.setEstimate(0); await tracking.getByRole("button", { name: "Actualizar seguimiento", exact: true }).click(); await expect(pending).toContainText(/\$\s*0,00/);
+    h.setEstimate(null); await tracking.getByRole("button", { name: "Actualizar seguimiento", exact: true }).click(); await expect(pending).toContainText("No disponible"); await expect(pending).not.toContainText(/\$\s*0/);
     await expect(page.getByText(/\$\s*450[.,]000/, { exact: true }).first()).toBeVisible();
-    h.setBalance({ availableCents: 45_000_000, pendingCents: 2_000_000, pendingStatus: "reported", pendingUpdatedAt: null });
-    await pending.getByRole("button", { name: "Reintentar consulta de pendientes", exact: true }).click();
-    await expect(pending).toContainText(/\$\s*20[.,]000/);
-    h.failBalance(true);
-    await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
-    await expect(pending.getByRole("alert")).toContainText("No pudimos consultar los fondos pendientes");
-    await expect(pending).not.toContainText(/\$\s*20[.,]000/);
-    await expect(page.getByText(/\$\s*450[.,]000/, { exact: true })).toHaveCount(0);
+    h.setEstimate(12_500_000); await tracking.getByRole("button", { name: "Actualizar seguimiento", exact: true }).click();
+    h.failBalance(true); await page.getByRole("button", { name: "Actualizar saldo", exact: true }).click();
+    await expect(pending).toContainText("125.000,00"); await expect(page.getByText("Saldo no disponible", { exact: true }).first()).toBeVisible();
     if (surface === "admin") await expect(page.getByRole("button", { name: "Revisar transferencia", exact: true })).toBeDisabled();
     else await expect(page.getByRole("button", { name: "Transferir a otra cuenta", exact: true })).toBeDisabled();
-    h.failBalance(false);
-    await pending.getByRole("button", { name: "Reintentar consulta de pendientes", exact: true }).click();
-    await expect(pending).toContainText(/\$\s*20[.,]000/);
-
-    expect(h.payouts()).toBe(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await captureAtTop(page, info.outputPath(`${surface}-pending-reported.png`));
+    expect(h.payouts()).toBe(0); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureAtTop(page, info.outputPath(`${surface}-estimate-independent.png`));
   });
-
-  test(`${surface}: pending funds never become available payout funds`, async ({ page }, info) => {
+  test(`${surface}: a positive estimate never becomes available payout funds`, async ({ page }, info) => {
     const h = await fixture(page, surface, { availableCents: 0, pendingCents: 99_000_000, pendingStatus: "reported", pendingUpdatedAt: null });
-    const pending = page.getByRole("region", { name: "Pendiente por ingresar", exact: true });
-    await expect(pending).toContainText(/\$\s*990[.,]000/);
+    const pending = page.getByRole("region", { name: "Pendiente estimado por ingresar", exact: true });
+    await expect(pending).toContainText("125.000,00"); await expect(pending).not.toContainText("990.000");
     if (surface === "admin") await expect(page.getByRole("button", { name: "Revisar transferencia", exact: true })).toBeDisabled();
-    else {
-      await expect(page.getByRole("button", { name: "Pasar al banco", exact: true })).toBeDisabled();
-      await expect(page.getByRole("button", { name: "Transferir a otra cuenta", exact: true })).toBeDisabled();
-    }
-    expect(h.payouts()).toBe(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await captureAtTop(page, info.outputPath(`${surface}-pending-not-spendable.png`));
+    else { await expect(page.getByRole("button", { name: "Pasar al banco", exact: true })).toBeDisabled(); await expect(page.getByRole("button", { name: "Transferir a otra cuenta", exact: true })).toBeDisabled(); }
+    expect(h.payouts()).toBe(0); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureAtTop(page, info.outputPath(`${surface}-estimate-not-spendable.png`));
   });
 }

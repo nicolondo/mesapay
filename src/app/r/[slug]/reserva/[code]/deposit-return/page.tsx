@@ -88,6 +88,7 @@ export default async function DepositReturnPage({
         where: { id: reservation.id },
         data: {
           depositStatus: "paid",
+          depositPaidAt: new Date(),
           status: "confirmed",
           holdExpiresAt: null,
         },

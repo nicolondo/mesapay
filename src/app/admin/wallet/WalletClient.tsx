@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
-import { WalletPendingBalance } from "@/components/WalletPendingBalance";
+import { WalletTrackingPanel, WalletTrackingSummary } from "@/components/WalletTrackingPanel";
+import { useWalletTracking } from "@/components/walletTracking/useWalletTracking";
 import { WalletIncomingActivity } from "@/components/WalletIncomingActivity";
 import { WalletConfig } from "./WalletConfig";
 import { WalletHistory } from "./WalletHistory";
@@ -13,6 +14,7 @@ import { errorCode, secondaryButton, walletRequest, type Payout, type WalletAcco
 
 export function WalletClient() {
   const t = useTranslations("platformWallet");
+  const tt = useTranslations("walletTracking");
   const locale = useLocale() as Locale;
   const [config, setConfig] = useState<Config | null>(null);
   const [configError, setConfigError] = useState("");
@@ -30,6 +32,9 @@ export function WalletClient() {
   const activeAccount = useRef<string | null>(null);
   const historyRequest = useRef(0);
   const [configReload, setConfigReload] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
+  const tracking = useWalletTracking("admin", config?.account?.id ?? null);
+  const syncTracking = tracking.sync;
 
   useEffect(() => {
     let active = true;
@@ -87,8 +92,8 @@ export function WalletClient() {
     historyRequest.current++;
     setHistoryBusy(false);
     setPayouts((current) => current.some((item) => item.id === payout.id) ? current.map((item) => item.id === payout.id ? payout : item) : [payout, ...current]);
-    if (config?.account) void loadBalance(config.account);
-  }, [config, loadBalance]);
+    if (config?.account) { void loadBalance(config.account); void syncTracking(); }
+  }, [config, loadBalance, syncTracking]);
   const account = config?.account;
   return <div className="mp-page space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
@@ -108,7 +113,7 @@ export function WalletClient() {
             <p className="mt-2 break-words font-display text-4xl leading-tight sm:text-5xl" aria-live="polite">{balance ? formatMoney(balance.availableCents, { currency: "COP", locale }) : t(balanceBusy ? "loadingBalance" : "balanceUnavailable")}</p>
             <p className="mt-2 font-mono text-xs text-op-muted">{t("currencyLabel")}</p>
           </div>
-          <WalletPendingBalance balance={balance} currency="COP" loading={balanceBusy} failed={Boolean(balanceError)} onRetry={() => loadBalance(account)} activityHref="#wallet-incoming" />
+          <WalletTrackingSummary tracking={tracking} />
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4 border-t border-op-border p-5 md:px-7">
           <div className="max-w-3xl"><p className="text-sm leading-relaxed text-op-muted">{t("balanceHint")}</p>{balance && <p className="mt-3 text-xs text-op-muted">{t("queriedAt", { date: formatDate(balance.queriedAt, { locale, timeZone: "America/Bogota" }) })}</p>}{balance?.balanceDate && <p className="mt-1 text-xs text-op-muted">{t("balanceDate", { date: formatDate(balance.balanceDate, { locale, timeZone: "America/Bogota" }) })}</p>}{balanceError && <p role="alert" className="mt-3 text-sm text-red-700">{t(t.has(`errors.${balanceError}`) ? `errors.${balanceError}` : "errors.balance_failed")}</p>}</div>
@@ -116,7 +121,8 @@ export function WalletClient() {
         </div>
       </section>
       <WalletTransfer key={account.id} account={account} balance={balance} banks={banks} banksError={banksError} reloadBanks={() => loadBanks(account)} onPayout={updatePayout} payouts={payouts} blocked={payouts.some((payout) => payout.status === "submitting" || payout.status === "unknown")} />
-      <WalletIncomingActivity key={"incoming-" + account.id} surface="admin" scopeId={account.id} />
+      <WalletTrackingPanel key={"tracking-" + account.id} tracking={tracking} />
+      <details className="rounded-2xl border border-op-border bg-op-surface p-5" onToggle={(event) => setReportOpen(event.currentTarget.open)}><summary className="cursor-pointer text-sm font-medium">{tt("optionalReport")}</summary><p className="my-3 text-sm text-op-muted">{tt("optionalReportHint")}</p>{reportOpen && <WalletIncomingActivity key={"incoming-" + account.id} surface="admin" scopeId={account.id} />}</details>
     </>}
     {config && <WalletHistory payouts={payouts} loading={historyBusy} error={historyError} hasMore={Boolean(nextCursor)} onLoadMore={() => { if (nextCursor) void loadHistory(nextCursor); }} onReload={() => loadHistory()} onUpdate={updatePayout} />}
   </div>;

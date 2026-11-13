@@ -108,7 +108,7 @@ export default async function FacturasPage({
         city: r.city,
         department: r.department,
         email: r.email,
-        ccEmails: r.ccEmails,
+        ccEmails: r.ccEmails ?? [],
         notes: r.notes,
         createdAt: r.createdAt.toISOString(),
         order: {
@@ -128,7 +128,7 @@ export default async function FacturasPage({
         city: r.city,
         department: r.department,
         email: r.email,
-        ccEmails: r.ccEmails,
+        ccEmails: r.ccEmails ?? [],
         notes: r.notes,
         createdAt: r.createdAt.toISOString(),
         generatedAt: r.generatedAt?.toISOString() ?? null,

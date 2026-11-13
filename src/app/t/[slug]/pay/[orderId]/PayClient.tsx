@@ -10,6 +10,7 @@ import { onlineMethodsInOrder } from "@/lib/payments/defaultOnlineMethod";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
+import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
@@ -124,9 +125,14 @@ export function PayClient({
   terminalDevices = [],
   declinedFlag = false,
   declinedReason = null,
+  declineCode = null,
   operatorMode = false,
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
+  preInvoiceEnabled = true,
+  printSameTab = false,
+  canConfigurePrinters = true,
+  terminalMode = false,
   doneHref = "",
   compEnabled = false,
   compAdminRequired = false,
@@ -223,6 +229,11 @@ export function PayClient({
    * cobró nada). El banner lo dice así en vez de "no fue aprobado".
    */
   declinedReason?: "terminal_canceled" | null;
+  /**
+   * Motivo (código) del rechazo con tarjeta con el que volvió, p. ej. del
+   * 3DS. Se traduce con `useChargeDeclineText`; desconocido → texto genérico.
+   */
+  declineCode?: string | null;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to staffHomeHref/staffServeHref once
@@ -235,6 +246,14 @@ export function PayClient({
   // gated y un mesero quedaría con 403).
   staffHomeHref?: string;
   staffServeHref?: string;
+  /** Staff: ofrecer "Factura antes de cobrar" (el datáfono no la emite). */
+  preInvoiceEnabled?: boolean;
+  /** Staff: la vista de impresión se abre en la misma pestaña (mesero, datáfono). */
+  printSameTab?: boolean;
+  /** Staff: enlace a configurar impresoras (sólo el panel). */
+  canConfigurePrinters?: boolean;
+  /** Staff: cobra el usuario de datáfono (el banner dice "Modo datáfono"). */
+  terminalMode?: boolean;
   // Pantalla de "listo" tras cobrar (con la factura) DENTRO del scope del
   // que cobra: mesero → /mesero/…/done (mantiene el bottom nav); operador
   // → /t/[slug]/…/done?op=1. Vacío = fallback al done del comensal en op.
@@ -314,6 +333,8 @@ export function PayClient({
         ? `s:${checkoutIntent.email ?? ""}`
         : "none";
   const apiError = useApiError();
+  // Motivo del rechazo con tarjeta / Apple Pay (código del servidor → texto).
+  const declineText = useChargeDeclineText();
   // A qué datáfono va el cobro del staff (ver lib/payments/terminalChoice.ts).
   const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
@@ -607,7 +628,9 @@ export function PayClient({
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
-      setErr(apiError(j, t("errDeclined")));
+      // Rechazado: se queda en esta pantalla, con el motivo (si Kushki lo
+      // dijo) y todos los medios de pago a la mano para reintentar.
+      setErr(declineText(j.reason) ?? apiError(j, t("errDeclined")));
     }
   }
 
@@ -794,7 +817,10 @@ export function PayClient({
         // mensaje principal — sirve para debug rápido sin pedirle al
         // diner que copie de DevTools.
         const detail = typeof j.detail === "string" ? ` (${j.detail})` : "";
-        setErr((j.message ?? j.error ?? t("errPseInit")) + detail);
+        // Códigos conocidos (p. ej. payment_declined: Kushki rechazó el
+        // inicio de la transferencia) se traducen; nunca se muestra el
+        // código crudo.
+        setErr(apiError(j, j.message ?? t("errPseInit")) + detail);
         return;
       }
       // Redirigimos a Kushki PSE hosted. El cliente vuelve a
@@ -1001,7 +1027,7 @@ export function PayClient({
         <div className="-mx-5 -mt-8 mb-5 bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
           <span>
             <span className="font-mono tracking-wider uppercase opacity-70 mr-2">
-              {t("waiterMode")}
+              {t(terminalMode ? "terminalMode" : "waiterMode")}
             </span>
             {t.rich("chargingAt", {
               location: locationLabel,
@@ -1043,6 +1069,7 @@ export function PayClient({
             currency={currency}
             pendings={pendingPayments}
             order={{ shortCode, tableNumber }}
+            orderId={orderId}
             serviceMode={serviceMode}
             onConfirmed={({ paid }) => paymentConfirmed(paid)}
             onRefresh={refreshBalance}
@@ -1141,7 +1168,9 @@ export function PayClient({
               {declinedReason === "terminal_canceled" ? t("terminalCanceledTitle") : t("declinedTitle")}
             </div>
             <p className="text-xs text-muted mt-1">
-              {declinedReason === "terminal_canceled" ? t("terminalCanceledBody") : t("declinedBody")}
+              {declinedReason === "terminal_canceled"
+                ? t("terminalCanceledBody")
+                : (declineText(declineCode) ?? t("declinedBody"))}
             </p>
           </div>
         </div>
@@ -1406,8 +1435,8 @@ export function PayClient({
               orderId={orderId}
               invoice={preInvoice}
               compact
-              sameTab={staffHomeHref.startsWith("/mesero")}
-              canConfigurePrinters={!staffHomeHref.startsWith("/mesero")}
+              sameTab={printSameTab}
+              canConfigurePrinters={canConfigurePrinters}
               canAnnul={canAnnulInvoice}
             />
           </div>
@@ -1429,7 +1458,7 @@ export function PayClient({
           {/* Factura ANTES de cobrar: el cliente la pide y todavía no dijo
               cómo va a pagar. Se emite ya, sin método de pago; después se
               cobra con lo que sea. */}
-          {operatorMode && !alreadyPaid && !payLinkMode && outstandingSubtotalCents > 0 && (
+          {operatorMode && preInvoiceEnabled && !alreadyPaid && !payLinkMode && outstandingSubtotalCents > 0 && (
             <div className="mt-3">
               <PreInvoiceAction
                 key={invoiceIntentKey}
@@ -1438,8 +1467,8 @@ export function PayClient({
                 totalLabel={formatMoney(outstandingSubtotalCents, { currency, locale })}
                 initialIntent={checkoutIntent}
                 prefillEmail={invoicePrefillEmail}
-                sameTab={staffHomeHref.startsWith("/mesero")}
-                canConfigurePrinters={!staffHomeHref.startsWith("/mesero")}
+                sameTab={printSameTab}
+                canConfigurePrinters={canConfigurePrinters}
                 onIssued={() => router.refresh()}
                 className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
               />

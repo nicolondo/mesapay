@@ -3,7 +3,7 @@ import type { SVGProps } from "react";
 // Íconos propios de Inventario, con el mismo trazo que @/components/ui/Icon
 // (24×24, stroke 1.65, puntas redondeadas). Decorativos: el texto o el
 // aria-label del control que los contiene dicen qué hacen.
-export type InventoryIconName = "more" | "barcode" | "alert" | "plus" | "minus" | "adjust" | "settings" | "search" | "close" | "chevronLeft" | "chevronRight" | "list" | "pencil" | "archive" | "restore";
+export type InventoryIconName = "more" | "barcode" | "alert" | "plus" | "minus" | "adjust" | "settings" | "search" | "close" | "chevronLeft" | "chevronRight" | "list" | "pencil" | "archive" | "restore" | "trash";
 
 const paths: Record<InventoryIconName, React.ReactNode> = {
   more: (
@@ -48,6 +48,7 @@ const paths: Record<InventoryIconName, React.ReactNode> = {
     </>
   ),
   restore: <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.6M4 4v4.6h4.6" />,
+  trash: <path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7M10 11v5M14 11v5" />,
 };
 
 export function InvIcon({ name, size = 18, ...props }: SVGProps<SVGSVGElement> & { name: InventoryIconName; size?: number }) {

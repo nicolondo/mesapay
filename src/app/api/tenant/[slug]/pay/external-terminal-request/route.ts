@@ -12,6 +12,7 @@ import { sendPushToMeserosForTable } from "@/lib/push";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { collectorUserIdFor } from "@/lib/payments/staffCheckout";
 import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 
 /**
@@ -96,12 +97,9 @@ async function POSTHandler(
   }
 
   // Tracking de quién lo inicia — útil si es un mesero/operator
-  // cobrando desde su PWA para reportes de propinas.
-  const collectedByUserId =
-    session?.user &&
-    (role === "mesero" || role === "operator" || role === "platform_admin")
-      ? session.user.id
-      : null;
+  // cobrando desde su PWA para reportes de propinas. El usuario de datáfono
+  // también queda registrado (auditoría); ver collectorUserIdFor.
+  const collectedByUserId = collectorUserIdFor(session?.user);
 
   const payment = await db.$transaction(async (tx) => {
     await lockOrder(tx, order.id);

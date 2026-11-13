@@ -2,6 +2,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
+import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 // Bloqueo del scroll del fondo (position: fixed en el body): la carta
@@ -3120,6 +3121,8 @@ function PickupCheckoutSheet({
   const [busy, setBusy] = useState<PickupMethod | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const hasApplePay = useApplePaySupport();
+  // Motivo del rechazo del cobro (código del servidor → texto).
+  const declineText = useChargeDeclineText();
 
 
 
@@ -3219,6 +3222,9 @@ function PickupCheckoutSheet({
         setErr(t("errClosed"));
       } else if (j.error === "charge_declined") {
         setErr(j.message ?? t("errDeclined"));
+      } else if (j.error === "payment_declined") {
+        // Kushki rechazó el cargo: el motivo viene como código (`reason`).
+        setErr(declineText(j.reason) ?? t("errDeclined"));
       } else if (j.error === "demo_payments_disabled") {
         // El backend rechazó un método demo. Con demoPaymentsEnabled los
         // botones ni se muestran, así que esto sólo pasa si el flag

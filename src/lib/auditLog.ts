@@ -53,6 +53,8 @@ export type AuditKind =
   | "order.manual_invoice.pay_link.create"
   | "order.manual_invoice.pay_link.email"
   | "order.prebill.print"
+  // Tirilla del cierre de turno (por la impresora de caja o en el equipo)
+  | "shift.close.print"
   | "order_item.cancel"
   | "order_item.comp"
   | "order_item.move"
@@ -136,6 +138,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order.manual_invoice.pay_link.create": "Creó link de pago de factura manual",
   "order.manual_invoice.pay_link.email": "Envió link de pago de factura manual por correo",
   "order.prebill.print": "Imprimió precuenta",
+  "shift.close.print": "Imprimió el cierre de turno",
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",
   "order_item.move": "Movió plato de mesa",

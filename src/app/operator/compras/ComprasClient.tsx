@@ -7,6 +7,19 @@ import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplie
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { inferPurchaseInvoiceTaxBases } from "@/lib/erp/invoiceTaxBasis";
 import { InvoiceLineTaxToggle } from "./InvoiceLineTaxToggle";
+import { InvoiceTaxColumns, reviewableTaxColumns } from "./InvoiceTaxColumns";
+import { InvoiceReconcileSummary } from "./InvoiceReconcileSummary";
+import {
+  columnLineAmounts,
+  invoiceReconcileRows,
+  ROUNDING_MAX_CENTS,
+  suggestedRoundingCents,
+  taxColumnNeedsReview,
+  type TaxCell,
+  type TaxCellScope,
+  type TaxColumnKey,
+  type TaxColumnResolution,
+} from "@/lib/erp/invoiceReconcile";
 import { DiscountControl } from "./DiscountControl";
 import {
   InvoiceRetentionsEditor,
@@ -71,6 +84,8 @@ type PoStatus = (typeof PO_STATUSES)[number];
 type OrderSummary = Partial<InvoiceTaxExtras> & {
   /** Parte de las retenciones practicada al recibir (no sigue el avance). */
   receptionRetentionCents?: number;
+  /** Ajuste al peso de la factura (con signo). */
+  roundingCents?: number;
   id: string;
   number: number;
   status: PoStatus;
@@ -95,6 +110,7 @@ type OrderSummary = Partial<InvoiceTaxExtras> & {
 
 type OrderDetail = Partial<InvoiceTaxExtras> & {
   receptionRetentionCents?: number;
+  roundingCents?: number;
   id: string;
   number: number;
   status: PoStatus;
@@ -305,6 +321,7 @@ function TaxBreakdown({
   listSubtotalCents,
   incCents = 0,
   retainedCents = 0,
+  roundingCents = 0,
   retentionRows,
 }: {
   lines: { costCents: number; taxPct: number; taxCents?: number | null }[];
@@ -319,6 +336,8 @@ function TaxBreakdown({
   retainedCents?: number;
   /** Retenciones por tipo (si suman `retainedCents`); si no, una sola fila. */
   retentionRows?: { label: string; cents: number }[];
+  /** Ajuste al peso de la factura (con signo): su propia fila, ninguna línea. */
+  roundingCents?: number;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -365,12 +384,15 @@ function TaxBreakdown({
           <span>{r.label}</span><span>{`− ${money(r.cents)}`}</span>
         </div>
       ))}
+      {roundingCents !== 0 && <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-op-muted">
+        <span>{t("invRecAdjustment")}</span><span>{`${roundingCents > 0 ? "+" : "−"} ${money(Math.abs(roundingCents))}`}</span>
+      </div>}
       <div className="flex items-center justify-between px-3 py-2">
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {totalLabel ?? t("totalLabel")}
         </span>
         <span className="text-sm font-medium tabular-nums">
-          {money(totalCents + incCents - retainedCents)}
+          {money(totalCents + incCents - retainedCents + roundingCents)}
         </span>
       </div>
     </div>
@@ -1090,6 +1112,10 @@ type ExtractionLine = {
   lineTaxCents?: number | null;
   lineIncCents?: number | null;
   lineIncAmbiguous?: boolean;
+  // Celdas de impuesto tal cual impresas (ausentes en lecturas viejas).
+  lineTaxCell?: TaxCell | null;
+  lineIncCell?: TaxCell | null;
+  arithmeticDiffCents?: number | null;
   // Descuento impreso en la línea (ausente en lecturas viejas).
   listUnitPriceCents?: number | null;
   lineDiscountPct?: number | null;
@@ -1149,6 +1175,10 @@ type InvoiceUploadResult = {
     retefuenteCents: number | null;
     reteIvaCents: number | null;
     reteIcaCents: number | null;
+    // «Ajustes» del pie, con signo; cómo se leyó cada columna de impuesto.
+    invoiceAdjustmentCents?: number | null;
+    columnHeaders?: string[];
+    taxColumns?: { iva: TaxColumnResolution | null; consumo: TaxColumnResolution | null };
     confidence: number;
     notes?: string;
   };
@@ -1183,6 +1213,7 @@ const API_CONFIRM_ERROR_KEYS: Record<string, string> = {
   not_found: "invReviewErrNotFound",
   not_pending: "invReviewErrNotPending",
   module_disabled: "invUploadErrModuleDisabled",
+  totals_unconfirmed: "invRecAckRequired",
 };
 
 /* ──────────── Cargar factura: botón + spinner de lectura IA ────────── */
@@ -1375,6 +1406,8 @@ function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
     lowConfidence: m.lowConfidence,
     readUnit: m.line.unit,
     readQty: m.line.quantity,
+    arithmeticDiffCents: m.line.arithmeticDiffCents ?? null,
+    incCellCents: m.line.lineIncCell?.cents ?? null,
   };
 }
 
@@ -1602,11 +1635,104 @@ function InvoiceReviewSheet({
     () => invoiceGrandTotalCents(totals.subtotalCents, totals.taxCents, extras),
     [totals.subtotalCents, totals.taxCents, extras],
   );
+  // «Ajustes» / ajuste al peso impreso: una fila aparte del total a pagar,
+  // nunca repartida entre las líneas. Solo si es un redondeo.
+  const [adjustmentCents, setAdjustmentCents] = useState(() => {
+    const printed = extraction.invoiceAdjustmentCents;
+    return printed != null && Number.isSafeInteger(printed) && Math.abs(printed) <= ROUNDING_MAX_CENTS ? printed : 0;
+  });
+  const payableCents = grandTotalCents + adjustmentCents;
   // Concordancia con el total IMPRESO de la factura (si se leyó).
   const mismatch = useMemo(
-    () => !totalsMatch(grandTotalCents, extraction.invoiceTotalCents),
-    [grandTotalCents, extraction.invoiceTotalCents],
+    () => !totalsMatch(payableCents, extraction.invoiceTotalCents),
+    [payableCents, extraction.invoiceTotalCents],
   );
+
+  // Columnas de impuesto (por unidad / total de la línea / %): la lectura
+  // que dejó la conciliación y si el operador la cambió a mano. Cambiarla
+  // recalcula todas las líneas con la misma cuenta del servidor.
+  const reviewColumns = useMemo(() => reviewableTaxColumns(extraction.taxColumns), [extraction.taxColumns]);
+  const [columnScopes, setColumnScopes] = useState<Record<TaxColumnKey, TaxCellScope | null>>(() => ({
+    iva: extraction.taxColumns?.iva?.scope ?? null,
+    consumo: extraction.taxColumns?.consumo?.scope ?? null,
+  }));
+  const [manualColumns, setManualColumns] = useState<Record<TaxColumnKey, boolean>>({ iva: false, consumo: false });
+
+  function changeColumnScope(key: TaxColumnKey, scope: TaxCellScope) {
+    const amounts = columnLineAmounts(extraction, key, scope);
+    // Re-detect whether each amount includes taxes, with the new consumption/IVA.
+    const reread = inferPurchaseInvoiceTaxBases({ ...extraction, lines: extraction.lines.map((line, index) => key === "consumo"
+      ? { ...line, lineIncCents: line.lineIncCell == null ? line.lineIncCents ?? null : amounts[index] ?? null,
+        lineIncAmbiguous: line.lineIncCell != null && amounts[index] == null }
+      : { ...line, lineTaxCents: line.lineTaxCell == null ? line.lineTaxCents ?? null : amounts[index] ?? null }) });
+    const nextLines = lines.map((line) => {
+      const index = line.sourceLineIndex;
+      const source = index == null ? undefined : extraction.lines[index];
+      if (index == null || !source) return line;
+      const amount = amounts[index];
+      const pesos = amount == null ? "" : String(amount / 100);
+      const changes: Partial<InvoiceReviewLine> = key === "consumo"
+        ? source.lineIncCell == null ? {} : { incAmount: pesos, incNeedsReview: amount == null }
+        : source.lineTaxCell == null ? {} : { taxAmount: pesos };
+      const initial = reread.lines[index] ? initialInvoicePrice(reread.lines[index]!) : null;
+      const basis = initial && !line.taxBasisManual && initial.amountKind === line.amountKind ? { taxBasis: initial.taxBasis } : {};
+      return { ...line, ...changes, ...basis };
+    });
+    setLines(nextLines);
+    if (key === "consumo") {
+      setIncPesos(centsToPesosDigits(Math.max(0, (extraction.invoiceIncCents ?? 0)
+        - nextLines.reduce((sum, l) => sum + pesosDigitsToCents(l.incAmount), 0))));
+    }
+    setColumnScopes((previous) => ({ ...previous, [key]: scope }));
+    setManualColumns((previous) => ({ ...previous, [key]: true }));
+  }
+
+  // «Factura vs MESAPAY»: cada renglón del pie contra lo que se guardará.
+  const reconcile = useMemo(() => {
+    const printedRetentions = [extraction.retefuenteCents, extraction.reteIvaCents, extraction.reteIcaCents];
+    return invoiceReconcileRows({
+      subtotalCents: extraction.invoiceSubtotalCents,
+      discountCents: extraction.invoiceDiscountCents ?? null,
+      ivaCents: extraction.invoiceTaxCents,
+      incCents: extraction.invoiceIncCents,
+      retentionsCents: printedRetentions.some((v) => v != null)
+        ? printedRetentions.reduce<number>((sum, v) => sum + (v ?? 0), 0) : null,
+      adjustmentCents: extraction.invoiceAdjustmentCents ?? null,
+      totalCents: extraction.invoiceTotalCents,
+    }, {
+      listSubtotalCents: resolved.subtotalCents,
+      netSubtotalCents: resolved.netCents,
+      discountCents: resolved.discountCents,
+      ivaCents: resolved.taxCents,
+      incCents: extras.incCents,
+      retentionsCents: retentionsCents(extras),
+      adjustmentCents,
+      totalCents: payableCents,
+    });
+  }, [extraction, resolved, extras, adjustmentCents, payableCents]);
+  const suggestedRounding = suggestedRoundingCents(extraction.invoiceTotalCents, grandTotalCents);
+  const roundingSuggestion = resolved.complete && suggestedRounding != null && suggestedRounding !== adjustmentCents
+    ? suggestedRounding : null;
+  const reviewReasons = useMemo(() => {
+    const reasons: string[] = [];
+    if (reconcile.hasDifferences) reasons.push(t("invRecReasonDifferences"));
+    for (const key of ["consumo", "iva"] as const) {
+      const column = extraction.taxColumns?.[key];
+      if (column && taxColumnNeedsReview(column) && !manualColumns[key]) {
+        reasons.push(t("invRecReasonColumn", {
+          name: column.header?.trim() || t(key === "iva" ? "invRecColumnIva" : "invRecColumnConsumo"),
+        }));
+      }
+    }
+    const arithmetic = lines.filter((l) => l.arithmeticDiffCents != null && l.arithmeticDiffCents !== 0).length;
+    if (arithmetic > 0) reasons.push(t("invRecReasonLines", { count: arithmetic }));
+    return reasons;
+  }, [reconcile.hasDifferences, extraction.taxColumns, manualColumns, lines, t]);
+  const needsAck = reviewReasons.length > 0;
+  // The acknowledgement is for THESE differences: any new one asks again.
+  const ackKey = JSON.stringify([reconcile.rows.map((r) => [r.key, r.diffCents]), reviewReasons]);
+  const [ackedKey, setAckedKey] = useState<string | null>(null);
+  const acked = ackedKey === ackKey;
   // Descuentos: avisos, nunca recálculos silenciosos del IVA impreso.
   const taxBeforeDiscount = lines.some((l) => l.taxBeforeDiscount);
   const printedTaxCents = extraction.invoiceTaxCents;
@@ -1769,6 +1895,10 @@ function InvoiceReviewSheet({
       setErr(t("invLineUnallocatedConsumption"));
       return;
     }
+    if (needsAck && !acked) {
+      setErr(t("invRecAckRequired"));
+      return;
+    }
     // Validación por línea: insumo, cantidad y costo.
     const payloadLines: {
       sourceLineIndex?: number;
@@ -1858,6 +1988,8 @@ function InvoiceReviewSheet({
             retefuenteCents: extras.retefuenteCents,
             reteIvaCents: extras.reteIvaCents,
             reteIcaCents: extras.reteIcaCents,
+            roundingCents: adjustmentCents,
+            acknowledgedDifferences: needsAck && acked,
             ...(withDiscounts
               ? { discountPct: resolved.orderDiscount.pct, discountCents: resolved.orderDiscount.cents }
               : {}),
@@ -2066,6 +2198,9 @@ function InvoiceReviewSheet({
               </Field>
             </div>
 
+            <InvoiceTaxColumns columns={reviewColumns} scopes={columnScopes} manual={manualColumns}
+              onChange={changeColumnScope} />
+
             {/* Líneas */}
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
               {t("invReviewLinesSection")}
@@ -2075,6 +2210,8 @@ function InvoiceReviewSheet({
               <InvoiceReviewLineCard
                 key={l.key}
                 line={l}
+                incScope={columnScopes.consumo}
+                incHeader={extraction.taxColumns?.consumo?.header ?? null}
                 currency={currency}
                 taxRates={taxRates}
                 ingredients={ingredients}
@@ -2120,6 +2257,7 @@ function InvoiceReviewSheet({
                 totalLabel={t("invReviewTotalNote")}
                 incCents={extras.incCents}
                 retainedCents={retentionsCents(extras)}
+                roundingCents={adjustmentCents}
                 discountCents={resolved.discountCents}
                 listSubtotalCents={resolved.subtotalCents}
               />
@@ -2208,25 +2346,24 @@ function InvoiceReviewSheet({
               )}
               <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
                 <span>{t("invTaxGrandTotal")}</span>
-                <span>{formatMoney(grandTotalCents, { currency, locale })}</span>
+                <span>{formatMoney(payableCents, { currency, locale })}</span>
               </div>
             </div>
 
-            {/* Concordancia con el total impreso de la factura (no bloquea). */}
-            {mismatch && extraction.invoiceTotalCents != null && (
-              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
-                {t("invTotalMismatch", {
-                  computed: formatMoney(grandTotalCents, {
-                    currency,
-                    locale,
-                  }),
-                  printed: formatMoney(extraction.invoiceTotalCents, {
-                    currency,
-                    locale,
-                  }),
-                })}
-              </div>
-            )}
+            {/* «Factura vs MESAPAY»: renglón por renglón contra el pie impreso.
+                Con diferencias, guardar exige confirmarlo explícitamente. */}
+            <InvoiceReconcileSummary
+              rows={reconcile.rows}
+              currency={currency}
+              reasons={reviewReasons}
+              needsAck={needsAck}
+              acked={acked}
+              onAck={(value) => setAckedKey(value ? ackKey : null)}
+              roundingSuggestion={roundingSuggestion}
+              onUseRounding={() => { if (roundingSuggestion != null) setAdjustmentCents(roundingSuggestion); }}
+              adjustmentCents={adjustmentCents}
+              onClearRounding={() => setAdjustmentCents(0)}
+            />
 
             {extraction.notes?.trim() && (
               <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
@@ -2317,6 +2454,8 @@ function InvoiceReviewSheet({
 /** Tarjeta editable de una línea de la factura en revisión. */
 function InvoiceReviewLineCard({
   line: l,
+  incScope,
+  incHeader,
   currency,
   taxRates,
   ingredients,
@@ -2326,6 +2465,9 @@ function InvoiceReviewLineCard({
   onRemove,
 }: {
   line: InvoiceReviewLine;
+  /** Lectura aplicada a la columna de consumo de la factura (para mostrar la cuenta). */
+  incScope?: TaxCellScope | null;
+  incHeader?: string | null;
   currency: string;
   taxRates: number[];
   ingredients: IngredientRef[] | null;
@@ -2658,6 +2800,19 @@ function InvoiceReviewLineCard({
             onChange={taxAmount => onChange({ taxAmount })} className={inputCls} />
         </Field>
       </div>
+      {incScope === "unit" && l.incCellCents != null && l.incCellCents > 0 && l.readQty > 0 && (
+        <p className="text-[11px] text-op-muted">
+          {t("invRecIncPerUnit", {
+            name: incHeader?.trim() || t("invRecColumnConsumo"),
+            unit: money(l.incCellCents), qty: readQtyStr, total: money(Math.round(l.incCellCents * l.readQty)),
+          })}
+        </p>
+      )}
+      {l.arithmeticDiffCents != null && l.arithmeticDiffCents !== 0 && (
+        <p className="text-[11px] text-terracotta" role="status">
+          {t("invRecLineArithmetic", { amount: money(Math.abs(l.arithmeticDiffCents)) })}
+        </p>
+      )}
       {(l.taxBasis === "unknown" || l.taxPct == null || (l.incNeedsReview && !l.incAmount.trim())) &&
         <p className="text-[11px] text-terracotta">{t("invLineUnknownHint")}</p>}
       {l.taxBeforeDiscount && <p className="text-[11px] text-[#7F5A1F]" role="status">{t("invDiscLineTaxBeforeDiscount")}</p>}
@@ -2906,6 +3061,7 @@ function OrderDetailSheet({
       + (printTotals.retentionsCents > 0
         ? detailRetentionRows.map((r) => totalRow(r.label, -r.cents)).join("")
         : "")
+      + (printTotals.roundingCents !== 0 ? totalRow(t("invRecAdjustment"), printTotals.roundingCents) : "")
       + totalRow(t("orderTotalLabel"), printTotals.totalCents);
     const meta = [
       `${t("fieldSupplier")}: ${order.supplier.name}`,
@@ -3156,6 +3312,7 @@ function OrderDetailSheet({
                 totalLabel={t("orderTotalLabel")}
                 incCents={detailTotals.incCents}
                 retainedCents={detailTotals.retentionsCents}
+                roundingCents={detailTotals.roundingCents}
                 retentionRows={detailRetentionRows}
                 discountCents={detailDiscount?.discountCents}
                 listSubtotalCents={detailDiscount?.listSubtotalCents}
@@ -3665,6 +3822,8 @@ function ReceiveSheet({
       incCents: after.incCents - before.incCents,
       // Las de una factura importada como borrador, según el avance.
       retentionsCents: after.retentionsCents - before.retentionsCents,
+      // Ajuste al peso de esa factura: también según el avance.
+      roundingCents: after.roundingCents - before.roundingCents,
     };
   }, [reception, order]);
   // Retenciones de la factura de ESTA entrega, sobre lo que llega en ella.
@@ -3941,6 +4100,7 @@ function ReceiveSheet({
                     listSubtotalCents={reception.subtotalCents}
                     incCents={receptionTotals.incCents}
                     retainedCents={receptionTotals.retentionsCents + retainedNow}
+                    roundingCents={receptionTotals.roundingCents}
                     retentionRows={receptionTotals.retentionsCents === 0 ? retentionRows(retentions.totals) : undefined}
                   />
                 </div>

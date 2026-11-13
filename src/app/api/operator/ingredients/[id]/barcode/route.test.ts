@@ -12,7 +12,7 @@ vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.activeRestaurant }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
-vi.mock("@/lib/db", () => ({ db: { restaurant: { findUnique: m.restaurant }, $transaction: m.transaction } }));
+vi.mock("@/lib/db", () => ({ db: { restaurant: { findUnique: m.restaurant }, $transaction: m.transaction, ingredientBarcode: { findUnique: m.codeFind } } }));
 
 import { DELETE, POST } from "./route";
 
@@ -185,11 +185,18 @@ describe("additional barcode mutation", () => {
     expect(m.audit).not.toHaveBeenCalled();
   });
 
-  it("rejects another ingredient's code without exposing its owner", async () => {
-    m.codeFind.mockResolvedValue({ ingredientId: "another-ingredient" });
+  // El dueño del código es un insumo del MISMO comercio (la búsqueda va por
+  // restaurantId): nombrarlo —y decir si está archivado— es lo que le
+  // permite al operador encontrarlo. Un archivado no sale en el conteo.
+  it("rejects another ingredient's code and names its owner, archived or not", async () => {
+    m.codeFind.mockResolvedValue({ ingredientId: "another-ingredient", ingredient: { id: "another-ingredient", name: "Vino blanco", active: false } });
     const response = await assign();
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toEqual({ error: "barcode_taken", owner: { id: "another-ingredient", name: "Vino blanco", active: false } });
+    expect(m.codeFind).toHaveBeenLastCalledWith({
+      where: { restaurantId_barcode: { restaurantId: "restaurant-1", barcode: "00123ab" } },
+      select: { ingredient: { select: { id: true, name: true, active: true } } },
+    });
     expect(m.codeCreate).not.toHaveBeenCalled();
     expect(m.primaryUpdate).not.toHaveBeenCalled();
     expect(m.audit).not.toHaveBeenCalled();
@@ -213,7 +220,7 @@ describe("additional barcode mutation", () => {
     } else m.codeCreate.mockRejectedValue(duplicate);
     const response = await assign();
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toEqual({ error: "barcode_taken", owner: null });
     expect(m.audit).not.toHaveBeenCalled();
   });
 

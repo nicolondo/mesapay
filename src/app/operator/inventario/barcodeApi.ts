@@ -25,7 +25,21 @@ const REMOVE_ERRORS: Record<string, string> = {
 
 export type BarcodeResult =
   | { ok: true; ingredient: IngredientBarcodeUpdate }
-  | { ok: false; errorKey: string };
+  | { ok: false; errorKey: string; errorValues?: Record<string, string> };
+
+/**
+ * «Ese código ya está en otro producto» dice CUÁL, y si está archivado: un
+ * archivado no sale en el conteo ni en la lista, así que sin el nombre no
+ * había cómo encontrar quién tenía el código.
+ */
+export function barcodeTakenError(body: unknown): { errorKey: string; errorValues?: Record<string, string> } {
+  const owner = (body as { owner?: { name?: unknown; active?: unknown } | null } | null)?.owner;
+  if (!owner || typeof owner.name !== "string" || owner.name === "") return { errorKey: "barcodeAddTaken" };
+  return {
+    errorKey: owner.active === false ? "barcodeAddTakenByArchived" : "barcodeAddTakenBy",
+    errorValues: { name: owner.name },
+  };
+}
 
 /** Código de error de la API → clave i18n (con un genérico de respaldo). */
 export function barcodeErrorKey(code: unknown, mode: "add" | "remove"): string {
@@ -49,7 +63,10 @@ async function send(id: string, method: "POST" | "DELETE", barcode: string, mode
       body: JSON.stringify({ barcode }),
     });
     const body = await response.json().catch(() => null);
-    if (!response.ok) return { ok: false, errorKey: barcodeErrorKey(body?.error, mode) };
+    if (!response.ok) {
+      if (body?.error === "barcode_taken") return { ok: false, ...barcodeTakenError(body) };
+      return { ok: false, errorKey: barcodeErrorKey(body?.error, mode) };
+    }
     const ingredient = parseBarcodeResponse(id, body);
     return ingredient ? { ok: true, ingredient } : { ok: false, errorKey: barcodeErrorKey(null, mode) };
   } catch {

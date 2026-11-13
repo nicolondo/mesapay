@@ -18,6 +18,7 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
+import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
@@ -31,6 +32,8 @@ type Ingredient = IngredientCostView & {
   measureKind: MeasureKind;
   sku: string | null;
   barcode: string | null;
+  /** Todos sus códigos (el principal y los adicionales), para buscar por cualquiera. */
+  barcodes?: { barcode: string }[];
   notes: string | null;
   active: boolean;
   trackInventory: boolean;
@@ -93,14 +96,6 @@ function parseOptionalQty(
   return toBaseQty(n, kind, entry.unit) ?? "invalid";
 }
 
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
 type ActiveFilter = "active" | "inactive" | "all";
 type SheetState = { mode: "create" } | { mode: "edit"; item: Ingredient };
 
@@ -156,16 +151,12 @@ export function InsumosClient({
   }, [items]);
 
   const filtered = useMemo(() => {
-    const needle = fold(q.trim());
     return items.filter((i) => {
       if (activeFilter === "active" && !i.active) return false;
       if (activeFilter === "inactive" && i.active) return false;
       if (cat !== "all" && i.category !== cat) return false;
-      if (needle) {
-        const hay = fold(`${i.name} ${i.category ?? ""}`);
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
+      // Nombre, categoría, SKU o cualquiera de sus códigos de barras.
+      return ingredientMatchesSearch(i, q);
     });
   }, [items, q, cat, activeFilter]);
 
@@ -341,7 +332,8 @@ export function InsumosClient({
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={t("searchPlaceholder")}
+          placeholder={t("insumosSearchPlaceholder")}
+          aria-label={t("insumosSearchPlaceholder")}
           className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm focus:outline-none focus:border-op-text/40"
         />
         <div className="flex items-center gap-2 flex-wrap">
@@ -755,6 +747,12 @@ function IngredientSheet({
   const [created, setCreated] = useState<Ingredient | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** «Ese código ya está en otro insumo», con su nombre y si está archivado. */
+  function barcodeTakenText(owner: unknown): string {
+    const o = owner as { name?: unknown; active?: unknown } | null | undefined;
+    if (!o || typeof o.name !== "string" || o.name === "") return t("errBarcodeTaken");
+    return t(o.active === false ? "errBarcodeTakenByArchived" : "errBarcodeTakenBy", { name: o.name });
+  }
 
   const [stockReset, setStockReset] = useState<StockResetSnapshot | null>(null);
 
@@ -848,7 +846,7 @@ function IngredientSheet({
             : j.error === "name_taken"
             ? t("errNameTaken")
             : j.error === "barcode_taken"
-              ? t("errBarcodeTaken")
+              ? barcodeTakenText(j.owner)
               : j.error === "measure_locked"
                 ? t("errMeasureLocked")
                 : t("errSaveFailed"),

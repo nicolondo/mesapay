@@ -79,9 +79,9 @@ describe("existing ingredient API with a canonical barcode registry", () => {
     const updated = await edit(other.id, "00ALIAS");
 
     expect(created.status).toBe(409);
-    expect(await created.json()).toEqual({ error: "barcode_taken" });
+    expect(await created.json()).toMatchObject({ error: "barcode_taken" });
     expect(updated.status).toBe(409);
-    expect(await updated.json()).toEqual({ error: "barcode_taken" });
+    expect(await updated.json()).toMatchObject({ error: "barcode_taken" });
     expect(await db.ingredient.findMany({ where: { restaurantId: scope.restaurantId }, orderBy: { id: "asc" } })).toEqual(before);
   });
 
@@ -119,7 +119,7 @@ describe("existing ingredient API with a canonical barcode registry", () => {
       : await edit(other.id, "ALIAS");
 
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toMatchObject({ error: "barcode_taken" });
     expect(await db.ingredient.count({ where: { restaurantId: scope.restaurantId } })).toBe(2);
     expect(await db.ingredient.findUniqueOrThrow({ where: { id: other.id } })).toMatchObject({ barcode: "OTHER" });
     expect(await db.ingredientBarcode.findUnique({ where: { restaurantId_barcode: { restaurantId: scope.restaurantId, barcode: "OTHER" } } })).toMatchObject({ ingredientId: other.id });

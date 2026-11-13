@@ -8308,6 +8308,11 @@
     "ingredientPurchaseRecordedAt": "Compra registrada em {date}",
     "rdSourcePurchase": "Compra recebida",
     "rdFixZeroOther": "{name} tem custo zero. Confira a compra ou informe um preço de referência.",
+    "insumosSearchPlaceholder": "Buscar por nome, categoria ou código de barras…",
+    "barcodeAddTakenBy": "Este código já pertence a «{name}». Para usá-lo aqui, remova-o primeiro desse produto.",
+    "barcodeAddTakenByArchived": "Este código já pertence a «{name}», que está arquivado. Para usá-lo aqui, remova-o em Estoque → Arquivados → ⋯ → Códigos de barras, ou restaure esse produto.",
+    "errBarcodeTakenBy": "Esse código de barras já pertence a «{name}». Remova-o primeiro desse insumo.",
+    "errBarcodeTakenByArchived": "Esse código de barras já pertence a «{name}», que está arquivado. Remova-o em Estoque → Arquivados → ⋯ → Códigos de barras, ou restaure esse insumo.",
     "countUnsavedConfirm": "Você tem quantidades não salvas. Se sair agora, elas se perdem. Sair sem salvar?"
   },
   "opDian": {

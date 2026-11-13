@@ -191,6 +191,7 @@ export function SimpleInvoiceSheet({
             {!done.deferred && done.invoiceUrl && staffPrint && (
               <div className="space-y-1">
                 <StaffPrintButton
+                  destinationVariant="pay"
                   doc={{
                     kind: "invoice",
                     orderId,

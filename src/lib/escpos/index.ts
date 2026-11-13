@@ -36,6 +36,16 @@ export {
   type ThermalPrebillRow,
 } from "./prebill";
 export {
+  REPORT_PAYLOAD_VERSION,
+  SHIFT_CLOSE_JOB_KIND,
+  parseReportPayload,
+  renderReport,
+  type ReportPrintJobPayload,
+  type ThermalReport,
+  type ThermalReportRow,
+  type ThermalReportSection,
+} from "./report";
+export {
   TICKET_PAYLOAD_VERSION,
   parseTicketPayload,
   renderTicket,

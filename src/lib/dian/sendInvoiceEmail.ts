@@ -34,6 +34,7 @@ import {
   zipInvoice,
 } from "@/lib/dian/soap";
 import { invoiceXmlIdentity } from "@/lib/dian/invoiceXml";
+import { invoiceRecipients } from "@/lib/invoiceEmails";
 
 /** Por qué NO salió el correo. Se devuelve y se escribe en `emailError`. */
 export type DianEmailFailure =
@@ -53,8 +54,10 @@ export type DianEmailFailure =
 export type DianEmailOutcome =
   | {
       ok: true;
-      /** A qué correo salió. */
+      /** A qué correo salió (el principal). */
       to: string;
+      /** Correos adicionales que fueron en copia (ver invoiceEmails.ts). */
+      cc: string[];
       /** Momento del envío, ISO — lo que quedó en `emailedAt`. */
       emailedAt: string;
       /** false ⇒ salió sin el AttachedDocument (ver `buildAttachment`). */
@@ -149,6 +152,7 @@ export async function sendDianInvoiceEmail(opts: {
         city: true,
         department: true,
         email: true,
+        ccEmails: true,
       },
     });
     const to = resolveDianRecipient({
@@ -166,6 +170,11 @@ export async function sendDianInvoiceEmail(opts: {
       console.log("[dian-email] sin destinatario", { documentId: doc.id });
       return { ok: false, reason: "no_recipient" };
     }
+
+    // Varios correos: el principal (el del XML) en `to` y los adicionales
+    // de la MISMA solicitud en copia — también en el reenvío. Si el correo
+    // no salió de la solicitud (genérica), no hay adicionales.
+    const cc = request && to === request.email?.trim() ? invoiceRecipients(to, request.ccEmails).cc : [];
 
     // Reclamo del envío ANTES de mandar: el que pierde la carrera sale acá.
     // El reenvío manual NO filtra por `emailedAt: null` — ahí no hay
@@ -227,6 +236,7 @@ export async function sendDianInvoiceEmail(opts: {
     const from = brandedInvoiceFrom(snap.restaurantName);
     const ok = await sendEmail({
       to,
+      ...(cc.length ? { cc } : {}),
       subject,
       html,
       text,
@@ -252,7 +262,7 @@ export async function sendDianInvoiceEmail(opts: {
         data: { emailError: "attachment_unavailable" },
       });
     }
-    return { ok: true, to, emailedAt: at.toISOString(), attachment: !!attachment };
+    return { ok: true, to, cc, emailedAt: at.toISOString(), attachment: !!attachment };
   } catch (err) {
     console.error("[dian-email] no se pudo enviar la factura electrónica", {
       documentId: opts.documentId,

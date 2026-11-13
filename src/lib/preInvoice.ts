@@ -318,6 +318,8 @@ export async function preIssueInvoice(args: {
         invoiceUrl: inv.invoiceUrl,
         snapshot: inv.snapshot,
         email: inv.email,
+        // Los adicionales de la personalizada, si el correo que sale es el suyo.
+        cc: request && inv.email === request.email ? request.ccEmails : [],
         locale: inv.locale,
       },
       firstIssuance: true,

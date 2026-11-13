@@ -9,6 +9,7 @@ import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { invoiceSummaryFor } from "@/lib/invoiceCustomerMemory";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +94,6 @@ export default async function PayDone({
     },
   });
   if (!order || order.restaurantId !== tenant.id) return notFound();
-  const issuedInvoiceUrl = order.simpleInvoice
-    ? invoiceUrlFor(order.simpleInvoice.id)
-    : null;
 
   // If the diner already submitted billing info we surface its status
   // instead of the request button. Only show the most recent — they may
@@ -110,16 +108,20 @@ export default async function PayDone({
       docType: true,
       docNumber: true,
       email: true,
+      ccEmails: true,
+      fromSavedCustomer: true,
     },
   });
+  // Armada con un cliente guardado ("Usar estos datos"): quien no es
+  // personal la ve enmascarada y no recibe el enlace de la factura, que
+  // trae el nombre completo — le llega al correo guardado.
   const invoiceSummary = existingInvoice
-    ? {
-        status: existingInvoice.status,
-        customerName: existingInvoice.customerName,
-        docType: existingInvoice.docType,
-        docNumber: existingInvoice.docNumber,
-        email: existingInvoice.email,
-      }
+    ? invoiceSummaryFor(existingInvoice, operator)
+    : null;
+  const hideInvoiceLink =
+    !operator && !!existingInvoice?.fromSavedCustomer && existingInvoice.status !== "rejected";
+  const issuedInvoiceUrl = order.simpleInvoice && !hideInvoiceLink
+    ? invoiceUrlFor(order.simpleInvoice.id)
     : null;
 
   const t = await getTranslations("done");

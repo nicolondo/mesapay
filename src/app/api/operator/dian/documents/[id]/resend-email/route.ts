@@ -72,6 +72,8 @@ async function POSTHandler(
 
   return NextResponse.json({
     sentTo: result.to,
+    // Los correos adicionales de la factura, que también la recibieron.
+    sentCc: result.cc,
     emailedAt: result.emailedAt,
     // false ⇒ salió el correo pero sin el AttachedDocument (faltaba el XML
     // firmado o el acuse). Vale la pena que el operador lo sepa.

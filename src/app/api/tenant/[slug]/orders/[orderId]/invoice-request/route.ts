@@ -11,6 +11,20 @@ import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { applyCustomerDiscount, type ApplyCustomerDiscountResult } from "@/lib/customerDiscount";
 import { ORDER_INVOICED } from "@/lib/orders/orderInvoicedError";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
+import {
+  invoiceDocTypeSchema,
+  invoiceRequestFieldsSchema,
+  validateInvoiceFields,
+  type InvoiceRequestFields,
+} from "@/lib/invoiceRequestInput";
+import { invoiceSummaryFor, type MemoryActor } from "@/lib/invoiceCustomerMemory";
+import { storedExtraEmails } from "@/lib/invoiceEmails";
+import {
+  auditSavedCustomerUse,
+  consumeLookupToken,
+  rememberInvoiceCustomer,
+} from "@/lib/invoiceCustomerMemoryQueries";
 
 /**
  * Customer-submitted billing info attached to an order. We store it
@@ -42,31 +56,37 @@ import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
  * arma el XML. Si el comensal igual escribe "901.944.469-1" se separa; un DV
  * que no corresponde se rechaza con `code` para que el formulario lo diga
  * claro (ver src/lib/customerDocument.ts).
+ *
+ * "Recordar mis datos" (src/lib/invoiceCustomerMemory.ts): llega por dos
+ * caminos.
+ *  - Datos ESCRITOS + `rememberCustomer` (la casilla; ausente = false, que
+ *    es lo que manda un cliente viejo que no la mostraba): después de
+ *    guardar la solicitud se crea o actualiza el cliente guardado según
+ *    quién pide (comensal, mesero o administrador). Nunca bloquea la
+ *    factura.
+ *  - `savedCustomerToken` ("Usar estos datos"): el comensal sólo vio los
+ *    datos enmascarados; la solicitud se arma ACÁ con el registro guardado,
+ *    validado igual que uno escrito. Desde ese camino no se aplica ningún
+ *    beneficio del cliente (crédito, descuento, bonos), y a quien no es
+ *    personal no se le devuelven los datos completos ni el enlace de la
+ *    factura: le llega al correo guardado.
  */
 
-const optionalText = (min: number, max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .nullish()
-    .transform((v) => v || null)
-    .refine((v) => v === null || v.length >= min);
-
-const schema = z.object({
-  customerName: z.string().trim().min(2).max(160),
-  docType: z.enum(["CC", "CE", "NIT", "PA"]),
-  docNumber: z.string().trim().min(4).max(40),
-  address: optionalText(4, 240),
-  city: optionalText(2, 80),
-  department: optionalText(2, 80),
-  email: z.string().email().max(160),
+const typedSchema = invoiceRequestFieldsSchema.extend({
   placeId: z.string().max(200).optional(),
   rawComponents: z.unknown().optional(),
   // Sólo desde el checkout del STAFF: el cliente de facturación elegido en
   // el selector. Liga la cuenta al cliente y aplica su descuento comercial
   // (si lo tiene). Sin sesión de staff del comercio se ignora.
   billingCustomerId: z.string().min(1).max(64).optional(),
+  // La casilla "Recordar mis datos". Ausente = no se preguntó = no se guarda.
+  rememberCustomer: z.boolean().optional(),
+});
+
+const savedSchema = z.object({
+  savedCustomerToken: z.string().min(10).max(160),
+  docType: invoiceDocTypeSchema,
+  docNumber: z.string().trim().min(4).max(40),
 });
 
 async function POSTHandler(
@@ -106,34 +126,87 @@ async function POSTHandler(
   }
 
   const body = await req.json().catch(() => null);
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid", issues: parsed.error.issues },
-      { status: 400 },
-    );
+  const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+  const role = staff?.user?.role;
+  const actor: MemoryActor = !staff
+    ? "diner"
+    : (BILLING_CUSTOMER_WRITE_ROLES as readonly string[]).includes(role ?? "")
+      ? "manager"
+      : "assistant";
+
+  // Dos formas de pedir: con los datos escritos, o "Usar estos datos" (un
+  // cliente guardado que el comensal sólo vio enmascarado).
+  let fields: InvoiceRequestFields;
+  let typed: z.infer<typeof typedSchema> | null = null;
+  let savedCustomerId: string | null = null;
+  const saved = body && typeof body === "object" && "savedCustomerToken" in body ? savedSchema.safeParse(body) : null;
+  if (saved) {
+    if (!saved.success) return NextResponse.json({ error: "invalid" }, { status: 400 });
+    const consumed = await consumeLookupToken(saved.data.savedCustomerToken, tenant.id, order.id);
+    if (!consumed.ok) return NextResponse.json({ error: consumed.error }, { status: 409 });
+    const c = consumed.customer;
+    // Lo guardado se valida igual que lo escrito antes de emitir. Y tiene
+    // que ser el documento que el comensal escribió.
+    const validated = validateInvoiceFields({
+      customerName: c.customerName,
+      docType: c.docType,
+      docNumber: c.docNumber,
+      address: c.address,
+      city: c.city,
+      department: c.department,
+      email: c.email,
+      // Los adicionales guardados viajan también (la factura les llega a
+      // todos); uno que hoy no pase la validación se descarta, no frena.
+      ccEmails: storedExtraEmails(c.email, c.ccEmails),
+    });
+    const typedDoc = normalizeCustomerDocument(saved.data.docType, saved.data.docNumber);
+    if (!validated.ok || !typedDoc.ok || saved.data.docType !== validated.fields.docType || typedDoc.docNumber !== validated.fields.docNumber) {
+      return NextResponse.json({ error: "saved_customer_invalid" }, { status: 409 });
+    }
+    fields = validated.fields;
+    savedCustomerId = c.id;
+  } else {
+    const parsed = typedSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "invalid", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const validated = validateInvoiceFields(parsed.data);
+    if (!validated.ok) {
+      return NextResponse.json(
+        {
+          error: "invalid",
+          ...(validated.code ? { code: validated.code } : {}),
+          ...(validated.index !== undefined ? { index: validated.index } : {}),
+        },
+        { status: 400 },
+      );
+    }
+    fields = validated.fields;
+    typed = parsed.data;
   }
-  const document = normalizeCustomerDocument(parsed.data.docType, parsed.data.docNumber);
-  if (!document.ok) {
-    return NextResponse.json(
-      { error: "invalid", code: document.error },
-      { status: 400 },
-    );
-  }
+  // Armada con un cliente guardado por alguien que no es personal: a él se
+  // le muestra enmascarada (ver `invoiceSummaryFor`).
+  const fromSavedCustomer = !!savedCustomerId && !staff;
 
   const data = {
-    customerName: parsed.data.customerName,
-    docType: parsed.data.docType,
-    docNumber: document.docNumber,
-    address: parsed.data.address,
-    city: parsed.data.city,
-    department: parsed.data.department,
-    email: parsed.data.email,
-    placeId: parsed.data.placeId ?? null,
+    customerName: fields.customerName,
+    docType: fields.docType,
+    docNumber: fields.docNumber,
+    address: fields.address,
+    city: fields.city,
+    department: fields.department,
+    email: fields.email,
+    ccEmails: fields.ccEmails,
+    placeId: typed?.placeId ?? null,
     rawComponents:
-      parsed.data.rawComponents != null
-        ? (parsed.data.rawComponents as Prisma.InputJsonValue)
+      typed?.rawComponents != null
+        ? (typed.rawComponents as Prisma.InputJsonValue)
         : Prisma.JsonNull,
+    rememberCustomer: typed ? (typed.rememberCustomer ?? false) : null,
+    fromSavedCustomer,
   };
 
   // Find an existing pending request and overwrite. If it's already
@@ -158,19 +231,32 @@ async function POSTHandler(
       data: { restaurantId: tenant.id, orderId: order.id, ...data },
     });
   }
+  // "Recordar mis datos": con datos escritos se crea/actualiza el cliente
+  // guardado según quién pide; con "Usar estos datos" sólo queda constancia.
+  if (typed) {
+    await rememberInvoiceCustomer({
+      restaurantId: tenant.id,
+      orderId: order.id,
+      actor,
+      remember: typed.rememberCustomer ?? false,
+      fields,
+      ccEmailsProvided: typed.ccEmails != null,
+    });
+  } else if (savedCustomerId) {
+    await auditSavedCustomerUse(tenant.id, order.id, savedCustomerId, actor);
+  }
+
   // Factura nominativa ligada a un cliente de facturación existente (staff
   // en el checkout): se aplica su descuento comercial con el mecanismo del
   // descuento por comensal. La solicitud ya quedó guardada arriba; si el
-  // descuento no aplica (cuenta con pagos, descuento mayor) se avisa.
+  // descuento no aplica (cuenta con pagos, descuento mayor) se avisa. Sólo
+  // con sesión de staff: desde el comensal nunca hay beneficios.
   let discount: ApplyCustomerDiscountResult | null = null;
-  if (parsed.data.billingCustomerId) {
-    const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
-    const customer = staff
-      ? await db.billingCustomer.findFirst({
-          where: { id: parsed.data.billingCustomerId, restaurantId: tenant.id },
-          select: { discountEnabled: true, discountBps: true },
-        })
-      : null;
+  if (typed?.billingCustomerId && staff) {
+    const customer = await db.billingCustomer.findFirst({
+      where: { id: typed.billingCustomerId, restaurantId: tenant.id },
+      select: { discountEnabled: true, discountBps: true },
+    });
     if (customer) {
       discount = await db.$transaction((tx) => applyCustomerDiscount(tx, order.id, tenant.id, customer));
     }
@@ -189,14 +275,14 @@ async function POSTHandler(
   const inv = await issueSimpleInvoice({
     tenantId: tenant.id,
     orderId: order.id,
-    email: parsed.data.email,
+    email: fields.email,
     customer: {
-      name: parsed.data.customerName,
-      docType: parsed.data.docType,
-      docNumber: document.docNumber,
-      address: parsed.data.address,
-      city: parsed.data.city,
-      department: parsed.data.department,
+      name: fields.customerName,
+      docType: fields.docType,
+      docNumber: fields.docNumber,
+      address: fields.address,
+      city: fields.city,
+      department: fields.department,
     },
   });
   // Qué correo va (comprobante vs. factura electrónica) lo decide UN solo
@@ -211,7 +297,9 @@ async function POSTHandler(
         invoiceNumber: inv.invoiceNumber,
         invoiceUrl: inv.invoiceUrl,
         snapshot: inv.snapshot,
-        email: inv.email ?? parsed.data.email,
+        email: inv.email ?? fields.email,
+        // Los adicionales, sólo si el correo que sale es el de esta solicitud.
+        cc: (inv.email ?? fields.email) === fields.email ? fields.ccEmails : [],
         locale: inv.locale,
       },
       firstIssuance: !inv.alreadyIssued,
@@ -219,14 +307,21 @@ async function POSTHandler(
     });
   }
 
+  // Con un cliente guardado, el comensal no recibe lo que no escribió: ni el
+  // nombre y el correo completos, ni el enlace de la factura (que los trae).
   return NextResponse.json({
     ok: true,
-    request,
+    request: fromSavedCustomer
+      ? { id: request.id, ...invoiceSummaryFor({ ...request, status: request.status }, false) }
+      : request,
     replaced: !!existing,
-    invoiceUrl: inv.ok ? inv.invoiceUrl : null,
+    invoiceUrl: inv.ok && !fromSavedCustomer ? inv.invoiceUrl : null,
     // El cliente muestra "te la enviamos apenas se confirme el pago" en vez
     // del botón de imprimir.
     deferred: !inv.ok && inv.error === "order_not_paid",
+    // Ya emitida y enviada al correo guardado: el comensal ve "te la
+    // enviamos a ju***@gm***.com".
+    sentToSaved: fromSavedCustomer && inv.ok,
     discount,
   });
 }

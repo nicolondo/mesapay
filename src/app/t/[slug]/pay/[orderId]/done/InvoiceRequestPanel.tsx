@@ -91,9 +91,12 @@ export function InvoiceRequestPanel({
   // botón de imprimir. Acotado: si la emisión quedó frenada (p. ej. rango
   // de numeración agotado) no se refresca para siempre.
   const [refreshTries, setRefreshTries] = useState(0);
+  // Con datos guardados enmascarados no hay enlace que esperar: la factura
+  // le llega al correo guardado.
   const waitingInvoice =
     orderPaid &&
-    !issuedInvoiceUrl;
+    !issuedInvoiceUrl &&
+    !existing?.masked;
   useEffect(() => {
     if (!waitingInvoice || refreshTries >= 5) return;
     const id = setTimeout(() => {

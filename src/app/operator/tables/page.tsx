@@ -180,6 +180,7 @@ export default async function TablesPage({
               docType: true,
               docNumber: true,
               email: true,
+              ccEmails: true,
             },
           },
           // Factura emitida ANTES de cobrar: la ficha muestra "Facturada ·

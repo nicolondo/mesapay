@@ -150,6 +150,7 @@ describe("camino automático — sigue siendo idempotente", () => {
     expect(first).toEqual({
       ok: true,
       to: "comensal@gmail.com",
+      cc: [],
       emailedAt: expect.any(String),
       attachment: true,
     });
@@ -200,6 +201,7 @@ describe("reenvío manual (force) — manda aunque ya se haya mandado", () => {
     expect(res).toEqual({
       ok: true,
       to: "comensal@gmail.com",
+      cc: [],
       emailedAt: expect.any(String),
       attachment: true,
     });
@@ -318,5 +320,56 @@ describe("el sobre lleva la factura de ESE CUFE", () => {
   it("XML del mismo CUFE ⇒ adjunto como siempre", async () => {
     m.unzipFirstXml.mockResolvedValue(`<Invoice><cbc:ID>FESM6484</cbc:ID><cbc:UUID>CUFE</cbc:UUID></Invoice>`);
     expect(await send()).toMatchObject({ ok: true, attachment: true });
+  });
+});
+
+describe("varios correos — la factura sale al principal y en copia a los adicionales", () => {
+  const request = {
+    customerName: "Empresa de prueba S.A.S.",
+    docType: "NIT",
+    docNumber: "900373076",
+    address: null,
+    city: null,
+    department: null,
+    email: "compras@empresa.test",
+    ccEmails: ["contabilidad@empresa.test", "COMPRAS@empresa.test", "gerencia@empresa.test"],
+  };
+
+  it("manda al correo principal y en copia a los adicionales, sin repetir el principal", async () => {
+    m.requestFindFirst.mockResolvedValue(request);
+    const res = await send();
+    expect(res).toMatchObject({
+      ok: true,
+      to: "compras@empresa.test",
+      cc: ["contabilidad@empresa.test", "gerencia@empresa.test"],
+    });
+    expect(m.sendEmail).toHaveBeenCalledTimes(1);
+    expect(m.sendEmail.mock.calls[0][0]).toMatchObject({
+      to: "compras@empresa.test",
+      cc: ["contabilidad@empresa.test", "gerencia@empresa.test"],
+      attachments: [expect.objectContaining({ contentType: "application/zip" })],
+    });
+  });
+
+  it("el reenvío manual también sale a todos", async () => {
+    m.requestFindFirst.mockResolvedValue(request);
+    await send();
+    const again = await send(true);
+    expect(again).toMatchObject({ ok: true, cc: ["contabilidad@empresa.test", "gerencia@empresa.test"] });
+    expect(m.sendEmail).toHaveBeenCalledTimes(2);
+    expect(m.sendEmail.mock.calls[1][0].cc).toEqual(["contabilidad@empresa.test", "gerencia@empresa.test"]);
+  });
+
+  it("el XML del sobre se arma con la solicitud de siempre (el principal): la estructura UBL no cambia", async () => {
+    m.requestFindFirst.mockResolvedValue(request);
+    await send();
+    // `customerPartyFor` recibe la solicitud; él sólo lee `email` (el principal).
+    expect(m.buildAttachedDocumentXml).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin solicitud personalizada (genérica) no hay copia", async () => {
+    m.requestFindFirst.mockResolvedValue(null);
+    await send();
+    expect(m.sendEmail.mock.calls[0][0]).not.toHaveProperty("cc");
   });
 });

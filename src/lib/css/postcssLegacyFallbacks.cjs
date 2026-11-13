@@ -1,6 +1,7 @@
 /**
- * Plugin de PostCSS: respaldos para navegadores viejos (piso: Chrome/WebView
- * 99 y Safari iOS 15.4 — ver legacyCss.cjs y "browserslist" en package.json).
+ * Plugin de PostCSS: respaldos para navegadores viejos (piso: Firefox 107 —
+ * el datáfono Sunmi —, Chrome/WebView 99 y Safari iOS 15.4; ver legacyCss.cjs
+ * y "browserslist" en package.json).
  *
  * Corre DESPUÉS de Tailwind (postcss.config.mjs). Lo demás que el piso no
  * entiende (anidamiento, media queries por rango, oklch(), prefijos) lo baja
@@ -16,11 +17,12 @@
  *    original). Si no se puede (currentColor, una variable local) se quita el
  *    respaldo malo — mejor sin efecto que un bloque de color equivocado — y se
  *    avisa. Un color-mix() con variables SIN gate (escrito a mano) se gatea.
- * 2. dvh/svh/lvh (Chrome 108): se antepone la misma declaración en `vh`.
- * 3. translate/rotate/scale sueltas (Chrome 104): dentro de
- *    `@supports not (translate: 0)` se arma el `transform` equivalente, así el
- *    interruptor se mueve y los íconos centrados con -translate-y-1/2 quedan
- *    en su lugar en el datáfono.
+ * 2. dvh/svh/lvh (Chrome 108; Firefox 101 ya los tiene): se antepone la
+ *    misma declaración en `vh`.
+ * 3. translate/rotate/scale sueltas (Chrome 104; Firefox 72 ya las tiene):
+ *    dentro de `@supports not (translate: 0)` se arma el `transform`
+ *    equivalente, así el interruptor se mueve y los íconos centrados con
+ *    -translate-y-1/2 quedan en su lugar en un WebView viejo.
  *
  * Nada de esto cambia lo que pinta un navegador moderno: los respaldos quedan
  * antes de (o bajo un @supports que excluye a) la declaración moderna.

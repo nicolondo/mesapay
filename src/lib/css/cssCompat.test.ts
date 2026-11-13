@@ -1,8 +1,8 @@
 /**
  * Compila el CSS de la app por el mismo camino que `next build` (Tailwind →
  * respaldos → Lightning CSS con el browserslist de package.json) y exige que
- * no quede nada roto para el piso: Chrome/WebView 99 y Safari iOS 15.4 (el
- * datáfono). En CI además se revisa la salida real del build con
+ * no quede nada roto para el piso: Firefox 107 (el datáfono Sunmi), Chrome/
+ * WebView 99 y Safari iOS 15.4. En CI además se revisa la salida real del build con
  * `scripts/check-css-compat.mjs`.
  */
 import { readFileSync } from "node:fs";
@@ -24,6 +24,9 @@ describe("piso de soporte", () => {
     expect(pkg.browserslist).toContain(`chrome >= ${FLOOR.chrome}`);
     expect(pkg.browserslist).toContain(`ios_saf >= ${FLOOR.safari}`);
     expect(pkg.browserslist).toContain(`safari >= ${FLOOR.safari}`);
+    // El datáfono Sunmi: Firefox para Android 107 (GeckoView) como PWA.
+    expect(pkg.browserslist).toContain(`firefox >= ${FLOOR.firefox}`);
+    expect(pkg.browserslist).toContain(`and_ff >= ${FLOOR.firefox}`);
   });
 });
 
@@ -38,10 +41,11 @@ describe("checkCss", () => {
       .f { height: 100dvh }
       .g { translate: 0 -50% }
       .h:has(.i) { color: red }
+      @property --tw-sin-respaldo { syntax: "*"; inherits: false; initial-value: 0 }
     `);
     const kinds = errors.map((e) => e.kind);
     expect(kinds).toEqual(
-      expect.arrayContaining(["anidamiento", "media por rango", "color", "viewport", "transform", ":has()"]),
+      expect.arrayContaining(["anidamiento", "media por rango", "color", "viewport", "transform", ":has()", "@property"]),
     );
     expect(errors.find((e) => e.where.startsWith(".e"))?.message).toMatch(/respaldo malo/);
   });
@@ -55,13 +59,19 @@ describe("checkCss", () => {
       .g { translate: 0 -50% }
       @supports not (translate: 0) { .g { transform: translate(0, -50%) } }
       .k { color: #fb2c36; color: oklch(63.7% .237 25.331) }
+      @property --tw-border-style { syntax: "*"; inherits: false; initial-value: solid }
+      @layer properties {
+        @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
+          *, ::before, ::after, ::backdrop { --tw-border-style: solid }
+        }
+      }
     `);
     expect(errors).toEqual([]);
   });
 });
 
 describe("CSS de la app", () => {
-  it("compilado como en producción, no deja nada roto para Chrome 99 / Safari iOS 15.4", async () => {
+  it("compilado como en producción, no deja nada roto para Firefox 107 / Chrome 99 / Safari iOS 15.4", async () => {
     const file = path.join(ROOT, "src/app/globals.css");
     const compiled = await postcss([tailwind({ base: ROOT, optimize: true }), legacyFallbacks]).process(
       readFileSync(file, "utf8"),

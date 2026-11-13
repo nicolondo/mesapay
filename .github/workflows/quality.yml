@@ -43,7 +43,7 @@ jobs:
       - run: npm run test:integration
       - run: npm run build
       # El CSS que sale del build tiene que funcionar en el piso de soporte
-      # (Chrome/WebView 99, Safari iOS 15.4: datáfonos y celulares viejos).
+      # (Firefox 107 del datáfono Sunmi, Chrome/WebView 99, Safari iOS 15.4).
       - run: node scripts/check-css-compat.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser

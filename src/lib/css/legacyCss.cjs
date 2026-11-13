@@ -3,17 +3,25 @@
  * y por el chequeo de compatibilidad (cssCompatCheck).
  *
  * PISO DE SOPORTE (mantener en sync con "browserslist" de package.json):
- *   Chrome / Android WebView 99+ y Safari iOS 15.4+.
- * Es el navegador de los datáfonos Android (Sunmi y similares) y de celulares
- * baratos que no se actualizan. Lo que el CSS usa y ese piso NO entiende:
- *   - color-mix()              Chrome 111 / Safari 16.2
- *   - oklch()/oklab()/lab()    Chrome 111 / Safari 15.4
- *   - anidamiento con `&`      Chrome 112 / Safari 16.5
- *   - media queries por rango  Chrome 104 / Safari 16.4   (`width >= 40rem`)
- *   - translate/rotate/scale   Chrome 104 / Safari 14.1   (propiedades sueltas)
- *   - dvh/svh/lvh              Chrome 108 / Safari 15.4
- *   - :has()                   Chrome 105 / Safari 15.4
- *   - @container / cqi         Chrome 105 / Safari 16
+ *   Firefox / Firefox para Android 107+, Chrome / Android WebView 99+ y
+ *   Safari iOS 15.4+.
+ * El datáfono Sunmi del comercio corre MESAPAY como PWA en Firefox para
+ * Android 107.2 (GeckoView 107, nov-2022), que no se actualiza; el resto
+ * cubre celulares baratos con WebView viejo. Lo que el CSS usa y ese piso
+ * NO entiende (versión donde llega):
+ *                              Firefox  Chrome  Safari
+ *   - color-mix()                113     111    16.2
+ *   - oklch()/oklab()/lab()      113     111    15.4
+ *   - anidamiento con `&`        117     112    16.5
+ *   - @property                  128      85    16.4  (Tailwind trae su
+ *                                                      respaldo: @layer properties)
+ *   - :has()                     121     105    15.4
+ *   - @container / cqi           110     105    16
+ *   - unidad lh                  120     109    16.4
+ *   - media queries por rango     63     104    16.4  (`width >= 40rem`)
+ *   - translate/rotate/scale      72     104    14.1  (propiedades sueltas)
+ *   - dvh/svh/lvh                101     108    15.4
+ *   - text-wrap: balance         121     114    17.5  (mejora, sin respaldo)
  *
  * CommonJS a propósito: lo cargan postcss.config.mjs (Turbopack lo evalúa en
  * un worker de Node), el chequeo de CI (scripts/check-css-compat.mjs) y
@@ -21,7 +29,7 @@
  */
 "use strict";
 
-const FLOOR = Object.freeze({ chrome: 99, safari: "15.4" });
+const FLOOR = Object.freeze({ firefox: 107, chrome: 99, safari: "15.4" });
 
 /** Gate que usa Tailwind para lo moderno: `@supports (color: color-mix(in lab, red, red))`. */
 const COLOR_MIX_GATE = "(color: color-mix(in lab, red, red))";

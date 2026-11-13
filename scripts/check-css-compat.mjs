@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Revisa el CSS que sale de `next build` contra el piso de soporte
- * (Chrome/WebView 99, Safari iOS 15.4: datáfonos y celulares viejos).
+ * (Firefox 107 del datáfono Sunmi, Chrome/WebView 99, Safari iOS 15.4).
  *
  *   node scripts/check-css-compat.mjs [carpeta]   (por defecto .next/static)
  *
@@ -51,9 +51,9 @@ if (!files) {
 }
 if (errors) {
   console.error(
-    `\n${errors} problema(s) de compatibilidad con Chrome 99 / Safari iOS 15.4 en ${files} archivo(s) CSS.` +
+    `\n${errors} problema(s) de compatibilidad con Firefox 107 / Chrome 99 / Safari iOS 15.4 en ${files} archivo(s) CSS.` +
       "\nVer src/lib/css/cssCompatCheck.cjs para el porqué de cada regla.",
   );
   process.exit(1);
 }
-console.log(`CSS compatible con Chrome 99 / Safari iOS 15.4: ${files} archivo(s), ${warnings} aviso(s) de mejora progresiva.`);
+console.log(`CSS compatible con Firefox 107 / Chrome 99 / Safari iOS 15.4: ${files} archivo(s), ${warnings} aviso(s) de mejora progresiva.`);

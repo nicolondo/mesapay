@@ -6,9 +6,9 @@ import legacyFallbacks from "./src/lib/css/postcssLegacyFallbacks.cjs";
 const config = {
   plugins: [
     "@tailwindcss/postcss",
-    // Respaldos para el piso de soporte (Chrome/WebView 99, Safari iOS 15.4:
-    // datáfonos y celulares viejos). Va DESPUÉS de Tailwind porque corrige su
-    // salida. Ver src/lib/css/postcssLegacyFallbacks.cjs.
+    // Respaldos para el piso de soporte (Firefox 107 del datáfono Sunmi,
+    // Chrome/WebView 99, Safari iOS 15.4). Va DESPUÉS de Tailwind porque
+    // corrige su salida. Ver src/lib/css/postcssLegacyFallbacks.cjs.
     legacyFallbacks,
   ],
 };

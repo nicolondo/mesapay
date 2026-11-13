@@ -1,6 +1,6 @@
 /**
  * Chequeo de compatibilidad del CSS COMPILADO con el piso de soporte
- * (Chrome/WebView 99, Safari iOS 15.4 — ver legacyCss.cjs).
+ * (Firefox 107 del datáfono, Chrome/WebView 99, Safari iOS 15.4 — ver legacyCss.cjs).
  *
  * Lo corre `scripts/check-css-compat.mjs` sobre `.next/static/**\/*.css` en
  * CI (después de `npm run build`) y el test `cssCompat.test.ts` sobre el CSS
@@ -14,9 +14,13 @@
  *  - dvh/svh/lvh sin respaldo en vh;
  *  - translate/rotate/scale sin el `transform` de `@supports not (translate: 0)`;
  *  - :has() sin `@supports selector(:has(...))`;
- *  - unidades de contenedor (cqi, cqw…) sin respaldo.
+ *  - unidades de contenedor (cqi, cqw…) sin respaldo;
+ *  - `@property` con valor inicial sin el respaldo de Tailwind para Firefox
+ *    < 128 (el datáfono): las variables `--tw-*` puestas en `*` dentro del
+ *    `@supports (… -moz-orient …)` de `@layer properties`. Sin eso, en
+ *    Firefox 107 un `border` sale sin estilo y un `shadow` sin sombra.
  *
- * `@container` sólo da aviso: lo de adentro es una mejora y el estilo base
+ * `@container` y `text-wrap` sólo dan aviso: son mejoras y el estilo base
  * tiene que funcionar sin eso.
  */
 "use strict";
@@ -88,6 +92,31 @@ function checkCss(css, { from = "css" } = {}) {
     at.walkRules((r) => {
       if (r.some((d) => d.type === "decl" && d.prop === "transform")) transformFallbacks.add(normalizeSelector(r.selector));
     });
+  });
+
+  // @property (Firefox 128): cada variable registrada con valor inicial
+  // tiene que tener su valor en el respaldo de Tailwind para Firefox viejo.
+  const firefoxPropertyFallback = new Set();
+  root.walkAtRules("supports", (at) => {
+    if (!/-moz-orient/i.test(at.params)) return;
+    at.walkRules((r) => {
+      if (!/(^|,)\s*\*\s*(,|$)/.test(r.selector)) return;
+      r.walkDecls((d) => {
+        if (d.prop.startsWith("--")) firefoxPropertyFallback.add(d.prop);
+      });
+    });
+  });
+  root.walkAtRules("property", (at) => {
+    const hasInitial = at.nodes && at.nodes.some((d) => d.type === "decl" && d.prop === "initial-value");
+    if (!hasInitial) return;
+    const name = at.params.trim();
+    if (!firefoxPropertyFallback.has(name)) {
+      errors.push({
+        kind: "@property",
+        where: `@property ${name}`,
+        message: "valor inicial sin respaldo para navegadores sin @property (Firefox < 128, el datáfono)",
+      });
+    }
   });
 
   root.walkRules((rule) => {
@@ -164,6 +193,10 @@ function checkCss(css, { from = "css" } = {}) {
         const prev = rule ? lastDeclBefore(rule, decl.prop, decl) : null;
         if (!prev || DYN_VIEWPORT.test(prev.value)) err("viewport", decl, "dvh/svh/lvh sin respaldo en vh antes (Chrome 108)");
       }
+    }
+
+    if (decl.prop === "text-wrap" && /balance|pretty/i.test(value)) {
+      warnings.push({ kind: "text-wrap", where: describe(decl), message: "sin efecto antes de Firefox 121 / Chrome 114 (mejora)" });
     }
 
     // ── unidades de contenedor ───────────────────────────────────────────

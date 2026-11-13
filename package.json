@@ -29,7 +29,8 @@
     "samsung >= 18",
     "safari >= 15.4",
     "ios_saf >= 15.4",
-    "firefox >= 111"
+    "firefox >= 107",
+    "and_ff >= 107"
   ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",

@@ -2254,7 +2254,15 @@
     "useCaja": "Enviar a la impresora de caja",
     "paperOther": "Otro",
     "paperCustomLabel": "Ancho del papel del equipo, en milímetros",
-    "paperCustomHint": "mm (de {min} a {max})"
+    "paperCustomHint": "mm (de {min} a {max})",
+    "terminalSending": "Enviando al datáfono…",
+    "terminalSent": "Enviada al datáfono {device} ✓",
+    "terminalChoose": "¿Cuál es este datáfono? Tócalo una vez y queda recordado.",
+    "terminalFailed": "El datáfono no recibió la impresión.",
+    "terminalNoDevices": "No hay datáfonos activos con serial: agrégalo en Configuración → Datáfonos.",
+    "terminalBusinessCode": "Falta el Business-Code de Kushki del comercio para imprimir en el datáfono.",
+    "terminalKushkiFailed": "Kushki no aceptó la impresión ({reason}).",
+    "terminalClosed": "No hay nada que imprimir: la cuenta ya se cerró o no tiene consumo."
   },
   "opCartera": {
     "hubCategory": "Comerciales",

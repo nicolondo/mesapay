@@ -2254,7 +2254,15 @@
     "useCaja": "Send to the register printer",
     "paperOther": "Other",
     "paperCustomLabel": "Device paper width, in millimeters",
-    "paperCustomHint": "mm ({min} to {max})"
+    "paperCustomHint": "mm ({min} to {max})",
+    "terminalSending": "Sending to the card reader…",
+    "terminalSent": "Sent to the card reader {device} ✓",
+    "terminalChoose": "Which card reader is this one? Tap it once and it's remembered.",
+    "terminalFailed": "The card reader didn't receive the print job.",
+    "terminalNoDevices": "There are no active card readers with a serial number: add one in Settings → Card readers.",
+    "terminalBusinessCode": "The business's Kushki Business-Code is missing, so it can't print on the card reader.",
+    "terminalKushkiFailed": "Kushki didn't accept the print job ({reason}).",
+    "terminalClosed": "Nothing to print: the bill is already closed or has no items."
   },
   "opCartera": {
     "hubCategory": "Commercial",

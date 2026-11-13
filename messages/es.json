@@ -1350,7 +1350,12 @@
     "einvoiceRepresentation": "Representación impresa de la factura electrónica de venta",
     "paymentPending": "Pendiente de pago",
     "freeItemsNote": "Sin costo (no hacen parte de la factura): {items}",
-    "methodBreB": "Bre-B · transferencia"
+    "methodBreB": "Bre-B · transferencia",
+    "invoiceTotal": "Total factura",
+    "receiptTotal": "Total comprobante",
+    "tipVoluntary": "Propina voluntaria",
+    "totalToPay": "TOTAL A PAGAR",
+    "suggestedTipVoluntary": "Propina sugerida (voluntaria) {pct}%"
   },
   "emailDianInvoice": {
     "subject": "Tu factura electrónica de {brand} — {number}",
@@ -1369,7 +1374,10 @@
     "ctaText": "Ver la factura: {url}",
     "verifyCta": "Verifica tu factura en la DIAN",
     "footerHelp": "Si tienes dudas con tu cuenta, escríbele directamente a {brand}.",
-    "sentBy": "Enviado por MESAPAY · Hecho en Colombia"
+    "sentBy": "Enviado por MESAPAY · Hecho en Colombia",
+    "labelInvoiceTotal": "Total factura",
+    "labelTip": "Propina voluntaria",
+    "labelTotalToPay": "Total a pagar"
   },
   "emailMembership": {
     "subjectT7": "Tu plan MESAPAY vence en {days} días",
@@ -9703,7 +9711,8 @@
     "total": "Total acreditado: {amount}",
     "tipRefund": "Propina devuelta: {amount} (no hace parte de la nota crédito electrónica)",
     "open": "Consultar nota crédito",
-    "attachments": "Adjuntamos la representación en PDF y el contenedor XML con la respuesta de la DIAN."
+    "attachments": "Adjuntamos la representación en PDF y el contenedor XML con la respuesta de la DIAN.",
+    "totalToRefund": "Total a devolver con la propina: {amount}"
   },
   "serviceReports": {
     "representationTitle": "Gastos de representación",

@@ -46,7 +46,7 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const invoice = await db.simpleInvoice.findUnique({ where: { id }, include: { order: { select: { locale: true } } } });
+  const invoice = await db.simpleInvoice.findUnique({ where: { id }, include: { order: { select: { locale: true, tipCents: true } } } });
   if (!invoice || invoice.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "invoice_not_found" }, { status: 404 });
   }
@@ -85,6 +85,9 @@ async function POSTHandler(
     invoice.invoiceNumber,
     invoiceUrlFor(invoice.id),
     t,
+    // Propina REAL de la orden: la de una factura emitida antes de cobrar
+    // no está en el snapshot.
+    invoice.order,
   );
 
   const result = await printOnCloudTerminal({

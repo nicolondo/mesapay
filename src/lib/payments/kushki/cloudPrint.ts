@@ -16,7 +16,10 @@ import type { KushkiMode } from "../../platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
 import {
   formatInvoiceNumber,
+  invoicePayableOf,
   itemDetailLines,
+  payableLabelsFrom,
+  payableRows,
   summaryLabelsFrom,
   summaryRows,
 } from "@/lib/invoice";
@@ -70,6 +73,11 @@ export function buildInvoiceCommands(
   // térmica): las filas de impuesto y los totales salen de ahí para que
   // el datáfono diga lo mismo que el papel de la caja.
   t: (key: string, values?: Record<string, string | number>) => string = defaultInvoiceTranslator,
+  /**
+   * La orden HOY: la propina REAL de una factura emitida antes de cobrar,
+   * para el TOTAL A PAGAR (ver `invoicePayableOf`).
+   */
+  order?: { tipCents: number } | null,
 ): PrintCommand[] {
   const c: PrintCommand[] = [];
   const center = (
@@ -144,10 +152,21 @@ export function buildInvoiceCommands(
   for (const row of summaryRows(snapshot, summaryLabelsFrom(t))) {
     c.push(totalRow(row.label, (row.negative ? "-" : "") + money(row.cents)));
   }
-  if (snapshot.tipCents > 0) {
-    c.push(totalRow(t("tip"), money(snapshot.tipCents)));
+  // Total factura (la venta), propina voluntaria y el TOTAL A PAGAR =
+  // factura + propina, en negrita y más grande: rótulo y monto en dos
+  // renglones, así a ese tamaño nunca se encima con nada.
+  for (const row of payableRows(
+    invoicePayableOf(snapshot, order),
+    payableLabelsFrom(t, { einvoice: true }),
+  )) {
+    if (row.strong) {
+      c.push({ type: "divider", dividerType: "SOLID", offset: 4 });
+      c.push({ type: "text", text: row.label + "\n", align: "LEFT", size: 28, bold: true });
+      c.push({ type: "text", text: money(row.cents) + "\n", align: "RIGHT", size: 32, bold: true });
+    } else {
+      c.push(totalRow(row.label, money(row.cents)));
+    }
   }
-  c.push(totalRow(t("total"), money(snapshot.totalCents)));
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
   c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 20, true));

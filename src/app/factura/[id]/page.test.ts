@@ -205,3 +205,98 @@ describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
   });
 });
 
+
+// El caso del dueño: la vista decía TOTAL con la venta sola y el cliente
+// pagó más, con la propina. Ahora: «Total factura/comprobante» (la venta),
+// «Propina voluntaria» y el TOTAL A PAGAR = factura + propina, destacado.
+describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
+  /** Los renglones de totales, como texto: "rótulo|monto". */
+  const totals = (html: string) =>
+    [...html.matchAll(/<div class="row[^"]*"[^>]*><span>([^<]*)<\/span><span class="right">([^<]*)<\/span><\/div>/g)].map(
+      (m) => `${m[1]}|${m[2]}`,
+    );
+  const toPay = (html: string) => /data-total-to-pay="(\d+)"/.exec(html)?.[1];
+
+  it("emitida al cobrar: la venta, la propina del snapshot y el total a pagar con ella", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 1_200_000, totalCents: 13_200_000 },
+    });
+    const html = await render();
+    expect(totals(html).slice(-3)).toEqual([
+      "Total comprobante|$120.000",
+      "Propina voluntaria|$12.000",
+      "TOTAL A PAGAR|$132.000",
+    ]);
+    expect(toPay(html)).toBe("13200000");
+    expect(html).toContain('class="row to-pay"');
+    expect(html).not.toContain(">TOTAL<");
+  });
+
+  it("factura electrónica aceptada: el rótulo es «Total factura»", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      dianDocument: { state: "accepted", cufe: "abc123" },
+      restaurant: { ...row.restaurant, enabledModules: ["einvoicing"] },
+    });
+    expect(totals(await render())).toContain("Total factura|$25.000");
+  });
+
+  it("emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden (la del snapshot es 0)", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
+      order: {
+        shortCode: "DEMO",
+        tipCents: 1_200_000,
+        payments: [{ method: "external_terminal", amountCents: 13_200_000, tipCents: 1_200_000 }],
+      },
+    });
+    const html = await render();
+    expect(totals(html).slice(-3)).toEqual([
+      "Total comprobante|$120.000",
+      "Propina voluntaria|$12.000",
+      "TOTAL A PAGAR|$132.000",
+    ]);
+    expect(html).not.toContain("Pendiente de pago");
+    expect(html).not.toContain("Propina sugerida");
+  });
+
+  it("emitida ANTES de cobrar y sin cobrar: TOTAL A PAGAR = la factura; la propina sugerida aparte, sin sumar", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
+      order: { shortCode: "DEMO", tipCents: 0, payments: [] },
+    });
+    const html = await render();
+    expect(totals(html)).toEqual([
+      "Subtotal|$120.000",
+      "Total comprobante|$120.000",
+      "TOTAL A PAGAR|$120.000",
+      "Pendiente de pago|$120.000",
+      "Propina sugerida (voluntaria) 10%|$12.000",
+    ]);
+    expect(toPay(html)).toBe("12000000");
+    expect(html).not.toContain("132.000");
+    expect(html).not.toContain("TOTAL CON PROPINA");
+  });
+
+  it.each(["en", "pt"])("en %s los rótulos nuevos están traducidos", async (locale) => {
+    mocks.locale = locale;
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, tipCents: 250_000, totalCents: 2_750_000 },
+    });
+    const html = await render();
+    const { t } = await getEmailTranslator(locale, "emailInvoice");
+    for (const key of ["receiptTotal", "tipVoluntary", "totalToPay"]) {
+      expect(t(key)).not.toBe(key);
+      expect(html).toContain(t(key));
+    }
+  });
+});

@@ -1350,7 +1350,12 @@
     "einvoiceRepresentation": "Printed representation of the electronic sales invoice",
     "paymentPending": "Payment pending",
     "freeItemsNote": "Free of charge (not part of the invoice): {items}",
-    "methodBreB": "Bre-B · transfer"
+    "methodBreB": "Bre-B · transfer",
+    "invoiceTotal": "Invoice total",
+    "receiptTotal": "Receipt total",
+    "tipVoluntary": "Voluntary tip",
+    "totalToPay": "TOTAL TO PAY",
+    "suggestedTipVoluntary": "Suggested tip (voluntary) {pct}%"
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",
@@ -1369,7 +1374,10 @@
     "ctaText": "View the invoice: {url}",
     "verifyCta": "Verify your invoice with the DIAN",
     "footerHelp": "If you have questions about your bill, write directly to {brand}.",
-    "sentBy": "Sent by MESAPAY · Made in Colombia"
+    "sentBy": "Sent by MESAPAY · Made in Colombia",
+    "labelInvoiceTotal": "Invoice total",
+    "labelTip": "Voluntary tip",
+    "labelTotalToPay": "Total to pay"
   },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
@@ -9703,7 +9711,8 @@
     "total": "Total credited: {amount}",
     "tipRefund": "Tip returned: {amount} (not part of the electronic credit note)",
     "open": "View credit note",
-    "attachments": "The PDF representation and XML container with the DIAN response are attached."
+    "attachments": "The PDF representation and XML container with the DIAN response are attached.",
+    "totalToRefund": "Total to refund including the tip: {amount}"
   },
   "serviceReports": {
     "representationTitle": "Representation expenses",

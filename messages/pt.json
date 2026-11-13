@@ -1350,7 +1350,12 @@
     "einvoiceRepresentation": "Representação impressa da fatura eletrônica de venda",
     "paymentPending": "Pagamento pendente",
     "freeItemsNote": "Sem custo (não fazem parte da fatura): {items}",
-    "methodBreB": "Bre-B · transferência"
+    "methodBreB": "Bre-B · transferência",
+    "invoiceTotal": "Total da fatura",
+    "receiptTotal": "Total do comprovante",
+    "tipVoluntary": "Gorjeta voluntária",
+    "totalToPay": "TOTAL A PAGAR",
+    "suggestedTipVoluntary": "Gorjeta sugerida (voluntária) {pct}%"
   },
   "emailDianInvoice": {
     "subject": "Sua nota fiscal eletrônica de {brand} — {number}",
@@ -1369,7 +1374,10 @@
     "ctaText": "Ver a nota fiscal: {url}",
     "verifyCta": "Verifique sua nota fiscal na DIAN",
     "footerHelp": "Se tiver dúvidas com a sua conta, escreva diretamente para {brand}.",
-    "sentBy": "Enviado por MESAPAY · Feito na Colômbia"
+    "sentBy": "Enviado por MESAPAY · Feito na Colômbia",
+    "labelInvoiceTotal": "Total da fatura",
+    "labelTip": "Gorjeta voluntária",
+    "labelTotalToPay": "Total a pagar"
   },
   "emailMembership": {
     "subjectT7": "Seu plano MESAPAY vence em {days} dias",
@@ -9703,7 +9711,8 @@
     "total": "Total creditado: {amount}",
     "tipRefund": "Gorjeta devolvida: {amount} (não faz parte da nota de crédito eletrônica)",
     "open": "Consultar nota de crédito",
-    "attachments": "Anexamos a representação em PDF e o contêiner XML com a resposta da DIAN."
+    "attachments": "Anexamos a representação em PDF e o contêiner XML com a resposta da DIAN.",
+    "totalToRefund": "Total a devolver com a gorjeta: {amount}"
   },
   "serviceReports": {
     "representationTitle": "Despesas de representação",

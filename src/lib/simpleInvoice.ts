@@ -379,11 +379,25 @@ export async function sendSimpleInvoiceEmail(opts: {
   locale: string | null;
 }): Promise<void> {
   try {
+    // Emitida ANTES de cobrar: la propina del TOTAL A PAGAR es la REAL de
+    // la orden (el snapshot no la tiene), y si ya se saldó. Emitida al
+    // cobrar, el snapshot ya trae la propina final.
+    const order = isIssuedBeforePayment(opts.snapshot)
+      ? await db.simpleInvoice
+          .findUnique({
+            where: { id: opts.invoiceId },
+            select: { order: { select: { tipCents: true, status: true } } },
+          })
+          .then((r) =>
+            r?.order ? { tipCents: r.order.tipCents, paid: r.order.status === "paid" } : null,
+          )
+      : null;
     const { subject, html, text } = await renderInvoiceEmail({
       snapshot: opts.snapshot,
       invoiceNumber: opts.invoiceNumber,
       invoiceUrl: opts.invoiceUrl,
       locale: opts.locale ?? undefined,
+      order,
     });
     const from = brandedInvoiceFrom(opts.snapshot.restaurantName);
     const ok = await sendEmail({

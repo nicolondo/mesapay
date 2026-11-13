@@ -25,6 +25,7 @@ import {
 } from "./auxRows";
 import type { CurrentSalesTax, ExpenseTaxInput, PurchaseTaxInput, SaleTaxInput } from "./taxesDocuments";
 import { pickRetefuenteConcept } from "../expenseTax";
+import { pickPurchaseRetefuenteConcept } from "../purchaseRetentions";
 import { purchaseLineTaxCents } from "./taxesDocuments";
 import { ORIGIN_SOURCE, type DocFact, type DrillOrigin, type DrillTaxKey } from "./taxesDrill";
 import { engineDay, type EngineEntry, type Reconciliation } from "./taxesReconcile";
@@ -125,10 +126,13 @@ export type DianState = { state: string; lastError: string | null };
 export type RetentionConceptFull = {
   kind: string;
   name: string;
+  /** Tarifa efectiva en bps (puede tener decimales). */
   rateBps: number;
   base: string;
   thresholdUvt: number;
   active: boolean;
+  /** Clave del catálogo: elige la retefuente por tema. */
+  catalogKey?: string | null;
 };
 
 export type ChecksInput = {
@@ -387,7 +391,15 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
     for (const kind of RET_KINDS) {
       const active = input.concepts.filter((c) => c.active && c.kind === kind);
       if (active.length === 0) continue;
-      const applicable = applicableConcepts(input.concepts, kind, doc, input.uvtCents);
+      // Lo que la factura debía llevar es lo que sugiere el formulario de
+      // compras (`suggestPurchaseRetentions`): UNA retefuente (la de compras,
+      // `pickPurchaseRetefuenteConcept`) y la primera reteIVA / reteICA
+      // activa — no la suma de todos los conceptos activos del tipo (un
+      // comercio con «Transporte de carga» o «Servicios» activos para sus
+      // gastos no espera esas retenciones en una compra de insumos).
+      const pick = kind === "retefuente" ? pickPurchaseRetefuenteConcept(active) : active[0];
+      const pool = pick ? [pick] : [];
+      const applicable = applicableConcepts(pool, kind, doc, input.uvtCents);
       const practiced = retOf(p, kind);
       if (applicable.length > 0 && practiced === 0) {
         const expected = applicable.reduce((s, a) => s + a.amountCents, 0);
@@ -403,7 +415,7 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
         bajoUmbral.push(
           purchaseRow(p, practiced, {
             key: `compras:${p.purchaseId}:${kind}`,
-            conceptName: active.map((c) => c.name).join(" · "),
+            conceptName: pool.map((c) => c.name).join(" · "),
           }),
         );
         bajoTaxes.push(kind);

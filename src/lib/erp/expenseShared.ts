@@ -18,7 +18,7 @@ import {
   type ExpenseAmounts,
   type ExpenseTaxError,
 } from "./expenseTax";
-import { computeRetentions } from "./retencionesCore";
+import { computeRetentions, conceptRateBps, conceptRatePpm, rateColumns } from "./retencionesCore";
 import { loadAccountIndex, type AccountIndexEntry } from "./ledger";
 import { POSSIBLE_DUPLICATE_MODES } from "./documentNumber";
 
@@ -131,12 +131,18 @@ export async function supplierOwned(
 
 // ── Impuestos: del formulario a lo que se guarda ──────────────────────────
 
-/** Fila de `ExpenseRetention` lista para crear (sin expenseId). */
+/**
+ * Fila de `ExpenseRetention` lista para crear (sin expenseId). La tarifa va
+ * como en la BD: `rateBps` entero (redondeado) y `ratePpm` exacto; la
+ * efectiva sale de `conceptRateBps`.
+ */
 export type ExpenseRetentionRow = {
   conceptId: string | null;
   kind: string;
   name: string;
   rateBps: number;
+  /** Exacta en ppm; null/ausente = la de `rateBps` (fotos anteriores). */
+  ratePpm?: number | null;
   base: string;
   accountCode: string;
   baseCents: number;
@@ -252,7 +258,7 @@ export async function resolveExpenseTaxes(args: {
         conceptId: c.id,
         kind: c.kind,
         name: c.name,
-        rateBps: c.rateBps,
+        ...rateColumns(conceptRatePpm(c)),
         base: c.base,
         accountCode: retentionAccountFor(index, c.kind, c.accountCode),
         baseCents: retentionBaseCents(c, pre),
@@ -266,6 +272,7 @@ export async function resolveExpenseTaxes(args: {
         kind: prev.kind,
         name: prev.name,
         rateBps: prev.rateBps,
+        ratePpm: prev.ratePpm ?? null,
         base: prev.base,
         accountCode: retentionAccountFor(index, prev.kind, prev.accountCode),
         baseCents: retentionBaseCents(prev, pre),
@@ -311,7 +318,17 @@ export type TemplateTaxSource = {
   amountCents: number;
   payableCents: number;
   retentions: readonly (StoredRetention & {
-    concept: { id: string; kind: string; name: string; rateBps: number; base: string; thresholdUvt: number; accountCode: string; active: boolean } | null;
+    concept: {
+      id: string;
+      kind: string;
+      name: string;
+      rateBps: number;
+      ratePpm?: number | null;
+      base: string;
+      thresholdUvt: number;
+      accountCode: string;
+      active: boolean;
+    } | null;
   })[];
 };
 
@@ -346,14 +363,18 @@ export function templateCopyTaxes(
     const c = line.concept;
     if (c) {
       if (!c.active) continue;
-      const res = computeRetentions([c], { subtotalCents: pre.baseCents, taxCents: pre.ivaCents }, uvtCents);
+      const res = computeRetentions(
+        [{ ...c, rateBps: conceptRateBps(c) }],
+        { subtotalCents: pre.baseCents, taxCents: pre.ivaCents },
+        uvtCents,
+      );
       const amount = res.lines[0]?.amountCents ?? 0;
       if (amount <= 0) continue;
       rows.push({
         conceptId: c.id,
         kind: c.kind,
         name: c.name,
-        rateBps: c.rateBps,
+        ...rateColumns(conceptRatePpm(c)),
         base: c.base,
         accountCode: line.accountCode,
         baseCents: retentionBaseCents(c, pre),
@@ -361,13 +382,14 @@ export function templateCopyTaxes(
       });
     } else {
       const baseCents = retentionBaseCents(line, pre);
-      const amount = retentionAmountCents(line.rateBps, baseCents);
+      const amount = retentionAmountCents(conceptRateBps(line), baseCents);
       if (amount <= 0) continue;
       rows.push({
         conceptId: null,
         kind: line.kind,
         name: line.name,
         rateBps: line.rateBps,
+        ratePpm: line.ratePpm ?? null,
         base: line.base,
         accountCode: line.accountCode,
         baseCents,

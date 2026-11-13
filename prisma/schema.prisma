@@ -3243,6 +3243,9 @@ model ExpenseRetention {
   base        String @default("subtotal")
   /// Cuenta del PUC que se acredita (2365xx / 2367xx / 2368xx).
   accountCode String
+  /// Tarifa exacta en partes por millón (null = la de `rateBps`): la foto
+  /// de un concepto con decimales finos (reteICA 4,14 ‰ = 4.140).
+  ratePpm     Int?
   /// Base sobre la que se calculó (la base del gasto o su IVA).
   baseCents   Int
   amountCents Int
@@ -4024,6 +4027,9 @@ model AccountingConfig {
   closedThrough     String?
   /// Siguiente número de comprobante de la secuencia del comercio.
   nextVoucherNumber Int        @default(1)
+  /// Cuándo se sembró el set estándar de conceptos de retención: desde ahí
+  /// no se vuelve a sembrar aunque el comercio borre todos los suyos.
+  retentionConceptsSeededAt DateTime?
   updatedAt         DateTime   @updatedAt
 }
 
@@ -4194,20 +4200,32 @@ model DeferredItem {
 }
 
 /// Concepto de retención del comercio (retefuente/reteIVA/reteICA) al estilo
-/// zenith: tarifa en basis points, base subtotal o impuesto, umbral en UVT
-/// (0 = siempre aplica) y cuenta PUC del pasivo. Se siembra un set estándar
-/// INACTIVO — el contador activa los que apliquen al régimen del comercio.
+/// zenith: tarifa, base subtotal o impuesto, umbral en UVT (0 = siempre
+/// aplica) y cuenta PUC del pasivo. Se siembra un set estándar INACTIVO — el
+/// contador activa los que apliquen al régimen del comercio — y el comercio
+/// crea los suyos desde el catálogo (retencionesCatalogo.ts) o a mano.
+/// Un concepto que ya se usó en un gasto no se borra: se desactiva.
 model RetentionConcept {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   kind         String // retefuente | reteiva | reteica
   name         String
-  rateBps      Int // 250 = 2,5% — sobre la base elegida
+  rateBps      Int // 250 = 2,5% — sobre la base elegida (redondeado si hay ratePpm)
+  /// Tarifa EXACTA en partes por millón (1 % = 10.000; 0,1 % = 1.000;
+  /// 4,14 ‰ = 4.140). null = la de `rateBps` (conceptos anteriores). Al
+  /// escribir se guardan las dos: `rateBps` redondeado sirve a la versión
+  /// anterior del código durante el despliegue.
+  ratePpm      Int?
   base         String     @default("subtotal") // subtotal | tax
   thresholdUvt Int        @default(0)
-  accountCode  String // 236505 / 236705 / 236805
+  accountCode  String // 2365xx / 2367xx / 2368xx
   active       Boolean    @default(false)
+  /// Clave del catálogo de donde nació (retencionesCatalogo.ts); null =
+  /// personalizado o sembrado antes del catálogo.
+  catalogKey   String?
+  /// Creado a mano por el comercio («Personalizado»).
+  isCustom     Boolean    @default(false)
   createdAt    DateTime   @default(now())
 
   expenseRetentions ExpenseRetention[]

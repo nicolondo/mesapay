@@ -140,6 +140,18 @@ export type InvoiceSnapshot = {
    */
   issuedBeforePayment?: boolean;
   /**
+   * Factura emitida ANTES de cobrar: la propina que el staff tenía elegida
+   * en el cobro al emitirla. Decide la «Propina sugerida (voluntaria)» que
+   * acompaña la factura mientras no se cobra (`print/invoiceDoc.
+   * pendingPaymentOf`):
+   *   · 0 ⇒ «Sin propina»: NINGUNA representación muestra propina sugerida;
+   *   · n > 0 ⇒ la sugerida es el n %;
+   *   · ausente (facturas anteriores, o emitidas desde la ficha de la mesa,
+   *     que no tiene selector) ⇒ el 10 % de siempre (`DEFAULT_TIP_PCT`).
+   * Nunca suma al TOTAL A PAGAR: ése lleva sólo la propina COBRADA.
+   */
+  suggestedTipPct?: number;
+  /**
    * Los `OrderItem` que cubre la factura emitida antes de cobrar. La cuenta
    * queda cerrada a cambios (ver `orders/invoicedOrder.ts`), y el XML de la
    * DIAN se arma SÓLO con estos ítems: si algo se colara después, no

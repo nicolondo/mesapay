@@ -45,6 +45,11 @@ export function invoiceUrlFor(id: string): string {
   return `${base.replace(/\/$/, "")}/factura/${id}`;
 }
 
+/** Un porcentaje de propina válido para guardar en el snapshot (0–100, entero). */
+function isTipPct(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100;
+}
+
 /**
  * Emite (o devuelve, idempotente) la factura simple imprimible de una orden
  * pagada. Fuente ÚNICA de la numeración + snapshot — la usan la tirilla
@@ -74,6 +79,12 @@ export async function issueSimpleInvoice(opts: {
   customer?: InvoiceCustomer | null;
   /** Emitir sobre la cuenta ABIERTA, antes de cobrar. Ver arriba. */
   beforePayment?: boolean;
+  /**
+   * Antes de cobrar: la propina elegida en el cobro (0 = «Sin propina»).
+   * Queda en el snapshot (`suggestedTipPct`); ausente = la sugerida de
+   * siempre.
+   */
+  suggestedTipPct?: number | null;
 }): Promise<IssueSimpleInvoiceResult> {
   const order = await db.order.findUnique({
     where: { id: opts.orderId },
@@ -269,6 +280,7 @@ export async function issueSimpleInvoice(opts: {
     ...(beforePayment && {
       issuedBeforePayment: true,
       orderItemIds: order.items.map((i) => i.id),
+      ...(isTipPct(opts.suggestedTipPct) && { suggestedTipPct: opts.suggestedTipPct }),
     }),
   };
 

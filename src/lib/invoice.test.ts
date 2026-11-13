@@ -641,3 +641,15 @@ describe("correo del comprobante — total, propina voluntaria y TOTAL A PAGAR",
     expect(paid.html).toMatch(/Total pagado<\/div>\s*<div[^>]*>\$132\.000/);
   });
 });
+
+describe("emitida con «Sin propina»: el datáfono tampoco sugiere propina", () => {
+  it("sin cobrar, sólo Total factura y TOTAL A PAGAR = la factura", () => {
+    const pre = snap({ subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true, suggestedTipPct: 0 });
+    const texts = buildInvoiceCommands(pre, 1, invoiceUrl, undefined, { tipCents: 0 }).flatMap((c) =>
+      c.type === "text" ? [c.text] : c.type === "columns" ? [c.columns.map((col) => col.text).join(" ")] : [],
+    );
+    expect(texts.join("\n")).not.toContain("Propina sugerida");
+    expect(texts.join("\n")).not.toContain("Propina voluntaria");
+    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$ 120.000\n");
+  });
+});

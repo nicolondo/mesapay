@@ -10424,7 +10424,7 @@
     "statHint": "Collected {collected} · returned {returned}"
   },
   "preInvoice": {
-    "action": "Print invoice",
+    "action": "Issue and print invoice",
     "sheetLabel": "Invoice before payment",
     "sheetTitle": "Print the invoice",
     "sheetIntro": "The invoice is issued for the bill as it is now, for {total}. The customer pays afterwards however they like: cash, card terminal, link or split.",
@@ -10473,7 +10473,8 @@
     "annulLink": "Void with credit note",
     "view": "View invoice",
     "tileBadge": "Invoiced",
-    "dinerInvoiced": "The invoice for this bill has already been issued ({number}). You can pay with any method."
+    "dinerInvoiced": "The invoice for this bill has already been issued ({number}). You can pay with any method.",
+    "actionManual": "Print invoice"
   },
   "adminDianRecovery": {
     "title": "DIAN invoices to recover",

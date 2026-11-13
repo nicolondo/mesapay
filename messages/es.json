@@ -10424,7 +10424,7 @@
     "statHint": "Cobradas {collected} · devueltas {returned}"
   },
   "preInvoice": {
-    "action": "Imprimir factura",
+    "action": "Emitir e imprimir factura",
     "sheetLabel": "Factura antes de cobrar",
     "sheetTitle": "Imprimir la factura",
     "sheetIntro": "Se emite la factura de la cuenta tal como está, por {total}. El cliente paga después con lo que quiera: efectivo, datáfono, link o dividida.",
@@ -10473,7 +10473,8 @@
     "annulLink": "Anular con nota crédito",
     "view": "Ver factura",
     "tileBadge": "Facturada",
-    "dinerInvoiced": "La factura de esta cuenta ya está emitida ({number}). Puedes pagar con cualquier medio."
+    "dinerInvoiced": "La factura de esta cuenta ya está emitida ({number}). Puedes pagar con cualquier medio.",
+    "actionManual": "Imprimir factura"
   },
   "adminDianRecovery": {
     "title": "Facturas DIAN por recuperar",

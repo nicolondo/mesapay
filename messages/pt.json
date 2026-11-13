@@ -10424,7 +10424,7 @@
     "statHint": "Cobradas {collected} · devolvidas {returned}"
   },
   "preInvoice": {
-    "action": "Imprimir fatura",
+    "action": "Emitir e imprimir fatura",
     "sheetLabel": "Fatura antes de cobrar",
     "sheetTitle": "Imprimir a fatura",
     "sheetIntro": "A fatura é emitida com a conta como está agora, por {total}. O cliente paga depois como quiser: dinheiro, maquininha, link ou dividida.",
@@ -10473,7 +10473,8 @@
     "annulLink": "Anular com nota de crédito",
     "view": "Ver fatura",
     "tileBadge": "Faturada",
-    "dinerInvoiced": "A fatura desta conta já foi emitida ({number}). Você pode pagar com qualquer meio."
+    "dinerInvoiced": "A fatura desta conta já foi emitida ({number}). Você pode pagar com qualquer meio.",
+    "actionManual": "Imprimir fatura"
   },
   "adminDianRecovery": {
     "title": "Faturas DIAN a recuperar",

@@ -381,7 +381,32 @@ describe("TOTAL A PAGAR = total factura + propina cobrada, por familia de medio 
 });
 
 describe("factura emitida ANTES de cobrar (#577): la propina es la REAL de la orden", () => {
-  const issue = (orderId: string) => preInvoice(json({}), idParams(orderId));
+  const issue = (orderId: string, body: Record<string, unknown> = {}) => preInvoice(json(body), idParams(orderId));
+
+  it("emitida con «Sin propina» en el cobro: queda guardado y ninguna hoja sugiere propina", async () => {
+    const order = await account();
+    expect((await issue(order.id, { suggestedTipPct: 0 })).status).toBe(200);
+    const { snapshot, payable, paper } = await shown(order.id);
+    expect(snapshot).toMatchObject({ issuedBeforePayment: true, suggestedTipPct: 0, tipCents: 0 });
+    expect(payable.totalToPayCents).toBe(SALE);
+    expect(paper.tipRows ?? []).toEqual([]);
+    expect(paper.totals.map((r) => r.label)).not.toContain("Propina voluntaria");
+    // Y si el cliente igual deja propina al pagar, sale como propina real.
+    await pay(json({ orderId: order.id, method: "cash", amountCents: SALE + 500_000, tipCents: 500_000, settleNow: true }), tenantParams());
+    await expectTotalToPay(order.id, { sale: SALE, tip: 500_000 });
+    expect((await shown(order.id)).paper.tipRows ?? []).toEqual([]);
+  });
+
+  it("emitida con propina elegida (15 %): la sugerida es ésa, aparte; sin cuerpo, la de siempre", async () => {
+    const order = await account();
+    await issue(order.id, { suggestedTipPct: 15 });
+    expect((await shown(order.id)).paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: money(1_800_000) }]);
+    const other = await account();
+    await issue(other.id);
+    const plain = await shown(other.id);
+    expect(plain.snapshot.suggestedTipPct).toBeUndefined();
+    expect(plain.paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: money(TIP) }]);
+  });
 
   it("sin cobrar: TOTAL A PAGAR = total factura; la propina sugerida va aparte, sin sumar", async () => {
     const order = await account();

@@ -1215,6 +1215,7 @@ export function TableDetailSheet({
                       canConfigurePrinters={!isMeseroView}
                       onPrintPrebill={() => void prebillPrint.run()}
                       onIssued={() => startTx(() => router.refresh())}
+                      manualInvoice={manual}
                     />
                   )}
                   {canMove && (

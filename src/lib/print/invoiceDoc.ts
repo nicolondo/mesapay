@@ -151,9 +151,11 @@ export function paymentRowsFor(
  * destacado eran dos totales grandes que no coincidían.
  */
 export function pendingPaymentOf(
-  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents">,
+  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents" | "suggestedTipPct">,
   payments: readonly InvoicePaymentLine[],
-  tipPct: number = DEFAULT_TIP_PCT,
+  // La que se eligió en el cobro al emitirla (0 = «Sin propina»: ninguna
+  // sugerida, en ninguna representación); sin elección, la de siempre.
+  tipPct: number = snapshot.suggestedTipPct ?? DEFAULT_TIP_PCT,
 ): {
   outstandingCents: number;
   paidFoodCents: number;

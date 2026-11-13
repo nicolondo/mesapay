@@ -300,3 +300,57 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
     }
   });
 });
+
+describe("factura web — emitida con «Sin propina» en el cobro", () => {
+  const preSinPropina = {
+    ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000,
+    issuedBeforePayment: true, suggestedTipPct: 0,
+  };
+
+  it("sin cobrar: nada de propina sugerida ni total con propina", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({ ...row, snapshot: preSinPropina, order: { shortCode: "DEMO", tipCents: 0, payments: [] } });
+    for (const w of [undefined, "58"]) {
+      const html = await render(w ? { w } : {});
+      expect(html).not.toContain("Propina sugerida");
+      expect(html).not.toContain("TOTAL CON PROPINA");
+      expect(html).not.toContain("Propina voluntaria");
+      expect(html).toContain("Pendiente de pago");
+      expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12000000");
+    }
+  });
+
+  it("cobrada y el cliente igual dejó propina: sólo la propina voluntaria real", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row, snapshot: preSinPropina,
+      order: { shortCode: "DEMO", tipCents: 500_000, payments: [{ method: "cash", amountCents: 12_500_000, tipCents: 500_000 }] },
+    });
+    const html = await render();
+    expect(html).not.toContain("Propina sugerida");
+    expect(html).toContain("Propina voluntaria");
+    expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12500000");
+  });
+
+  it("emitida con propina sugerida: aparece aparte, sin sumarse", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row, snapshot: { ...preSinPropina, suggestedTipPct: 15 },
+      order: { shortCode: "DEMO", tipCents: 0, payments: [] },
+    });
+    const html = await render();
+    expect(html).toContain("Propina sugerida (voluntaria) 15%");
+    expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12000000");
+  });
+
+  it("los correos (comprobante y factura electrónica) nunca sugieren propina", async () => {
+    const mail = await renderInvoiceEmail({
+      snapshot: preSinPropina, invoiceNumber: 1, invoiceUrl: "https://example.invalid/factura/1", locale: "es",
+      order: { tipCents: 0, paid: false },
+    });
+    for (const out of [mail.html, mail.text]) {
+      expect(out).not.toContain("Propina sugerida");
+      expect(out).not.toContain("Propina voluntaria");
+    }
+  });
+});

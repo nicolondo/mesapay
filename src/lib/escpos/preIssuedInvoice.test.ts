@@ -251,3 +251,51 @@ describe("papel de la factura emitida antes de cobrar", () => {
     expect(p.text.replace(/\s+/g, " ")).toContain("Propina sugerida (voluntaria) 10%");
   });
 });
+
+// El dueño: «se escogió que la factura iba sin propina y la factura salió
+// con una propina sugerida con un nuevo total con la propina incluida.
+// Necesito que cuando las facturas no vayan con propina no salga nada de
+// propina sugerida». La elección del cobro queda en `suggestedTipPct`.
+describe("la propina elegida en el cobro al emitir (suggestedTipPct)", () => {
+  const sinPropina: InvoiceSnapshot = { ...snapshot, suggestedTipPct: 0 };
+
+  it("«Sin propina»: ni propina sugerida ni total con propina; TOTAL A PAGAR = total factura", () => {
+    expect(pendingPaymentOf(sinPropina, [])).toMatchObject({ suggestedTipPct: 0, suggestedTipCents: 0 });
+    for (const mm of [80, 58]) {
+      const doc = build(sinPropina, [], true, { tipCents: 0 }, mm);
+      expect(doc.tipRows).toEqual([]);
+      expect(doc.totals.slice(-2)).toEqual([
+        { label: "Total factura", amount: "$ 100.000" },
+        { label: "TOTAL A PAGAR", amount: "$ 100.000", strong: true },
+      ]);
+      const text = paper(doc);
+      expect(text).not.toContain("Propina sugerida");
+      expect(text).not.toContain("TOTAL CON PROPINA");
+      expect(text).not.toContain("Propina voluntaria");
+      expect(text).not.toContain("110.000");
+      // Lo que falta cobrar sí: la factura sigue pendiente de pago.
+      expect(text).toContain("Pendiente de pago");
+    }
+  });
+
+  it("«Sin propina» y el cliente igual deja propina al pagar: sale sólo como propina voluntaria real", () => {
+    const doc = build(sinPropina, [{ method: "cash", amountCents: 10_500_000, tipCents: 500_000 }]);
+    expect(doc.totals.slice(-3)).toEqual([
+      { label: "Total comprobante", amount: "$ 100.000" },
+      { label: "Propina voluntaria", amount: "$ 5.000" },
+      { label: "TOTAL A PAGAR", amount: "$ 105.000", strong: true },
+    ]);
+    expect(doc.tipRows).toEqual([]);
+    expect(paper(doc)).not.toContain("Propina sugerida");
+  });
+
+  it("con propina elegida (15 %): la sugerida es ésa, aparte y sin sumar", () => {
+    const doc = build({ ...snapshot, suggestedTipPct: 15 });
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: "$ 15.000" }]);
+    expect(doc.totals.at(-1)).toEqual({ label: "TOTAL A PAGAR", amount: "$ 100.000", strong: true });
+  });
+
+  it("sin elección guardada (facturas anteriores, ficha de la mesa): la sugerida de siempre, 10 %", () => {
+    expect(build(snapshot).tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10.000" }]);
+  });
+});

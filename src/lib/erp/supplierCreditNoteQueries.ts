@@ -7,7 +7,12 @@ import { normalizeDocumentNumber } from "./documentNumber";
 import { periodToUtcRange } from "./reports/period";
 import { findSupplierByTaxId } from "./supplierTaxId";
 import { loadCreditUsage } from "./supplierCreditNoteService";
-import { creditNoteAvailableCents, isSupplierCreditNoteKind, SUPPLIER_CREDIT_NOTE_KINDS } from "./supplierCreditNotes";
+import {
+  creditNoteAvailableCents,
+  defaultCreditNoteAccount,
+  isSupplierCreditNoteKind,
+  SUPPLIER_CREDIT_NOTE_KINDS,
+} from "./supplierCreditNotes";
 import {
   CREDIT_NOTE_PAGE_SIZE,
   type CreditNoteListPage,
@@ -178,7 +183,9 @@ export async function loadCreditNoteDetail(restaurantId: string, id: string): Pr
     },
   });
   if (!n) return null;
-  const codes = [...new Set([n.accountCode, ...n.refunds.map((r) => r.accountCode)].filter((c): c is string => !!c))];
+  // Cuenta efectiva: la elegida o la del tipo (para mostrarla siempre con su nombre).
+  const effective = n.accountCode ?? (isSupplierCreditNoteKind(n.kind) ? defaultCreditNoteAccount(n.kind) : null);
+  const codes = [...new Set([effective, ...n.refunds.map((r) => r.accountCode)].filter((c): c is string => !!c))];
   const accounts = codes.length
     ? await db.ledgerAccount.findMany({ where: { restaurantId, code: { in: codes } }, select: { code: true, name: true } })
     : [];
@@ -221,8 +228,8 @@ export async function loadCreditNoteDetail(restaurantId: string, id: string): Pr
     ivaCents: n.ivaCents,
     ivaDeductible: n.ivaDeductible,
     incCents: n.incCents,
-    accountCode: n.accountCode,
-    accountName: n.accountCode ? (name.get(n.accountCode) ?? null) : null,
+    accountCode: effective,
+    accountName: effective ? (name.get(effective) ?? null) : null,
     note: n.note,
     attachmentUrl: n.attachmentUrl,
     status: n.status,

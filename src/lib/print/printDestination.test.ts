@@ -44,9 +44,8 @@ function fakeStorage(opts: { throwOnGet?: boolean; throwOnSet?: boolean } = {}) 
 }
 
 describe("el valor por defecto (la primera vez en el equipo)", () => {
-  it("el usuario Datáfono imprime en su datáfono (Kushki); sin datáfonos, en la caja", () => {
-    expect(defaultPrintDestination("terminal")).toBe("terminal");
-    expect(defaultPrintDestination("terminal", false)).toBe("caja");
+  it("el usuario Datáfono arranca en «Este dispositivo» (su datáfono, por Kushki)", () => {
+    expect(defaultPrintDestination("terminal")).toBe("device");
   });
 
   it("los demás, en la caja (sin impresora de caja, el respaldo ya imprime acá)", () => {
@@ -57,40 +56,8 @@ describe("el valor por defecto (la primera vez en el equipo)", () => {
 
   it("el papel de «Este dispositivo» no se elige: 55 mm para todos", () => {
     expect(DEVICE_PAPER_MM).toBe(55);
-    expect(resolvePrintPreference(null, "terminal")).toEqual({ destination: "terminal", remembered: false });
+    expect(resolvePrintPreference(null, "terminal")).toEqual({ destination: "device", remembered: false });
     expect(resolvePrintPreference(null, "mesero")).toEqual({ destination: "caja", remembered: false });
-  });
-});
-
-describe("«Impresora de caja · Datáfono · Este dispositivo»", () => {
-  it("«Datáfono» sólo con datáfonos Kushki; el usuario Datáfono no ve «Este dispositivo» (es lo mismo)", () => {
-    expect(printDestinationsFor("operator", true)).toEqual(["caja", "terminal", "device"]);
-    expect(printDestinationsFor("mesero", false)).toEqual(["caja", "device"]);
-    expect(printDestinationsFor("terminal", true)).toEqual(["caja", "terminal"]);
-    expect(printDestinationsFor("terminal", false)).toEqual(["caja"]);
-  });
-
-  it("para el usuario Datáfono, un «Este dispositivo» guardado es su «Datáfono»", () => {
-    expect(resolvePrintPreference({ destination: "device" }, "terminal", true)).toEqual({
-      destination: "terminal",
-      remembered: true,
-    });
-    expect(resolvePrintPreference({ destination: "device" }, "mesero", true)).toMatchObject({ destination: "device" });
-  });
-
-  it("sin datáfonos, un «Datáfono» guardado vuelve a la caja; mientras no se sabe, se respeta", () => {
-    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", false)).toMatchObject({ destination: "caja" });
-    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", undefined)).toMatchObject({
-      destination: "terminal",
-    });
-    expect(parseStoredPrintPreference('{"destination":"terminal"}')).toEqual({ destination: "terminal" });
-  });
-
-  it("si falla, se ofrece el otro: la caja, o desde la caja, el equipo (el datáfono para su usuario)", () => {
-    expect(otherDestination("terminal")).toBe("caja");
-    expect(otherDestination("device")).toBe("caja");
-    expect(otherDestination("caja")).toBe("device");
-    expect(otherDestination("caja", "terminal")).toBe("terminal");
   });
 });
 
@@ -122,7 +89,7 @@ describe("recordado por equipo y por comercio", () => {
     expect(readPrintPreference(undefined, key)).toBeNull();
     expect(readPrintPreference(fakeStorage({ throwOnGet: true }), key)).toBeNull();
     expect(resolvePrintPreference(null, "terminal")).toMatchObject({
-      destination: "terminal",
+      destination: "device",
       remembered: false,
     });
   });
@@ -201,3 +168,39 @@ describe("«Reintentar en…» y la guía", () => {
     expect(devicePrintHelpHref(null)).toBeNull();
   });
 });
+
+describe("«Impresora de caja · Datáfono · Este dispositivo»", () => {
+  it("«Datáfono» para el personal sólo con datáfonos Kushki; el usuario Datáfono conserva su «Este dispositivo»", () => {
+    expect(printDestinationsFor("operator", true)).toEqual(["caja", "terminal", "device"]);
+    expect(printDestinationsFor("mesero", true)).toEqual(["caja", "terminal", "device"]);
+    expect(printDestinationsFor("mesero", false)).toEqual(["caja", "device"]);
+    expect(printDestinationsFor("terminal", true)).toEqual(["caja", "device"]);
+  });
+
+  it("«Datáfono» se recuerda como los demás destinos", () => {
+    // El ancho de la versión con selector se ignora.
+    expect(parseStoredPrintPreference('{"destination":"terminal","paperMm":58}')).toEqual({
+      destination: "terminal",
+    });
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", true)).toMatchObject({
+      destination: "terminal",
+      remembered: true,
+    });
+  });
+
+  it("sin datáfonos, un «Datáfono» guardado vuelve a la caja; mientras no se sabe, se respeta", () => {
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", false)).toMatchObject({ destination: "caja" });
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero")).toMatchObject({ destination: "terminal" });
+  });
+
+  it("para el usuario Datáfono, «Datáfono» es su «Este dispositivo»", () => {
+    expect(resolvePrintPreference({ destination: "terminal" }, "terminal", true)).toMatchObject({
+      destination: "device",
+    });
+  });
+
+  it("si «Datáfono» falla, se ofrece la caja", () => {
+    expect(otherDestination("terminal")).toBe("caja");
+  });
+});
+

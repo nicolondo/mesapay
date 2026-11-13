@@ -31,8 +31,9 @@
  * al valor por defecto.
  *
  * POR DEFECTO, la primera vez en un equipo:
- *   - usuario Datáfono → `terminal`: es el Smart POS con la impresora
- *     integrada; mandar a la caja sería caminar hasta ella;
+ *   - usuario Datáfono → `device` (su datáfono, por Kushki): es el Smart
+ *     POS con la impresora integrada; mandar a la caja sería caminar hasta
+ *     ella;
  *   - los demás → `caja`: es lo que hacía el botón hasta hoy, y si el
  *     comercio no tiene impresora de facturas en el agente el respaldo YA
  *     imprime desde este dispositivo, así que nadie se queda sin papel.
@@ -60,8 +61,9 @@
  *     navegador (`devicePrint.ts`).
  * Para el usuario DATÁFONO «Este dispositivo» y «Datáfono» son lo mismo (su
  * equipo ES el datáfono, y su app instalada no abre la impresión del
- * sistema): se le muestra sólo «Datáfono», que dice dónde sale el papel
- * (`printDestinationsFor`), y un `device` guardado se lee como `terminal`.
+ * sistema): se le muestra sólo «Este dispositivo», que para él imprime en
+ * el datáfono por Kushki (#622, #626), y un `terminal` guardado se lee como
+ * `device`.
  */
 export type PrintDestination = "caja" | "terminal" | "device";
 
@@ -87,26 +89,21 @@ export type PrintPreference = {
 export type StoredPrintPreference = Partial<PrintPreference>;
 
 /** El destino de la primera vez en un equipo (ver el encabezado). */
-export function defaultPrintDestination(
-  role: string | null | undefined,
-  terminalAvailable = true,
-): PrintDestination {
-  return role === "terminal" && terminalAvailable ? "terminal" : "caja";
+export function defaultPrintDestination(role: string | null | undefined): PrintDestination {
+  return role === "terminal" ? "device" : "caja";
 }
 
 /**
  * Qué destinos se ofrecen, en orden: «Impresora de caja · Datáfono · Este
- * dispositivo». «Datáfono» sólo con datáfonos Kushki; el usuario Datáfono
- * no ve «Este dispositivo» (para él es el mismo «Datáfono»).
+ * dispositivo». «Datáfono» sólo con datáfonos Kushki y nunca al usuario
+ * Datáfono (su «Este dispositivo» ya imprime en el datáfono).
  */
 export function printDestinationsFor(
   role: string | null | undefined,
   terminalAvailable: boolean,
 ): PrintDestination[] {
-  const out: PrintDestination[] = ["caja"];
-  if (terminalAvailable) out.push("terminal");
-  if (role !== "terminal") out.push("device");
-  return out;
+  if (role === "terminal") return ["caja", "device"];
+  return terminalAvailable ? ["caja", "terminal", "device"] : ["caja", "device"];
 }
 
 /**
@@ -206,18 +203,17 @@ export function resolvePrintPreference(
   /** ¿El comercio tiene datáfonos Kushki? `undefined` = todavía no se sabe. */
   terminalAvailable?: boolean,
 ): PrintPreference & { remembered: boolean } {
-  let destination = stored?.destination ?? defaultPrintDestination(role, terminalAvailable !== false);
-  // El usuario Datáfono: «Este dispositivo» es su «Datáfono».
-  if (role === "terminal" && destination === "device") destination = "terminal";
+  let destination = stored?.destination ?? defaultPrintDestination(role);
+  // Para el usuario Datáfono, «Datáfono» es su «Este dispositivo».
+  if (role === "terminal" && destination === "terminal") destination = "device";
   // Sin datáfonos Kushki no se puede mandar al datáfono: el de siempre.
   if (destination === "terminal" && terminalAvailable === false) destination = "caja";
   return { destination, remembered: !!stored?.destination };
 }
 
 /** El otro destino (para «Reintentar en…»). */
-export function otherDestination(d: PrintDestination, role?: string | null): PrintDestination {
-  if (d !== "caja") return "caja";
-  return role === "terminal" ? "terminal" : "device";
+export function otherDestination(d: PrintDestination): PrintDestination {
+  return d === "caja" ? "device" : "caja";
 }
 
 /**

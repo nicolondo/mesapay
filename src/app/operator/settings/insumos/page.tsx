@@ -57,6 +57,8 @@ export default async function InsumosSettingsPage({
       measureKind: true,
       sku: true,
       barcode: true,
+      // Todos los códigos: el buscador encuentra el insumo por cualquiera.
+      barcodes: { where: { restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
       notes: true,
       active: true,
       trackInventory: true,

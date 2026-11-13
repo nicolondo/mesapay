@@ -30,7 +30,7 @@ export function IngredientBarcodes({ ingredient, canAdd, disabled = false, sugge
     setBusy(true); onBusyChange?.(true); setError(null); setSaved(false);
     try {
       const result = await addIngredientBarcode(ingredient.id, barcode);
-      if (!result.ok) { setError(t(result.errorKey)); return; }
+      if (!result.ok) { setError(t(result.errorKey, result.errorValues)); return; }
       onSaved(result.ingredient);
       setValue(""); setOpen(false); setSaved(true);
     } finally { setBusy(false); onBusyChange?.(false); }

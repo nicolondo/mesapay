@@ -47,7 +47,7 @@ export function BarcodeSheet({ ingredient, onClose, onSaved }: {
     setBusy("add"); setError(null); setStatus(null);
     const result = await addIngredientBarcode(ingredient.id, value);
     setBusy(null);
-    if (!result.ok) { setError(t(result.errorKey)); return; }
+    if (!result.ok) { setError(t(result.errorKey, result.errorValues)); return; }
     onSaved(result.ingredient);
     setValue("");
     setStatus(t("barcodeSaved"));
@@ -59,7 +59,7 @@ export function BarcodeSheet({ ingredient, onClose, onSaved }: {
     setBusy(code); setError(null); setStatus(null);
     const result = await removeIngredientBarcode(ingredient.id, code);
     setBusy(null);
-    if (!result.ok) { setError(t(result.errorKey)); return; }
+    if (!result.ok) { setError(t(result.errorKey, result.errorValues)); return; }
     onSaved(result.ingredient);
     setStatus(t("barcodeRemoved"));
   }

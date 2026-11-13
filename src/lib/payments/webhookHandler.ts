@@ -18,6 +18,10 @@ export type KushkiWebhookKind =
   | "terminal.declined"
   | "pse.approved"
   | "pse.declined"
+  // Bre-B (QR de pago inmediato). Sólo los emite `breB/service.ts`, que ya
+  // verificó referencia, monto y moneda contra el `BreBCharge`.
+  | "bre_b.approved"
+  | "bre_b.declined"
   | "dispersion.completed"
   | "dispersion.failed"
   | "merchant.activated"

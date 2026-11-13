@@ -1028,6 +1028,8 @@ function humanMethod(m: string, tr: Translator): string {
       return tr("methodExternalTerminal");
     case "kushki_pse":
       return tr("methodPse");
+    case "kushki_bre_b":
+      return tr("methodBreB");
     // Efectivo: el actual (cash) y el histórico (demo_cash).
     case "cash":
     case "demo_cash":

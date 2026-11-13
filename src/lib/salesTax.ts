@@ -103,26 +103,11 @@ export function orderTaxTotals(
 // Líneas libres: topes y tarifas ofrecibles
 // ————————————————————————————————————————————————————————————————
 
-/**
- * Techo duro de los totales de una orden. `Order.subtotalCents`, `taxCents` y
- * `totalCents` son `Int` de Postgres: pasarse no da un error de negocio, da un
- * 500 al escribir. Por eso se valida ANTES de crear la línea.
- */
-export const MAX_ORDER_TOTAL_CENTS = 2_147_483_647;
-
-/**
- * Tope del TOTAL de una línea libre (precio unitario × cantidad), en centavos:
- * $10.000.000.
- *
- * No se reusa `MAX_MENU_PRICE_CENTS` ($5.000.000) porque ese es el tope de UN
- * plato, y acá lo natural es cotizar el servicio entero en una línea
- * ("catering del evento: $8.400.000"). Tampoco se deja abierto hasta el techo
- * del `Int`: una cuenta suma varias líneas, y si UNA sola pudiera llegar a
- * $21.474.836 la segunda reventaría el total. Con $10.000.000 por línea caben
- * dos servicios grandes (catering + alquiler del salón) más los platos y
- * todavía sobra la mitad del rango; quien necesite más parte el cobro.
- */
-export const MAX_FREE_LINE_TOTAL_CENTS = 1_000_000_000;
+// El tope del VALOR de una línea libre ya no es fijo: depende de lo que la
+// cuenta ya tiene, del impuesto de la línea y de un margen para la propina.
+// Vive en `freeLineLimit.ts` (función pura compartida por el diálogo y la
+// API). Antes era $10.000.000 fijo y bloqueaba en silencio un evento de
+// ~$12 millones en una cuenta vacía.
 
 /** Cantidad máxima de una línea libre (asistentes, horas de alquiler…). */
 export const MAX_FREE_LINE_QTY = 999;

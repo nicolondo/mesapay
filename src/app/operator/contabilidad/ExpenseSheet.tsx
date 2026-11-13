@@ -274,6 +274,9 @@ export function ExpenseSheet({
   const [paidNow, setPaidNow] = useState(true);
   const [payAccountCode, setPayAccountCode] = useState("");
   const [accounts, setAccounts] = useState<ChartAccountRef[]>([]);
+  // Mientras el plan de cuentas carga no se sabe la caja del pago de
+  // contado: guardar en ese instante dejaba el gasto «por pagar» sin aviso.
+  const [accountsLoading, setAccountsLoading] = useState(true);
   useEffect(() => {
     let alive = true;
     fetch("/api/operator/accounting/chart")
@@ -285,7 +288,10 @@ export function ExpenseSheet({
         // Default del pago: la primera cuenta de caja/bancos del plan.
         setPayAccountCode((prev) => prev || (rows.find((a) => a.code.startsWith("11"))?.code ?? ""));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setAccountsLoading(false);
+      });
     return () => {
       alive = false;
     };
@@ -577,6 +583,10 @@ export function ExpenseSheet({
         setErr(t("errExpenseSupplierRequired"));
         return;
       }
+    }
+    if (!expense && !recurring && paidNow && accountsLoading) {
+      setErr(t("loading"));
+      return;
     }
     const outstandingNow = expense ? expenseOutstandingCents(expense) : 0;
     // recurringDay: null explícito al apagar recurrente — el PATCH valida
@@ -1278,7 +1288,13 @@ export function ExpenseSheet({
               <button
                 type="button"
                 onClick={save}
-                disabled={anyBusy || (taxMode && !taxCtx) || category.trim() === "" || amountRaw.trim() === ""}
+                disabled={
+                  anyBusy ||
+                  (taxMode && !taxCtx) ||
+                  (!expense && !recurring && paidNow && accountsLoading) ||
+                  category.trim() === "" ||
+                  amountRaw.trim() === ""
+                }
                 className="mp-btn mp-btn--primary"
               >
                 {busy ? t("saving") : t("save")}

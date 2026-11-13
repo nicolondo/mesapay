@@ -13,10 +13,13 @@ import { OrderInvoiceMenu } from "./OrderInvoiceMenu";
 import { OrdersPeriodNav } from "./OrdersPeriodNav";
 import { OrdersSearchForm } from "./OrdersSearchForm";
 import { OrdersSourceFilters } from "./OrdersSourceFilters";
+import { CreditSaleBadge } from "./CreditSaleBadge";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
 import { loadOrdersList } from "@/lib/orders/ordersListQuery";
+import { hasCreditSale } from "@/lib/orders/creditSale";
+import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
 import {
   ordersHref,
   ordersPageBounds,
@@ -80,6 +83,12 @@ export default async function OrdersPage({
     db.table.findMany({ where: { restaurantId, kind: "standard" }, select: { id: true, number: true, label: true }, orderBy: { number: "asc" } }),
   ]);
   const view: OrdersView = { ...requested, page: list.page };
+  // «A crédito» / «Crédito pagado»: sólo se consulta Cartera si alguna
+  // cuenta de la página tiene un cobro a crédito.
+  const credits = await loadCreditSales(
+    restaurantId,
+    list.rows.filter((o) => hasCreditSale(o.payments)).map((o) => o.id),
+  );
   const allDates = list.scope === "all";
   const singleDay = !allDates && view.period.desde === view.period.hasta;
   const { from: shownFrom, to: shownTo } = ordersPageBounds(list.page, list.summary.count);
@@ -116,6 +125,7 @@ export default async function OrdersPage({
       code: displayOrderCode(o.shortCode),
       shortCode: o.shortCode,
       status: o.status,
+      credit: credits.get(o.id) ?? null,
       when: fmtWhen(historyDate(o)),
       items: o.items.reduce((s, i) => s + i.qty, 0),
       // Pagada: lo cobrado (`totalCents`, con impuestos y propina: lo mismo
@@ -142,7 +152,7 @@ export default async function OrdersPage({
     };
   });
 
-  const filtered = view.status !== "all" || view.q !== "" || view.source !== "all" || view.tableId !== "";
+  const filtered = view.status !== "all" || view.q !== "" || view.source !== "all" || view.tableId !== "" || view.credit;
   const tableOptions = tables.map((table) => ({ id: table.id, name: [table.number === 0 && counterMode ? t("channelCounter") : t("tableNumber", { number: table.number }), table.label].filter(Boolean).join(" · ") }));
 
   return (
@@ -263,6 +273,7 @@ export default async function OrdersPage({
               ...(view.q && !allDates ? [{ href: href({ allDates: true }), label: t("searchAllDates") }] : []),
               ...(view.status !== "all" ? [{ href: href({ status: "all" }), label: t("showAll") }] : []),
               ...(view.source !== "all" || view.tableId ? [{ href: href({ source: "all", tableId: "" }), label: t("sourceClear") }] : []),
+              ...(view.credit ? [{ href: href({ credit: false }), label: t("creditFilterClear") }] : []),
               ...(!filtered && !allDates && !periodIncludes(view.period, today)
                 ? [{ href: href({ period: { desde: today, hasta: today } }), label: t("backToToday") }]
                 : []),
@@ -329,8 +340,9 @@ export default async function OrdersPage({
                     <span className="truncate">{r.place}</span>
                     <span>{open}</span>
                     <span className="hidden text-right tabular xl:block">{r.items}</span>
-                    <span>
+                    <span className="flex min-w-0 flex-col items-start gap-0.5">
                       <StatusPill status={r.status} />
+                      {r.credit && <CreditSaleBadge sale={r.credit} />}
                     </span>
                     <span className="text-right font-mono tabular">{fmtCOP(r.totalCents)}</span>
                     <span className="min-w-0">
@@ -359,7 +371,8 @@ export default async function OrdersPage({
                         {" · "}
                         {t("itemsCount", { count: r.items })}
                       </span>
-                      <span className="shrink-0">
+                      <span className="flex shrink-0 items-center gap-1">
+                        {r.credit && <CreditSaleBadge sale={r.credit} />}
                         <StatusPill status={r.status} />
                       </span>
                     </div>

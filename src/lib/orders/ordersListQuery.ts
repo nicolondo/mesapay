@@ -20,7 +20,8 @@ const ROW_INCLUDE = {
   items: { select: { qty: true } },
   payments: {
     where: { status: "approved" },
-    select: { amountCents: true, refundedCents: true },
+    // `method`: las cobradas a crédito llevan su distintivo (creditSale.ts).
+    select: { amountCents: true, refundedCents: true, method: true },
   },
   simpleInvoice: {
     select: {

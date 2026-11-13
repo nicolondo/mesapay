@@ -1907,7 +1907,20 @@
     "tableFilterAll": "All tables",
     "tableFilterUnavailable": "Table unavailable",
     "sourceClear": "Clear type and table filters",
-    "filterApply": "Apply"
+    "filterApply": "Apply",
+    "creditOnCredit": "On credit",
+    "creditPaid": "Credit paid",
+    "creditOwedHint": "Charged on credit: the customer owes {amount} in Receivables",
+    "creditPaidHint": "Charged on credit; the customer has already paid that debt",
+    "creditNoBalanceHint": "Charged on credit; there is no balance left to collect",
+    "creditFilter": "On credit",
+    "creditFilterLabel": "Payment type",
+    "creditFilterClear": "Clear “On credit” filter",
+    "creditPaymentOwed": "Charged to {customer} · {amount} to collect",
+    "creditPaymentPaid": "Charged to {customer} · already paid",
+    "creditPaymentNoBalance": "Charged to {customer} · no balance to collect",
+    "creditNoCustomer": "unknown customer",
+    "creditOpenCustomer": "View in Customers"
   },
   "opCustomers": {
     "title": "Customers",
@@ -2241,7 +2254,8 @@
     "moveAdminOnly": "Only an administrator can move dishes or orders between tables.",
     "moveOrderSameTable": "The bill is already at that table.",
     "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
-    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish."
+    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish.",
+    "tileOnCredit": "On credit"
   },
   "browserPrint": {
     "preparing": "Preparing to print…",

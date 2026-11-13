@@ -39,6 +39,7 @@ import {
   type OrderInvoiceView,
 } from "@/lib/orders/invoicedOrder";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import { hasCreditSale } from "@/lib/orders/creditSale";
 import {
   isSimpleInvoiceRequested,
   simpleInvoiceEmailFrom,
@@ -251,13 +252,15 @@ export default async function TablesPage({
     : [];
   const recentPaidByTable = new Map<
     string,
-    { paidAt: Date; paidFromPhone: boolean }
+    { paidAt: Date; paidFromPhone: boolean; onCredit: boolean }
   >();
   for (const o of recentPaid) {
     if (o.tableId && !recentPaidByTable.has(o.tableId) && o.paidAt) {
       recentPaidByTable.set(o.tableId, {
         paidAt: o.paidAt,
         paidFromPhone: wasPaidFromPhone(o.payments),
+        // Cerrada a crédito: «pagada» para la mesa, pero no entró plata.
+        onCredit: hasCreditSale(o.payments),
       });
     }
   }
@@ -403,6 +406,7 @@ export default async function TablesPage({
           state: "recently_paid",
           paidAt: recent.paidAt.toISOString(),
           paidFromPhone: recent.paidFromPhone,
+          onCredit: recent.onCredit,
         };
       }
       return {

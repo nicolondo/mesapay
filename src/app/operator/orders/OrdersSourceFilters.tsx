@@ -8,6 +8,14 @@ import { ordersHref, type OrdersSourceFilter, type OrdersView } from "@/lib/orde
 const SOURCES: { id: OrdersSourceFilter; key: string }[] = [
   { id: "all", key: "sourceAll" }, { id: "tables", key: "sourceTables" }, { id: "manual", key: "sourceManual" },
 ];
+const chip = (active: boolean) =>
+  `inline-flex min-h-11 items-center rounded-lg border px-3 py-2 text-sm transition-colors ${active ? "border-op-text bg-op-text text-op-surface" : "border-op-border bg-op-surface text-op-muted hover:text-op-text"}`;
+
+/**
+ * Tipo de cuenta (todas / mesas / facturas manuales, y la mesa) y «A
+ * crédito»: sólo las cuentas cobradas a crédito (`credito=1`), que se
+ * combina con lo demás y se apaga tocándolo otra vez.
+ */
 export function OrdersSourceFilters({ view, today, tables }: {
   view: OrdersView; today: string; tables: { id: string; name: string }[];
 }) {
@@ -17,14 +25,24 @@ export function OrdersSourceFilters({ view, today, tables }: {
   const missingTable = !!view.tableId && !tables.some((table) => table.id === view.tableId);
   return (
     <div className="flex min-w-0 flex-col gap-3 border-t border-op-border pt-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <div role="group" aria-label={t("sourceFilterLabel")} className="flex min-w-0 flex-wrap items-center gap-1.5">
-        {SOURCES.map((source) => (
-          <Link key={source.id} href={ordersHref(view, today, { source: source.id })} prefetch={false} scroll={false}
-            aria-current={view.source === source.id ? "true" : undefined}
-            className={`inline-flex min-h-11 items-center rounded-lg border px-3 py-2 text-sm transition-colors ${view.source === source.id ? "border-op-text bg-op-text text-op-surface" : "border-op-border bg-op-surface text-op-muted hover:text-op-text"}`}>
-            {t(source.key)}
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div role="group" aria-label={t("sourceFilterLabel")} className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {SOURCES.map((source) => (
+            <Link key={source.id} href={ordersHref(view, today, { source: source.id })} prefetch={false} scroll={false}
+              aria-current={view.source === source.id ? "true" : undefined}
+              className={chip(view.source === source.id)}>
+              {t(source.key)}
+            </Link>
+          ))}
+        </div>
+        <span aria-hidden className="mx-1 hidden h-6 w-px bg-op-border sm:inline-block" />
+        <div role="group" aria-label={t("creditFilterLabel")} className="flex min-w-0 items-center">
+          <Link href={ordersHref(view, today, { credit: !view.credit })} prefetch={false} scroll={false}
+            aria-current={view.credit ? "true" : undefined}
+            className={chip(view.credit)}>
+            {t("creditFilter")}
           </Link>
-        ))}
+        </div>
       </div>
       {view.source === "tables" && (
         <form action="/operator/orders" method="get" className="flex min-w-0 items-center gap-2 sm:ml-auto"
@@ -32,6 +50,7 @@ export function OrdersSourceFilters({ view, today, tables }: {
           <input type="hidden" name="source" value="tables" />
           {view.status !== "all" && <input type="hidden" name="status" value={view.status} />}
           {view.q && <input type="hidden" name="q" value={view.q} />}
+          {view.credit && <input type="hidden" name="credito" value="1" />}
           {view.allDates && <input type="hidden" name="fechas" value="todas" />}
           {customPeriod && <><input type="hidden" name="desde" value={view.period.desde} /><input type="hidden" name="hasta" value={view.period.hasta} /></>}
           <label htmlFor="orders-table-filter" className="shrink-0 text-sm text-op-muted">{t("tableFilterLabel")}</label>

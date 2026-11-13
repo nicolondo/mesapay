@@ -8,6 +8,9 @@ import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { PaymentDetailSheet, type PaymentDetail } from "./PaymentDetailSheet";
+import { CreditSaleBadge } from "../orders/CreditSaleBadge";
+import { CREDIT_SALE_METHOD } from "@/lib/orders/creditSale";
+import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +84,16 @@ export default async function PaymentsPage({
   const payments = paymentRows.slice(0, 50);
   const hasNext = paymentRows.length > 50;
   const counterMode = tenant?.serviceMode === "counter";
+  // Un cobro a crédito «Aprobado» no es plata que entró: lleva «A crédito»
+  // o «Crédito pagado» (si el cliente ya lo pagó en Cartera).
+  const isCreditSale = (p: (typeof payments)[number]) =>
+    p.method === CREDIT_SALE_METHOD && p.status === "approved";
+  const credits = await loadCreditSales(
+    restaurantId,
+    [...new Set(payments.filter(isCreditSale).map((p) => p.orderId))],
+  );
+  const creditOf = (p: (typeof payments)[number]) =>
+    isCreditSale(p) ? credits.get(p.orderId) ?? null : null;
 
   // Arma el objeto de detalle para el drawer a partir del charge de Kushki.
   // Devuelve null si el pago no tiene datos de tarjeta (efectivo, PSE, etc.).
@@ -168,6 +181,7 @@ export default async function PaymentsPage({
           <tbody className="divide-y divide-op-border">
             {payments.map((p) => {
               const detail = buildDetail(p);
+              const credit = creditOf(p);
               return (
                 <tr key={p.id} className="hover:bg-op-bg/60">
                   <Td>
@@ -205,6 +219,11 @@ export default async function PaymentsPage({
                     <span className={statusTint(p.status)}>
                       {statusLabel(p.status, t)}
                     </span>
+                    {credit && (
+                      <span className="ml-1.5 align-middle">
+                        <CreditSaleBadge sale={credit} />
+                      </span>
+                    )}
                     {p.reconciliationRequired && (
                       <Link
                         href={`/operator/orders/${p.orderId}`}
@@ -235,6 +254,7 @@ export default async function PaymentsPage({
       <div className="lg:hidden space-y-2">
         {payments.map((p) => {
           const detail = buildDetail(p);
+          const credit = creditOf(p);
           return (
             <div
               key={p.id}
@@ -254,8 +274,11 @@ export default async function PaymentsPage({
               </div>
               <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{methodLabel(p.method, t)}</span>
-                <span className={statusTint(p.status) + " shrink-0"}>
-                  {statusLabel(p.status, t)}
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {credit && <CreditSaleBadge sale={credit} />}
+                  <span className={statusTint(p.status)}>
+                    {statusLabel(p.status, t)}
+                  </span>
                 </span>
               </div>
               <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-op-muted">

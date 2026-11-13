@@ -23,6 +23,10 @@ import { headers } from "next/headers";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
+import { hasCreditSale } from "@/lib/orders/creditSale";
+import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
+import { customerListHref } from "@/lib/billingCustomerList";
+import { CreditSaleBadge } from "../CreditSaleBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +101,11 @@ export default async function OperatorOrderDetail({
     },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Cobrada (toda o una parte) a crédito: deuda del cliente en Cartera, no
+  // plata que entró. «Crédito pagado» si el cliente ya la pagó (FIFO).
+  const credit = hasCreditSale(order.payments)
+    ? (await loadCreditSales(restaurantId, [order.id])).get(order.id) ?? null
+    : null;
   // La factura de la cuenta, si ya se cobró. El número sale del snapshot
   // (prefijo congelado al emitir), igual que en /factura/[id]. El reenvío
   // por correo sólo con facturación electrónica y la factura ACEPTADA.
@@ -211,7 +220,10 @@ export default async function OperatorOrderDetail({
             </span>
           </div>
         </div>
-        <StatusPill status={order.status} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {credit && <CreditSaleBadge sale={credit} size="md" />}
+          <StatusPill status={order.status} />
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -462,6 +474,36 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {credit && p.method === "customer_credit" && p.status === "approved" && (
+                      // A quién se le cargó y cuánto falta; los abonos se
+                      // registran en Clientes (estado de cuenta).
+                      <div className="mt-0.5 text-[11px]">
+                        <span className={credit.status === "credit_paid" ? "text-[#1E5339]" : "text-[#8F6828]"}>
+                          {t(
+                            credit.status === "credit_paid"
+                              ? "creditPaymentPaid"
+                              : credit.outstandingCents > 0
+                                ? "creditPaymentOwed"
+                                : "creditPaymentNoBalance",
+                            {
+                              customer: credit.customerName ?? t("creditNoCustomer"),
+                              amount: fmtCOP(credit.outstandingCents),
+                            },
+                          )}
+                        </span>
+                        {credit.customerName && (
+                          <>
+                            <span aria-hidden className="text-op-muted">{" · "}</span>
+                            <Link
+                              href={customerListHref({ q: credit.customerName })}
+                              className="underline underline-offset-2 hover:text-op-text"
+                            >
+                              {t("creditOpenCustomer")}
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {canReconcile && p.reconciliationRequired && (
                       // Ancla del enlace «Conciliar pago» (reconcilePaymentHref).
                       <div id={`conciliar-${p.id}`} className="scroll-mt-24">

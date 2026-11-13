@@ -1907,7 +1907,20 @@
     "tableFilterAll": "Todas as mesas",
     "tableFilterUnavailable": "Mesa indisponível",
     "sourceClear": "Limpar filtros de tipo e mesa",
-    "filterApply": "Aplicar"
+    "filterApply": "Aplicar",
+    "creditOnCredit": "A crédito",
+    "creditPaid": "Crédito pago",
+    "creditOwedHint": "Cobrada a crédito: o cliente deve {amount} em Contas a receber",
+    "creditPaidHint": "Cobrada a crédito; o cliente já pagou essa dívida",
+    "creditNoBalanceHint": "Cobrada a crédito; não resta saldo a receber",
+    "creditFilter": "A crédito",
+    "creditFilterLabel": "Forma de pagamento",
+    "creditFilterClear": "Remover filtro «A crédito»",
+    "creditPaymentOwed": "Na conta de {customer} · {amount} a receber",
+    "creditPaymentPaid": "Na conta de {customer} · já foi paga",
+    "creditPaymentNoBalance": "Na conta de {customer} · sem saldo a receber",
+    "creditNoCustomer": "cliente sem dados",
+    "creditOpenCustomer": "Ver em Clientes"
   },
   "opCustomers": {
     "title": "Clientes",
@@ -2241,7 +2254,8 @@
     "moveAdminOnly": "Somente o administrador pode mover pratos ou pedidos entre mesas.",
     "moveOrderSameTable": "A conta já está nessa mesa.",
     "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido.",
-    "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato."
+    "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato.",
+    "tileOnCredit": "A crédito"
   },
   "browserPrint": {
     "preparing": "Preparando a impressão…",

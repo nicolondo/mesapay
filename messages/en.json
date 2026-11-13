@@ -2405,7 +2405,7 @@
     "downloadExcel": "Download Excel",
     "downloadCsv": "Download CSV",
     "downloadMore": "More download formats",
-    "note": "Purchases: purchase invoices and orders received, fully or partially, for what was received and by their reception date; drafts, orders sent but not received and canceled ones don't count. Expenses: non-recurring expenses with a supplier, by their accounting date. Last purchase: the most recent one up to today, even if it is before the period. Balance due: today's, the same as in Receivables and payables. Inactive suppliers show up only if they had purchases in the period or have a balance.",
+    "note": "Purchases: purchase invoices and orders received, fully or partially, for what was received and by their reception date; drafts, orders sent but not received and canceled ones don't count. Expenses: non-recurring expenses with a supplier, by their accounting date. Last purchase: the most recent one up to today, even if it is before the period. Balance due: today's, the same as in Receivables & payables. Inactive suppliers show up only if they had purchases in the period or have a balance.",
     "csvNote": "Supplier report · {period} ({months, plural, =1 {1 month} other {# months}}) · {basis} · {include}",
     "sheetData": "Suppliers",
     "sheetInfo": "Information",

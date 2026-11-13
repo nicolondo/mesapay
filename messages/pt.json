@@ -2405,7 +2405,7 @@
     "downloadExcel": "Baixar Excel",
     "downloadCsv": "Baixar CSV",
     "downloadMore": "Mais formatos de download",
-    "note": "Compras: notas e ordens de compra recebidas, total ou parcialmente, pelo que foi recebido e pela data de recebimento; rascunhos, ordens enviadas sem receber e canceladas não contam. Despesas: as não recorrentes com fornecedor, pela data contábil. Última compra: a mais recente até hoje, mesmo que seja anterior ao período. Saldo a pagar: o de hoje, o mesmo da Carteira. Fornecedores inativos aparecem somente se tiveram compras no período ou têm saldo.",
+    "note": "Compras: notas e ordens de compra recebidas, total ou parcialmente, pelo que foi recebido e pela data de recebimento; rascunhos, ordens enviadas sem receber e canceladas não contam. Despesas: as não recorrentes com fornecedor, pela data contábil. Última compra: a mais recente até hoje, mesmo que seja anterior ao período. Saldo a pagar: o de hoje, o mesmo de Contas a receber e a pagar. Fornecedores inativos aparecem somente se tiveram compras no período ou têm saldo.",
     "csvNote": "Relatório de fornecedores · {period} ({months, plural, =1 {1 mês} other {# meses}}) · {basis} · {include}",
     "sheetData": "Fornecedores",
     "sheetInfo": "Informações",

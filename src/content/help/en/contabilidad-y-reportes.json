@@ -524,6 +524,45 @@
       "updated": "2026-10-31"
     },
     {
+      "slug": "informe-de-proveedores",
+      "title": "Get the supplier report",
+      "summary": "See each supplier's tax ID, monthly purchase average, payment terms, period total, invoices, last purchase and balance, and download it to Excel.",
+      "keywords": [
+        "suppliers",
+        "supplier report",
+        "vendors",
+        "purchase average",
+        "monthly purchases",
+        "payment terms",
+        "credit",
+        "cash",
+        "tax id",
+        "trade references",
+        "excel",
+        "csv",
+        "purchases by supplier"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "The supplier report shows, for each supplier, their tax ID, how much you buy from them on average each month and their payment terms, with the period total, the number of invoices, the last purchase and the balance due. Use it, for example, to fill in trade references or to negotiate with your suppliers.\n\n> It's in the **Reports** menu if you have the accounting module, or next to **Purchasing** if you only have the purchasing module. You can also open it from the **Supplier report** link in Purchasing and in Suppliers.\n\n## View the report\n\n1. Go to [Supplier report](/operator/reportes/proveedores).\n2. Choose the **Period**: **Last 12 months** (the default), **Last 6 months**, **Year to date** or **Month range**, with **From (month)** and **To (month)**.\n3. In **Amounts**, choose **Cost (without deductible VAT)** or **Invoiced total (with VAT)**.\n4. In **Includes**, choose **Purchases and expenses** or **Purchases only**.\n5. If you want, type a name or a tax ID (with or without dots) in **Search** and filter by **Payment terms**: **Cash** or **Credit**.\n6. Tap **Apply**.\n7. Tap a column title to sort by it; tap it again to reverse the order. On a phone, use **Sort by** and **Order**.\n\nAt the top you see **Suppliers**, **Total purchased**, **Monthly average** and **Balance due today** for the suppliers left after searching and filtering. If there are more than 50, move between pages with **Previous** and **Next**.\n\n## How the average is calculated\n\n**Monthly average** = total purchased in the period ÷ number of months in the period, even if you bought nothing from that supplier in some month. With the last 12 months, a single purchase of $1,200,000 gives an average of $100,000.\n\n- The period is always made of whole months. **Last 12 months** and **Last 6 months** end in the month before the current one; **Year to date** goes from January to the previous month.\n- If the period includes the current month (a range up to this month, or year to date in January), you'll see a warning: that month isn't over yet and the average may come out low.\n- **Cost (without deductible VAT)**: the amount without the VAT you deduct, plus consumption tax and the VAT that isn't deducted. It's what the purchase costs the business.\n- **Invoiced total (with VAT)**: amount + VAT + consumption tax, before withholdings. It's the figure trade references usually ask for.\n\nThe screen reminds you in **How the average is calculated**, with the exact months of the period.\n\n## What counts as a purchase\n\n- Purchase invoices and orders **received**, fully or partially, for what was received and on the reception date. Drafts, orders sent but not yet received and canceled ones don't count.\n- With **Purchases and expenses**, expenses with a supplier too, on their date. Expenses without a supplier don't show up.\n- **Invoices** is how many purchases (and expenses, if included) the supplier had in the period.\n- **Last purchase** is the most recent one up to today, even if it's before the period.\n- **Balance due** is what you owe them today: the same balance as in [Receivables & payables](/operator/reportes/cartera). With **Purchases only** it leaves out expenses.\n- **Payment terms** comes from the supplier's **Payment terms (days)**: empty or 0 is **Cash**; otherwise **Credit** with the days.\n- The tax ID shows its type and check digit when the supplier has them.\n\nActive suppliers always show up, even without purchases. Inactive ones only show up if they had purchases in the period or have a balance.\n\n## Download the report\n\nTap **Download Excel**: it downloads every supplier in the filter (not just the page you see), with the document in columns (type, number and check digit), the term in days and an **Information** sheet with the period, the months used for the average and the filters. The arrow next to it has **Download CSV**. You can also **Print** the page.\n\n## Common cases\n\n- **A supplier has no tax ID or document type**: complete it in [Suppliers](/operator/settings/proveedores).\n- **The payment terms are wrong**: change **Payment terms (days)** on the supplier.\n- **The average looks low**: check that the period doesn't include the current month and that the purchases were received.\n- **An expense is missing**: check that it has a supplier and that **Includes** is set to **Purchases and expenses**.",
+      "links": [
+        {
+          "label": "Go to Supplier report",
+          "href": "/operator/reportes/proveedores"
+        },
+        {
+          "label": "Go to Suppliers",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Go to Purchasing",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "analizar-las-ventas",
       "title": "Analyze your sales",
       "summary": "See how much, when and what you sold in a period, compared with another: net sales, indicators, trend, day and hour, products and margin, team and payments. Tap any figure to filter and export to Excel or CSV.",

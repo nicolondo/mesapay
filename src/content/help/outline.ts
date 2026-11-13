@@ -572,6 +572,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "\"Cartera (CxC/CxP)\": pestañas, \"Corte hasta\", antigüedad por tercero, extracto del tercero, de dónde salen los saldos (ventas a crédito, bonos, compras, gastos, notas crédito) y dónde se registran los abonos.",
     },
     {
+      slug: "informe-de-proveedores",
+      title: "Saca el informe de proveedores",
+      covers:
+        "\"Informe de proveedores\" (Reportes, o junto a Compras sin contabilidad; enlaces desde Compras y Proveedores): NIT con tipo y DV, condición de pago (contado / crédito N días), promedio mensual = total del período ÷ meses del período (últimos 12 o 6 meses completos, año en curso, rango de meses; aviso con el mes en curso), valores en costo o total facturado, incluir gastos, total, facturas, última compra y saldo por pagar (el de Cartera), buscar, filtrar, ordenar, páginas y \"Descargar Excel\" con la flechita para CSV.",
+    },
+    {
       slug: "analizar-las-ventas",
       title: "Analiza tus ventas",
       covers:

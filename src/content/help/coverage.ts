@@ -221,6 +221,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/reportes/exogena": ["informacion-exogena"],
   "/operator/reportes/cartera": ["cartera"],
   "/operator/reportes/cartera/[kind]/[partnerId]": ["cartera"],
+  "/operator/reportes/proveedores": ["informe-de-proveedores"],
   "/operator/reportes/comisiones": ["reporte-de-comisiones"],
   "/operator/insights": ["pulso"],
 

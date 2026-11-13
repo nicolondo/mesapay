@@ -125,7 +125,14 @@ export function PrintButton({
    */
   function printOnThisDevice(doc: StaffPrintDoc) {
     stopWatch.current?.();
+    // Se escucha ANTES de llamar print(): Chrome dispara `beforeprint`
+    // dentro de la misma llamada.
+    stopWatch.current = watchPrintDialog(window, () => {
+      reportClientPrintError("device_print_no_dialog");
+      setNote({ tone: "warn", text: ts("deviceNoDialog"), alternatives: true, help: devicePrintHelpHref(pref.role) });
+    });
     const outcome = printDocumentOnDevice();
+    if (outcome.kind !== "called") stopWatch.current();
     if (outcome.kind === "unsupported") {
       reportClientPrintError("device_print_unsupported");
       setNote({ tone: "warn", text: ts("deviceUnsupported"), alternatives: true, help: devicePrintHelpHref(pref.role) });
@@ -140,10 +147,6 @@ export function PrintButton({
       tone: "ok",
       text: ts("deviceOpened", { mm: DEVICE_PAPER_MM }) + " " + ts("deviceHint"),
       help: devicePrintHelpHref(pref.role),
-    });
-    stopWatch.current = watchPrintDialog(window, () => {
-      reportClientPrintError("device_print_no_dialog");
-      setNote({ tone: "warn", text: ts("deviceNoDialog"), alternatives: true, help: devicePrintHelpHref(pref.role) });
     });
     if (notifiesDevicePrint(doc)) {
       void fetch(staffPrintEndpoint(doc), {

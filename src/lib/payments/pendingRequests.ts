@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { PUSHABLE_REQUEST_METHODS, isReplaceablePending, terminalClaimKey } from "./methods";
 import { toTerminalAttemptView, type TerminalAttemptView } from "./terminalAttempt";
+import { toTerminalAmountView, type TerminalAmountView } from "./terminalAmount";
 
 /**
  * Lado servidor de `isReplaceablePending` (methods.ts): averigua qué pagos
@@ -25,6 +26,11 @@ export type TerminalClaim = {
   answerMessage: string | null;
   answeredAt: Date | null;
   nextPaymentId: string | null;
+  /** Lo que se mandó al datáfono. */
+  amountCents: number;
+  /** Kushki autorizó otro monto, y qué se hizo (terminalAmount.ts). */
+  authorizedCents: number | null;
+  amountCheck: string | null;
 };
 
 /**
@@ -50,6 +56,9 @@ export async function terminalClaims(
       answerMessage: true,
       answeredAt: true,
       nextPaymentId: true,
+      amountCents: true,
+      authorizedCents: true,
+      amountCheck: true,
     },
   });
   return new Map(
@@ -62,9 +71,33 @@ export async function terminalClaims(
         answerMessage: o.answerMessage ?? null,
         answeredAt: o.answeredAt ?? null,
         nextPaymentId: o.nextPaymentId ?? null,
+        amountCents: o.amountCents,
+        authorizedCents: o.authorizedCents ?? null,
+        amountCheck: o.amountCheck ?? null,
       },
     ]),
   );
+}
+
+/**
+ * Cobros del datáfono Kushki que Kushki aprobó por OTRO monto (propina o
+ * parcial, o pendientes por «monto cobrado distinto»): `paymentId → vista`.
+ * Para los avisos de Cobros, la ficha y «Mesas en vivo».
+ */
+export async function terminalAmountViews(
+  client: Client,
+  payments: ReadonlyArray<{ id: string; method: string }>,
+): Promise<Map<string, TerminalAmountView>> {
+  const claims = await terminalClaims(
+    client,
+    payments.filter((p) => p.method === "kushki_card_terminal"),
+  );
+  const views = new Map<string, TerminalAmountView>();
+  for (const [paymentId, claim] of claims) {
+    const view = toTerminalAmountView(claim);
+    if (view) views.set(paymentId, view);
+  }
+  return views;
 }
 
 /** Ids (de los pagos dados) que tienen el reclamo del datáfono. */

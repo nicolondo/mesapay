@@ -21,6 +21,8 @@
  * `/api/operator/payments/[id]/terminal-attempt` y las pantallas.
  */
 
+import { isTerminalAmountMismatch, toTerminalAmountView, type TerminalAmountView } from "./terminalAmount";
+
 /**
  * Hasta cuándo, desde el envío, el intento sigue "en curso": el cobro
  * síncrono puede esperar la tarjeta ~90 s y, si su respuesta no llega (el
@@ -46,6 +48,13 @@ export type TerminalAttemptView = {
    * tiene `reconciliationRequired`. Con respuesta del equipo no importa.
    */
   uncertain: boolean;
+  /**
+   * Kushki APROBÓ, pero por un monto que no se liquidó solo (sobre el tope de
+   * propina, error de unidades, monto ilegible o sin código de aprobación):
+   * no es "sin respuesta", es «monto cobrado distinto». Sigue pendiente y
+   * se resuelve con el comprobante ("Resolver cobro").
+   */
+  amountMismatch: TerminalAmountView | null;
 };
 
 type ClaimLike = {
@@ -53,6 +62,9 @@ type ClaimLike = {
   answerCode?: string | null;
   answerMessage?: string | null;
   answeredAt?: Date | null;
+  amountCents?: number;
+  authorizedCents?: number | null;
+  amountCheck?: string | null;
 };
 
 /** El intento como lo necesita la pantalla; null si nunca se envió. */
@@ -67,7 +79,14 @@ export function toTerminalAttemptView(
     answerCode: claim.answerCode ?? null,
     answerMessage: claim.answerMessage ?? null,
     uncertain: reconciliationRequired,
+    amountMismatch: terminalAmountMismatchView(claim),
   };
+}
+
+/** El «monto cobrado distinto» del reclamo, si lo hay. */
+export function terminalAmountMismatchView(claim: ClaimLike | null | undefined): TerminalAmountView | null {
+  if (!claim || claim.amountCents === undefined || !isTerminalAmountMismatch(claim.amountCheck)) return null;
+  return toTerminalAmountView({ amountCents: claim.amountCents, authorizedCents: claim.authorizedCents, amountCheck: claim.amountCheck });
 }
 
 /** En qué estado está el intento AHORA (`now` en ms epoch). */

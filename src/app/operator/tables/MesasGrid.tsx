@@ -26,6 +26,7 @@ import { TableDetailSheet } from "./TableDetailSheet";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
 import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import type { RestaurantTax } from "@/lib/salesTax";
 
 /**
@@ -118,6 +119,8 @@ export type ActiveOrder = {
   rounds: Round[];
   /** Pagos `pending` (solicitudes del comensal y pagos en línea en curso). */
   pendingPayments: PendingPaymentView[];
+  /** Datáfono aprobado por otro monto (propina del datáfono o parcial). */
+  terminalAmounts?: TerminalAmountView[];
 };
 
 type Round = {
@@ -976,6 +979,7 @@ function ManualInvoiceTile({
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
+          terminalAmounts={tile.order.terminalAmounts}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={false}
@@ -1140,6 +1144,7 @@ function ActiveTile({
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
+          terminalAmounts={tile.order.terminalAmounts}
           counterMode={counterMode}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}

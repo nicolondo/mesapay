@@ -15,6 +15,8 @@ import { TableActions } from "../../tables/TableActions";
 import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
+import { terminalAmountViews } from "@/lib/payments/pendingRequests";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
 import { PayLinkPanel, type PayLinkView } from "./PayLinkPanel";
 import { manualInvoicePayLinkAvailability, manualInvoicePayLinkPath, payLinkState } from "@/lib/manualInvoicePayLink";
 import { appOrigin } from "@/lib/http/publicOrigin";
@@ -99,6 +101,9 @@ export default async function OperatorOrderDetail({
     },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono, parcial o
+  // «monto cobrado distinto»): el aviso bajo el pago, junto a «Conciliar».
+  const amountById = await terminalAmountViews(db, order.payments);
   // La factura de la cuenta, si ya se cobró. El número sale del snapshot
   // (prefijo congelado al emitir), igual que en /factura/[id]. El reenvío
   // por correo sólo con facturación electrónica y la factura ACEPTADA.
@@ -464,6 +469,9 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {amountById.get(p.id) && (
+                      <TerminalAmountNote amount={amountById.get(p.id)!} className="mt-1 max-w-md" />
+                    )}
                     {canReconcile && p.reconciliationRequired && (
                       // Ancla del enlace «Conciliar pago» (reconcilePaymentHref).
                       <div id={`conciliar-${p.id}`} className="scroll-mt-24">

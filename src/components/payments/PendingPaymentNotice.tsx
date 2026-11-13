@@ -421,6 +421,7 @@ function InFlightTerminalCard({
   onRefresh?: () => void;
 }) {
   const t = useTranslations("pendingPayment");
+  const tAttempt = useTranslations("terminalAttempt");
   const state = useTerminalAttemptState(pending.terminalAttempt);
   const attention = state === "answered" || state === "no_answer";
   return (
@@ -435,7 +436,9 @@ function InFlightTerminalCard({
         {state === "answered"
           ? t("terminalAnsweredKicker")
           : state === "no_answer"
-            ? t("terminalNoAnswerKicker")
+            ? pending.terminalAttempt?.amountMismatch
+              ? tAttempt("amountMismatchKicker")
+              : t("terminalNoAnswerKicker")
             : t("inFlightTerminalKicker")}
       </div>
       <div className="flex items-baseline justify-between gap-3">

@@ -29,6 +29,7 @@ const METHOD_KEY: Record<string, string> = {
   // día en reports/page.tsx.
   kushki_card: "methodKushkiCard",
   kushki_pse: "methodKushkiPse",
+  kushki_bre_b: "methodKushkiBreB",
   kushki_google_pay: "methodKushkiGooglePay",
   external_terminal: "methodExternalTerminal",
   voucher: "methodVoucher",

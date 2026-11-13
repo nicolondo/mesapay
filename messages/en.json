@@ -753,7 +753,9 @@
     "linkPayWith": "Pay with",
     "linkOtherMethods": "Other ways to pay",
     "terminalCanceledTitle": "The charge was cancelled on the card terminal",
-    "terminalCanceledBody": "Nothing was charged. Choose how to pay, or ask your server to run the card again."
+    "terminalCanceledBody": "Nothing was charged. Choose how to pay, or ask your server to run the card again.",
+    "btnBreB": "Pay with Bre-B (QR)",
+    "opBtnBreB": "Charge with Bre-B (QR)"
   },
   "done": {
     "methodCard": "Card",
@@ -877,7 +879,8 @@
     "discountRow": "Discount",
     "discountRowPct": "{pct}% discount",
     "discountedTotal": "Total after discount",
-    "methodCustomerCredit": "Credit"
+    "methodCustomerCredit": "Credit",
+    "methodBreB": "Bre-B"
   },
   "wait": {
     "totalToPay": "Total to pay",
@@ -1346,7 +1349,8 @@
     "einvoiceVerify": "Look up this invoice at DIAN:",
     "einvoiceRepresentation": "Printed representation of the electronic sales invoice",
     "paymentPending": "Payment pending",
-    "freeItemsNote": "Free of charge (not part of the invoice): {items}"
+    "freeItemsNote": "Free of charge (not part of the invoice): {items}",
+    "methodBreB": "Bre-B · transfer"
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",
@@ -1672,7 +1676,8 @@
     "chargeAdminOnly": "Only the administrator can charge",
     "terminalSentAnswered": "The card terminal didn't approve the charge",
     "terminalSentNoAnswer": "The card terminal didn't respond",
-    "terminalOutcome": "{place} · {message}"
+    "terminalOutcome": "{place} · {message}",
+    "breBHeading": "Bre-B in progress"
   },
   "opPayments": {
     "noRestaurant": "No restaurant.",
@@ -1722,7 +1727,8 @@
     "cardDebit": "Debit",
     "viewDetail": "View details",
     "close": "Close",
-    "mCustomerCredit": "Customer credit"
+    "mCustomerCredit": "Customer credit",
+    "mKushkiBreB": "Bre-B"
   },
   "opOrders": {
     "noRestaurant": "No restaurant.",
@@ -1907,7 +1913,9 @@
     "tableFilterAll": "All tables",
     "tableFilterUnavailable": "Table unavailable",
     "sourceClear": "Clear type and table filters",
-    "filterApply": "Apply"
+    "filterApply": "Apply",
+    "mKushkiBreB": "Bre-B",
+    "breBRefundManual": "Bre-B can't be refunded from MESAPAY: Kushki doesn't offer refunds for Bre-B. Send the money back to the customer with a transfer from the restaurant's account and, if the bill had an invoice, cancel it with a credit note."
   },
   "opCustomers": {
     "title": "Customers",
@@ -2091,8 +2099,11 @@
     "freeLineErrorPaying": "This bill is already being paid. Finish or cancel the payment before adding a charge.",
     "freeLineErrorClosed": "This bill is already closed.",
     "freeLineErrorTaxRate": "That tax rate doesn't apply in your country.",
-    "freeLineErrorTooLarge": "The line amount is too high. Split it into several lines.",
+    "freeLineErrorTooLarge": "The amount exceeds the maximum for this bill. To charge more, split it across another bill or invoice.",
     "freeLineErrorOrderTooLarge": "With this charge the bill exceeds the maximum allowed.",
+    "freeLineMaxForAccount": "The maximum for this bill is {max}.",
+    "freeLineMaxForAccountQty": "The maximum for this bill is {max} in total (quantity × price).",
+    "freeLineMaxSplitHint": "To charge more, split it: add up to that maximum here and charge the rest on another bill or invoice.",
     "freeLineErrorGeneric": "Couldn't add the charge. Please try again.",
     "compItem": "Comp",
     "expedited": "🔥 Rushed",
@@ -4290,7 +4301,8 @@
     "soldOutReminderBody": "Check whether you have them today and offer them again.",
     "soldOutReview": "Review",
     "soldOutDismiss": "Dismiss",
-    "openBillInvoiced": "Invoiced ({number}), payment pending: charge it or void the invoice with a credit note"
+    "openBillInvoiced": "Invoiced ({number}), payment pending: charge it or void the invoice with a credit note",
+    "methodKushkiBreB": "Bre-B"
   },
   "opShifts": {
     "noRestaurant": "No restaurant.",
@@ -4373,7 +4385,8 @@
     "consumptionTaxPending": "{count, plural, one {# payment does not yet have a confirmed tax breakdown.} other {# payments do not yet have a confirmed tax breakdown.}}",
     "consumptionTaxPendingShort": "{count, plural, one {# payment without a tax breakdown} other {# payments without a tax breakdown}}",
     "consumptionTaxShort": "INC",
-    "consumptionTaxAmount": "INC: {amount}"
+    "consumptionTaxAmount": "INC: {amount}",
+    "methodKushkiBreB": "Bre-B"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Sales excluding taxes and tips",
@@ -5228,7 +5241,12 @@
     "navAccountTitle": "My account: change my password",
     "navWallet": "Wallet",
     "walletConfigHint": "Check the available balance in your Kushki account and send payouts from the platform.",
-    "walletConfigLink": "Open wallet"
+    "walletConfigLink": "Open wallet",
+    "pm_kushki_bre_b_label": "Bre-B (instant payment QR)",
+    "pm_kushki_bre_b_description": "MESAPAY shows a QR with the amount and the customer pays it from their bank app. Charges through Kushki's Bre-B merchant (separate keys).",
+    "pmBetaBadge": "Beta",
+    "pmBreBNeedsCredentials": "To turn it on, first add the merchant's Bre-B credentials.",
+    "pmBreBGoToCredentials": "Go to credentials"
   },
   "myAccount": {
     "title": "My account",
@@ -5410,7 +5428,47 @@
     "card3dsOff": "Disabled",
     "card3dsHint": "With 3DS enabled, the diner goes through the bank's validation (OTP) when their card requires it — more security and fewer chargebacks, one extra step at payment. Disabled, the charge goes straight through.",
     "fieldInternalNotes": "Internal notes",
-    "save": "Save"
+    "save": "Save",
+    "breBTitle": "Bre-B (Kushki)",
+    "breBBetaBadge": "Beta",
+    "breBConfigured": "Credentials added",
+    "breBNotConfigured": "No credentials",
+    "breBIntro": "Kushki provides a separate merchant for Bre-B, with its own keys, different from the card and PSE one. Paste them here; the card keys won't work.",
+    "breBBetaNotice": "Bre-B is in beta at Kushki: coordinate with their integrations team before using it in production. The method stays off until you turn it on in the merchant's page.",
+    "breBFieldMerchantName": "Bre-B merchant name (optional)",
+    "breBFieldMerchantId": "Bre-B merchant ID (optional)",
+    "breBFieldPublicKey": "Bre-B public key",
+    "breBFieldPrivateKey": "Bre-B private key",
+    "breBFieldWebhookSecret": "Bre-B webhook signing secret (optional)",
+    "breBWebhookHint": "The Bre-B merchant's one in the Kushki Console. In production, without it only the platform-wide secret is accepted.",
+    "breBKeepPlaceholder": "Saved ({tail}). Type a new one to replace it",
+    "breBEmptyPlaceholder": "Not set",
+    "breBModeNote": "Uses the merchant's Kushki mode: {mode}.",
+    "breBMethodOn": "Bre-B is on for this merchant.",
+    "breBMethodOff": "Bre-B is off: turn it on under “Payment methods” in the merchant's page.",
+    "breBSave": "Save Bre-B credentials",
+    "breBSaved": "Bre-B credentials saved.",
+    "breBClear": "Delete Bre-B credentials",
+    "breBClearConfirm": "Delete the Bre-B credentials? Bre-B will be turned off for this merchant.",
+    "breBCleared": "Bre-B credentials deleted. Bre-B is now off.",
+    "breBVerify": "Verify with Kushki",
+    "breBVerifying": "Verifying…",
+    "breBVerifyOk": "Kushki has Bre-B active: processor “{name}”, channel {channel}.",
+    "breBVerifyNoProcessor": "The keys work, but Kushki hasn't activated the Bre-B processor for this merchant yet. Ask the account executive.",
+    "breBVerifyMock": "Demo mode: Kushki isn't contacted. Charges use a simulated QR.",
+    "breBErr_generic": "Couldn't save. Try again.",
+    "breBErr_keys_required": "You need both the Bre-B public and private keys.",
+    "breBErr_keys_identical": "The public and private keys can't be the same.",
+    "breBErr_same_as_card_keys": "These are the card, PSE or payout keys. Bre-B uses its own merchant's keys at Kushki.",
+    "breBErr_bre_b_charges_in_flight": "There are Bre-B charges in progress or unconfirmed. Resolve them before changing or deleting the keys.",
+    "breBErr_encrypt_failed": "Couldn't encrypt the key (the server master key is missing).",
+    "breBErr_invalid": "Check the data: each key has at least 8 characters.",
+    "breBErr_forbidden": "Only a platform admin can do this.",
+    "breBErr_bre_b_credentials_invalid": "Kushki didn't accept the Bre-B keys (401). Check they belong to the Bre-B merchant and the right environment.",
+    "breBErr_bre_b_keys_missing": "Kushki says this merchant has no Bre-B keys (E049).",
+    "breBErr_bre_b_processor_mismatch": "Kushki rejected the request because of the processor (E046).",
+    "breBErr_bre_b_rejected": "Kushki rejected the request.",
+    "breBErr_bre_b_unavailable": "Kushki didn't respond or responded unexpectedly. Try later."
   },
   "opAdminPlans": {
     "platformLabel": "Platform",
@@ -5705,7 +5763,8 @@
     "methodPse": "PSE",
     "methodCash": "Cash",
     "methodDemoCard": "Card (demo)",
-    "methodNequi": "Nequi"
+    "methodNequi": "Nequi",
+    "methodBreB": "Bre-B"
   },
   "opAdminAi": {
     "title": "Pulso AI agent",
@@ -8579,7 +8638,8 @@
     "barcodeAddTakenByArchived": "This code already belongs to «{name}», which is archived. To use it here, remove it in Inventory → Archived → ⋯ → Barcodes, or restore that product.",
     "errBarcodeTakenBy": "That barcode already belongs to «{name}». Remove it from that ingredient first.",
     "errBarcodeTakenByArchived": "That barcode already belongs to «{name}», which is archived. Remove it in Inventory → Archived → ⋯ → Barcodes, or restore that ingredient.",
-    "countUnsavedConfirm": "You have unsaved quantities. If you leave now they are lost. Leave without saving?"
+    "countUnsavedConfirm": "You have unsaved quantities. If you leave now they are lost. Leave without saving?",
+    "mKushkiBreB": "Bre-B"
   },
   "opDian": {
     "title": "DIAN electronic invoicing",
@@ -8840,7 +8900,8 @@
       "reservation_deposit": "Reservation deposit",
       "voucher": "Voucher",
       "customer_credit": "Credit",
-      "other": "Other payment method"
+      "other": "Other payment method",
+      "kushki_bre_b": "Bre-B"
     },
     "decline": "This payment was not received",
     "declineConfirm": "Dismiss this payment request? Only do this if you did not receive the money.",
@@ -9417,7 +9478,8 @@
     "declinedBody": "Your bank did not approve the transfer. You can try again.",
     "retry": "Try again",
     "processingBody": "We are confirming the transfer with your bank.",
-    "pageAutoRefresh": "This page refreshes on its own."
+    "pageAutoRefresh": "This page refreshes on its own.",
+    "methodBreB": "Bre-B (QR from your bank app)"
   },
   "emailVoucherStatement": {
     "subject": "{restaurant}: voucher statement from {from} to {to}",
@@ -9888,7 +9950,8 @@
       "kushki_card": "Online card",
       "reservation_deposit": "Reservation deposit",
       "voucher": "Corporate voucher",
-      "customer_credit": "Customer credit"
+      "customer_credit": "Customer credit",
+      "kushki_bre_b": "Bre-B"
     },
     "kpi": {
       "salesGroup": "Sales",
@@ -10816,5 +10879,87 @@
     "historicalChangesNotAcknowledged": "Changes to earlier charges will remain pending review.",
     "historyCutoffLabel": "Tracking start date",
     "historyConfirmationHint": "This amount is added to the opening pending balance. Later credits are already reflected in the balance change and are not counted again. This record does not send money or change the available Kushki balance."
+  },
+  "breB": {
+    "titlePay": "Pay with Bre-B",
+    "titleCharge": "Bre-B charge",
+    "amountLabel": "Total to pay",
+    "amountLabelOp": "Total to charge",
+    "qrAlt": "Bre-B QR code for {amount}",
+    "preparing": "Generating the code…",
+    "scanHint": "Open your bank app, choose to pay with QR or Bre-B and scan this code. The amount is already included.",
+    "scanHintOp": "Show this code to the customer: they scan it with their bank app and the amount is already included.",
+    "expiresIn": "Expires in <b>{time}</b>",
+    "waiting": "Waiting for the transfer. This screen updates on its own.",
+    "samePhoneTitle": "Paying from this same phone?",
+    "samePhoneTitleOp": "Customer can't scan?",
+    "samePhoneBody": "Save the code to your photos and open it from the pay-with-QR option in your bank app.",
+    "samePhoneBodyOp": "You can share the code image so they can open it from their bank app.",
+    "saveQr": "Save QR code",
+    "saved": "Code saved",
+    "saveFailed": "Couldn't save the code. Take a screenshot instead.",
+    "chooseOther": "Pay another way",
+    "cancelCharge": "Cancel charge",
+    "cancelling": "Cancelling…",
+    "cancelConfirm": "Cancel this Bre-B charge? The code will stop working.",
+    "hideCode": "Hide the code (the charge stays active)",
+    "checkStatus": "Check status",
+    "checking": "Checking…",
+    "close": "Close",
+    "newCode": "Generate a new code",
+    "approvedTitle": "Payment received",
+    "approvedBody": "The bank confirmed the transfer.",
+    "declinedTitle": "The payment didn't go through",
+    "declinedBody": "The transfer wasn't completed and nothing was charged. You can try again or pay another way.",
+    "expiredTitle": "The code expired",
+    "expiredBody": "Each code is valid for 10 minutes. Nothing was charged: generate a new one to pay.",
+    "uncertainTitle": "We're confirming your payment",
+    "uncertainBody": "We couldn't confirm with the bank whether the transfer went through. Don't pay again: let someone at the restaurant know so they can check.",
+    "uncertainBodyOp": "Kushki couldn't confirm whether the transfer went through. Don't collect this part another way: check the status or resolve it in Payments.",
+    "stillUncertain": "There's no final answer yet. Check again in a moment.",
+    "errStart": "Couldn't generate the Bre-B code. Try again or pay another way.",
+    "errNetwork": "No connection to the server. Check your internet and try again.",
+    "err_bre_b_not_configured": "Bre-B isn't available at this restaurant. Choose another payment method.",
+    "err_bre_b_not_available": "Bre-B only works with payments in Colombian pesos.",
+    "err_method_disabled": "Bre-B isn't enabled at this restaurant.",
+    "err_bre_b_processor_unavailable": "Kushki hasn't activated Bre-B for this restaurant yet. Choose another payment method.",
+    "err_bre_b_credentials_invalid": "Kushki didn't accept the restaurant's Bre-B credentials. Nothing was charged.",
+    "err_bre_b_processor_mismatch": "Kushki rejected the code because it doesn't match the Bre-B processor (E046). Nothing was charged: try again.",
+    "err_bre_b_keys_missing": "Kushki doesn't have this restaurant's Bre-B keys configured (E049). Nothing was charged.",
+    "err_bre_b_rejected": "Kushki rejected the request. Nothing was charged.",
+    "err_bre_b_unavailable": "Kushki didn't respond. Nothing was charged: try again in a moment.",
+    "notice": {
+      "canceled": "You cancelled the Bre-B payment. Nothing was charged.",
+      "declined": "The Bre-B payment wasn't completed. Nothing was charged.",
+      "expired": "The Bre-B code expired without payment. Nothing was charged.",
+      "uncertain": "There's an unconfirmed Bre-B payment. Don't pay again: let someone at the restaurant know.",
+      "uncertainOp": "There's an unconfirmed Bre-B charge: it's shown above, in pending payments. Check its status before collecting another way."
+    },
+    "pending": {
+      "kicker": "Bre-B in progress",
+      "kickerUncertain": "Bre-B unconfirmed",
+      "bodyActive": "The code is still valid ({time}). Until then, this part can't be collected another way.",
+      "bodyActiveNoTime": "The code is being generated. This part can't be collected another way for now.",
+      "bodyUncertain": "Kushki didn't confirm the result. Check the status; if it isn't resolved, reconcile it in Payments with the receipt.",
+      "showQr": "Show code",
+      "stillWaiting": "Still waiting for the transfer."
+    },
+    "linkIntro": "We'll show you a QR code with the amount. Pay it from your bank app and this page updates on its own.",
+    "linkCta": "Generate code for {amount}",
+    "mockLink": "Simulate the bank app (demo)",
+    "mock": {
+      "kicker": "Bre-B · simulated bank",
+      "title": "Bank app (demo)",
+      "intro": "Demo mode: here you decide what Kushki answers. It goes through the same checks as a real payment.",
+      "approve": "Approve the transfer",
+      "decline": "Decline the transfer",
+      "wrongAmount": "Approve a different amount",
+      "result_approved": "Approved. Go back to the code screen.",
+      "result_closed": "Declined. Go back to the code screen.",
+      "result_review": "The amount doesn't match: the charge was flagged for review, not approved.",
+      "result_ignored": "Nothing changed.",
+      "closed": "This code is no longer valid ({status}).",
+      "footer": "Only exists in demo mode. In production the real bank pays."
+    }
   }
 }

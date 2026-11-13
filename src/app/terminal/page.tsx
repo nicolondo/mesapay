@@ -49,6 +49,8 @@ export default async function TerminalPage() {
         orderBy: { createdAt: "desc" },
         take: 1,
         include: {
+          // La factura (o comprobante) ya emitida: "Imprimir factura".
+          simpleInvoice: { select: { id: true } },
           payments: {
             where: { status: { in: ["approved", "pending"] } },
             orderBy: { createdAt: "asc" },
@@ -112,6 +114,7 @@ export default async function TerminalPage() {
         label: t.label,
         state: "free" as const,
         orderId: null,
+        invoiceId: null,
         shortCode: null,
         subtotalCents: 0,
         outstandingCents: 0,
@@ -223,6 +226,7 @@ export default async function TerminalPage() {
       label: t.label,
       state,
       orderId: order.id,
+      invoiceId: order.simpleInvoice?.id ?? null,
       shortCode: order.shortCode,
       subtotalCents: Math.max(0, order.subtotalCents - order.discountCents),
       outstandingCents: totals.outstandingCents,

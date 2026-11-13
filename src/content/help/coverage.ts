@@ -77,11 +77,13 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/reports/no-cobrados": ["cortesias-y-productos-no-cobrados"],
   "/operator/reports/gastos-representacion": ["cortesias-y-productos-no-cobrados"],
   "/operator/shifts": ["abrir-y-cerrar-el-turno"],
-  "/operator/shifts/[id]": ["abrir-y-cerrar-el-turno"],
+  "/operator/shifts/[id]": ["abrir-y-cerrar-el-turno", "imprimir-en-este-dispositivo"],
+  "/operator/shifts/[id]/tirilla": { internal: "Vista de impresión (tirilla del cierre de turno)." },
   "/operator/clientes": ["clientes-de-facturacion", "cobrar-a-credito", "descuentos-para-clientes"],
   "/operator/clientes/[id]": ["descuentos-para-clientes"],
-  "/terminal": ["cobrar-con-datafono", "datafonos"],
+  "/terminal": ["cobrar-con-datafono", "datafonos", "imprimir-en-este-dispositivo"],
   "/terminal/cobrar/[orderId]": ["cobrar-con-datafono", "cobrar-una-cuenta", "cobrar-en-efectivo"],
+  "/terminal/precuenta/[id]": { internal: "Vista de impresión (precuenta desde el datáfono)." },
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },

@@ -8307,7 +8307,12 @@
     "ingredientPurchaseMovementAt": "Receipt movement: {date}",
     "ingredientPurchaseRecordedAt": "Purchase recorded on {date}",
     "rdSourcePurchase": "Received purchase",
-    "rdFixZeroOther": "{name} has a zero cost. Check the purchase or enter a reference price."
+    "rdFixZeroOther": "{name} has a zero cost. Check the purchase or enter a reference price.",
+    "insumosSearchPlaceholder": "Search by name, category or barcode…",
+    "barcodeAddTakenBy": "This code already belongs to «{name}». To use it here, remove it from that product first.",
+    "barcodeAddTakenByArchived": "This code already belongs to «{name}», which is archived. To use it here, remove it in Inventory → Archived → ⋯ → Barcodes, or restore that product.",
+    "errBarcodeTakenBy": "That barcode already belongs to «{name}». Remove it from that ingredient first.",
+    "errBarcodeTakenByArchived": "That barcode already belongs to «{name}», which is archived. Remove it in Inventory → Archived → ⋯ → Barcodes, or restore that ingredient."
   },
   "opDian": {
     "title": "DIAN electronic invoicing",

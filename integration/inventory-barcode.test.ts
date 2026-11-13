@@ -91,7 +91,8 @@ describe("multiple inventory barcodes on PostgreSQL", () => {
     for (const barcode of ["PRIMARY", "ALIAS"]) {
       const response = await add(target.id, barcode);
       expect(response.status).toBe(409);
-      expect(await response.json()).toEqual({ error: "barcode_taken" });
+      // El aviso nombra al dueño del código (mismo comercio) y dice si está activo.
+      expect(await response.json()).toMatchObject({ error: "barcode_taken", owner: { id: owner.id, active: true } });
     }
     expect(await read(target.id)).toEqual({ id: target.id, barcode: null, barcodes: [] });
     expect(await audits(target.id)).toHaveLength(0);
@@ -150,7 +151,7 @@ describe("multiple inventory barcodes on PostgreSQL", () => {
     const second = await ingredient({ barcode: "SECOND" });
     const responses = await Promise.all([add(first.id, "SHARED"), add(second.id, "SHARED")]);
     expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
-    expect(await responses.find((response) => response.status === 409)!.json()).toEqual({ error: "barcode_taken" });
+    expect(await responses.find((response) => response.status === 409)!.json()).toMatchObject({ error: "barcode_taken" });
     expect(await db.ingredientBarcode.count({ where: { restaurantId: scope.restaurantId, barcode: "SHARED" } })).toBe(1);
     expect((await read(first.id)).barcode).toBe("FIRST");
     expect((await read(second.id)).barcode).toBe("SECOND");

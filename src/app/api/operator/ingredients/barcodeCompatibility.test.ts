@@ -56,7 +56,7 @@ describe("legacy ingredient writers with multiple barcodes", () => {
     m.code.mockResolvedValue({ ingredientId: "another-ingredient" });
     const response = await write(" 00 ALIAS\r\n");
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toMatchObject({ error: "barcode_taken" });
     expect(m.code).toHaveBeenCalledWith({
       where: { restaurantId_barcode: { restaurantId: current.restaurantId, barcode: "00ALIAS" } },
       select: { ingredientId: true },
@@ -110,7 +110,7 @@ describe("legacy ingredient writers with multiple barcodes", () => {
         mutation.mockRejectedValue(race(target));
         const response = await write();
         expect(response.status).toBe(409);
-        expect(await response.json()).toEqual({ error: "barcode_taken" });
+        expect(await response.json()).toMatchObject({ error: "barcode_taken" });
         expect(m.audit).not.toHaveBeenCalled();
       });
 
@@ -119,8 +119,9 @@ describe("legacy ingredient writers with multiple barcodes", () => {
         mutation.mockRejectedValue(race());
         const response = await write();
         expect(response.status).toBe(409);
-        expect(await response.json()).toEqual({ error: "barcode_taken" });
-        expect(m.code).toHaveBeenCalledTimes(2);
+        expect(await response.json()).toMatchObject({ error: "barcode_taken" });
+        // Antes de escribir, tras la colisión, y la consulta del dueño para el aviso.
+        expect(m.code).toHaveBeenCalledTimes(3);
       });
 
       it("does not disguise a different unique constraint as a barcode collision", async () => {

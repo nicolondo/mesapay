@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { barcodeTakenResponse } from "@/lib/erp/barcodeOwner";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -109,7 +110,10 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const result = await db.$transaction((tx) => addIngredientBarcode(tx, ctx.restaurantId, id, barcode));
-    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
+    if ("error" in result) {
+      if (result.error === "barcode_taken") return barcodeTakenResponse(ctx.restaurantId, barcode);
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
     if (result.added) {
       await recordAuditEvent({
         kind: "ingredient.barcode.add", restaurantId: ctx.restaurantId,
@@ -121,7 +125,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
   } catch (error) {
     // The canonical unique index also covers older writers of the primary.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+      return barcodeTakenResponse(ctx.restaurantId, barcode);
     }
     throw error;
   }

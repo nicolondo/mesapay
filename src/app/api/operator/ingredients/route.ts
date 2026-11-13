@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { barcodeTakenResponse } from "@/lib/erp/barcodeOwner";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma, type Ingredient } from "@prisma/client";
@@ -79,9 +80,7 @@ async function POSTHandler(req: Request) {
       },
       select: { ingredientId: true },
     });
-    if (dupCode) {
-      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
-    }
+    if (dupCode) return barcodeTakenResponse(ctx.restaurantId, barcode);
   }
   let ingredient: Ingredient;
   try {
@@ -108,7 +107,7 @@ async function POSTHandler(req: Request) {
         where: { restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode } },
         select: { ingredientId: true },
       });
-      if (barcodeTarget || conflictingCode) return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+      if (barcodeTarget || conflictingCode) return barcodeTakenResponse(ctx.restaurantId, barcode);
     }
     throw error;
   }

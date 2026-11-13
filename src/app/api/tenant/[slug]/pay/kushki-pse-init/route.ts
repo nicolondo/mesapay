@@ -18,6 +18,7 @@ import { settleRejectedCharge } from "@/lib/payments/rejectedCharge";
 import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
+import { isProcessorMismatch, requestPseTokenForMultiProcessor } from "@/lib/payments/kushki/pseToken";
 
 /**
  * POST /transfer/v1/init de Kushki (server-side, con private key).
@@ -99,7 +100,8 @@ async function chargeTransferInit(args: {
   );
   if (!res.ok) {
     // Mismo error que `kushkiFetch`: lleva `status` y `body` para que el
-    // catch de abajo distinga un rechazo definitivo de un resultado incierto.
+    // catch de abajo distinga un rechazo definitivo de un resultado incierto
+    // (y un 422 E046 de modo multiprocesador, que se reintenta una vez).
     throw new KushkiHttpError(res.status, text, `${baseUrl}/transfer/v1/init`);
   }
   return text ? JSON.parse(text) : {};
@@ -231,14 +233,36 @@ async function POSTHandler(
   //    en la respuesta de tokenización — solo el token.
   if (parsed.data.token) {
     try {
-      const initResp = await chargeTransferInit({
-        token: parsed.data.token,
+      const initArgs = {
         amountPesos: parsed.data.amountCents / 100,
         buyer: parsed.data.buyer,
         metadata: { orderId: order.id, paymentId: payment.id },
         privateKey,
         mode,
-      });
+      };
+      let initResp;
+      try {
+        initResp = await chargeTransferInit({ ...initArgs, token: parsed.data.token });
+      } catch (err) {
+        // Modo multiprocesador (Kushki habilitó Bre-B en el MISMO comercio
+        // que PSE): todo token tiene que llevar `processor` y Kushki.js no lo
+        // manda, así que el init rebota con 422 E046. Es un rechazo
+        // definitivo —no se creó nada—: se pide un token nuevo desde el
+        // servidor, con el procesador de PSE que dice el config, y se
+        // reintenta UNA vez. Con un solo procesador esto nunca corre.
+        if (mode === "mock" || !isProcessorMismatch(err) || !tenant.kushkiPublicKey) throw err;
+        const retryToken = await requestPseTokenForMultiProcessor(mode, tenant.kushkiPublicKey, {
+          amountCents: parsed.data.amountCents,
+          currency: "COP",
+          callbackUrl: `${origin}/t/${slug}/pay/${order.id}/pse-return?pid=${payment.id}`,
+          buyer: parsed.data.buyer,
+          bankCode: parsed.data.bankCode,
+          paymentDescription: `Pago ${tenant.name} · orden ${order.id.slice(0, 6)}`,
+        });
+        if (!retryToken) throw err;
+        console.warn("[pse-init] E046: reintento con el procesador de PSE (modo multiprocesador)");
+        initResp = await chargeTransferInit({ ...initArgs, token: retryToken });
+      }
       const redirectUrl =
         (typeof initResp.redirectUrl === "string" && initResp.redirectUrl) ||
         (typeof initResp.url === "string" && initResp.url) ||

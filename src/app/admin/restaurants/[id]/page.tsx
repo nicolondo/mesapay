@@ -344,6 +344,7 @@ export default async function RestaurantDetail({
       <PaymentMethodsPanel
         restaurantId={id}
         initialEnabled={resolveEnabledPaymentMethods(rest.enabledPaymentMethods)}
+        breBCredentials={!!rest.kushkiBreBPublicKey && !!rest.kushkiBreBPrivateKeyEnc}
       />
 
       <ModulesPanel

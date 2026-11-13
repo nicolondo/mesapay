@@ -34,6 +34,7 @@ const METHOD_KEY: Record<string, string> = {
   kushki_card_terminal: "methodKushkiCardTerminal",
   kushki_card: "methodKushkiCard",
   kushki_pse: "methodKushkiPse",
+  kushki_bre_b: "methodKushkiBreB",
   kushki_google_pay: "methodKushkiGooglePay",
   // Datáfono propio del comercio: salía el código crudo «external_terminal»
   // en «Por método» (reporte del dueño).

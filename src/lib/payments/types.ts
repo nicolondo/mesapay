@@ -185,9 +185,8 @@ export type TerminalPushResult = {
   message?: string;
 };
 
-export type WalletBalance = {
+export type WalletBalance = import("./walletPending").WalletPendingBalance & {
   availableCents: number;
-  pendingCents: number;
   currency: Currency;
 };
 

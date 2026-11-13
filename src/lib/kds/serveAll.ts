@@ -15,12 +15,12 @@ export const SERVE_ALL_ROUND_STATUSES = ["placed", "in_kitchen", "ready"] as con
 export const SERVE_ALL_MAX_ITEMS = 1000;
 
 /**
- * Roles que pueden «Servir todo»: SOLO la administración del comercio
- * (`operator`, `group_admin` y `platform_admin`, que entran impersonando).
+ * La administración (`operator`, `group_admin`, `platform_admin`) puede
+ * servir ambas estaciones. El personal del bar sólo puede servir el bar.
  * Es el mismo conjunto que `OPERATOR_ROLES` de `src/lib/staffAccess.ts`, que
  * no se puede importar acá porque arrastra la sesión del servidor (un test
- * verifica que no se separen). Cocina, bar, mesero y terminal siguen
- * sirviendo plato por plato, pero no vacían el tablero de un toque.
+ * verifica que no se separen en cocina). Cocina, mesero y terminal siguen
+ * sirviendo plato por plato, sin acceso a esta acción masiva.
  */
 const SERVE_ALL_ROLES: ReadonlySet<string> = new Set([
   "operator",
@@ -28,8 +28,8 @@ const SERVE_ALL_ROLES: ReadonlySet<string> = new Set([
   "platform_admin",
 ]);
 
-export function canServeAll(role: string | null | undefined): boolean {
-  return !!role && SERVE_ALL_ROLES.has(role);
+export function canServeAll(role: string | null | undefined, station: ServeAllStation): boolean {
+  return !!role && (SERVE_ALL_ROLES.has(role) || (role === "bar" && station === "bar"));
 }
 
 // ── Lado del tablero ─────────────────────────────────────────────────────

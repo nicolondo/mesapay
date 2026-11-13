@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { db } from "@/lib/db";
 import { fmtCOP } from "@/lib/format";
 import { fmtBogotaDateTime } from "@/lib/bogota";
@@ -13,15 +14,12 @@ import { listAuditEvents } from "@/lib/auditLog";
 export const dynamic = "force-dynamic";
 
 /**
- * /admin landing — dashboard de plataforma con KPIs. Reemplaza el
- * antiguo redirect a /admin/restaurants. Si necesitas la lista
- * cruda, el link queda igual en la nav.
- *
- * Las queries son agresivas pero todas indexed (groupBy + count).
- * En producción con N comercios chicos cabe en < 200ms.
+ * Resumen de plataforma. Las cifras mantienen su fuente y definición;
+ * el directorio de restaurantes sigue siendo la entrada de /admin.
  */
 export default async function AdminDashboard() {
   const t = await getTranslations("opAdmin");
+  const ui = await getTranslations("adminWorkspacePage");
   const now = new Date();
   const startOfMonth = new Date(
     now.getFullYear(),
@@ -225,23 +223,27 @@ export default async function AdminDashboard() {
   const salesPrev = salesPrevMonth._sum.amountCents ?? 0;
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">
-      <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
-        {t("platformLabel")}
-      </div>
-      <div className="font-display text-3xl tracking-[-0.015em] mb-1">
-        {t("dashTitle")}
-      </div>
-      <p className="text-sm text-op-muted mb-6">
-        {t("dashIntro")}
-      </p>
+    <div className="mp-page">
+      <header className="mp-page-header flex-wrap">
+        <div className="min-w-0 max-w-2xl">
+          <p className="mp-eyebrow">{ui("overviewEyebrow")}</p>
+          <h1 className="mp-page-title">{t("dashTitle")}</h1>
+          <p className="mp-page-description">{t("dashIntro")}</p>
+        </div>
+        <Link href="/admin/restaurants" prefetch={false} className="mp-btn mp-btn--primary">
+          {ui("quickRestaurants")} <Icon name="arrow" />
+        </Link>
+      </header>
 
       {/* KPIs principales */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <section aria-labelledby="admin-subscriptions-title" className="mb-8">
+      <h2 id="admin-subscriptions-title" className="mb-4 text-base font-semibold tracking-tight">{ui("subscriptionsSection")}</h2>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-op-border bg-op-border xl:grid-cols-4">
         <KpiCard
           label={t("kpiMrr")}
           value={fmtCOP(mrrCents)}
           hint={t("kpiMrrHint")}
+          primary
         />
         <KpiCard
           label={t("kpiActive")}
@@ -265,9 +267,13 @@ export default async function AdminDashboard() {
           hint={t("kpiNewHint")}
         />
       </div>
+      </section>
 
       {/* Volumen transaccional */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+      <section aria-labelledby="admin-merchant-activity-title" className="mb-8">
+      <h2 id="admin-merchant-activity-title" className="mb-4 text-base font-semibold tracking-tight">{ui("merchantActivitySection")}</h2>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border border-op-border">
         <KpiCard
           label={t("kpiTransactions")}
           value={fmtCOP(salesNow)}
@@ -277,11 +283,12 @@ export default async function AdminDashboard() {
           })}
           big
         />
+        </div>
         <div className="rounded-2xl border border-op-border bg-op-surface p-5">
-          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
+          <h3 className="mb-4 text-sm font-semibold">
             {t("byStatus")}
-          </div>
-          <ul className="space-y-1.5 text-sm">
+          </h3>
+          <ul className="space-y-3 text-sm">
             {(
               [
                 "al_dia",
@@ -297,7 +304,7 @@ export default async function AdminDashboard() {
               >
                 <StatusDot status={s} />
                 <span className="flex-1 ml-2">{t("ms_" + s)}</span>
-                <span className="font-mono tabular text-op-muted">
+                <span className="tabular font-semibold">
                   {statusCount[s]}
                 </span>
               </li>
@@ -305,17 +312,19 @@ export default async function AdminDashboard() {
           </ul>
         </div>
       </div>
+      </section>
 
       {/* Por plan */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-        <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+      <div className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5" aria-labelledby="admin-plan-title">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+            <h2 id="admin-plan-title" className="text-base font-semibold tracking-tight">
               {t("byPlan")}
-            </div>
+            </h2>
             <Link
               href="/admin/plans"
-              className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+              prefetch={false}
+              className="mp-text-link"
             >
               {t("edit")}
             </Link>
@@ -326,18 +335,18 @@ export default async function AdminDashboard() {
               return (
                 <li
                   key={p.tier}
-                  className="py-2.5 flex items-center justify-between gap-3 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"
                 >
                   <div className="min-w-0">
-                    <div>{p.name}</div>
-                    <div className="font-mono text-[10px] text-op-muted">
+                    <div className="font-medium">{p.name}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-op-muted">
                       {p.tier} <span aria-hidden>{"·"}</span>{" "}
                       {t("priceSuggested", { price: fmtCOP(p.defaultPriceCents) })}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-mono tabular">{b.count}</div>
-                    <div className="font-mono text-[10px] text-op-muted">
+                    <div className="tabular font-semibold">{b.count}</div>
+                    <div className="mt-1 text-xs text-op-muted">
                       {t("mrrSuffix", { value: fmtCOP(b.mrr) })}
                     </div>
                   </div>
@@ -345,55 +354,57 @@ export default async function AdminDashboard() {
               );
             })}
           </ul>
-        </div>
+        </section>
 
-        <div className="rounded-2xl border border-op-border bg-op-surface p-5">
-          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-3">
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5" aria-labelledby="admin-top-title">
+          <h2 id="admin-top-title" className="mb-3 text-base font-semibold tracking-tight">
             {t("topMerchants")}
-          </div>
+          </h2>
           {topRestaurants.length === 0 ? (
             <div className="text-sm text-op-muted">
               {t("noTransactionsMonth")}
             </div>
           ) : (
-            <ul className="divide-y divide-op-border">
+            <ol className="divide-y divide-op-border">
               {topRestaurants.map((r, i) => (
                 <li
                   key={r.id}
-                  className="py-2.5 flex items-center justify-between gap-3 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-[10px] text-op-muted w-4 shrink-0">
+                    <span className="w-5 shrink-0 text-xs tabular text-op-muted" aria-hidden>
                       {i + 1}
                     </span>
                     <Link
                       href={`/admin/restaurants/${r.id}`}
-                      className="truncate hover:text-terracotta"
+                      prefetch={false}
+                      className="break-words font-medium hover:text-terracotta"
                     >
                       {r.name}
                     </Link>
                   </div>
-                  <div className="font-mono tabular text-sm shrink-0">
+                  <div className="shrink-0 text-sm font-semibold tabular">
                     {fmtCOP(r.volumeCents)}
                   </div>
                 </li>
               ))}
-            </ul>
+            </ol>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Necesitan atención + actividad reciente */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-        <div className="rounded-2xl border border-op-border bg-op-surface p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+      <div className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5" aria-labelledby="admin-attention-title">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 id="admin-attention-title" className="text-base font-semibold tracking-tight">
               {t("needsAttention")}
-            </div>
-            <span className="font-mono text-[10px] text-op-muted">
+            </h2>
+            <span className="rounded-lg bg-op-bg px-2.5 py-1 text-sm font-semibold tabular text-op-muted">
               {needsAttention.length}
             </span>
           </div>
+          <p className="mb-4 text-xs leading-relaxed text-op-muted">{ui("attentionIntro")}</p>
           {needsAttention.length === 0 ? (
             <div className="text-sm text-op-muted">
               {t("allUpToDate")}
@@ -403,14 +414,15 @@ export default async function AdminDashboard() {
               {needsAttention.map((r) => (
                 <li
                   key={r.id}
-                  className="py-2.5 flex items-center justify-between gap-3"
+                  className="flex flex-wrap items-center justify-between gap-3 py-4"
                 >
                   <Link
                     href={`/admin/restaurants/${r.id}`}
+                    prefetch={false}
                     className="min-w-0 flex-1 hover:text-terracotta"
                   >
-                    <div className="text-sm truncate">{r.name}</div>
-                    <div className="font-mono text-[10px] text-op-muted">
+                    <div className="break-words text-sm font-medium">{r.name}</div>
+                    <div className="mt-1 text-xs leading-relaxed text-op-muted">
                       {planLabelOf(r.plan)} <span aria-hidden>{"·"}</span>{" "}
                       {r.daysLeft != null && r.daysLeft >= 0
                         ? t("expiresInDays", { days: r.daysLeft })
@@ -424,16 +436,17 @@ export default async function AdminDashboard() {
               ))}
             </ul>
           )}
-        </div>
+        </section>
 
-        <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+        <section className="rounded-2xl border border-op-border bg-op-surface p-5" aria-labelledby="admin-recent-activity-title">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+            <h2 id="admin-recent-activity-title" className="text-base font-semibold tracking-tight">
               {t("recentActivity")}
-            </div>
+            </h2>
             <Link
               href="/admin/audit"
-              className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+              prefetch={false}
+              className="mp-text-link"
             >
               {t("viewAll")}
             </Link>
@@ -443,13 +456,13 @@ export default async function AdminDashboard() {
               {t("noRecentActivity")}
             </div>
           ) : (
-            <ul className="space-y-2.5">
+            <ul className="divide-y divide-op-border">
               {recentEvents.map((e) => {
                 const { date, time } = fmtBogotaDateTime(e.occurredAt);
                 return (
-                  <li key={e.id} className="text-sm">
-                    <div className="truncate">{e.summary}</div>
-                    <div className="font-mono text-[10px] text-op-muted">
+                  <li key={e.id} className="py-3 text-sm">
+                    <div className="break-words leading-relaxed">{e.summary}</div>
+                    <div className="mt-1 break-words text-xs leading-relaxed text-op-muted">
                       {date} {time} <span aria-hidden>{"·"}</span> {e.actorEmail}
                       {e.restaurant && (
                         <>
@@ -463,41 +476,44 @@ export default async function AdminDashboard() {
               })}
             </ul>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Últimos comercios creados */}
-      <div className="rounded-2xl border border-op-border bg-op-surface p-5">
+      <section className="rounded-2xl border border-op-border bg-op-surface p-5" aria-labelledby="admin-latest-merchants-title">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+          <h2 id="admin-latest-merchants-title" className="text-base font-semibold tracking-tight">
             {t("latestMerchants")}
-          </div>
+          </h2>
           <Link
             href="/admin/restaurants"
-            className="font-mono text-[10px] tracking-wider uppercase text-terracotta hover:underline"
+            prefetch={false}
+            className="mp-text-link"
           >
             {t("viewAllPlural")}
           </Link>
         </div>
+        {recentRestaurants.length === 0 && <p className="py-4 text-sm leading-relaxed text-op-muted">{ui("noRecentRestaurants")}</p>}
         <ul className="divide-y divide-op-border">
           {recentRestaurants.map((r) => (
             <li
               key={r.id}
-              className="py-2.5 flex items-center justify-between gap-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"
             >
               <Link
                 href={`/admin/restaurants/${r.id}`}
+                prefetch={false}
                 className="min-w-0 flex-1 hover:text-terracotta"
               >
-                <div className="truncate">{r.name}</div>
-                <div className="font-mono text-[10px] text-op-muted">
+                <div className="break-words font-medium">{r.name}</div>
+                <div className="mt-1 break-words text-xs leading-relaxed text-op-muted">
                   /{r.slug} <span aria-hidden>{"·"}</span>{" "}
                   {t("createdOn", { date: fmtBogotaDateTime(r.createdAt).date })}
                 </div>
               </Link>
               <div className="text-right shrink-0">
-                <div className="text-sm">{planLabelOf(r.plan)}</div>
-                <div className="font-mono text-[10px] text-op-muted">
+                <div className="text-sm font-medium">{planLabelOf(r.plan)}</div>
+                <div className="mt-1 text-xs tabular text-op-muted">
                   {r.monthlyPriceCents > 0
                     ? fmtCOP(r.monthlyPriceCents)
                     : "—"}
@@ -506,7 +522,17 @@ export default async function AdminDashboard() {
             </li>
           ))}
         </ul>
-      </div>
+      </section>
+
+      <nav aria-labelledby="admin-quick-access-title" className="mt-8">
+        <h2 id="admin-quick-access-title" className="mb-4 text-base font-semibold tracking-tight">{ui("quickAccess")}</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <QuickAccess href="/admin/restaurants" icon="store" title={ui("quickRestaurants")} description={ui("quickRestaurantsBody")} />
+          <QuickAccess href="/admin/wallet" icon="wallet" title={ui("quickWallet")} description={ui("quickWalletBody")} />
+          <QuickAccess href="/admin/plans" icon="orders" title={ui("quickPlans")} description={ui("quickPlansBody")} />
+          <QuickAccess href="/admin/audit" icon="audit" title={ui("quickAudit")} description={ui("quickAuditBody")} />
+        </div>
+      </nav>
     </div>
   );
 }
@@ -516,32 +542,44 @@ function KpiCard({
   value,
   hint,
   big,
+  primary,
 }: {
   label: string;
   value: string;
   hint?: string;
   big?: boolean;
+  primary?: boolean;
 }) {
   return (
-    // min-w-0 + break-words + cifra un paso más chica en móvil: en la grilla
-    // de 2 columnas a 390 px cada tarjeta tiene ~130 px útiles y un MRR como
-    // "$2.400.000" a 2xl desbordaba el borde.
-    <div className="rounded-2xl border border-op-border bg-op-surface p-4 md:p-5 min-w-0">
-      <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
+    <div className={`h-full min-w-0 p-4 sm:p-5 ${primary ? "bg-ink text-bone" : "bg-op-surface"}`}>
+      <div className={`text-xs font-medium ${primary ? "text-bone/75" : "text-op-muted"}`}>
         {label}
       </div>
       <div
         className={
-          "font-display tabular mt-1 break-words " +
-          (big ? "text-3xl" : "text-xl md:text-2xl")
+          "mt-4 break-words font-semibold tabular leading-tight tracking-tight " +
+          (big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")
         }
       >
         {value}
       </div>
       {hint && (
-        <div className="font-mono text-[10px] text-op-muted mt-1">{hint}</div>
+        <p className={`mt-3 text-xs leading-relaxed ${primary ? "text-bone/75" : "text-op-muted"}`}>{hint}</p>
       )}
     </div>
+  );
+}
+
+function QuickAccess({ href, icon, title, description }: { href: string; icon: IconName; title: string; description: string }) {
+  return (
+    <Link href={href} prefetch={false} className="group flex min-w-0 items-start gap-3 rounded-xl border border-op-border bg-op-surface p-4 transition-colors hover:border-terracotta/40 hover:bg-op-bg">
+      <Icon name={icon} className="mt-0.5 shrink-0 text-terracotta" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold leading-snug">{title}</span>
+        <span className="mt-1.5 block text-xs leading-relaxed text-op-muted">{description}</span>
+      </span>
+      <Icon name="arrow" className="mt-0.5 h-4 w-4 shrink-0 text-op-muted transition-transform group-hover:translate-x-0.5" />
+    </Link>
   );
 }
 
@@ -578,7 +616,7 @@ function StatusPillSmall({
   return (
     <span
       className={
-        "font-mono text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border shrink-0 " +
+        "text-xs font-medium px-2 py-1 rounded border shrink-0 " +
         map[status]
       }
     >

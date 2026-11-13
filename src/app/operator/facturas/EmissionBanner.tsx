@@ -1,12 +1,10 @@
-"use client";
+// Avisos de la emisión automática del comercio (ver
+// `lib/dian/pendingEmission.ts`) y el texto de los motivos de bloqueo. Los
+// avisos se muestran en la franja «Por atender» de /operator/facturas
+// (`AttentionStrip`), junto a las rechazadas y las solicitudes tardías.
+import { KNOWN_BLOCK_REASONS } from "@/lib/dian/invoiceRowView";
 
-import Link from "next/link";
-import { useTranslations } from "next-intl";
-
-/**
- * Resumen de la emisión automática del comercio (ver
- * `lib/dian/pendingEmission.ts`).
- */
+/** Resumen de la emisión automática del comercio. */
 export type EmissionInfo = {
   waiting: number;
   blockedBy: string | null;
@@ -15,27 +13,7 @@ export type EmissionInfo = {
 };
 
 /** Desde cuántos números restantes se avisa (= NUMBERS_LEFT_WARNING). */
-const NUMBERS_LEFT_WARNING = 500;
-
-/** Motivos de bloqueo con texto propio; cualquier otro se muestra crudo. */
-const BLOCK_REASONS = new Set([
-  "no_config",
-  "no_certificate",
-  "missing_credentials",
-  "master_key_missing",
-  "decrypt_failed",
-  "no_emisor",
-  "resolution_incomplete",
-  "location_incomplete",
-  "contact_email_incomplete",
-  "numbering_exhausted",
-  "number_out_of_range",
-  "no_lines",
-  // La consulta del envío anterior no respondió (ver dian/invoiceResponse.ts).
-  "dian_status_unavailable",
-  // La DIAN dijo tenerla (regla 90) y falta confirmarlo por CUFE.
-  "dian_duplicate_unverified",
-]);
+export const NUMBERS_LEFT_WARNING = 500;
 
 /**
  * Motivo de bloqueo (o de rechazo) → texto. Los códigos conocidos tienen
@@ -46,61 +24,35 @@ export function blockReasonText(
   code: string,
   t: (key: string, values?: Record<string, string | number>) => string,
 ): string {
-  return BLOCK_REASONS.has(code) ? t(`blockReason_${code}`) : code;
+  return KNOWN_BLOCK_REASONS.has(code) ? t(`blockReason_${code}`) : code;
 }
 
 /**
- * Aviso de la emisión automática. Rojo cuando algo del COMERCIO frena las
- * facturas (configuración incompleta, rango agotado): con emisión
- * automática eso deja TODA la facturación parada sin que nadie apriete
- * nada. Amarillo cuando la resolución se está quedando sin números.
+ * Qué avisar de la emisión, de lo más grave a lo menos:
+ *
+ *   · blocked    algo del COMERCIO frena las facturas (configuración
+ *                incompleta, rango agotado): con emisión automática eso deja
+ *                TODA la facturación parada sin que nadie apriete nada.
+ *   · exhausted  se agotó el rango de la resolución.
+ *   · lowNumbers la resolución se está quedando sin números.
+ *   · queued     facturas en cola que se reintentan solas (sólo informa).
  */
-export function EmissionBanner({ emission }: { emission: EmissionInfo }) {
-  const t = useTranslations("opFacturas");
-  const exhausted = emission.numbersLeft === 0;
-  const lowNumbers =
-    emission.numbersLeft != null && emission.numbersLeft < NUMBERS_LEFT_WARNING;
-  const blocked = emission.blockedCount > 0 && emission.blockedBy;
+export type EmissionNotice =
+  | { kind: "blocked"; count: number; reason: string }
+  | { kind: "exhausted" }
+  | { kind: "lowNumbers"; count: number }
+  | { kind: "queued"; count: number };
+
+export function emissionNotices(emission: EmissionInfo): EmissionNotice[] {
+  const out: EmissionNotice[] = [];
+  if (emission.blockedCount > 0 && emission.blockedBy) {
+    out.push({ kind: "blocked", count: emission.blockedCount, reason: emission.blockedBy });
+  }
+  if (emission.numbersLeft === 0) out.push({ kind: "exhausted" });
+  else if (emission.numbersLeft != null && emission.numbersLeft < NUMBERS_LEFT_WARNING) {
+    out.push({ kind: "lowNumbers", count: emission.numbersLeft });
+  }
   const queued = emission.waiting - emission.blockedCount;
-  if (!blocked && !lowNumbers && queued <= 0) return null;
-  return (
-    <div className="space-y-2 mb-6">
-      {blocked && (
-        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
-          <div className="font-medium">
-            {t("emissionBlocked", {
-              count: emission.blockedCount,
-              reason: blockReasonText(emission.blockedBy!, t),
-            })}
-          </div>
-          <p className="mt-1 text-[12px] opacity-90">{t("emissionBlockedHint")}</p>
-          <Link
-            href="/operator/settings/facturacion-dian"
-            className="inline-block mt-2 text-[12px] font-medium underline"
-          >
-            {t("emissionBlockedCta")}
-          </Link>
-        </div>
-      )}
-      {lowNumbers && (
-        <div
-          className={
-            "rounded-2xl border p-4 text-sm " +
-            (exhausted
-              ? "border-danger/30 bg-danger/10 text-danger"
-              : "border-[#C98A2E]/40 bg-[#C98A2E]/15 text-[#7F5A1F]")
-          }
-        >
-          {exhausted
-            ? t("numbersExhausted")
-            : t("numbersLeftWarning", { count: emission.numbersLeft! })}
-        </div>
-      )}
-      {queued > 0 && (
-        <p className="text-[12px] text-op-muted px-1">
-          {t("emissionWaiting", { count: queued })}
-        </p>
-      )}
-    </div>
-  );
+  if (queued > 0) out.push({ kind: "queued", count: queued });
+  return out;
 }

@@ -1,0 +1,92 @@
+/* The platform workspace shares the operator rail, type and surface tokens. */
+.mp-admin-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--op-bg);
+  color: var(--op-text);
+}
+.mp-admin-shell .mp-skip-link:focus { top: calc(12px + env(safe-area-inset-top, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); }
+.mp-admin-sidebar { display: none; min-height: 0; min-width: 0; }
+.mp-admin-body { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.mp-admin-content { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.mp-admin-content > * { flex-shrink: 0; }
+.mp-admin-rail { background: var(--rail); color: var(--rail-text); border-right: 1px solid var(--rail-line); display: flex; flex-direction: column; min-height: 0; width: 100%; min-width: 0; }
+.mp-admin-brand { display: flex; flex-direction: column; gap: 9px; padding: 26px 24px 24px; border-bottom: 1px solid var(--rail-line); flex-shrink: 0; }
+.mp-admin-brand-wordmark { font-family: var(--font-display); font-size: 30px; line-height: 1; letter-spacing: .005em; }
+.mp-admin-brand-wordmark > span { color: var(--rail-accent); }
+.mp-admin-brand-caption { font-size: 11px; color: var(--rail-muted); letter-spacing: .045em; }
+.mp-admin-navigation { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px 16px; scrollbar-width: thin; scrollbar-color: var(--rail-line-2) var(--rail); }
+.mp-admin-nav-group + .mp-admin-nav-group { margin-top: 12px; }
+.mp-admin-nav-label { padding: 10px 12px 6px; color: var(--rail-muted); font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .13em; }
+.mp-admin-nav-link { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; color: var(--rail-text); transition: background-color 160ms ease, color 160ms ease; }
+.mp-admin-nav-link > svg { flex-shrink: 0; opacity: .85; }
+.mp-admin-nav-link[aria-current="page"] { color: #231205; background: var(--rail-accent); }
+.mp-admin-external-icon { margin-left: auto; width: 14px; height: 14px; color: var(--rail-muted); }
+.mp-admin-footer { flex-shrink: 0; padding: 14px 16px 18px; }
+.mp-admin-account-link { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 8px; }
+.mp-admin-account-link[aria-current="page"] { background: var(--rail-2); outline: 1px solid var(--rail-accent); }
+.mp-admin-account-link > svg { flex-shrink: 0; color: var(--rail-muted); }
+.mp-admin-email { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--rail-muted); font-size: 11px; margin-top: 3px; }
+.mp-admin-session-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.mp-admin-signout { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--rail-line-2); border-radius: 8px; min-height: 40px; padding: 8px 10px; font-size: 12px; }
+.mp-admin-brand:focus-visible, .mp-admin-footer :is(a, button):focus-visible { outline-color: var(--rail-accent); outline-offset: 2px; }
+.mp-admin-footer a:hover, .mp-admin-signout:hover { background: var(--rail-2); }
+.mp-admin-topbar { display: flex; align-items: center; gap: 12px; min-height: 70px; flex-shrink: 0; padding: 12px 24px; border-bottom: 1px solid var(--op-border); background: var(--op-surface); }
+.mp-admin-breadcrumb { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 12px; color: var(--op-muted); }
+.mp-admin-breadcrumb [aria-current="page"] { color: var(--op-text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-admin-breadcrumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mp-admin-topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-shrink: 0; }
+.mp-admin-topbar .mp-workspace-search { border: 1px solid var(--op-border); background: var(--op-bg); min-height: 44px; }
+.mp-admin-menu-button { display: inline-grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border: 1px solid var(--op-border); border-radius: 10px; }
+.mp-admin-mobile-brand { font-family: var(--font-display); font-size: 23px; line-height: 1; }
+.mp-admin-content .mp-page { max-width: 1440px; }
+.mp-admin-content .mp-page--form { max-width: 760px; }
+.mp-admin-content .mp-page--narrow { max-width: 1040px; }
+.mp-admin-content .mp-page--account { max-width: 680px; }
+.mp-admin-content :where(table) { font-variant-numeric: tabular-nums; }
+.mp-admin-drawer .mp-admin-brand { padding-right: 60px; }
+@media (min-width: 768px) {
+  .mp-admin-shell { grid-template-columns: 248px minmax(0, 1fr); }
+  .mp-admin-sidebar { display: flex; }
+  .mp-admin-menu-button, .mp-admin-mobile-brand { display: none; }
+}
+@media (min-width: 1280px) {
+  .mp-admin-shell { grid-template-columns: 264px minmax(0, 1fr); }
+}
+/* Keep all platform sections in view on common laptop heights. The rail
+   still scrolls independently on shorter screens and at larger text sizes. */
+@media (min-width: 768px) and (max-height: 820px) {
+  .mp-admin-brand { padding: 20px 24px 16px; gap: 7px; }
+  .mp-admin-nav-link { min-height: 40px; padding-block: 8px; }
+  .mp-admin-nav-label { font-size: 9px; padding-block: 5px 3px; }
+  .mp-admin-nav-group + .mp-admin-nav-group { margin-top: 6px; }
+  .mp-admin-navigation { padding-block: 10px; }
+  .mp-admin-footer { padding-block: 10px 12px; }
+  .mp-admin-session-actions { margin-top: 8px; }
+}
+@media (max-width: 1199px) {
+  .mp-admin-topbar .mp-workspace-search :is(span, kbd) { display: none; }
+  .mp-admin-topbar .mp-workspace-search { width: 44px; justify-content: center; padding: 0; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .mp-admin-create > span { display: none; }
+  .mp-admin-create { width: 44px; padding: 0; }
+}
+@media (max-width: 767px) {
+  .mp-admin-topbar { min-height: 64px; padding: 10px 16px; gap: 10px; }
+  .mp-admin-breadcrumb { display: none; }
+  .mp-admin-topbar-actions { gap: 8px; }
+  .mp-admin-create { width: 44px; padding: 0; }
+  .mp-admin-create > span { display: none; }
+  .mp-admin-content .mp-page { padding: 24px 18px 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-admin-shell *, .mp-admin-drawer * { scroll-behavior: auto; transition-duration: 0s; animation-duration: 0s; }
+}
+@media print {
+  .mp-admin-shell { display: block; height: auto; overflow: visible; }
+  .mp-admin-sidebar, .mp-admin-topbar, .mp-admin-drawer { display: none; }
+  .mp-admin-body, .mp-admin-content { display: block; height: auto; overflow: visible; }
+  .mp-admin-content .mp-page { max-width: none; padding: 0; }
+}

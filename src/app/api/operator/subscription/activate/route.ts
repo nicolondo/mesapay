@@ -230,6 +230,7 @@ async function POSTHandler(req: Request) {
       startDateIso,
       periodEndsAt: newPeriodEndsAt,
       actorEmail,
+      tracking: chargeResult.tracking,
     });
   } else {
     // Sin cobro inmediato → solo persistir la suscripción
@@ -241,6 +242,7 @@ async function POSTHandler(req: Request) {
       subscriptionId,
       card,
       nextChargeAt: new Date(startDateIso),
+      tracking: createResult.tracking,
     });
   }
 

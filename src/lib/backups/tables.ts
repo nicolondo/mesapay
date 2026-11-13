@@ -49,6 +49,13 @@ export const EXCLUDED_MODELS: ReadonlySet<string> = new Set([
   // Bitácora de auditoría: append-only por definición. Restaurarla borraría
   // el rastro de lo que pasó después de la copia (incluida la restauración).
   "AuditEvent",
+  // Wallet estimates are a durable platform audit ledger. Restoring an older
+  // tenant backup must never rewind a baseline or allow a source to count twice.
+  // Required child entries/snapshots are excluded transitively as well.
+  "WalletTrackingAccount",
+  // A payout can already be in flight at Kushki. Restoring an old backup must
+  // preserve its attempt/idempotency key and any later confirmed outcome.
+  "Payout",
   // Alta de pagos con Kushki: los documentos viven en disco/SFTP y su estado
   // pertenece al onboarding (plataforma), igual que las llaves del
   // Restaurant que tampoco se restauran. Los eventos de webhook son un

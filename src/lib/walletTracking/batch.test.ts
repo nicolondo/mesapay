@@ -1,0 +1,17 @@
+import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
+const m=vi.hoisted(()=>({job:vi.fn(),jobUpdate:vi.fn(),jobMany:vi.fn(),account:vi.fn(),restaurants:vi.fn(),platform:vi.fn(),sync:vi.fn(),lock:vi.fn()}));
+vi.mock("./store",()=>({trackingLock:m.lock}));
+vi.mock("./service",()=>({syncWalletTracking:m.sync}));
+vi.mock("./context",()=>({scopeKey:(s:{kind:string;restaurantId?:string})=>s.kind==="platform"?"platform":`restaurant:${s.restaurantId}`}));
+vi.mock("@/lib/db",()=>{const tx={walletTrackingJob:{upsert:m.job,update:m.jobUpdate}};return{db:{$transaction:(fn:(tx:unknown)=>unknown)=>fn(tx),walletTrackingJob:{updateMany:m.jobMany},walletTrackingAccount:{findFirst:m.account},restaurant:{findMany:m.restaurants},platformConfig:{findUnique:m.platform}}};});
+import {runWalletTrackingBatch} from "./batch";
+import {TrackingError} from "./errors";
+beforeEach(()=>{vi.resetAllMocks();m.job.mockResolvedValue({id:"singleton",restaurantCursor:null,leaseUntil:null});m.account.mockResolvedValue(null);m.restaurants.mockResolvedValue([{id:"a"},{id:"b"}]);m.platform.mockResolvedValue({platformWalletAccountId:"p"});m.sync.mockResolvedValue({status:"active"});});
+afterEach(()=>vi.restoreAllMocks());
+describe("durable bounded scheduled comparison",()=>{
+ it("always advances at least one merchant when the platform exhausts the soft deadline",async()=>{let time=Date.now();vi.spyOn(Date,"now").mockImplementation(()=>time);m.sync.mockImplementation(async()=>{time+=45000;return{status:"active"};});expect(await runWalletTrackingBatch()).toMatchObject({scanned:2,synced:2,truncated:true});expect(m.sync.mock.calls[1][0]).toEqual({kind:"merchant",restaurantId:"a"});expect(m.jobMany).toHaveBeenCalledWith(expect.objectContaining({data:{restaurantCursor:"a"}}));});
+ it("checks platform and merchants and releases lease",async()=>{expect(await runWalletTrackingBatch()).toMatchObject({scanned:3,synced:3,failed:0,busy:0,truncated:false});expect(m.sync.mock.calls.map(call=>call[0])).toEqual([{kind:"platform"},{kind:"merchant",restaurantId:"a"},{kind:"merchant",restaurantId:"b"}]);expect(m.jobMany).toHaveBeenLastCalledWith(expect.objectContaining({data:{leaseToken:null,leaseUntil:null}}));});
+ it("does not duplicate a running batch",async()=>{m.job.mockResolvedValue({leaseUntil:new Date(Date.now()+50000)});expect(await runWalletTrackingBatch()).toMatchObject({busy:1,scanned:0});expect(m.sync).not.toHaveBeenCalled();});
+ it("skips not-due accounts and continues past a failing merchant",async()=>{m.account.mockResolvedValueOnce({nextCheckAt:new Date(Date.now()+50000)}).mockResolvedValue(null);m.sync.mockRejectedValueOnce(new Error("private detail")).mockResolvedValueOnce({status:"stale"});expect(await runWalletTrackingBatch()).toMatchObject({scanned:3,failed:2,synced:0});});
+ it("persists a round-robin cursor instead of repeatedly retrying the first20",async()=>{m.platform.mockResolvedValue(null);m.job.mockResolvedValue({id:"singleton",restaurantCursor:"previous",leaseUntil:null});m.restaurants.mockResolvedValue(Array.from({length:21},(_,i)=>({id:`r${i}`})));m.sync.mockRejectedValue(new TrackingError("tracking_busy"));expect(await runWalletTrackingBatch()).toMatchObject({scanned:20,busy:20,truncated:true});expect(m.restaurants.mock.calls[0][0].where.id).toEqual({gt:"previous"});expect(m.jobMany).toHaveBeenCalledWith(expect.objectContaining({data:{restaurantCursor:"r19"}}));});
+});

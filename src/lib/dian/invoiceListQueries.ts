@@ -19,6 +19,7 @@ import { invoiceIssueInstant } from "@/lib/dian/attachedDocument";
 import { resolveDianRecipient } from "@/lib/dian/invoiceEmail";
 import { unzipFirstXml } from "@/lib/dian/soap";
 import {
+  INVOICE_STATE_FILTERS,
   invoiceDianStatus,
   invoiceDisplayNumber,
   invoiceListWhere,
@@ -27,6 +28,7 @@ import {
   last30BusinessDays,
   type InvoiceDianStatus,
   type InvoiceListParams,
+  type InvoiceStateFilter,
 } from "@/lib/dian/invoiceList";
 import { invoiceXmlBuyerId, isLateInvoiceRequest } from "@/lib/dian/invoiceRequestCoverage";
 import {
@@ -215,6 +217,33 @@ export async function loadInvoiceListPage(
   });
 
   return { rows, total, page: params.page, pageCount: invoicePageCount(total) };
+}
+
+/** Cuántas facturas hay en cada filtro de estado, con los demás filtros. */
+export type InvoiceStateCounts = Record<InvoiceStateFilter, number>;
+
+/**
+ * La cuenta de cada pestaña de estado (Todas / Rechazadas / En proceso /
+ * Aceptadas) con el rango y la búsqueda de la URL: cuatro `count` por el
+ * mismo índice que la lista, sin traer filas.
+ */
+export async function loadInvoiceStateCounts(
+  restaurantId: string,
+  params: Pick<InvoiceListParams, "from" | "to" | "q">,
+  cutoffHour: number,
+): Promise<InvoiceStateCounts> {
+  const entries = await Promise.all(
+    INVOICE_STATE_FILTERS.map(
+      async (state) =>
+        [
+          state,
+          await db.simpleInvoice.count({
+            where: invoiceListWhere(restaurantId, { state, from: params.from, to: params.to, q: params.q }, cutoffHour),
+          }),
+        ] as const,
+    ),
+  );
+  return Object.fromEntries(entries) as InvoiceStateCounts;
 }
 
 /** "N facturas rechazadas en los últimos 30 días" y el rango de su filtro. */

@@ -18,7 +18,7 @@ import { processKushkiWebhook } from "./webhookHandler";
  *   - venta RECHAZADA → se declina y la cuenta queda libre;
  *   - nada todavía → se vuelve a consultar cada 10 s hasta el final de la
  *     ventana; si sigue sin aparecer, el pago queda incierto como hoy
- *     (3 minutos + administrador + evidencia, "Resolver cobro");
+ *     (administrador + evidencia, "Resolver cobro", sin espera obligatoria);
  *   - algo raro (reversión, otro monto) → se deja incierto de inmediato: lo
  *     resuelve una persona con el comprobante.
  *
@@ -111,7 +111,7 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
       message: "transaction_search_online",
       raw: search.raw,
     });
-    if (processed.status === "error") return { search: search.status, settled: null, settleFailed: true };
+    if (processed.status === "error" || processed.requiresReview) return { search: search.status, settled: null, settleFailed: true };
     // El código de aprobación queda donde Cobros lo muestra.
     if (search.approvalCode) {
       const approvalCode = search.approvalCode;
@@ -134,7 +134,7 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
       message: "transaction_search_online",
       raw: search.raw,
     });
-    if (processed.status === "error") return { search: search.status, settled: null, settleFailed: true };
+    if (processed.status === "error" || processed.requiresReview) return { search: search.status, settled: null, settleFailed: true };
     return { search: search.status, settled: "declined", providerRef: search.transactionReference };
   }
   return { search: search.status, settled: null };

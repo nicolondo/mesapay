@@ -14,7 +14,8 @@ import {
   type StaffPrintFallbackReason,
 } from "@/lib/print/staffPrint";
 
-type Tone = "ok" | "warn" | "error";
+export type StaffPrintTone = "ok" | "warn" | "error";
+type Tone = StaffPrintTone;
 
 type Notice = {
   tone: Tone;
@@ -58,6 +59,39 @@ export function StaffPrintButton({
   /** Cómo abrir la pestaña de respaldo (en la PWA, navegación in-app). */
   openTab?: (url: string) => boolean;
 }) {
+  const t = useTranslations("staffPrint");
+  const print = useStaffPrint(doc, { openTab });
+  return (
+    <>
+      <button type="button" onClick={print.run} disabled={print.busy} className={className}>
+        {print.busy ? t("sending") : label}
+      </button>
+      <StaffPrintNotice
+        print={print}
+        className={statusClassName}
+        sameTab={sameTab}
+        canConfigurePrinters={canConfigurePrinters}
+      />
+    </>
+  );
+}
+
+export type StaffPrintState = {
+  run: () => Promise<void>;
+  busy: boolean;
+  notice: Notice | null;
+  browser: BrowserPrintState | null;
+};
+
+/**
+ * La lógica del botón, sin el botón: para disparar la misma impresión
+ * desde otro control (el menú «⋯» de una fila de Facturas) y mostrar el
+ * aviso donde convenga con <StaffPrintNotice>.
+ */
+export function useStaffPrint(
+  doc: StaffPrintDoc,
+  { openTab }: { openTab?: (url: string) => boolean } = {},
+): StaffPrintState {
   const t = useTranslations("staffPrint");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -107,43 +141,53 @@ export function StaffPrintButton({
     }
   }
 
+  return { run, busy, notice, browser };
+}
+
+/** El aviso de una impresión del staff (lo que pasó, en una línea). */
+export function StaffPrintNotice({
+  print,
+  className = "block text-[11px]",
+  sameTab = false,
+  canConfigurePrinters = false,
+}: {
+  print: Pick<StaffPrintState, "notice" | "browser">;
+  className?: string;
+  sameTab?: boolean;
+  canConfigurePrinters?: boolean;
+}) {
+  const { notice, browser } = print;
+  if (!notice) return null;
   return (
-    <>
-      <button type="button" onClick={run} disabled={busy} className={className}>
-        {busy ? t("sending") : label}
-      </button>
-      {notice && (
-        <span
-          role="status"
-          className={
-            statusClassName +
-            " " +
-            (notice.tone === "error"
-              ? "text-danger"
-              : notice.tone === "warn"
-                ? "text-[#8F6828]"
-                : "text-[#1E5339]")
-          }
-        >
-          {notice.text}
-          {browser && (
-            <>
-              {" "}
-              <BrowserPrintStatus
-                state={browser}
-                sameTab={sameTab}
-                setup={
-                  notice.fallback === "no_printer"
-                    ? canConfigurePrinters
-                      ? "link"
-                      : "ask"
-                    : null
-                }
-              />
-            </>
-          )}
-        </span>
+    <span
+      role="status"
+      className={
+        className +
+        " " +
+        (notice.tone === "error"
+          ? "text-danger"
+          : notice.tone === "warn"
+            ? "text-[#8F6828]"
+            : "text-[#1E5339]")
+      }
+    >
+      {notice.text}
+      {browser && (
+        <>
+          {" "}
+          <BrowserPrintStatus
+            state={browser}
+            sameTab={sameTab}
+            setup={
+              notice.fallback === "no_printer"
+                ? canConfigurePrinters
+                  ? "link"
+                  : "ask"
+                : null
+            }
+          />
+        </>
       )}
-    </>
+    </span>
   );
 }

@@ -45,7 +45,10 @@ export function NavigationSearch({ items }: { items: NavEntry[] }) {
         type="button"
         className="mp-workspace-search"
         aria-label={t("findSection")}
-        onClick={() => {
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={(event) => {
+          event.currentTarget.focus({ preventScroll: true });
           setQuery("");
           setOpen(true);
         }}
@@ -68,6 +71,15 @@ export function NavigationSearch({ items }: { items: NavEntry[] }) {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // Browsers may consume Escape to clear a search field before
+                // the dialog receives cancel. One press should close search.
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setOpen(false);
+                }
+              }}
               placeholder={t("findSection")}
               aria-label={t("findSection")}
               className="min-w-0 flex-1 bg-transparent text-base outline-none"

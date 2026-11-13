@@ -1,3 +1,4 @@
+import { ownDestinationFingerprint } from "@/lib/merchantWallet/ownDestination";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -73,6 +74,8 @@ export default async function WalletPage() {
     take: 30,
   });
 
+  const unresolved = await db.payout.findFirst({ where: { restaurantId, status: { in: ["submitting", "unknown"] } }, orderBy: { createdAt: "asc" }, select: { idempotencyKey: true } });
+
   const bank =
     (tenant.bankInfo as Record<string, unknown> | null) ?? null;
   const bankLabel =
@@ -82,12 +85,15 @@ export default async function WalletPage() {
 
   return (
     <WalletClient
+      key={restaurantId}
+      restaurantId={restaurantId}
       tenantName={tenant.name}
       onboarded={
         !!tenant.kushkiMerchantId &&
         tenant.kushkiOnboardingStatus === "active"
       }
       bankLabel={bankLabel}
+      ownDestinationFingerprint={ownDestinationFingerprint(tenant.bankInfo)}
       initialMovements={movements.map((m) => ({
         id: m.id,
         kind: m.kind,
@@ -98,6 +104,7 @@ export default async function WalletPage() {
       }))}
       initialPayouts={payouts.map((p) => ({
         id: p.id,
+        idempotencyKey: p.idempotencyKey,
         amountCents: p.amountCents,
         toOwnAccount: p.toOwnAccount,
         bankName: p.bankName,
@@ -108,6 +115,7 @@ export default async function WalletPage() {
         responseText: p.responseText,
         createdAt: p.createdAt.toISOString(),
       }))}
+      initialUnresolved={unresolved}
       initialPolicy={normalisePolicy(tenant.autoDispersePolicy)}
     />
   );

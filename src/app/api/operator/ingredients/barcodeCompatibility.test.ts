@@ -4,17 +4,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   context: vi.fn(), find: vi.fn(), list: vi.fn(), code: vi.fn(),
   create: vi.fn(), update: vi.fn(), lock: vi.fn(), audit: vi.fn(),
+  restaurant: vi.fn(),
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/erp/access", () => ({ getErpContext: m.context, isDenied: (ctx: { error?: string }) => !!ctx.error }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
+vi.mock("@/lib/erp/recipeData", () => ({
+  loadIngredientCostViews: async () => new Map(),
+  EMPTY_INGREDIENT_COST_VIEW: { costPerBase: null, costSource: null, purchaseCost: null },
+}));
 vi.mock("@/lib/db", () => {
   const tx = {
     ingredient: { findUnique: m.find, findMany: m.list, create: m.create, update: m.update },
     ingredientBarcode: { findUnique: m.code },
   };
-  return { db: { ...tx, $transaction: (callback: (client: typeof tx) => unknown) => callback(tx) } };
+  return { db: { ...tx, restaurant: { findUnique: m.restaurant }, $transaction: (callback: (client: typeof tx) => unknown) => callback(tx) } };
 });
 
 import { GET, POST } from "./route";
@@ -41,6 +46,7 @@ beforeEach(() => {
   m.find.mockImplementation(async ({ where }: { where: { id?: string } }) => where.id ? current : null);
   m.code.mockResolvedValue(null);
   m.list.mockResolvedValue([]);
+  m.restaurant.mockResolvedValue({ inventoryExcludedCategories: [] });
   m.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "new", ...data }));
   m.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...current, ...data }));
 });
@@ -50,7 +56,7 @@ describe("legacy ingredient writers with multiple barcodes", () => {
     m.code.mockResolvedValue({ ingredientId: "another-ingredient" });
     const response = await write(" 00 ALIAS\r\n");
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toMatchObject({ error: "barcode_taken" });
     expect(m.code).toHaveBeenCalledWith({
       where: { restaurantId_barcode: { restaurantId: current.restaurantId, barcode: "00ALIAS" } },
       select: { ingredientId: true },
@@ -104,7 +110,7 @@ describe("legacy ingredient writers with multiple barcodes", () => {
         mutation.mockRejectedValue(race(target));
         const response = await write();
         expect(response.status).toBe(409);
-        expect(await response.json()).toEqual({ error: "barcode_taken" });
+        expect(await response.json()).toMatchObject({ error: "barcode_taken" });
         expect(m.audit).not.toHaveBeenCalled();
       });
 
@@ -113,8 +119,9 @@ describe("legacy ingredient writers with multiple barcodes", () => {
         mutation.mockRejectedValue(race());
         const response = await write();
         expect(response.status).toBe(409);
-        expect(await response.json()).toEqual({ error: "barcode_taken" });
-        expect(m.code).toHaveBeenCalledTimes(2);
+        expect(await response.json()).toMatchObject({ error: "barcode_taken" });
+        // Antes de escribir, tras la colisión, y la consulta del dueño para el aviso.
+        expect(m.code).toHaveBeenCalledTimes(3);
       });
 
       it("does not disguise a different unique constraint as a barcode collision", async () => {
@@ -144,7 +151,7 @@ describe("barcode catalog projections", () => {
     const row = { ...current, barcodes: [{ barcode: "PRIMARY" }, { barcode: "ALIAS" }] };
     m.list.mockResolvedValue([row]);
     const response = await GET(new Request("http://localhost/api/operator/ingredients"));
-    expect((await response.json()).ingredients).toEqual([row]);
+    expect((await response.json()).ingredients).toEqual([{ ...row, costPerBase: null, costSource: null, purchaseCost: null }]);
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
       where: { restaurantId: current.restaurantId },
       include: expect.objectContaining({ barcodes: { where: { restaurantId: current.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } } }),
@@ -159,6 +166,19 @@ describe("barcode catalog projections", () => {
     expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
       where: { restaurantId: current.restaurantId, trackInventory: true },
       select: expect.objectContaining({ barcode: true, barcodes: { where: { restaurantId: current.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } } }),
+    }));
+  });
+
+  it("refreshes stock with the same category exclusions as the inventory page", async () => {
+    m.restaurant.mockResolvedValue({ inventoryExcludedCategories: ["Hielo"] });
+    const archivedEmpty = { ...current, id: "old", active: false, barcodes: [], stockLevel: { qtyBase: 0, totalValueCents: 0, updatedAt: new Date(0) } };
+    const archivedStocked = { ...archivedEmpty, id: "kept", stockLevel: { ...archivedEmpty.stockLevel, qtyBase: 5 } };
+    m.list.mockResolvedValue([archivedEmpty, archivedStocked]);
+    const response = await GETStock(new Request("http://localhost/api/operator/stock"));
+    expect((await response.json()).stock.map((row: { id: string }) => row.id)).toEqual(["kept"]);
+    expect(m.restaurant).toHaveBeenCalledWith({ where: { id: current.restaurantId }, select: { inventoryExcludedCategories: true } });
+    expect(m.list).toHaveBeenCalledWith(expect.objectContaining({
+      where: { restaurantId: current.restaurantId, trackInventory: true, OR: [{ category: null }, { category: { notIn: ["Hielo"] } }] },
     }));
   });
 });

@@ -13,7 +13,6 @@ import {
   TERMINAL_RESOLVE_EVIDENCE_MIN,
   canResolveTerminalCharge,
   manualTerminalRef,
-  terminalResolvableAt,
 } from "@/lib/payments/terminalResolve";
 
 /**
@@ -38,8 +37,8 @@ import {
  *   - sólo operator / platform_admin / group_admin (nunca el mesero);
  *   - sólo `kushki_card_terminal` pendiente y YA enviado: sin reclamo es una
  *     solicitud y se cancela (409 terminal_not_sent);
- *   - sólo 3 minutos después de enviarlo (409 terminal_result_pending con
- *     `resolvableAt`): antes, el datáfono todavía puede responder;
+ *   - sin espera obligatoria: el administrador verifica el resultado físico;
+ *     una respuesta posterior del proveedor conserva la trazabilidad;
  *   - evidencia obligatoria y confirmación explícita; aprobado exige el
  *     número de autorización.
  * PSE, tarjeta y Apple Pay NO pasan por acá: siguen en Cobros → conciliación.
@@ -56,7 +55,7 @@ const schema = z.discriminatedUnion("outcome", [
   }),
 ]);
 
-type Refusal = { error: string; status: number; resolvableAt?: string };
+type Refusal = { error: string; status: number };
 
 async function POSTHandler(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getActiveContext();
@@ -89,10 +88,6 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
     // una solicitud, se cancela (cancel-request) en vez de "resolverse".
     if (!claim && !payment.providerRef) return { error: "terminal_not_sent", status: 409 };
     const pushedAt = claim?.createdAt ?? payment.createdAt;
-    const resolvableAt = terminalResolvableAt(pushedAt) ?? 0;
-    if (Date.now() < resolvableAt) {
-      return { error: "terminal_result_pending", status: 409, resolvableAt: new Date(resolvableAt).toISOString() };
-    }
     if (!payment.reconciliationRequired) {
       await tx.payment.update({ where: { id }, data: { reconciliationRequired: true } });
     }
@@ -124,7 +119,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
 
   if ("error" in outcome) {
     return NextResponse.json(
-      { error: outcome.error, ...(outcome.resolvableAt ? { resolvableAt: outcome.resolvableAt } : {}) },
+      { error: outcome.error },
       { status: outcome.status },
     );
   }

@@ -223,7 +223,7 @@ export function KitchenBoard({
     startTx(() => router.refresh());
   }
 
-  // «Servir todo» (sólo administración): servido optimista de toda la lista
+  // «Servir todo» (roles autorizados por estación): servido optimista de toda la lista
   // congelada al abrir la confirmación; si el servidor falla, se revierte.
   // No toca los ids que recibe el pitido (salen de `rounds`, no de este
   // estado), así que servir o revertir nunca suena como pedido nuevo.
@@ -575,8 +575,8 @@ export function KitchenBoard({
         itemIds={rounds.flatMap((r) => r.items.map((i) => i.id))}
         scope={soundScope}
         actions={
-          // Sólo la administración lo ve: a cocina, bar y mesero ni se monta.
-          canServeAll(viewerRole) ? (
+          // El rol bar sólo ve la acción en su estación; cocina sigue reservada.
+          canServeAll(viewerRole, boardMode) ? (
             <ServeAllControl
               station={boardMode}
               serviceMode={serviceMode}

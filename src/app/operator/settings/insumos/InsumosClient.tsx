@@ -18,18 +18,23 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
+import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
 import { useBackdropClose } from "@/lib/useBackdropClose";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
+import type { IngredientCostView } from "@/lib/erp/recipeData";
+import { IngredientCostSummary } from "./IngredientCostSummary";
 
-type Ingredient = {
+type Ingredient = IngredientCostView & {
   id: string;
   name: string;
   category: string | null;
   measureKind: MeasureKind;
   sku: string | null;
   barcode: string | null;
+  /** Todos sus códigos (el principal y los adicionales), para buscar por cualquiera. */
+  barcodes?: { barcode: string }[];
   notes: string | null;
   active: boolean;
   trackInventory: boolean;
@@ -92,14 +97,6 @@ function parseOptionalQty(
   return toBaseQty(n, kind, entry.unit) ?? "invalid";
 }
 
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
 type ActiveFilter = "active" | "inactive" | "all";
 type SheetState = { mode: "create" } | { mode: "edit"; item: Ingredient };
 
@@ -107,10 +104,13 @@ export function InsumosClient({
   initial,
   currency,
   canImport,
+  initialEditId = null,
 }: {
   initial: Ingredient[];
   currency: string;
   canImport: boolean;
+  /** `?editar=<id>`: abre la ficha de ese insumo al entrar. */
+  initialEditId?: string | null;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -119,7 +119,10 @@ export function InsumosClient({
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
-  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(() => {
+    const item = initialEditId ? initial.find((i) => i.id === initialEditId) : undefined;
+    return item ? { mode: "edit", item } : null;
+  });
   const [importing, setImporting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const toggling = useRef(false);
@@ -149,18 +152,25 @@ export function InsumosClient({
   }, [items]);
 
   const filtered = useMemo(() => {
-    const needle = fold(q.trim());
     return items.filter((i) => {
       if (activeFilter === "active" && !i.active) return false;
       if (activeFilter === "inactive" && i.active) return false;
       if (cat !== "all" && i.category !== cat) return false;
-      if (needle) {
-        const hay = fold(`${i.name} ${i.category ?? ""}`);
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
+      // Nombre, categoría, SKU o cualquiera de sus códigos de barras.
+      return ingredientMatchesSearch(i, q);
     });
   }, [items, q, cat, activeFilter]);
+
+  // Al cerrar la ficha abierta por `?editar=`, el parámetro sale de la URL
+  // (recargar no la vuelve a abrir) sin navegar ni mover el scroll.
+  function closeSheet() {
+    setSheet(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("editar")) {
+      url.searchParams.delete("editar");
+      window.history.replaceState(null, "", url);
+    }
+  }
 
   function upsert(saved: Ingredient) {
     setItems((prev) => {
@@ -323,7 +333,8 @@ export function InsumosClient({
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={t("searchPlaceholder")}
+          placeholder={t("insumosSearchPlaceholder")}
+          aria-label={t("insumosSearchPlaceholder")}
           className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm focus:outline-none focus:border-op-text/40"
         />
         <div className="flex items-center gap-2 flex-wrap">
@@ -590,11 +601,12 @@ export function InsumosClient({
                 className="accent-terracotta w-4 h-4 shrink-0"
                 aria-label={t("bulkSelectRow", { name: i.name })}
               />
-              <button
-                type="button"
-                onClick={() => setSheet({ mode: "edit", item: i })}
-                className="col-span-2 flex-1 min-w-0 min-h-[44px] py-1.5 text-left"
-              >
+              <div className="col-span-2 flex-1 min-w-0 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSheet({ mode: "edit", item: i })}
+                  className="w-full min-w-0 min-h-[44px] text-left"
+                >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={
@@ -618,7 +630,11 @@ export function InsumosClient({
                     t("supplierCount", { count: i._count.supplierItems }),
                   ].join(" · ")}
                 </div>
-                <div className="text-xs text-op-muted mt-1">
+                </button>
+                <div className="mt-2">
+                  <IngredientCostSummary ingredient={i} currency={currency} />
+                </div>
+                <div className="text-xs text-op-muted mt-2">
                   {i.referencePriceCents != null
                     ? t("ingredientReferenceSummary", {
                         price: formatMoney(i.referencePriceCents, { currency, locale, fractionDigits: 2 }),
@@ -626,7 +642,7 @@ export function InsumosClient({
                       })
                     : t("ingredientReferenceUnset")}
                 </div>
-              </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}
@@ -660,10 +676,10 @@ export function InsumosClient({
           editing={sheet.mode === "edit" ? sheet.item : null}
           currency={currency}
           categories={categories}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onSaved={(saved) => {
             upsert(saved);
-            setSheet(null);
+            closeSheet();
           }}
         />
       )}
@@ -732,6 +748,12 @@ function IngredientSheet({
   const [created, setCreated] = useState<Ingredient | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** «Ese código ya está en otro insumo», con su nombre y si está archivado. */
+  function barcodeTakenText(owner: unknown): string {
+    const o = owner as { name?: unknown; active?: unknown } | null | undefined;
+    if (!o || typeof o.name !== "string" || o.name === "") return t("errBarcodeTaken");
+    return t(o.active === false ? "errBarcodeTakenByArchived" : "errBarcodeTakenBy", { name: o.name });
+  }
 
   const [stockReset, setStockReset] = useState<StockResetSnapshot | null>(null);
 
@@ -825,7 +847,7 @@ function IngredientSheet({
             : j.error === "name_taken"
             ? t("errNameTaken")
             : j.error === "barcode_taken"
-              ? t("errBarcodeTaken")
+              ? barcodeTakenText(j.owner)
               : j.error === "measure_locked"
                 ? t("errMeasureLocked")
                 : t("errSaveFailed"),
@@ -971,6 +993,12 @@ function IngredientSheet({
           </Field>
 
           <InventoryTrackingField checked={trackInventory} onChange={setTrackInventory} kind="ingredient" disabled={busy} />
+
+          {current && (
+            <div className="rounded-xl border border-op-border bg-op-bg p-3">
+              <IngredientCostSummary ingredient={current} currency={currency} purchaseOpensNewTab />
+            </div>
+          )}
 
           <Field
             label={t("ingredientReferenceLabel", { currency, unit: referencePriceUnit(measureKind) })}

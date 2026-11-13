@@ -411,18 +411,16 @@ describe("sin respuesta del equipo: sigue siendo «Resolver cobro»", () => {
     expect(h.abort).not.toHaveBeenCalled();
   });
 
-  it("resolve-terminal sigue exigiendo administrador, 3 minutos y evidencia", async () => {
+  it("resolve-terminal exige administrador y evidencia, sin espera obligatoria", async () => {
     seed("no_answer");
     const DECLINE = { outcome: "declined", evidence: "El datáfono no muestra el cobro y no imprimió voucher", confirmed: true };
     // El mesero, nunca.
     vi.setSystemTime(at(3 * 60_000 + 1_000));
     expect(await resolveTerminal(DECLINE)).toMatchObject({ status: 403 });
-    // El administrador, antes de 3 minutos, no.
+    // El administrador puede resolver de inmediato, pero debe aportar evidencia.
     h.session = ADMIN;
-    vi.setSystemTime(at(2 * 60_000));
-    expect(await resolveTerminal(DECLINE)).toMatchObject({ status: 409, json: { error: "terminal_result_pending" } });
+    vi.setSystemTime(at(1));
     // Sin evidencia, no.
-    vi.setSystemTime(at(3 * 60_000 + 1_000));
     expect(await resolveTerminal({ outcome: "declined", evidence: "corto", confirmed: true })).toMatchObject({ status: 400 });
     // Con todo, sí.
     expect(await resolveTerminal(DECLINE)).toMatchObject({ status: 200, json: { ok: true, status: "declined" } });

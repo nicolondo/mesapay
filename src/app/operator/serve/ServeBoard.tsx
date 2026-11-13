@@ -115,7 +115,7 @@ type TerminalPending = {
   // Kushki: `true` = sólo se pidió, todavía no se envió al equipo (se puede
   // cancelar); `false` = ya está en el datáfono, esperando su resultado.
   replaceable: boolean;
-  // Kushki enviado: cuándo (ISO), para la cuenta regresiva de "Resolver cobro".
+  // Kushki enviado: cuándo (ISO), para habilitar la resolución manual.
   pushedAt: string | null;
   // Kushki enviado: en curso / el datáfono contestó que no / sin respuesta.
   terminalAttempt: TerminalAttemptView | null;
@@ -894,8 +894,8 @@ function TerminalPendingCard({
         // Enviado y sin aprobar. En curso: «Cancelar en el datáfono». El
         // equipo contestó que no: «Reintentar en el datáfono» / «Cancelar y
         // cobrar de otra forma», al instante (mesero incluido, salvo "solo
-        // el administrador cobra"). Sin respuesta: cuenta regresiva y,
-        // pasados 3 minutos, "Resolver cobro" para el administrador (el
+        // el administrador cobra"). En curso o sin respuesta: resolución
+        // manual inmediata para el administrador (el
         // mesero nunca lo ve).
         <div className="mt-2">
           <TerminalAttemptActions

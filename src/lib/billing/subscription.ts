@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getPlanByTier } from "@/lib/planCatalog";
 import type { Plan } from "@prisma/client";
+import type { TrackingCapture } from "@/lib/walletTracking/contracts";
 
 /**
  * Suma `months` meses a una fecha y devuelve un ISO date (YYYY-MM-DD) en UTC.
@@ -69,6 +70,7 @@ export type ApplyInitialChargeArgs = {
   startDateIso: string; // ISO date YYYY-MM-DD — cuándo empieza a cobrar Kushki
   periodEndsAt: Date;   // cuando vence el período que acabamos de pagar
   actorEmail: string;   // para MembershipPayment.recordedByEmail
+  tracking?: TrackingCapture;
 };
 
 /**
@@ -85,6 +87,9 @@ export async function applyInitialCharge(args: ApplyInitialChargeArgs): Promise<
       data: {
         restaurantId: args.restaurantId,
         amountCents: args.amountCents,
+        currency: args.currency,
+        walletTrackingKey: args.tracking?.trackingKey ?? null,
+        walletTrackingMode: args.tracking?.mode ?? null,
         method: "kushki_card",
         kind: "initial",
         providerRef: args.transactionId,
@@ -112,6 +117,8 @@ export async function applyInitialCharge(args: ApplyInitialChargeArgs): Promise<
         restaurantId: args.restaurantId,
         provider: "kushki",
         kushkiSubscriptionId: args.subscriptionId,
+        walletTrackingKey: args.tracking?.trackingKey ?? null,
+        walletTrackingMode: args.tracking?.mode ?? null,
         plan: args.plan,
         amountCents: args.amountCents,
         currency: args.currency,
@@ -124,6 +131,8 @@ export async function applyInitialCharge(args: ApplyInitialChargeArgs): Promise<
       },
       update: {
         kushkiSubscriptionId: args.subscriptionId,
+        walletTrackingKey: args.tracking?.trackingKey ?? null,
+        walletTrackingMode: args.tracking?.mode ?? null,
         plan: args.plan,
         amountCents: args.amountCents,
         currency: args.currency,
@@ -155,6 +164,7 @@ export async function applyRecurringCharge(args: {
   providerRef: string | null;
   periodStart: Date;
   periodEnd: Date;
+  tracking?: TrackingCapture;
 }): Promise<boolean> {
   if (!args.providerRef) throw new Error("missing_provider_reference");
   return db.$transaction(async (tx) => {
@@ -170,6 +180,9 @@ export async function applyRecurringCharge(args: {
         amountCents: args.amountCents,
         method: "kushki_card",
         kind: "recurring",
+        currency: args.currency,
+        walletTrackingKey: args.tracking?.trackingKey ?? null,
+        walletTrackingMode: args.tracking?.mode ?? null,
         providerRef: args.providerRef,
         recordedByEmail: "kushki-webhook",
         periodStart: args.periodStart,
@@ -229,6 +242,7 @@ export async function applySubscriptionWithoutCharge(args: {
   subscriptionId: string;
   card: ApplyInitialChargeArgs["card"];
   nextChargeAt: Date;
+  tracking?: TrackingCapture;
 }): Promise<void> {
   await db.billingSubscription.upsert({
     where: { restaurantId: args.restaurantId },
@@ -236,6 +250,8 @@ export async function applySubscriptionWithoutCharge(args: {
       restaurantId: args.restaurantId,
       provider: "kushki",
       kushkiSubscriptionId: args.subscriptionId,
+      walletTrackingKey: args.tracking?.trackingKey ?? null,
+      walletTrackingMode: args.tracking?.mode ?? null,
       plan: args.plan,
       amountCents: args.amountCents,
       currency: args.currency,
@@ -248,6 +264,8 @@ export async function applySubscriptionWithoutCharge(args: {
     },
     update: {
       kushkiSubscriptionId: args.subscriptionId,
+      walletTrackingKey: args.tracking?.trackingKey ?? null,
+      walletTrackingMode: args.tracking?.mode ?? null,
       plan: args.plan,
       amountCents: args.amountCents,
       currency: args.currency,

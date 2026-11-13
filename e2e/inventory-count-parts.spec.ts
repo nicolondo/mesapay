@@ -134,7 +134,8 @@ test("each repeated or alias scan adds an editable quantity and explicit save pr
     expect(await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: item.id } })).toMatchObject({ countedQty: 17000, countedParts: [10000, 5000, 2000] });
     await page.reload();
     await page.getByRole("tab", { name: "Conteos", exact: true }).click();
-    await page.getByRole("button").filter({ hasText: "40 insumos" }).click();
+    // Escritorio: «Continuar» (nombre «Abrir el conteo del …»); celular: la tarjeta entera.
+    await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|40 insumos/ }).filter({ visible: true }).first().click();
     await expect(quantity(page, item)).toHaveValue("10");
     await expect(quantity(page, item, 2)).toHaveValue("5");
     await expect(quantity(page, item, 3)).toHaveValue("2");

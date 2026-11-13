@@ -5,20 +5,21 @@ const m = vi.hoisted(() => ({
   auth: vi.fn(), activeRestaurant: vi.fn(), restaurant: vi.fn(),
   find: vi.fn(), read: vi.fn(), codeFind: vi.fn(), codeCreate: vi.fn(),
   primaryUpdate: vi.fn(), transaction: vi.fn(), lock: vi.fn(), audit: vi.fn(),
+  codeFirst: vi.fn(), codeDelete: vi.fn(),
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.activeRestaurant }));
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
-vi.mock("@/lib/db", () => ({ db: { restaurant: { findUnique: m.restaurant }, $transaction: m.transaction } }));
+vi.mock("@/lib/db", () => ({ db: { restaurant: { findUnique: m.restaurant }, $transaction: m.transaction, ingredientBarcode: { findUnique: m.codeFind } } }));
 
-import { POST } from "./route";
+import { DELETE, POST } from "./route";
 
 const original = { id: "ingredient-1", name: "Milk", barcode: "PRIMARY", active: true, trackInventory: true };
 const tx = {
   ingredient: { findFirst: m.find, findUniqueOrThrow: m.read, updateMany: m.primaryUpdate },
-  ingredientBarcode: { findUnique: m.codeFind, create: m.codeCreate },
+  ingredientBarcode: { findUnique: m.codeFind, create: m.codeCreate, findFirst: m.codeFirst, deleteMany: m.codeDelete },
 };
 const request = (body: unknown) => new Request("http://localhost/api/operator/ingredients/ingredient-1/barcode", {
   method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
@@ -37,6 +38,8 @@ beforeEach(() => {
   m.codeCreate.mockResolvedValue({ id: "barcode-1" });
   m.primaryUpdate.mockResolvedValue({ count: 1 });
   m.transaction.mockImplementation((callback: (client: typeof tx) => unknown) => callback(tx));
+  m.codeFirst.mockResolvedValue(null);
+  m.codeDelete.mockResolvedValue({ count: 1 });
 });
 
 describe("inventory barcode authorization", () => {
@@ -182,11 +185,18 @@ describe("additional barcode mutation", () => {
     expect(m.audit).not.toHaveBeenCalled();
   });
 
-  it("rejects another ingredient's code without exposing its owner", async () => {
-    m.codeFind.mockResolvedValue({ ingredientId: "another-ingredient" });
+  // El dueño del código es un insumo del MISMO comercio (la búsqueda va por
+  // restaurantId): nombrarlo —y decir si está archivado— es lo que le
+  // permite al operador encontrarlo. Un archivado no sale en el conteo.
+  it("rejects another ingredient's code and names its owner, archived or not", async () => {
+    m.codeFind.mockResolvedValue({ ingredientId: "another-ingredient", ingredient: { id: "another-ingredient", name: "Vino blanco", active: false } });
     const response = await assign();
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toEqual({ error: "barcode_taken", owner: { id: "another-ingredient", name: "Vino blanco", active: false } });
+    expect(m.codeFind).toHaveBeenLastCalledWith({
+      where: { restaurantId_barcode: { restaurantId: "restaurant-1", barcode: "00123ab" } },
+      select: { ingredient: { select: { id: true, name: true, active: true } } },
+    });
     expect(m.codeCreate).not.toHaveBeenCalled();
     expect(m.primaryUpdate).not.toHaveBeenCalled();
     expect(m.audit).not.toHaveBeenCalled();
@@ -210,7 +220,7 @@ describe("additional barcode mutation", () => {
     } else m.codeCreate.mockRejectedValue(duplicate);
     const response = await assign();
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "barcode_taken" });
+    expect(await response.json()).toEqual({ error: "barcode_taken", owner: null });
     expect(m.audit).not.toHaveBeenCalled();
   });
 
@@ -218,6 +228,96 @@ describe("additional barcode mutation", () => {
     const failure = new Error("storage unavailable");
     m.codeCreate.mockRejectedValue(failure);
     await expect(assign()).rejects.toBe(failure);
+    expect(m.audit).not.toHaveBeenCalled();
+  });
+});
+
+describe("barcode removal", () => {
+  const removeRequest = (body: unknown) => new Request("http://localhost/api/operator/ingredients/ingredient-1/barcode", {
+    method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const remove = (body: unknown = { barcode: "ALIAS-2" }) => DELETE(removeRequest(body), { params: Promise.resolve({ id: original.id }) });
+  const registry = (...codes: string[]) => ({ id: original.id, barcode: codes[0] ?? null, barcodes: codes.map((barcode) => ({ barcode })) });
+
+  it.each([null, {}, { barcode: "" }, { barcode: " \t" }, { barcode: 1 }, { barcode: "x".repeat(65) }, { barcode: "1", extra: true }])("rejects malformed bodies: %j", async (body) => {
+    const response = await remove(body);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid" });
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps the same authorization and module gate as adding", async () => {
+    m.auth.mockResolvedValue({ user: { role: "mesero" } });
+    expect((await remove()).status).toBe(401);
+    m.auth.mockResolvedValue({ user: { id: "operator-1", role: "operator" } });
+    m.restaurant.mockResolvedValue({ enabledModules: ["recipes"], country: "CO" });
+    expect((await remove()).status).toBe(403);
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
+  it("deletes an additional code under the stock lock, keeps the primary and audits", async () => {
+    m.codeFind.mockResolvedValue({ ingredientId: original.id });
+    m.read.mockResolvedValue(registry("PRIMARY"));
+    const response = await remove({ barcode: " ALIAS-2\r\n" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ingredient: registry("PRIMARY") });
+    expect(m.lock.mock.invocationCallOrder[0]).toBeLessThan(m.find.mock.invocationCallOrder[0]);
+    expect(m.codeDelete).toHaveBeenCalledWith({ where: { restaurantId: "restaurant-1", ingredientId: original.id, barcode: "ALIAS-2" } });
+    expect(m.primaryUpdate).not.toHaveBeenCalled();
+    expect(m.audit).toHaveBeenCalledWith({
+      kind: "ingredient.barcode.remove", restaurantId: "restaurant-1",
+      target: { type: "ingredient", id: original.id }, summary: original.name,
+      diff: { before: { barcode: "ALIAS-2" }, after: { barcode: null } },
+    });
+  });
+
+  it("promotes the oldest remaining code when the primary is removed", async () => {
+    m.codeFind.mockResolvedValue({ ingredientId: original.id });
+    m.codeFirst.mockResolvedValue({ barcode: "ALIAS-2" });
+    m.read.mockResolvedValue(registry("ALIAS-2"));
+    const response = await remove({ barcode: "PRIMARY" });
+    expect(response.status).toBe(200);
+    expect(m.codeFirst).toHaveBeenCalledWith({
+      where: { restaurantId: "restaurant-1", ingredientId: original.id, barcode: { not: "PRIMARY" } },
+      orderBy: [{ createdAt: "asc" }, { barcode: "asc" }], select: { barcode: true },
+    });
+    expect(m.primaryUpdate).toHaveBeenCalledWith({ where: { id: original.id, restaurantId: "restaurant-1", barcode: "PRIMARY" }, data: { barcode: "ALIAS-2" } });
+    expect(m.codeDelete).not.toHaveBeenCalled();
+    expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ diff: { before: { barcode: "PRIMARY" }, after: { barcode: null, primary: "ALIAS-2" } } }));
+  });
+
+  it("clears the primary when it was the only code", async () => {
+    m.codeFind.mockResolvedValue({ ingredientId: original.id });
+    m.read.mockResolvedValue(registry());
+    expect((await remove({ barcode: "PRIMARY" })).status).toBe(200);
+    expect(m.primaryUpdate).toHaveBeenCalledWith({ where: { id: original.id, restaurantId: "restaurant-1", barcode: "PRIMARY" }, data: { barcode: null } });
+  });
+
+  it("allows freeing codes of archived or untracked ingredients", async () => {
+    m.find.mockResolvedValue({ id: original.id, name: original.name, barcode: "PRIMARY" });
+    m.codeFind.mockResolvedValue({ ingredientId: original.id });
+    expect((await remove()).status).toBe(200);
+    expect(m.find).toHaveBeenCalledWith({ where: { id: original.id, restaurantId: "restaurant-1" }, select: { id: true, name: true, barcode: true } });
+  });
+
+  it.each([null, { ingredientId: "another-ingredient" }])("does not remove a code this ingredient does not own: %j", async (owner) => {
+    m.codeFind.mockResolvedValue(owner);
+    const response = await remove();
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "barcode_not_found" });
+    expect(m.codeDelete).not.toHaveBeenCalled();
+    expect(m.primaryUpdate).not.toHaveBeenCalled();
+    expect(m.audit).not.toHaveBeenCalled();
+  });
+
+  it("hides ingredients outside the tenant and reports a primary changed concurrently", async () => {
+    m.find.mockResolvedValueOnce(null);
+    expect((await remove()).status).toBe(404);
+    m.codeFind.mockResolvedValue({ ingredientId: original.id });
+    m.primaryUpdate.mockResolvedValue({ count: 0 });
+    const response = await remove({ barcode: "PRIMARY" });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "operation_conflict" });
     expect(m.audit).not.toHaveBeenCalled();
   });
 });

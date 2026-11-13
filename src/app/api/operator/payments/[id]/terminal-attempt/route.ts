@@ -46,7 +46,7 @@ import {
  *     aprobado. `retry` → 409 terminal_result_pending.
  *   - `no_answer` (timeout, red, 5xx: el equipo PUDO cobrar): 409
  *     terminal_no_answer. Eso sigue en "Resolver cobro" (resolve-terminal):
- *     administrador, 3 minutos y evidencia.
+ *     administrador y evidencia, sin espera obligatoria.
  *
  * `{ action: "check" }` → «Consultar en Kushki» (sin respuesta o con
  * respuesta no definitiva): busca el resultado real en Kushki y, si es

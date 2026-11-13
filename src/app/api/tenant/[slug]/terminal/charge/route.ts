@@ -21,6 +21,7 @@ import { kushkiTerminalSetup, terminalDeviceUsable } from "@/lib/payments/termin
 import { terminalClaimKey } from "@/lib/payments/methods";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
+import { capturePaymentTrackingFields } from "@/lib/walletTrackingCapture";
 
 /**
  * Push a pending datáfono Payment to a Kushki Smart POS terminal.
@@ -172,6 +173,8 @@ async function POSTHandler(
   // llamar a Kushki: si la respuesta no llega, con él se busca el resultado.
   const clientTransactionId = randomUUID();
   const pushedAt = new Date();
+  const currency = await getCurrencyForCountry(tenant.country);
+  const tracking = useRealTerminal ? await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, terminalBusinessCode: businessCode }) : {};
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
@@ -179,6 +182,9 @@ async function POSTHandler(
     // `deviceId`: a qué equipo va (para «Reintentar en el datáfono» y para
     // pedirle que cancele un cobro en curso).
     const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents, deviceId: device.kushkiDeviceId, clientTransactionId, createdAt: pushedAt }], skipDuplicates: true });
+    if (result.count === 1 && !current.walletTrackingKey && Object.keys(tracking).length) {
+      await tx.payment.update({ where: { id: current.id }, data: tracking });
+    }
     return result.count === 1;
   });
   if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
@@ -257,7 +263,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -280,7 +286,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -307,7 +313,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -332,7 +338,7 @@ async function POSTHandler(
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error") {
+      if (processed.status === "error" || processed.requiresReview) {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -376,8 +382,6 @@ async function POSTHandler(
     // buscar el resultado real antes de dejarlo incierto.
     return noAnswer();
   }
-
-  const currency = await getCurrencyForCountry(tenant.country);
 
   // —— Modo mock: el provider auto-aprueba vía el mock bridge (async).
   let push;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineAmounts, reviewLineDiscountDetail, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { prefillInvoiceDiscounts } from "@/lib/erp/invoiceDiscount";
 import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
@@ -18,21 +18,28 @@ import {
 } from "./purchaseTaxUi";
 import { DEFAULT_INC_PCT, lineIncCents, lineTaxEditable, receptionLineTax, type LineTaxChoice } from "@/lib/erp/purchaseLineTax";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
-import { discountAmountCents, parseDiscountInput, resolveOrderDiscounts, toPersistedDiscount } from "@/lib/erp/purchaseDiscount";
+import { parseDiscountInput, persistedOrderDiscounts, resolveOrderDiscounts } from "@/lib/erp/purchaseDiscount";
 import { retentionTotalCents } from "@/lib/erp/purchaseRetentions";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
-import { referenceLineCost } from "@/lib/erp/ingredientPrice";
+import {
+  API_CREATE_ERROR_KEYS,
+  Field,
+  inputCls,
+  splitSupplierText,
+  usePurchaseCountry,
+  type IngredientRef,
+  type SupplierRef,
+} from "./shared";
+import { NewOrderForm } from "./oc/NewOrderForm";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
-  DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
-  MEASURE_KINDS,
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
@@ -40,7 +47,6 @@ import {
   type InvoiceTaxExtras,
   invoiceGrandTotalCents,
   expectedReceiptCostCents,
-  lineGrossCents,
   normalizeTaxPct,
   poTotals,
   purchaseLineAmounts,
@@ -85,41 +91,6 @@ type OrderSummary = Partial<InvoiceTaxExtras> & {
     receivedQtyBase: number;
   }[];
   _count: { items: number };
-};
-
-type SupplierRef = { id: string; name: string; taxId?: string | null };
-
-/** Lo escrito en el campo de proveedor al pedir «Crear proveedor»: si son
- *  solo dígitos (con puntos, guiones o espacios), es el NIT; si no, el nombre. */
-function splitSupplierText(text: string): { name: string; taxId: string } {
-  const trimmed = text.trim();
-  return /^[\d.\-\s]+$/.test(trimmed) && /\d/.test(trimmed)
-    ? { name: "", taxId: trimmed }
-    : { name: trimmed, taxId: "" };
-}
-
-type IngredientRef = {
-  id: string;
-  name: string;
-  measureKind: MeasureKind;
-  active: boolean;
-  referencePriceCents?: number | null;
-};
-
-function suggestedFreeLineCost(ingredient: IngredientRef | null, quantity: string, unit: string): string {
-  if (!ingredient) return "";
-  const baseQty = toBaseQty(Number(quantity.replace(",", ".")), ingredient.measureKind, unit);
-  const cents = baseQty == null ? null : referenceLineCost(ingredient.referencePriceCents, baseQty);
-  return cents == null ? "" : String(cents / 100);
-}
-
-/** Fila de la lista de precios del proveedor (A0). */
-type PriceListItem = {
-  id: string;
-  presentationLabel: string;
-  contentQty: number;
-  lastPriceCents: number | null;
-  ingredient: IngredientRef;
 };
 
 type OrderDetail = Partial<InvoiceTaxExtras> & {
@@ -306,17 +277,6 @@ const STATUS_CHIP_CLS: Record<PoStatus, string> = {
   canceled: "bg-danger/10 text-danger",
 };
 
-// Errores del POST de creación → clave i18n (fallback errSaveFailed).
-const API_CREATE_ERROR_KEYS: Record<string, string> = {
-  supplier_not_found: "errSupplierNotFound",
-  ingredient_not_found: "errIngredientNotFound",
-  supplier_item_mismatch: "errSupplierItemMismatch",
-  no_lines: "errNoLines",
-  line_invalid: "errLineInvalid",
-  retention_exceeds_base: "errRetentionExceedsBase",
-  retention_exceeds_total: "errRetentionExceedsTotal",
-};
-
 function StatusChip({ status }: { status: PoStatus }) {
   const t = useTranslations("opErp");
   return (
@@ -329,33 +289,6 @@ function StatusChip({ status }: { status: PoStatus }) {
       {t(STATUS_KEYS[status])}
     </span>
   );
-}
-
-/**
- * País del comercio (para las tarifas de IVA del picker). Se lee de los
- * ajustes de compras al montar; default CO mientras carga o si falla. El
- * país solo define las opciones de tarifa, así que un fallback razonable
- * es suficiente y no bloquea la UI.
- */
-function usePurchaseCountry(): string {
-  const [country, setCountry] = useState<string>("CO");
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/operator/purchasing-settings");
-        if (!r.ok) return;
-        const j = await r.json();
-        if (!cancelled && typeof j.country === "string") setCountry(j.country);
-      } catch {
-        // Sin país: se mantiene el default CO. No es bloqueante.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return country;
 }
 
 /**
@@ -686,7 +619,7 @@ export function ComprasClient({
       )}
 
       {createOpen && (
-        <NewOrderSheet
+        <NewOrderForm
           suppliers={suppliers}
           currency={currency}
           onClose={() => setCreateOpen(false)}
@@ -723,1034 +656,6 @@ export function ComprasClient({
           }}
         />
       )}
-    </div>
-  );
-}
-
-/* ───────────────────────── Nueva orden (sheet) ─────────────────────── */
-
-type DraftLine = {
-  key: number;
-  ingredientId: string;
-  ingredientName: string;
-  measureKind: MeasureKind;
-  supplierItemId: string | null;
-  presentationLabel: string | null;
-  presentations: number | null;
-  /** Derivado para display; el POST solo lo manda en líneas libres. */
-  qtyBase: number;
-  /** Costo NETO (sin IVA) de la línea, en centavos. */
-  expectedCostCents: number;
-  /** IVA de la línea (0–100); el bruto = neto + IVA. */
-  taxPct: number;
-  /** Impuesto al consumo: si lo lleva y cómo se digitó (% de la base o valor). */
-  inc: boolean;
-  incRaw: string;
-  incIsPct: boolean;
-  /** Descuento digitado en la línea: el texto y si es % o valor. */
-  discRaw: string;
-  discIsPct: boolean;
-};
-
-type LineMode = "list" | "free";
-
-/** Consumo de cada línea sobre su neto ya descontado (lo que se guarda). */
-function draftLineIncs(lines: DraftLine[], nets: number[]): number[] {
-  return lines.map((l, i) => (l.inc ? lineIncCents(nets[i] ?? 0, parseDiscountInput(l.incRaw, l.incIsPct)) : 0));
-}
-
-/**
- * Descuentos del formulario en la forma que se GUARDA (un % con decimales
- * viaja como su valor): el servidor recalcula con lo mismo y llega al
- * mismo neto que se ve en pantalla.
- */
-function persistedOrderDiscounts(
-  lines: { listCents: number; discRaw: string; discIsPct: boolean }[],
-  orderRaw: string,
-  orderIsPct: boolean,
-) {
-  const lineDiscounts = lines.map((l) =>
-    toPersistedDiscount(l.listCents, parseDiscountInput(l.discRaw, l.discIsPct)),
-  );
-  const afterLine = lines.reduce(
-    (sum, l, i) => sum + l.listCents - discountAmountCents(l.listCents, lineDiscounts[i]!),
-    0,
-  );
-  return {
-    lines: lineDiscounts,
-    order: toPersistedDiscount(afterLine, parseDiscountInput(orderRaw, orderIsPct)),
-  };
-}
-
-let lineKeySeq = 0;
-
-function NewOrderSheet({
-  suppliers,
-  currency,
-  onClose,
-  onCreated,
-}: {
-  suppliers: SupplierRef[];
-  currency: string;
-  onClose: () => void;
-  onCreated: (orderId: string) => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-  const country = usePurchaseCountry();
-  const taxRates = useMemo(() => purchaseTaxRates(country), [country]);
-
-  const [supplier, setSupplier] = useState<SupplierRef | null>(null);
-  // Lista de precios del proveedor elegido + insumos (líneas libres); null
-  // = cargando tras elegir proveedor.
-  const [priceList, setPriceList] = useState<PriceListItem[] | null>(null);
-  const [ingredients, setIngredients] = useState<IngredientRef[] | null>(null);
-  const [loadErr, setLoadErr] = useState(false);
-
-  const [lines, setLines] = useState<DraftLine[]>([]);
-  const [notes, setNotes] = useState("");
-  const [orderDiscRaw, setOrderDiscRaw] = useState("");
-  const [orderDiscIsPct, setOrderDiscIsPct] = useState(true);
-  const [expectedAt, setExpectedAt] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Mini-forms inline de creación (proveedor / insumo libre) — colapsados.
-  const [creatingSupplier, setCreatingSupplier] = useState(false);
-  const [creatingIng, setCreatingIng] = useState(false);
-
-  // Formulario de línea
-  const [mode, setMode] = useState<LineMode>("list");
-  const [pickedItem, setPickedItem] = useState<PriceListItem | null>(null);
-  const [itemQ, setItemQ] = useState("");
-  const [presentations, setPresentations] = useState("1");
-  const [pickedIng, setPickedIng] = useState<IngredientRef | null>(null);
-  const [ingQ, setIngQ] = useState("");
-  const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState("");
-  const [cost, setCost] = useState("");
-  // El costo se precarga (n × último precio) hasta que el operador lo toca.
-  const [costDirty, setCostDirty] = useState(false);
-  // Impuesto de la línea en edición; default sin impuesto.
-  const [taxPct, setTaxPct] = useState(0);
-  const [lineInc, setLineInc] = useState(false);
-  const [incRaw, setIncRaw] = useState("");
-  const [incIsPct, setIncIsPct] = useState(true);
-  const [lineErr, setLineErr] = useState<string | null>(null);
-
-  // «Ya recibí esta mercancía»: la compra se registra recibida, con la
-  // factura del proveedor y sus retenciones.
-  const [receivedNow, setReceivedNow] = useState(false);
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceDueAt, setInvoiceDueAt] = useState("");
-  const taxCtx = usePurchaseTaxContext(receivedNow);
-  const lineTaxText = useLineTaxText();
-  const retentionRows = useRetentionRows();
-
-  function changeLineTax(next: { choice?: LineTaxChoice; incRaw?: string; incIsPct?: boolean }) {
-    if (next.choice) {
-      setTaxPct(next.choice.ivaPct);
-      // Al elegir consumo se propone el 8 % (lo típico); se cambia a valor fijo con el botón.
-      if (next.choice.inc && !lineInc && incRaw.trim() === "") {
-        setIncRaw(String(DEFAULT_INC_PCT));
-        setIncIsPct(true);
-      }
-      setLineInc(next.choice.inc);
-    }
-    if (next.incRaw !== undefined) setIncRaw(next.incRaw);
-    if (next.incIsPct !== undefined) setIncIsPct(next.incIsPct);
-  }
-
-  // Proveedores del campo con autocompletado + los creados aquí mismo.
-  const [createdSuppliers, setCreatedSuppliers] = useState<SupplierRef[]>([]);
-  const [newSupplierText, setNewSupplierText] = useState("");
-  const supplierOptions = useMemo(
-    () => [...suppliers, ...createdSuppliers],
-    [suppliers, createdSuppliers],
-  );
-
-  function pickSupplier(s: SupplierRef) {
-    setSupplier(s);
-    setPriceList(null);
-    setIngredients(null);
-    setLoadErr(false);
-    setCreatingSupplier(false);
-  }
-
-  // El reset de priceList/ingredients pasa en pickSupplier (handler), no
-  // acá — el effect solo sincroniza con la API (regla set-state-in-effect).
-  useEffect(() => {
-    if (!supplier) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const [rs, ri] = await Promise.all([
-          fetch(`/api/operator/suppliers/${supplier.id}`),
-          fetch("/api/operator/ingredients"),
-        ]);
-        if (!rs.ok || !ri.ok) throw new Error("load_failed");
-        const js = await rs.json();
-        const ji = await ri.json();
-        if (cancelled) return;
-        // Solo presentaciones de insumos activos — no se piden inactivos.
-        setPriceList(
-          ((js.supplier?.items ?? []) as PriceListItem[]).filter(
-            (i) => i.ingredient.active,
-          ),
-        );
-        setIngredients(
-          ((ji.ingredients ?? []) as IngredientRef[]).filter((i) => i.active),
-        );
-      } catch {
-        if (!cancelled) setLoadErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supplier]);
-
-  const itemMatches = useMemo(() => {
-    const needle = fold(itemQ.trim());
-    return (priceList ?? [])
-      .filter(
-        (i) =>
-          !needle ||
-          fold(`${i.ingredient.name} ${i.presentationLabel}`).includes(needle),
-      )
-      .slice(0, 8);
-  }, [priceList, itemQ]);
-
-  const ingMatches = useMemo(() => {
-    const needle = fold(ingQ.trim());
-    return (ingredients ?? [])
-      .filter((i) => !needle || fold(i.name).includes(needle))
-      .slice(0, 8);
-  }, [ingredients, ingQ]);
-
-  // Cuando el proveedor no tiene lista de precios, la única vía es la
-  // línea libre — se fuerza el modo para no mostrar un combobox vacío.
-  const effectiveMode: LineMode =
-    priceList !== null && priceList.length === 0 ? "free" : mode;
-
-  function resetLineForm() {
-    setPickedItem(null);
-    setItemQ("");
-    setPresentations("1");
-    setPickedIng(null);
-    setIngQ("");
-    setQty("");
-    setUnit("");
-    setCost("");
-    setCostDirty(false);
-    setTaxPct(0);
-    setLineInc(false);
-    setIncRaw("");
-    setIncIsPct(true);
-    setLineErr(null);
-  }
-
-  function pickItem(item: PriceListItem) {
-    setPickedItem(item);
-    setPresentations("1");
-    setCostDirty(false);
-    setCost(item.lastPriceCents != null ? String(item.lastPriceCents / 100) : "");
-  }
-
-  // Elegir insumo (línea libre): fija la unidad base como la del picker.
-  function pickIngredient(ing: IngredientRef) {
-    setPickedIng(ing);
-    const nextUnit = DEFAULT_INPUT_UNIT[ing.measureKind];
-    setUnit(nextUnit);
-    setCostDirty(false);
-    setCost(suggestedFreeLineCost(ing, qty, nextUnit));
-  }
-
-  function changeFreeQuantity(value: string) {
-    const nextQty = sanitizeDecimalInput(value);
-    setQty(nextQty);
-    if (!costDirty) setCost(suggestedFreeLineCost(pickedIng, nextQty, unit));
-  }
-
-  function changeFreeUnit(nextUnit: string) {
-    setUnit(nextUnit);
-    if (!costDirty) setCost(suggestedFreeLineCost(pickedIng, qty, nextUnit));
-  }
-
-  function changePresentations(v: string) {
-    setPresentations(v);
-    if (!costDirty && pickedItem?.lastPriceCents != null) {
-      const n = Number(v);
-      setCost(
-        Number.isInteger(n) && n >= 1
-          ? String((n * pickedItem.lastPriceCents) / 100)
-          : "",
-      );
-    }
-  }
-
-  function parseCost(): number | null {
-    if (cost.trim() === "") return null;
-    const p = Number(cost.replace(",", "."));
-    if (!isFinite(p) || p < 0) return null;
-    return pesosToCents(p);
-  }
-
-  function addLine() {
-    setLineErr(null);
-    const expectedCostCents = parseCost();
-    if (expectedCostCents == null) {
-      setLineErr(t("errCostInvalid"));
-      return;
-    }
-    if (effectiveMode === "list") {
-      if (!pickedItem) return;
-      const n = Number(presentations);
-      if (!Number.isInteger(n) || n < 1) {
-        setLineErr(t("errLineInvalid"));
-        return;
-      }
-      setLines((prev) => [
-        ...prev,
-        {
-          key: ++lineKeySeq,
-          ingredientId: pickedItem.ingredient.id,
-          ingredientName: pickedItem.ingredient.name,
-          measureKind: pickedItem.ingredient.measureKind,
-          supplierItemId: pickedItem.id,
-          presentationLabel: pickedItem.presentationLabel,
-          presentations: n,
-          qtyBase: n * pickedItem.contentQty,
-          expectedCostCents,
-          taxPct,
-          inc: lineInc,
-          incRaw,
-          incIsPct,
-          discRaw: "",
-          discIsPct: true,
-        },
-      ]);
-    } else {
-      if (!pickedIng) return;
-      const qtyBase = toBaseQty(
-        Number(qty.replace(",", ".")),
-        pickedIng.measureKind,
-        unit,
-      );
-      if (qtyBase == null) {
-        setLineErr(t("errContentInvalid"));
-        return;
-      }
-      setLines((prev) => [
-        ...prev,
-        {
-          key: ++lineKeySeq,
-          ingredientId: pickedIng.id,
-          ingredientName: pickedIng.name,
-          measureKind: pickedIng.measureKind,
-          supplierItemId: null,
-          presentationLabel: null,
-          presentations: null,
-          qtyBase,
-          expectedCostCents,
-          taxPct,
-          inc: lineInc,
-          incRaw,
-          incIsPct,
-          discRaw: "",
-          discIsPct: true,
-        },
-      ]);
-    }
-    resetLineForm();
-  }
-
-  // Mismo cálculo que hace el servidor al guardar: descuento por línea y
-  // después el del pie prorrateado sobre lo que quedó.
-  const persisted = useMemo(
-    () =>
-      persistedOrderDiscounts(
-        lines.map((l) => ({ listCents: l.expectedCostCents, discRaw: l.discRaw, discIsPct: l.discIsPct })),
-        orderDiscRaw,
-        orderDiscIsPct,
-      ),
-    [lines, orderDiscRaw, orderDiscIsPct],
-  );
-  const applied = useMemo(
-    () =>
-      resolveOrderDiscounts(
-        lines.map((l, i) => ({
-          listCents: l.expectedCostCents,
-          discount: persisted.lines[i]!,
-        })),
-        persisted.order,
-      ),
-    [lines, persisted],
-  );
-  // Consumo de cada línea sobre su neto ya descontado (el % se recalcula si
-  // cambian los descuentos) y el documento que ve la retención: base neta,
-  // IVA y consumo de la factura.
-  const lineIncs = useMemo(() => draftLineIncs(lines, applied.lines.map((a) => a.netCents)), [lines, applied]);
-  const breakdownLines = applied.lines.map((a, i) => ({ costCents: a.netCents, taxPct: lines[i]!.taxPct }));
-  const invoiceDoc = {
-    baseCents: applied.netCents,
-    ivaCents: poTotals(breakdownLines).taxCents,
-    incCents: lineIncs.reduce((sum, c) => sum + c, 0),
-  };
-  const retentions = useInvoiceRetentions(taxCtx, invoiceDoc);
-  // Consumo de la línea en edición (aún sin descuentos), para mostrarlo.
-  const formIncCents = lineInc ? lineIncCents(parseCost() ?? 0, parseDiscountInput(incRaw, incIsPct)) : 0;
-
-  async function submit() {
-    if (!supplier || lines.length === 0) return;
-    if (receivedNow && retentions.error) return;
-    setErr(null);
-    setBusy(true);
-    const r = await fetch("/api/operator/purchase-orders", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        supplierId: supplier.id,
-        lines: lines.map((l, i) =>
-          l.supplierItemId
-            ? {
-                ingredientId: l.ingredientId,
-                supplierItemId: l.supplierItemId,
-                presentations: l.presentations,
-                expectedCostCents: l.expectedCostCents,
-                taxPct: l.taxPct,
-                expectedIncCents: lineIncs[i] ?? 0,
-                ...persisted.lines[i],
-              }
-            : {
-                ingredientId: l.ingredientId,
-                qtyBase: l.qtyBase,
-                expectedCostCents: l.expectedCostCents,
-                taxPct: l.taxPct,
-                expectedIncCents: lineIncs[i] ?? 0,
-                ...persisted.lines[i],
-              },
-        ),
-        ...persisted.order,
-        notes: notes.trim() || null,
-        expectedAt: !receivedNow && expectedAt ? dateInputToIso(expectedAt) : null,
-        ...(receivedNow
-          ? {
-              receive: {
-                supplierInvoiceNumber: invoiceNumber.trim() || null,
-                invoiceDueAt: invoiceDueAt ? dateInputToIso(invoiceDueAt) : null,
-                ...retentions.totals,
-              },
-            }
-          : {}),
-      }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_CREATE_ERROR_KEYS[j.error as string];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    const j = await r.json();
-    onCreated((j.order as { id: string }).id);
-  }
-
-
-  const lineAddDisabled =
-    effectiveMode === "list"
-      ? !pickedItem || presentations.trim() === "" || cost.trim() === ""
-      : !pickedIng || qty.trim() === "" || cost.trim() === "";
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
-    >
-      <div
-        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="font-display text-2xl">{t("newOrderTitle")}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
-            aria-label={t("cancel")}
-          >
-            {"✕"}
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <Field label={t("fieldSupplier")} required group>
-            {supplier ? (
-              <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
-                <span className="truncate">{supplier.name}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSupplier(null);
-                    setLines([]);
-                    resetLineForm();
-                  }}
-                  className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
-                >
-                  {t("changeSupplier")}
-                </button>
-              </div>
-            ) : (
-              <div>
-                {/* Se escribe el nombre o el NIT; la última opción pide
-                    crear el proveedor con lo escrito. */}
-                <SupplierCombobox
-                  id="po-supplier"
-                  suppliers={supplierOptions}
-                  value={null}
-                  onChange={(_id, s) => {
-                    if (s) pickSupplier({ id: s.id, name: s.name, taxId: s.taxId });
-                  }}
-                  onCreateRequested={(text) => {
-                    setNewSupplierText(text);
-                    setCreatingSupplier(true);
-                  }}
-                  aria-label={t("fieldSupplier")}
-                />
-                {creatingSupplier && (
-                  <SupplierInlineForm
-                    key={newSupplierText}
-                    initialName={splitSupplierText(newSupplierText).name}
-                    initialTaxId={splitSupplierText(newSupplierText).taxId}
-                    onCreated={(s) => {
-                      setCreatedSuppliers((prev) => [...prev, s]);
-                      pickSupplier(s);
-                    }}
-                    onCancel={() => setCreatingSupplier(false)}
-                  />
-                )}
-              </div>
-            )}
-          </Field>
-
-          {supplier && (
-            <>
-              {loadErr ? (
-                <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-              ) : priceList === null || ingredients === null ? (
-                <div className="py-4 text-center text-sm text-op-muted">
-                  {t("loading")}
-                </div>
-              ) : (
-                <>
-                  <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
-                    {t("linesTitle")}
-                  </div>
-
-                  {/* Líneas agregadas */}
-                  {lines.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-4 text-center text-sm text-op-muted">
-                      {t("noLinesYet")}
-                    </div>
-                  ) : (
-                    <div className="border border-op-border rounded-2xl overflow-hidden">
-                      {lines.map((l, lineIndex) => (
-                        <div
-                          key={l.key}
-                          className="flex items-center gap-2 px-3 py-2 border-b border-op-border last:border-b-0"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">
-                              {l.ingredientName}
-                            </div>
-                            <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                              {[
-                                l.presentationLabel != null
-                                  ? `${l.presentations} × ${l.presentationLabel}`
-                                  : null,
-                                formatBaseQty(l.qtyBase, l.measureKind, locale),
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="text-sm font-medium tabular-nums">
-                              {formatMoney(l.expectedCostCents, {
-                                currency,
-                                locale,
-                              })}
-                            </div>
-                            {l.taxPct > 0 && (
-                              <div className="text-[11px] text-op-muted tabular-nums">
-                                {`${t("taxPctOption", { pct: l.taxPct })} · ${t(
-                                  "lineGrossLabel",
-                                )} ${formatMoney(
-                                  lineGrossCents(l.expectedCostCents, l.taxPct),
-                                  { currency, locale },
-                                )}`}
-                              </div>
-                            )}
-                            {(lineIncs[lineIndex] ?? 0) > 0 && (
-                              <div className="text-[11px] text-op-muted tabular-nums">
-                                {lineTaxText(0, lineIncs[lineIndex] ?? 0, currency)}
-                              </div>
-                            )}
-                          </div>
-                          <DiscountControl
-                            inline
-                            label={t("discountLabel")}
-                            raw={l.discRaw}
-                            isPct={l.discIsPct}
-                            currency={currency}
-                            onChange={(discRaw, discIsPct) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key ? { ...x, discRaw, discIsPct } : x,
-                                ),
-                              )
-                            }
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLines((prev) =>
-                                prev.filter((x) => x.key !== l.key),
-                              )
-                            }
-                            className="min-h-[44px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0"
-                          >
-                            {t("removeLine")}
-                          </button>
-                        </div>
-                      ))}
-                      {/* Descuento del pie: se prorratea entre las líneas,
-                          igual que en el servidor, para que el IVA y el total
-                          en pantalla sean los que se van a guardar. */}
-                      <DiscountControl
-                        id="po-order-discount"
-                        label={t("orderDiscountLabel")}
-                        raw={orderDiscRaw}
-                        isPct={orderDiscIsPct}
-                        currency={currency}
-                        onChange={(raw, isPct) => {
-                          setOrderDiscRaw(raw);
-                          setOrderDiscIsPct(isPct);
-                        }}
-                        className="px-3 py-2 border-t border-op-border"
-                      />
-                      <TaxBreakdown
-                        lines={breakdownLines}
-                        currency={currency}
-                        totalLabel={receivedNow ? t("totalLabel") : t("orderTotalLabel")}
-                        discountCents={applied.discountCents}
-                        listSubtotalCents={applied.subtotalCents}
-                        incCents={invoiceDoc.incCents}
-                      />
-                    </div>
-                  )}
-
-                  {/* Formulario de línea nueva */}
-                  <div className="rounded-2xl border border-op-border bg-op-bg/50 p-4 space-y-3">
-                    {priceList.length === 0 ? (
-                      <div className="text-[11px] text-op-muted">
-                        {t("noPriceListHint")}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {(
-                          [
-                            ["list", t("lineFromList")],
-                            ["free", t("lineFree")],
-                          ] as [LineMode, string][]
-                        ).map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => {
-                              setMode(value);
-                              resetLineForm();
-                            }}
-                            className={
-                              "min-h-[44px] px-2 rounded-xl border text-sm font-medium transition-colors " +
-                              (effectiveMode === value
-                                ? "border-ink bg-ink text-bone"
-                                : "border-op-border bg-op-bg hover:bg-op-surface")
-                            }
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {effectiveMode === "list" ? (
-                      <>
-                        <Field label={t("fieldPriceListItem")} required group>
-                          {pickedItem ? (
-                            <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
-                              <span className="truncate">
-                                {[
-                                  pickedItem.ingredient.name,
-                                  pickedItem.presentationLabel,
-                                  pickedItem.lastPriceCents != null
-                                    ? formatMoney(pickedItem.lastPriceCents, {
-                                        currency,
-                                        locale,
-                                      })
-                                    : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPickedItem(null);
-                                  setItemQ("");
-                                  setCost("");
-                                  setCostDirty(false);
-                                }}
-                                className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
-                              >
-                                {t("changePresentation")}
-                              </button>
-                            </div>
-                          ) : (
-                            <div>
-                              <input
-                                type="search"
-                                value={itemQ}
-                                onChange={(e) => setItemQ(e.target.value)}
-                                placeholder={t("priceListSearchPlaceholder")}
-                                aria-label={t("fieldPriceListItem")}
-                                className={inputCls}
-                              />
-                              <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
-                                {itemMatches.length === 0 ? (
-                                  <div className="px-3 py-2 text-xs text-op-muted">
-                                    {t("noPriceListMatches")}
-                                  </div>
-                                ) : (
-                                  itemMatches.map((i) => (
-                                    <button
-                                      key={i.id}
-                                      type="button"
-                                      onClick={() => pickItem(i)}
-                                      className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                                    >
-                                      <span className="truncate">
-                                        {[
-                                          i.ingredient.name,
-                                          i.presentationLabel,
-                                          i.lastPriceCents != null
-                                            ? formatMoney(i.lastPriceCents, {
-                                                currency,
-                                                locale,
-                                              })
-                                            : null,
-                                        ]
-                                          .filter(Boolean)
-                                          .join(" · ")}
-                                      </span>
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </Field>
-
-                        <Field label={t("fieldPresentationsCount")} required>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            inputMode="numeric"
-                            value={presentations}
-                            onChange={(e) =>
-                              changePresentations(e.target.value)
-                            }
-                            disabled={!pickedItem}
-                            className={inputCls + " disabled:opacity-40"}
-                          />
-                        </Field>
-                      </>
-                    ) : (
-                      <>
-                        <Field label={t("fieldIngredient")} required group>
-                          {pickedIng ? (
-                            <div className="min-h-[44px] px-3 rounded-lg border border-op-border bg-op-surface text-sm flex items-center justify-between gap-2">
-                              <span className="truncate">
-                                {`${pickedIng.name} (${unitSymbols(pickedIng.measureKind)})`}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPickedIng(null);
-                                  setIngQ("");
-                                  setQty("");
-                                  setUnit("");
-                                  setCost("");
-                                  setCostDirty(false);
-                                }}
-                                className="text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
-                              >
-                                {t("changeIngredient")}
-                              </button>
-                            </div>
-                          ) : (
-                            <div>
-                              <input
-                                type="search"
-                                value={ingQ}
-                                onChange={(e) => setIngQ(e.target.value)}
-                                placeholder={t("ingredientSearchPlaceholder")}
-                                aria-label={t("fieldIngredient")}
-                                className={inputCls}
-                              />
-                              <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-44 overflow-y-auto">
-                                {ingMatches.length === 0 ? (
-                                  <div className="px-3 py-2 text-xs text-op-muted">
-                                    {t("noIngredientMatches")}
-                                  </div>
-                                ) : (
-                                  ingMatches.map((i) => (
-                                    <button
-                                      key={i.id}
-                                      type="button"
-                                      onClick={() => pickIngredient(i)}
-                                      className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                                    >
-                                      <span>{i.name}</span>
-                                      <span className="font-mono text-[10px] text-op-muted ml-2">
-                                        {unitSymbols(i.measureKind)}
-                                      </span>
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                              {creatingIng ? (
-                                <IngredientInlineForm
-                                  initialName={ingQ.trim()}
-                                  onCreated={(ing) => {
-                                    setIngredients((prev) => [
-                                      ...(prev ?? []),
-                                      ing,
-                                    ]);
-                                    pickIngredient(ing);
-                                    setCreatingIng(false);
-                                  }}
-                                  onCancel={() => setCreatingIng(false)}
-                                />
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setCreatingIng(true)}
-                                  className="mt-1.5 text-[11px] font-medium text-op-muted hover:text-ink"
-                                >
-                                  {t("createIngredientInline")}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </Field>
-
-                        <Field label={t("fieldQty")} required>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={qty}
-                              onChange={(e) => changeFreeQuantity(e.target.value)}
-                              disabled={!pickedIng}
-                              className={inputCls + " flex-1 disabled:opacity-40"}
-                            />
-                            <select
-                              value={unit}
-                              onChange={(e) => changeFreeUnit(e.target.value)}
-                              disabled={
-                                !pickedIng ||
-                                DISPLAY_UNITS[pickedIng.measureKind].length < 2
-                              }
-                              className="min-h-[44px] w-24 px-3 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
-                            >
-                              {(pickedIng
-                                ? DISPLAY_UNITS[pickedIng.measureKind]
-                                : []
-                              ).map((u) => (
-                                <option key={u.symbol} value={u.symbol}>
-                                  {u.symbol}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </Field>
-                      </>
-                    )}
-
-                    <div className="flex gap-2">
-                      <div className="flex-1 min-w-0">
-                        <Field
-                          label={`${t("fieldExpectedCost")} (${currency})`}
-                          required
-                          hint={
-                            effectiveMode === "list"
-                              ? t("expectedCostHint")
-                              : pickedIng?.referencePriceCents != null
-                                ? t("purchaseReferenceHint")
-                                : undefined
-                          }
-                        >
-                          <MoneyInput
-                            value={cost}
-                            fractionDigits={2}
-                            onChange={(d) => {
-                              setCost(d);
-                              setCostDirty(true);
-                            }}
-                            className={inputCls}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                    <LineTaxFields
-                      id="po-line"
-                      choice={{ ivaPct: taxPct, inc: lineInc }}
-                      rates={taxRates}
-                      incRaw={incRaw}
-                      incIsPct={incIsPct}
-                      incCents={formIncCents}
-                      currency={currency}
-                      onChange={changeLineTax}
-                    />
-
-                    {lineErr && (
-                      <div className="text-xs text-danger">{lineErr}</div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={addLine}
-                      disabled={lineAddDisabled}
-                      className="mp-btn mp-btn--secondary mp-btn--block"
-                    >
-                      {t("addLine")}
-                    </button>
-                  </div>
-
-                  {/* «Ya recibí esta mercancía»: la orden ES la factura del
-                      proveedor. Se registra recibida, con su número, su
-                      vencimiento y las retenciones que le practicas. */}
-                  <div className="rounded-2xl border border-op-border p-4 space-y-3">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={receivedNow}
-                        onChange={(e) => setReceivedNow(e.target.checked)}
-                        className="h-5 w-5 mt-0.5 accent-ink shrink-0"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium">{t("poReceivedNow")}</span>
-                        <span className="block text-[11px] text-op-muted mt-0.5">{t("poReceivedNowHint")}</span>
-                      </span>
-                    </label>
-                    {receivedNow && (
-                      <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <Field label={t("fieldInvoiceNumber")}>
-                            <input
-                              type="text"
-                              value={invoiceNumber}
-                              onChange={(e) => setInvoiceNumber(e.target.value)}
-                              maxLength={80}
-                              className={inputCls}
-                            />
-                          </Field>
-                          <Field label={t("fieldInvoiceDueAt")} hint={t("poInvoiceDueHint")}>
-                            <input
-                              type="date"
-                              value={invoiceDueAt}
-                              onChange={(e) => setInvoiceDueAt(e.target.value)}
-                              className={inputCls}
-                            />
-                          </Field>
-                        </div>
-                        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                          {t("poTaxSectionTitle")}
-                        </div>
-                        <InvoiceRetentionsEditor
-                          state={retentions}
-                          ctx={taxCtx}
-                          doc={invoiceDoc}
-                          currency={currency}
-                        />
-                        <div className="border border-op-border rounded-xl overflow-hidden" data-testid="new-order-payable">
-                          <TaxBreakdown
-                            lines={breakdownLines}
-                            currency={currency}
-                            totalLabel={t("invTaxGrandTotal")}
-                            alwaysBreakdown
-                            discountCents={applied.discountCents}
-                            listSubtotalCents={applied.subtotalCents}
-                            incCents={invoiceDoc.incCents}
-                            retainedCents={retentionTotalCents(retentions.totals)}
-                            retentionRows={retentionRows(retentions.totals)}
-                          />
-                        </div>
-                        {retentionTotalCents(retentions.totals) > 0 && (
-                          <p className="text-[10px] text-op-muted">{t("invTaxRetentionNote")}</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {!receivedNow && (
-                    <Field label={t("fieldExpectedAt")}>
-                      <input
-                        type="date"
-                        value={expectedAt}
-                        onChange={(e) => setExpectedAt(e.target.value)}
-                        className={inputCls}
-                      />
-                    </Field>
-                  )}
-
-                  <Field label={t("fieldNotes")}>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      maxLength={1000}
-                      rows={2}
-                      className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
-                    />
-                  </Field>
-                </>
-              )}
-            </>
-          )}
-
-          {err && <div className="text-xs text-danger">{err}</div>}
-
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="mp-btn mp-btn--secondary"
-            >
-              {t("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={busy || !supplier || lines.length === 0 || (receivedNow && retentions.error != null)}
-              className="mp-btn mp-btn--primary"
-            >
-              {busy ? t("creating") : receivedNow ? t("poCreateReceived") : t("createOrder")}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1962,8 +867,8 @@ function SuggestedSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -2260,6 +1165,11 @@ const API_UPLOAD_ERROR_KEYS: Record<string, string> = {
   bad_format: "invUploadErrBadFormat",
   bad_size: "invUploadErrBadSize",
   module_disabled: "invUploadErrModuleDisabled",
+  ai_response_incomplete: "invUploadErrIncomplete",
+  ai_invalid_response: "invUploadErrInvalidResponse",
+  ai_timeout: "invUploadErrTimeout",
+  no_lines: "invUploadErrNoLines",
+  not_a_document: "invUploadErrNotDocument",
 };
 
 // Errores del POST de confirmación → clave i18n (fallback errSaveFailed).
@@ -2285,9 +1195,17 @@ function InvoiceUploadButton({
   const t = useTranslations("opErp");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const requestInFlight = useRef(false);
   const inputId = "inv-upload-file";
+  const errorId = "inv-upload-error";
 
   async function handleFile(file: File) {
+    // The ref also covers a second click before React renders disabled controls.
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setSelectedFile(file);
     setErr(null);
     setBusy(true);
     try {
@@ -2297,18 +1215,29 @@ function InvoiceUploadButton({
         method: "POST",
         body,
       });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        const key = API_UPLOAD_ERROR_KEYS[j.error as string];
+      const j = await r.json().catch(() => null) as (InvoiceUploadResult & { error?: unknown }) | null;
+      if (!r.ok || j?.error) {
+        const key = typeof j?.error === "string" ? API_UPLOAD_ERROR_KEYS[j.error] : undefined;
         setErr(key ? t(key) : t("invUploadErrFailed"));
-        setBusy(false);
         return;
       }
-      const j = (await r.json()) as InvoiceUploadResult;
-      setBusy(false);
+      // A failed/legacy extraction must never look like an invoice worth $0.
+      if (!j || typeof j.uploadId !== "string" || typeof j.fileUrl !== "string"
+        || !Array.isArray(j.extraction?.lines) || !Array.isArray(j.match?.lines)
+        || !j.match.supplier) {
+        setErr(t("invUploadErrInvalidResponse"));
+        return;
+      }
+      if (j.extraction.lines.length === 0 || j.match.lines.length === 0) {
+        setErr(t("invUploadErrNoLines"));
+        return;
+      }
+      setSelectedFile(null);
       onUploaded(j);
     } catch {
       setErr(t("invUploadErrFailed"));
+    } finally {
+      requestInFlight.current = false;
       setBusy(false);
     }
   }
@@ -2316,16 +1245,21 @@ function InvoiceUploadButton({
   return (
     <>
       {/* La carga ocupa las 2 columnas del grid (fila propia). */}
-      <label
-        htmlFor={inputId}
-        className="col-span-2 min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg flex items-center justify-center cursor-pointer"
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        aria-describedby={err ? errorId : undefined}
+        className="col-span-2 min-h-[44px] px-2 rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
       >
-        {t("invUploadButton")}
-      </label>
+        {t(err ? "invUploadChooseAnother" : "invUploadButton")}
+      </button>
       <input
+        ref={inputRef}
         id={inputId}
         type="file"
         accept=".pdf,image/*"
+        disabled={busy}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -2334,13 +1268,24 @@ function InvoiceUploadButton({
           if (file) void handleFile(file);
         }}
       />
-      {err && <div className="col-span-2 text-xs text-danger">{err}</div>}
+      {err && (
+        <div className="col-span-2 rounded-2xl border border-danger/20 bg-danger/5 p-4">
+          <p id={errorId} role="alert" className="text-sm leading-relaxed text-danger">{err}</p>
+          {selectedFile && <>
+            <p className="mt-2 break-all text-xs text-op-muted">{t("invUploadSelectedFile", { name: selectedFile.name })}</p>
+            <button type="button" disabled={busy} onClick={() => void handleFile(selectedFile)}
+              className="mt-3 min-h-[44px] rounded-full border border-op-border bg-op-surface px-4 text-sm font-medium hover:bg-op-bg disabled:opacity-50">
+              {t("invUploadRetry")}
+            </button>
+          </>}
+        </div>
+      )}
 
       {busy && (
         <div className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-6">
           <div className="bg-op-surface rounded-3xl border border-op-border p-8 max-w-xs w-full text-center">
             <div className="mx-auto mb-4 h-8 w-8 rounded-full border-2 border-op-border border-t-ink animate-spin" />
-            <div className="text-sm font-medium">{t("invUploadReading")}</div>
+            <div role="status" className="text-sm font-medium">{t("invUploadReading")}</div>
             <p className="text-[11px] text-op-muted mt-1">
               {t("invUploadReadingHint")}
             </p>
@@ -2938,8 +1883,8 @@ function InvoiceReviewSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={closeReview}
     >
       <div
         role="dialog"
@@ -4802,8 +3747,8 @@ function ReceiveSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -5548,8 +4493,8 @@ function RegisterPaymentSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -5630,8 +4575,8 @@ function InvoiceSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -5699,280 +4644,3 @@ function InvoiceSheet({
   );
 }
 
-/* ────────────────────────────── UI compartida ──────────────────────── */
-
-function Field({
-  label,
-  required,
-  hint,
-  group = false,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  group?: boolean;
-  children: React.ReactNode;
-}) {
-  // Pickers contain several buttons and change their children on selection.
-  // A wrapping label can forward the click to the newly rendered "change"
-  // button in Safari and immediately undo the selection.
-  const labelId = useId();
-  const Container = group ? "div" : "label";
-  return (
-    <Container className="block" role={group ? "group" : undefined} aria-labelledby={group ? labelId : undefined}>
-      <div id={labelId} className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
-        {label}
-        {required && <span className="text-danger ml-1">{"*"}</span>}
-      </div>
-      {children}
-      {hint && <div className="text-[10px] text-op-muted mt-1">{hint}</div>}
-    </Container>
-  );
-}
-
-/* ────────────── Crear proveedor / insumo inline (mini-forms) ────────── */
-
-/**
- * Alta de proveedor sin salir de la creación de OC: Nombre (req.), NIT
- * (opc.) y plazo de pago en días (opc.). Entrega el proveedor devuelto por
- * el API a `onCreated` (que lo elige y dispara su lista de precios).
- */
-function SupplierInlineForm({
-  initialName,
-  initialTaxId,
-  onCreated,
-  onCancel,
-}: {
-  initialName?: string;
-  /** NIT escrito en el campo de proveedor (si lo escrito eran dígitos). */
-  initialTaxId?: string;
-  onCreated: (s: SupplierRef) => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const [name, setName] = useState(initialName ?? "");
-  const [taxId, setTaxId] = useState(initialTaxId ?? "");
-  const [termsRaw, setTermsRaw] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setErr(t("errLineInvalid"));
-      return;
-    }
-    const terms = termsRaw.trim();
-    const paymentTermsDays = terms === "" ? undefined : Number(terms);
-    if (
-      paymentTermsDays !== undefined &&
-      (!Number.isInteger(paymentTermsDays) ||
-        paymentTermsDays < 0 ||
-        paymentTermsDays > 365)
-    ) {
-      setErr(t("errLineInvalid"));
-      return;
-    }
-    setErr(null);
-    setBusy(true);
-    const r = await fetch("/api/operator/suppliers", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: trimmed,
-        taxId: taxId.trim() || undefined,
-        paymentTermsDays,
-      }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        (j as { error?: string }).error === "name_taken"
-          ? t("errSupplierNameTaken")
-          : t("errSaveFailed"),
-      );
-      return;
-    }
-    const j = (await r.json()) as { supplier: SupplierRef };
-    onCreated({ id: j.supplier.id, name: j.supplier.name, taxId: j.supplier.taxId ?? null });
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <Field label={t("fieldName")} required>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("supplierNamePlaceholder")}
-          maxLength={120}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldTaxId")}>
-        <input
-          type="text"
-          value={taxId}
-          onChange={(e) => setTaxId(e.target.value)}
-          placeholder={t("taxIdPlaceholder")}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldPaymentTerms")} hint={t("paymentTermsHint")}>
-        <input
-          type="number"
-          min={0}
-          max={365}
-          step={1}
-          inputMode="numeric"
-          value={termsRaw}
-          onChange={(e) => setTermsRaw(e.target.value)}
-          className={inputCls}
-        />
-      </Field>
-      {err && <div className="text-xs text-danger">{err}</div>}
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="mp-btn mp-btn--sm mp-btn--secondary"
-        >
-          {t("cancel")}
-        </button>
-        <button
-          type="button"
-          onClick={create}
-          disabled={busy || name.trim() === ""}
-          className="mp-btn mp-btn--sm mp-btn--primary"
-        >
-          {busy ? t("creating") : t("inlineCreate")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Clave i18n por dimensión — mismas labels que el editor de insumos.
-const DIM_LABEL_KEYS: Record<MeasureKind, string> = {
-  mass: "dimMass",
-  volume: "dimVolume",
-  count: "dimCount",
-};
-
-/**
- * Alta de insumo sin salir de la línea libre: Nombre (req.), tipo de
- * medida (req.) y categoría (opc.). Entrega el insumo devuelto por el API
- * a `onCreated` (que lo suma a la lista y lo deja elegido para la línea).
- */
-function IngredientInlineForm({
-  initialName,
-  onCreated,
-  onCancel,
-}: {
-  initialName?: string;
-  onCreated: (ing: IngredientRef) => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const [name, setName] = useState(initialName ?? "");
-  const [measureKind, setMeasureKind] = useState<MeasureKind>("mass");
-  const [category, setCategory] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setErr(t("errLineInvalid"));
-      return;
-    }
-    setErr(null);
-    setBusy(true);
-    const r = await fetch("/api/operator/ingredients", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: trimmed,
-        measureKind,
-        category: category.trim() || undefined,
-      }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      setErr(
-        (j as { error?: string }).error === "name_taken"
-          ? t("errNameTaken")
-          : t("errSaveFailed"),
-      );
-      return;
-    }
-    const j = (await r.json()) as { ingredient: IngredientRef };
-    onCreated({
-      id: j.ingredient.id,
-      name: j.ingredient.name,
-      measureKind: j.ingredient.measureKind,
-      active: true,
-    });
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <Field label={t("fieldName")} required>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("namePlaceholder")}
-          maxLength={120}
-          className={inputCls}
-        />
-      </Field>
-      <Field label={t("fieldMeasure")} required>
-        <select
-          value={measureKind}
-          onChange={(e) => setMeasureKind(e.target.value as MeasureKind)}
-          className={inputCls}
-        >
-          {MEASURE_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {t(DIM_LABEL_KEYS[k])}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label={t("fieldCategory")}>
-        <input
-          type="text"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder={t("categoryPlaceholder")}
-          className={inputCls}
-        />
-      </Field>
-      {err && <div className="text-xs text-danger">{err}</div>}
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="mp-btn mp-btn--sm mp-btn--secondary"
-        >
-          {t("cancel")}
-        </button>
-        <button
-          type="button"
-          onClick={create}
-          disabled={busy || name.trim() === ""}
-          className="mp-btn mp-btn--sm mp-btn--primary"
-        >
-          {busy ? t("creating") : t("inlineCreate")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const inputCls =
-  "w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40";

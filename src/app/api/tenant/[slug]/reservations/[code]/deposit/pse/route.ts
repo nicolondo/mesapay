@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { captureDepositTrackingFields } from "@/lib/walletTrackingCapture";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -109,6 +110,7 @@ async function POSTHandler(
         where: { id: reservation.id },
         data: {
           depositStatus: "paid",
+          depositPaidAt: new Date(),
           depositMethod: "kushki_pse",
           depositTxId: `mock_pse_${reservation.id.slice(0, 8)}`,
           status: "confirmed",
@@ -133,6 +135,8 @@ async function POSTHandler(
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
   }
+  const tracking = await captureDepositTrackingFields({ restaurantId: tenant.id, mode, currency: "COP", privateKey });
+  if (Object.keys(tracking).length) await db.reservation.updateMany({ where: { id: reservation.id, depositStatus: "pending" }, data: tracking });
 
   const baseUrl =
     mode === "production"

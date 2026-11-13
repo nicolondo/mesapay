@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { captureDepositTrackingFields } from "@/lib/walletTrackingCapture";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -118,9 +119,8 @@ async function POSTHandler(
     );
   }
 
-  const provider = await getPaymentProvider(
-    await getRestaurantKushkiMode(tenant),
-  );
+  const mode = await getRestaurantKushkiMode(tenant);
+  const provider = await getPaymentProvider(mode);
   const privateKey = await getRestaurantPrivateKey(tenant.id);
   if (!privateKey) {
     return NextResponse.json({ error: "credentials_missing" }, { status: 500 });
@@ -128,6 +128,8 @@ async function POSTHandler(
 
   const depositCents = reservation.depositCents;
   const currency = await getCurrencyForCountry(tenant.country);
+  const tracking = await captureDepositTrackingFields({ restaurantId: tenant.id, mode, currency, privateKey });
+  if (Object.keys(tracking).length) await db.reservation.updateMany({ where: { id: reservation.id, depositStatus: "pending" }, data: tracking });
   let charge;
   try {
     charge = await provider.chargeWithToken({
@@ -160,6 +162,7 @@ async function POSTHandler(
         kind: "charge",
         status: charge.status === "approved" ? "approved" : "declined",
         amountCents: depositCents,
+        currency,
         raw: charge.raw as object,
         message: charge.message,
       },
@@ -181,6 +184,8 @@ async function POSTHandler(
     where: { id: reservation.id },
     data: {
       depositStatus: "paid",
+      depositPaidAt: new Date(),
+      ...tracking,
       depositMethod: parsed.data.method,
       depositTxId: charge.providerRef,
       status: "confirmed",

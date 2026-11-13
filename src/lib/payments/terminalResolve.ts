@@ -6,15 +6,8 @@
  * /api/operator/payments/[id]/resolve-terminal.
  *
  * Archivo sin dependencias de servidor: lo usan la ruta y las pantallas
- * (cuenta regresiva, quién ve el botón, validación del formulario).
+ * (envío registrado, quién ve el botón, validación del formulario).
  */
-
-/**
- * Cuánto esperar desde que se envió el cobro. El cobro sincrónico del Cloud
- * Terminal corta a unos 90 s; pasados 3 minutos ya no llega respuesta por
- * esa vía y quien tiene el comprobante es el equipo.
- */
-export const TERMINAL_RESOLVE_AFTER_MS = 3 * 60_000;
 
 /** Nota de evidencia obligatoria ("el datáfono mostró rechazada"). */
 export const TERMINAL_RESOLVE_EVIDENCE_MIN = 10;
@@ -35,11 +28,11 @@ export function canResolveTerminalCharge(role: string | null | undefined): boole
   return !!role && RESOLVER_ROLES.includes(role);
 }
 
-/** Desde cuándo (ms epoch) se puede resolver a mano; null si nunca se envió. */
+/** Envío registrado (ms epoch); no se impone una espera adicional para resolver. */
 export function terminalResolvableAt(pushedAt: string | Date | null | undefined): number | null {
   if (!pushedAt) return null;
   const t = (pushedAt instanceof Date ? pushedAt : new Date(pushedAt)).getTime();
-  return Number.isFinite(t) ? t + TERMINAL_RESOLVE_AFTER_MS : null;
+  return Number.isFinite(t) ? t : null;
 }
 
 /** Clave `providerRef` de una resolución manual: única por pago y con el actor. */

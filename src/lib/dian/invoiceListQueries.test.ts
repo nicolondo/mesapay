@@ -22,6 +22,7 @@ vi.mock("@/lib/db", () => ({
 import {
   countRecentRejected,
   loadInvoiceListPage,
+  loadInvoiceStateCounts,
   loadLateInvoiceRequests,
   LATE_CANDIDATES_LIMIT,
 } from "./invoiceListQueries";
@@ -117,6 +118,23 @@ describe("página de la lista", () => {
       creditNote: { documentNumber: "NC12", state: "accepted" },
     });
     expect(rows[1].dian.errors).toHaveLength(2);
+  });
+});
+
+describe("cuenta de cada pestaña de estado", () => {
+  it("un count por estado con el MISMO where de la lista (rango y búsqueda de la URL), sin traer filas", async () => {
+    const byState: Record<string, number> = { all: 73, rejected: 3, in_process: 5, accepted: 65 };
+    m.count.mockImplementation(async (args: { where: unknown }) => {
+      for (const state of Object.keys(byState)) {
+        const where = invoiceListWhere("rest-1", { state: state as never, from: "2026-10-01", to: "2026-10-31", q: "ana" }, 5);
+        if (JSON.stringify(where) === JSON.stringify(args.where)) return byState[state];
+      }
+      throw new Error("where inesperado");
+    });
+    const counts = await loadInvoiceStateCounts("rest-1", { from: "2026-10-01", to: "2026-10-31", q: "ana" }, 5);
+    expect(counts).toEqual(byState);
+    expect(m.count).toHaveBeenCalledTimes(4);
+    expect(m.findMany).not.toHaveBeenCalled();
   });
 });
 

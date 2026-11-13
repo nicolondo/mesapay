@@ -1,0 +1,21 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const m=vi.hoisted(()=>({resolve:vi.fn(),balance:vi.fn(),find:vi.fn(),latest:vi.fn(),update:vi.fn(),tx:vi.fn()}));
+vi.mock("./context",()=>({resolveTrackingContext:m.resolve,scopeKey:(s:{kind:string;restaurantId?:string})=>s.kind==="platform"?"platform":`restaurant:${s.restaurantId}`}));
+vi.mock("@/lib/platformWallet/provider",()=>({walletBalance:m.balance}));
+vi.mock("@/lib/db",()=>({db:{walletTrackingAccount:{findUnique:m.find,findFirst:m.find,update:m.update},walletBalanceSnapshot:{findFirst:m.latest},$transaction:m.tx}}));
+vi.mock("./sources",()=>({trackingSourceEvidence:vi.fn(async()=>({fingerprint:"stable",hasRecent:false}))}));
+vi.mock("./outgoing",()=>({trackingOutgoing:vi.fn(async()=>({amountCents:BigInt(0),ambiguous:0}))}));
+import { getWalletTracking, syncWalletTracking, trackingView } from "./service";
+import { TrackingError } from "./errors";
+const now=new Date("2026-11-10T15:00:00Z");
+const account={id:"a",scopeKey:"platform",scopeKind:"platform",trackingKey:"key",walletAccountFingerprint:"wallet",mode:"production",currency:"COP",startedAt:now,baselineAvailableCents:BigInt(500),openingPendingCents:BigInt(0),lastSuccessAt:now,lastErrorCode:null};
+const snapshot={observedAt:now,status:"active",availableCents:BigInt(500),signedDifferenceCents:BigInt(100),chargesCents:BigInt(100),refundsCents:BigInt(0),registeredFeesCents:BigInt(0),effectiveOutgoingCents:BigInt(0),adjustmentsCents:BigInt(0),incorporatedHistoryCents:BigInt(0),ambiguousOutgoingCount:0,excludedSourceCount:0,reasons:[]};
+beforeEach(()=>{vi.resetAllMocks();vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(now);m.resolve.mockResolvedValue({...account,payoutCredentials:{mode:"production",publicKey:"public",privateKey:"private"}});m.find.mockResolvedValue(null);m.latest.mockResolvedValue(null);});
+afterEach(()=>vi.useRealTimers());
+describe("tracking activation and last observation",()=>{
+ it("returns initializing without pretending a baseline exists",async()=>{expect(await getWalletTracking({kind:"platform"})).toMatchObject({status:"initializing",trackingId:null,estimatedPendingCents:null,baselineAvailableCents:null});expect(m.balance).not.toHaveBeenCalled();});
+ it("does not create a baseline when balance cannot be read",async()=>{m.balance.mockRejectedValue(new Error("private provider detail"));await expect(syncWalletTracking({kind:"platform"},{email:"admin"})).rejects.toThrow("tracking_balance_unavailable");expect(m.tx).not.toHaveBeenCalled();});
+ it("preserves the last estimate with a stale state after a balance error",async()=>{expect(trackingView({...account,lastErrorCode:"balance_unavailable"} as never,snapshot as never)).toMatchObject({status:"stale",estimatedPendingCents:100,snapshotAt:now.toISOString(),reasons:expect.arrayContaining(["balance_unavailable"])});});
+ it("never turns a negative difference into a claimed zero pending",()=>{expect(trackingView(account as never,{...snapshot,signedDifferenceCents:BigInt(-100),status:"needs_review"} as never)).toMatchObject({signedDifferenceCents:-100,estimatedPendingCents:null,status:"needs_review"});});
+ it("sanitizes missing configuration and keeps unknown amounts null",async()=>{m.resolve.mockRejectedValue(new TrackingError("tracking_not_configured"));expect(await getWalletTracking({kind:"platform"})).toMatchObject({status:"unavailable",currency:null,estimatedPendingCents:null});});
+});

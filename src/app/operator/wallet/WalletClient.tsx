@@ -1,12 +1,19 @@
 "use client";
 
 import { MoneyInput } from "@/components/MoneyInput";
+import { WalletTrackingPanel, WalletTrackingSummary } from "@/components/WalletTrackingPanel";
+import { useWalletTracking } from "@/components/walletTracking/useWalletTracking";
+import { MerchantPayoutSheet, MerchantPayoutNotice } from "./MerchantPayoutSheet";
+import { useMerchantPayout, type MerchantPayoutStatus, type MerchantPayoutResult } from "./useMerchantPayout";
+import { WalletIncomingActivity } from "@/components/WalletIncomingActivity";
+import type { WalletPendingBalance as PendingBalance } from "@/lib/payments/walletPending";
+import type { Locale } from "@/i18n/config";
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatMoney, formatDate } from "@/lib/format";
 
 type Movement = {
   id: string;
@@ -25,7 +32,8 @@ type Payout = {
   accountType: string;
   accountLast4: string;
   holderName: string;
-  status: "initialized" | "approved" | "declined" | "failed";
+  status: MerchantPayoutStatus;
+  idempotencyKey: string | null;
   responseText: string | null;
   createdAt: string;
 };
@@ -41,54 +49,81 @@ type AutoPolicy =
     };
 
 export function WalletClient({
+  restaurantId,
   tenantName,
   onboarded,
   bankLabel,
+  ownDestinationFingerprint,
   initialMovements,
   initialPayouts,
   initialPolicy,
+  initialUnresolved,
 }: {
+  restaurantId: string;
   tenantName: string;
   onboarded: boolean;
   bankLabel: string | null;
+  ownDestinationFingerprint: string | null;
   initialMovements: Movement[];
   initialPayouts: Payout[];
   initialPolicy: AutoPolicy;
+  initialUnresolved: { idempotencyKey: string | null } | null;
 }) {
   const t = useTranslations("opWallet");
+  const tt = useTranslations("walletTracking");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [, startTx] = useTransition();
-  const [balance, setBalance] = useState<{
-    availableCents: number;
-    pendingCents: number;
-  } | null>(null);
+  const [balance, setBalance] = useState<({ availableCents: number; currency: string } & Partial<PendingBalance>) | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(onboarded);
+  const [balanceReload, setBalanceReload] = useState(0);
   const [balanceErr, setBalanceErr] = useState<string | null>(null);
   const [disperseOpen, setDisperseOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [policy, setPolicy] = useState<AutoPolicy>(initialPolicy);
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [latestPayout, setLatestPayout] = useState<MerchantPayoutResult | null>(null);
+  const tracking = useWalletTracking("operator", onboarded ? restaurantId : null);
+  const initialPendingKey = initialUnresolved?.idempotencyKey;
+  const payout = useMerchantPayout(restaurantId, (next) => {
+    setLatestPayout(next); refreshBalance(); void tracking.sync(); startTx(() => router.refresh());
+  }, initialPendingKey, () => startTx(() => router.refresh()));
+  const unresolvedLegacy = Boolean(initialUnresolved && !initialUnresolved.idempotencyKey);
+  const visiblePayouts = initialPayouts.map((item) => latestPayout?.payoutId === item.id ? { ...item, status: latestPayout.status, responseText: latestPayout.responseText } : item);
 
   useEffect(() => {
     if (!onboarded) return;
     let alive = true;
-    fetch("/api/operator/wallet/balance")
-      .then((r) => r.json())
-      .then((j) => {
-        if (!alive) return;
-        if (j.error) {
-          setBalanceErr(j.error);
-        } else {
-          setBalance({
-            availableCents: j.availableCents,
-            pendingCents: j.pendingCents,
-          });
-        }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    fetch("/api/operator/wallet/balance", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || data.error || !Number.isSafeInteger(data.availableCents) || data.availableCents < 0) throw new Error("balance_failed");
+        return data;
       })
-      .catch(() => alive && setBalanceErr("balance_failed"));
-    return () => {
-      alive = false;
-    };
-  }, [onboarded]);
+      .then((data) => {
+        if (!alive) return;
+        setBalanceErr(null);
+        setBalance({
+          availableCents: data.availableCents,
+          currency: typeof data.currency === "string" && /^[A-Z]{3}$/.test(data.currency) ? data.currency : "COP",
+          pendingCents: data.pendingCents,
+          pendingStatus: data.pendingStatus,
+          pendingUpdatedAt: data.pendingUpdatedAt,
+        });
+      })
+      .catch(() => { if (alive) { setBalance(null); setBalanceErr("balance_failed"); } })
+      .finally(() => { clearTimeout(timer); if (alive) setBalanceLoading(false); });
+    return () => { alive = false; clearTimeout(timer); controller.abort(); };
+  }, [onboarded, balanceReload]);
+
+  function refreshBalance() {
+    setBalanceLoading(true);
+    setBalanceErr(null);
+    setBalanceReload((value) => value + 1);
+  }
 
   async function savePolicy(next: AutoPolicy) {
     setSavingPolicy(true);
@@ -133,36 +168,31 @@ export function WalletClient({
       <div className="font-display text-3xl mb-1">{t("title")}</div>
       <p className="text-sm text-op-muted mb-6">{t("subtitle")}</p>
 
-      <div className="rounded-2xl bg-ink text-bone p-6 mb-6">
-        <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70 mb-1">
-          {t("availableBalance")}
-        </div>
-        <div className="font-display text-4xl tabular">
-          {balance ? fmtCOP(balance.availableCents) : t("loadingEllipsis")}
-        </div>
-        {balance && balance.pendingCents > 0 && (
-          <div className="text-xs opacity-70 mt-1">
-            {t("pending", { amount: fmtCOP(balance.pendingCents) })}
+      <div className="rounded-2xl bg-ink text-bone p-5 sm:p-6 mb-6">
+        <div className="grid items-start gap-5 sm:grid-cols-2">
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] tracking-[0.18em] uppercase opacity-70 mb-1">{t("availableBalance")}</div>
+            <div className="break-words font-display text-4xl leading-tight tabular-nums" aria-live="polite">
+              {balance ? formatMoney(balance.availableCents, { currency: balance.currency, locale }) : t(balanceLoading ? "loadingEllipsis" : "balanceUnavailable")}
+            </div>
+            {balanceErr && <p role="alert" className="mt-3 text-xs text-amber-100">{t("balanceFailedHint")}</p>}
+            <button type="button" onClick={refreshBalance} disabled={balanceLoading} className="mt-4 min-h-11 rounded-full border border-bone/30 px-4 py-2 text-xs font-medium hover:bg-bone/10 disabled:opacity-50">{t(balanceLoading ? "refreshingBalance" : "refreshBalance")}</button>
           </div>
-        )}
-        {balanceErr && (
-          <div className="text-xs text-danger mt-2">
-            {t("balanceError", { code: balanceErr })}
-          </div>
-        )}
+          <WalletTrackingSummary tracking={tracking} dark />
+        </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setDisperseOpen(true)}
-            disabled={!balance || balance.availableCents <= 0 || !bankLabel}
+            onClick={() => { if (payout.beginNew()) setDisperseOpen(true); }}
+            disabled={payout.blocked || unresolvedLegacy || balanceLoading || !balance || balance.availableCents <= 0 || !bankLabel}
             className="h-10 px-5 rounded-full bg-bone text-ink text-sm font-medium disabled:opacity-50"
           >
             {t("toBank")}
           </button>
           <button
             type="button"
-            onClick={() => setTransferOpen(true)}
-            disabled={!balance || balance.availableCents <= 0}
+            onClick={() => { if (payout.beginNew()) setTransferOpen(true); }}
+            disabled={payout.blocked || unresolvedLegacy || balanceLoading || !balance || balance.availableCents <= 0}
             className="h-10 px-5 rounded-full border border-bone/30 text-bone text-sm font-medium disabled:opacity-50"
           >
             {t("toOther")}
@@ -185,11 +215,16 @@ export function WalletClient({
         )}
       </div>
 
+      {!disperseOpen && !transferOpen && <MerchantPayoutNotice payout={payout} />}
+      {unresolvedLegacy && <p role="status" className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{t("payoutLegacyReview")}</p>}
+      <div className="mb-8"><WalletTrackingPanel tracking={tracking} /></div>
+      <details className="mb-8 rounded-2xl border border-op-border bg-op-surface p-5" onToggle={(event) => setReportOpen(event.currentTarget.open)}><summary className="cursor-pointer text-sm font-medium">{tt("optionalReport")}</summary><p className="my-3 text-sm text-op-muted">{tt("optionalReportHint")}</p>{reportOpen && <WalletIncomingActivity key={restaurantId} surface="operator" scopeId={restaurantId} />}</details>
+
       {initialPayouts.length > 0 && (
         <section className="mb-8">
           <div className="font-display text-xl mb-3">{t("payoutsTitle")}</div>
           <ul className="divide-y divide-op-border border-y border-op-border">
-            {initialPayouts.map((p) => (
+            {visiblePayouts.map((p) => (
               <li
                 key={p.id}
                 className="py-3 flex items-center justify-between gap-4"
@@ -204,12 +239,12 @@ export function WalletClient({
                   </div>
                   <div className="text-[11px] text-op-muted mt-0.5 truncate">
                     {p.toOwnAccount ? t("payoutToOwn") : p.holderName} ·{" "}
-                    {new Date(p.createdAt).toLocaleString("es-CO")}
+                    {formatDate(p.createdAt, { locale, timeZone: "America/Bogota" })}
                   </div>
                   {p.responseText &&
                     (p.status === "declined" || p.status === "failed") && (
                       <div className="text-[11px] text-danger mt-0.5 truncate">
-                        {p.responseText}
+                        {t("payoutFailedHint")}
                       </div>
                     )}
                 </div>
@@ -218,6 +253,7 @@ export function WalletClient({
                     −{fmtCOP(p.amountCents)}
                   </div>
                   <PayoutStatusChip status={p.status} t={t} />
+                  {p.idempotencyKey && (p.status === "initialized" || p.status === "submitting" || p.status === "unknown") && <button type="button" disabled={payout.busy || Boolean(payout.pending && payout.pending.idempotencyKey !== p.idempotencyKey)} className="mt-2 block text-xs underline disabled:opacity-50" onClick={() => void payout.recover(p.idempotencyKey!)}>{t("payoutCheck")}</button>}
                 </div>
               </li>
             ))}
@@ -240,7 +276,7 @@ export function WalletClient({
                   <div className="text-sm truncate">{m.description}</div>
                   <div className="text-[11px] text-op-muted mt-0.5">
                     {humanKind(m.kind, t)} ·{" "}
-                    {new Date(m.occurredAt).toLocaleString("es-CO")}
+                    {formatDate(m.occurredAt, { locale, timeZone: "America/Bogota" })}
                   </div>
                 </div>
                 <div className="text-right">
@@ -322,340 +358,8 @@ export function WalletClient({
         </div>
       </section>
 
-      {disperseOpen && balance && bankLabel && (
-        <DisperseSheet
-          maxCents={balance.availableCents}
-          bankLabel={bankLabel}
-          onClose={() => setDisperseOpen(false)}
-          onSuccess={() => {
-            setDisperseOpen(false);
-            startTx(() => router.refresh());
-          }}
-        />
-      )}
-      {transferOpen && balance && (
-        <TransferSheet
-          maxCents={balance.availableCents}
-          onClose={() => setTransferOpen(false)}
-          onSuccess={() => {
-            setTransferOpen(false);
-            startTx(() => router.refresh());
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function DisperseSheet({
-  maxCents,
-  bankLabel,
-  onClose,
-  onSuccess,
-}: {
-  maxCents: number;
-  bankLabel: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const t = useTranslations("opWallet");
-  const [amount, setAmount] = useState<number>(maxCents);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function go() {
-    if (amount <= 0 || amount > maxCents) {
-      setErr(t("invalidAmount"));
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    const res = await fetch("/api/operator/wallet/disperse", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amountCents: amount }),
-    });
-    setBusy(false);
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setErr(j.message ?? j.error ?? t("disperseError"));
-      return;
-    }
-    onSuccess();
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/50 flex items-end md:items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        className="w-full md:max-w-md bg-bone text-ink rounded-t-3xl md:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-5 border-b border-hairline flex items-center justify-between">
-          <div className="font-display text-xl">{t("toBank")}</div>
-          <button onClick={onClose} className="text-muted text-sm">
-            {t("close")}
-          </button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-            {t("destination", { bank: bankLabel })}
-          </div>
-          <MoneyField
-            label={t("amount")}
-            valueCents={amount}
-            onChangeCents={setAmount}
-            maxCents={maxCents}
-            hint={t("max", { amount: fmtCOP(maxCents) })}
-          />
-          {err && <div className="text-danger text-sm">{err}</div>}
-          <button
-            onClick={go}
-            disabled={busy || amount <= 0}
-            className="mp-btn mp-btn--accent mp-btn--block"
-          >
-            {busy ? t("processing") : t("sendAmount", { amount: fmtCOP(amount) })}
-          </button>
-          <p className="text-[11px] text-muted-2 text-center">
-            {t("disperseNote")}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Transferir a OTRA cuenta (proveedor, empleado, etc.): banco del bankList
- * de payouts, tipo/número de cuenta, documento y nombre del titular, monto.
- * El resultado final de la transferencia llega por ciclo ACH.
- */
-function TransferSheet({
-  maxCents,
-  onClose,
-  onSuccess,
-}: {
-  maxCents: number;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const t = useTranslations("opWallet");
-  const [banks, setBanks] = useState<Array<{ id: string; name: string }> | null>(null);
-  const [banksErr, setBanksErr] = useState(false);
-  const [bankId, setBankId] = useState("");
-  const [accountType, setAccountType] = useState<"ahorros" | "corriente">("ahorros");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [docType, setDocType] = useState<"CC" | "CE" | "NIT" | "PA">("CC");
-  const [docNumber, setDocNumber] = useState("");
-  const [holderName, setHolderName] = useState("");
-  const [amount, setAmount] = useState<number>(0);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/operator/wallet/banks")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("banks"))))
-      .then((j) => {
-        if (alive) setBanks(j.banks as Array<{ id: string; name: string }>);
-      })
-      .catch(() => {
-        if (alive) setBanksErr(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const canSend =
-    !busy &&
-    bankId !== "" &&
-    accountNumber.trim().length >= 4 &&
-    docNumber.trim().length >= 4 &&
-    holderName.trim().length >= 3 &&
-    amount > 0 &&
-    amount <= maxCents;
-
-  async function go() {
-    if (!canSend) return;
-    setBusy(true);
-    setErr(null);
-    const bank = banks?.find((b) => b.id === bankId);
-    const res = await fetch("/api/operator/wallet/disperse", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        amountCents: amount,
-        destination: {
-          bankId,
-          bankName: bank?.name ?? bankId,
-          accountType,
-          accountNumber: accountNumber.trim(),
-          docType,
-          docNumber: docNumber.trim(),
-          holderName: holderName.trim(),
-        },
-      }),
-    });
-    setBusy(false);
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setErr(j.message ?? j.error ?? t("disperseError"));
-      return;
-    }
-    setDone(typeof j.providerRef === "string" ? j.providerRef : "");
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/50 flex items-end md:items-center justify-center"
-      onClick={() => !busy && onClose()}
-    >
-      <div
-        className="w-full md:max-w-md bg-bone text-ink rounded-t-3xl md:rounded-3xl max-h-[92dvh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-5 border-b border-hairline flex items-center justify-between">
-          <div className="font-display text-xl">{t("toOther")}</div>
-          <button onClick={onClose} className="text-muted text-sm">
-            {t("close")}
-          </button>
-        </div>
-        {done !== null ? (
-          <div className="p-5 space-y-4">
-            <p className="text-sm">{t("transferInitiated")}</p>
-            {done && (
-              <div className="font-mono text-[11px] break-all text-muted">
-                {done}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={onSuccess}
-              className="mp-btn mp-btn--primary mp-btn--block"
-            >
-              {t("close")}
-            </button>
-          </div>
-        ) : (
-          <div className="p-5 space-y-3">
-            <label className="block">
-              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                {t("transferBank")}
-              </span>
-              {banksErr ? (
-                <div className="mt-1 text-xs text-danger">{t("banksError")}</div>
-              ) : (
-                <select
-                  value={bankId}
-                  onChange={(e) => setBankId(e.target.value)}
-                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
-                >
-                  <option value="">
-                    {banks === null ? t("loadingBanks") : t("chooseBank")}
-                  </option>
-                  {(banks ?? []).map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  {t("transferAccountType")}
-                </span>
-                <select
-                  value={accountType}
-                  onChange={(e) =>
-                    setAccountType(e.target.value as "ahorros" | "corriente")
-                  }
-                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
-                >
-                  <option value="ahorros">{t("accountSavings")}</option>
-                  <option value="corriente">{t("accountChecking")}</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  {t("transferAccountNumber")}
-                </span>
-                <input
-                  inputMode="numeric"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm tabular"
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <label className="block">
-                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  {t("transferDocType")}
-                </span>
-                <select
-                  value={docType}
-                  onChange={(e) =>
-                    setDocType(e.target.value as "CC" | "CE" | "NIT" | "PA")
-                  }
-                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
-                >
-                  <option value="CC">{"CC"}</option>
-                  <option value="CE">{"CE"}</option>
-                  <option value="NIT">{"NIT"}</option>
-                  <option value="PA">{t("docPassport")}</option>
-                </select>
-              </label>
-              <label className="col-span-2 block">
-                <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                  {t("transferDocNumber")}
-                </span>
-                <input
-                  inputMode="numeric"
-                  value={docNumber}
-                  onChange={(e) => setDocNumber(e.target.value)}
-                  className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm tabular"
-                />
-              </label>
-            </div>
-            <label className="block">
-              <span className="font-mono text-[10px] tracking-wider uppercase text-muted">
-                {t("transferHolder")}
-              </span>
-              <input
-                value={holderName}
-                onChange={(e) => setHolderName(e.target.value)}
-                className="mt-1 w-full h-11 px-3 rounded-lg border border-hairline bg-ivory text-sm"
-              />
-            </label>
-            <MoneyField
-              label={t("amount")}
-              valueCents={amount}
-              onChangeCents={setAmount}
-              maxCents={maxCents}
-              hint={t("max", { amount: fmtCOP(maxCents) })}
-            />
-            {err && <div className="text-danger text-sm">{err}</div>}
-            <button
-              onClick={go}
-              disabled={!canSend}
-              className="mp-btn mp-btn--accent mp-btn--block"
-            >
-              {busy
-                ? t("processing")
-                : t("sendAmount", { amount: fmtCOP(amount) })}
-            </button>
-            <p className="text-[11px] text-muted-2 text-center">
-              {t("transferNote")}
-            </p>
-          </div>
-        )}
-      </div>
+      {disperseOpen && bankLabel && <MerchantPayoutSheet payout={payout} currency={balance?.currency ?? "COP"} maxCents={balance?.availableCents ?? 0} bankLabel={bankLabel} ownDestinationFingerprint={ownDestinationFingerprint} onClose={() => setDisperseOpen(false)} />}
+      {transferOpen && <MerchantPayoutSheet payout={payout} currency={balance?.currency ?? "COP"} maxCents={balance?.availableCents ?? 0} onClose={() => setTransferOpen(false)} />}
     </div>
   );
 }
@@ -668,6 +372,8 @@ function PayoutStatusChip({
   t: (key: string) => string;
 }) {
   const map: Record<Payout["status"], { cls: string; key: string }> = {
+    submitting: { cls: "bg-amber-100 text-amber-800", key: "payoutSubmitting" },
+    unknown: { cls: "bg-amber-100 text-amber-800", key: "payoutUnknown" },
     initialized: { cls: "bg-amber-100 text-amber-800", key: "payoutInitialized" },
     approved: { cls: "bg-ok/15 text-ok", key: "payoutApproved" },
     declined: { cls: "bg-danger/15 text-danger", key: "payoutDeclined" },

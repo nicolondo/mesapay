@@ -1,4 +1,5 @@
 import { lockStock } from "@/lib/orderLock";
+import { barcodeTakenResponse } from "@/lib/erp/barcodeOwner";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import { disableInventoryTracking } from "@/lib/erp/stockTracking";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { EMPTY_INGREDIENT_COST_VIEW, loadIngredientCostViews } from "@/lib/erp/recipeData";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -104,9 +106,7 @@ async function PATCHHandler(
       },
       select: { ingredientId: true },
     });
-    if (dupCode && dupCode.ingredientId !== id) {
-      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
-    }
+    if (dupCode && dupCode.ingredientId !== id) return barcodeTakenResponse(ctx.restaurantId, barcode);
   }
 
   const updated = await db.$transaction(async (tx) => {
@@ -173,6 +173,7 @@ async function PATCHHandler(
     throw error;
   });
   if ("error" in updated) {
+    if (updated.error === "barcode_taken" && barcode) return barcodeTakenResponse(ctx.restaurantId, barcode);
     return NextResponse.json(updated, { status: updated.error === "not_found" ? 404 : 409 });
   }
   const { ingredient, previousPrice, previousMeasureKind } = updated;
@@ -189,7 +190,10 @@ async function PATCHHandler(
       },
     });
   }
-  return NextResponse.json({ ingredient });
+  const costViews = await loadIngredientCostViews(ctx.restaurantId);
+  return NextResponse.json({ ingredient: {
+    ...ingredient, ...(costViews.get(ingredient.id) ?? EMPTY_INGREDIENT_COST_VIEW),
+  } });
 }
 
 /** DELETE = soft-delete (active:false). Las fases A1-A4 referencian

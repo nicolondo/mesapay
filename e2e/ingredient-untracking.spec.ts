@@ -68,7 +68,8 @@ for (const width of [390, 1440]) {
       expect(await db.stockMovement.count({ where: { ingredientId: f.ingredient.id } })).toBe(1);
       await page.goto("/operator/inventario");
       await page.getByRole("tab", { name: es.opErp.tabMovements, exact: true }).click();
-      await expect(page.getByText(es.opErp.stockResetMovementNote, { exact: true })).toBeVisible();
+      // La nota existe en la tabla (escritorio) y en las tarjetas (celular): se mira la visible.
+      await expect(page.getByText(es.opErp.stockResetMovementNote, { exact: true }).filter({ visible: true })).toHaveCount(1);
       await expect(page.getByText("inventory_tracking_disabled", { exact: true })).toHaveCount(0);
     } finally { await f.cleanup(); }
   });

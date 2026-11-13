@@ -4,17 +4,17 @@
  * depende qué puede hacer el staff para destrabar la cuenta.
  *
  *   - `in_flight`: el cobro síncrono (`terminal/charge`, hasta ~95 s) todavía
- *     puede estar esperando la tarjeta. Lo único que se ofrece es
- *     «Cancelar en el datáfono» (abort): el equipo deja de esperar y el cobro
- *     vuelve con la respuesta de la cancelación, que libera la cuenta sola.
- *     NUNCA se marca rechazado acá: la respuesta todavía puede ser aprobado.
+ *     puede estar esperando la tarjeta. «Cancelar en el datáfono» (abort)
+ *     pide la cancelación al equipo. El administrador también puede resolver
+ *     manualmente con evidencia: esa acción usa una ruta independiente,
+ *     nunca convierte una respuesta ausente en un rechazo automático.
  *   - `answered`: el datáfono contestó que NO aprobó, con un código que no es
  *     definitivo (p. ej. "ocupado con otra transacción"). El cobro síncrono ya
  *     terminó. Cualquiera que pueda cobrar la mesa (mesero incluido) puede
  *     «Reintentar en el datáfono» o «Cancelar y cobrar de otra forma» al
  *     instante, confirmando en la pantalla del equipo que no salió.
  *   - `no_answer`: no hubo respuesta (timeout, red, 5xx) o pasó demasiado
- *     tiempo: el equipo PUDO cobrar. Sólo el administrador, pasados 3 minutos
+ *     tiempo: el equipo PUDO cobrar. Sólo el administrador, sin espera obligatoria
  *     y con evidencia ("Resolver cobro", ver terminalResolve.ts).
  *
  * Archivo sin dependencias de servidor: lo usan la ruta

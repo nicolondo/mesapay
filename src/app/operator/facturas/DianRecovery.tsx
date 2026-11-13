@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { DianRecoveryAction, DianRejectionCause } from "@/lib/dian/invoiceResponse";
+import { adviceCauseKey } from "@/lib/dian/invoiceRowView";
 import { blockReasonText } from "./EmissionBanner";
 
 /**
@@ -19,13 +20,16 @@ import { blockReasonText } from "./EmissionBanner";
  *     pero ya no es lo único que se lee.
  *   · `DianRecoveryButton` — «Reenviar a la DIAN» / «Consultar en la DIAN»
  *     (`POST /api/operator/dian/documents/[id]/recover`), con su resultado.
+ *   · `useDianRecovery` — la misma acción sin el botón: la fila compacta de
+ *     Facturas la pone como acción principal (o en el menú «⋯») y muestra el
+ *     resultado debajo de la fila.
  */
 
 export type DianAdvice = { cause: DianRejectionCause; action: DianRecoveryAction };
 
 /** Claves de la causa: la sin confirmar (pending) tiene su propio texto. */
 function causeKey(advice: DianAdvice, waiting: boolean): string {
-  return waiting && advice.cause === "already_at_dian" ? "unverified" : advice.cause;
+  return adviceCauseKey(advice, waiting ? "in_process" : "rejected") ?? advice.cause;
 }
 
 export function DianCauseNotice({
@@ -85,6 +89,51 @@ export function DianRecoveryButton({
   /** "menuItem": sin borde, a todo el ancho, para un menú «⋯». */
   variant?: "button" | "menuItem";
 }) {
+  const recovery = useDianRecovery(documentId, action, invoiceNumber);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={recovery.run}
+        disabled={recovery.busy}
+        className={
+          variant === "menuItem"
+            ? "w-full text-left px-3 py-2 text-sm hover:bg-op-bg disabled:opacity-60"
+            : "mp-btn mp-btn--secondary mp-btn--sm"
+        }
+      >
+        {recovery.label}
+      </button>
+      {recovery.msg && (
+        <span
+          role="status"
+          className={"basis-full text-[11px] " + (recovery.msg.ok ? "text-[#1E5339]" : "text-danger")}
+        >
+          {recovery.msg.text}
+        </span>
+      )}
+    </>
+  );
+}
+
+export type DianRecoveryState = {
+  run: () => Promise<void>;
+  busy: boolean;
+  msg: { ok: boolean; text: string } | null;
+  /** «Reenviar a la DIAN» / «Consultar en la DIAN» (o su texto de espera). */
+  label: string;
+};
+
+/**
+ * «Reenviar a la DIAN» / «Consultar en la DIAN» sin botón propio. `action`
+ * null ⇒ la factura no tiene acción recomendada y `run` no hace nada (el
+ * hook se llama igual en todas las filas).
+ */
+export function useDianRecovery(
+  documentId: string,
+  action: Exclude<DianRecoveryAction, "none"> | null,
+  invoiceNumber: string,
+): DianRecoveryState {
   const t = useTranslations("opEInvoices");
   const tf = useTranslations("opFacturas");
   const router = useRouter();
@@ -123,7 +172,7 @@ export function DianRecoveryButton({
   }
 
   async function run() {
-    if (busy) return;
+    if (busy || !action) return;
     if (resend && !window.confirm(t("resendConfirm", { number: invoiceNumber }))) return;
     setBusy(true);
     setMsg(null);
@@ -148,28 +197,5 @@ export function DianRecoveryButton({
   const label = busy
     ? t(resend ? "actionResending" : "actionChecking")
     : t(resend ? "actionResend" : "actionCheck");
-  return (
-    <>
-      <button
-        type="button"
-        onClick={run}
-        disabled={busy}
-        className={
-          variant === "menuItem"
-            ? "w-full text-left px-3 py-2 text-sm hover:bg-op-bg disabled:opacity-60"
-            : "mp-btn mp-btn--secondary mp-btn--sm"
-        }
-      >
-        {label}
-      </button>
-      {msg && (
-        <span
-          role="status"
-          className={"basis-full text-[11px] " + (msg.ok ? "text-[#1E5339]" : "text-danger")}
-        >
-          {msg.text}
-        </span>
-      )}
-    </>
-  );
+  return { run, busy, msg, label };
 }

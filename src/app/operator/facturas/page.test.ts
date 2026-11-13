@@ -20,6 +20,7 @@ const m = vi.hoisted(() => ({
   simpleInvoiceFindMany: vi.fn(),
   simpleInvoiceCount: vi.fn(),
   loadInvoiceListPage: vi.fn(),
+  loadInvoiceStateCounts: vi.fn(),
   countRecentRejected: vi.fn(),
   loadLateInvoiceRequests: vi.fn(),
 }));
@@ -45,6 +46,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: 
 // se muestra con lo que devuelven.
 vi.mock("@/lib/dian/invoiceListQueries", () => ({
   loadInvoiceListPage: m.loadInvoiceListPage,
+  loadInvoiceStateCounts: m.loadInvoiceStateCounts,
   countRecentRejected: m.countRecentRejected,
   loadLateInvoiceRequests: m.loadLateInvoiceRequests,
 }));
@@ -256,6 +258,7 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     m.restaurantFindUnique.mockResolvedValue({ enabledModules: ["einvoicing"], businessDayCutoffHour: 5 });
     m.pendingEmissionSummary.mockResolvedValue({ waiting: 0, blockedBy: null, blockedCount: 0, numbersLeft: 2156 });
     m.loadInvoiceListPage.mockResolvedValue({ rows: ROWS, total: 73, page: 1, pageCount: 2 });
+    m.loadInvoiceStateCounts.mockResolvedValue({ all: 73, rejected: 17, in_process: 4, accepted: 52 });
     m.countRecentRejected.mockResolvedValue({ count: 17, from: "2026-10-02", to: "2026-10-31" });
     m.loadLateInvoiceRequests.mockResolvedValue(LATE);
   });
@@ -281,6 +284,11 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
       { state: "rejected", from: "2026-10-01", to: "2026-10-31", q: "tornillo", page: 2 },
       5,
     );
+    expect(m.loadInvoiceStateCounts).toHaveBeenCalledWith(
+      "rest-1",
+      { state: "rejected", from: "2026-10-01", to: "2026-10-31", q: "tornillo", page: 2 },
+      5,
+    );
     expect(m.countRecentRejected).toHaveBeenCalledWith("rest-1", 5);
     expect(m.loadLateInvoiceRequests).toHaveBeenCalledWith("rest-1");
   });
@@ -293,9 +301,49 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     expect(html).toContain("900123456");
     expect(html).toContain("Aceptada");
     expect(html).toContain("Rechazada");
-    expect(html).toContain("Regla: FAD06, Rechazo: el total no cuadra");
+    // El motivo en una línea: el código de la regla aparte y la frase sola;
+    // el texto crudo de la DIAN queda en el título y en el detalle.
+    expect(html).toContain(">FAD06<");
+    expect(html).toContain(">el total no cuadra<");
+    expect(html).toContain('title="Regla: FAD06, Rechazo: el total no cuadra"');
+    expect(html).toContain("Regla: FAD06, Rechazo: el total no cuadra</li>");
     expect(html).toContain("Enviada a ana@correo.com");
     expect(html).toContain("NC12 · Aceptada");
+  });
+
+  it("fila compacta: menú «⋯» accesible (cerrado, en el HTML) y detalle plegado", async () => {
+    const html = await renderOn();
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('aria-label="Más acciones para la factura FESM7845"');
+    expect(html).toMatch(/role="menu"[^>]*hidden=""/);
+    expect(html).not.toMatch(/aria-expanded="true"/);
+    // «Ver pedido» y «Ver detalle», nuevos en el menú.
+    expect(html).toContain('href="/operator/orders/order-1"');
+    expect(html).toContain("Ver detalle");
+    // El detalle (estado explicado, qué hacer, correo) va plegado.
+    expect(html).toContain("La DIAN la evaluó y no la aceptó. No se reintenta sola.");
+  });
+
+  it("acción principal por estado: Reimprimir en la aceptada, Reintentar en la rechazada", async () => {
+    const html = await renderOn();
+    expect(html).toContain('aria-label="Reimprimir factura · FESM7845"');
+    expect(html).toContain('aria-label="Reintentar emisión · FESM7846"');
+    expect(html).toContain(">Reimprimir<");
+    expect(html).toContain(">Reintentar<");
+  });
+
+  it("cuenta de cada pestaña de estado en los filtros", async () => {
+    const html = await renderOn();
+    expect(html).toMatch(/Rechazadas<span[^>]*>17<\/span>/);
+    expect(html).toMatch(/Aceptadas<span[^>]*>52<\/span>/);
+    expect(html).toMatch(/Todas<span[^>]*>73<\/span>/);
+  });
+
+  it("tú, no vos: sin voseo en lo que ve el operador", async () => {
+    const html = await renderOn();
+    for (const vos of ["Reintentá", "Intentá", "Completá", "anulala", "marcala", "reintentala", "Completala", "Pedí "]) {
+      expect(html).not.toContain(vos);
+    }
   });
 
   it("acciones: ver / reimprimir / reenviar de siempre, anular con nota crédito preseleccionada y reintentar con advertencia", async () => {
@@ -310,8 +358,9 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     expect(html).toContain("La DIAN ya rechazó esta factura.");
   });
 
-  it("aviso de rechazadas en 30 días con enlace a su filtro", async () => {
+  it("«Por atender»: rechazadas en 30 días con enlace a su filtro", async () => {
     const html = await renderOn();
+    expect(html).toContain('id="facturas-atender-title"');
     expect(html).toContain("17 facturas rechazadas en los últimos 30 días.");
     expect(html).toContain('href="/operator/facturas?state=rejected&amp;from=2026-10-02&amp;to=2026-10-31"');
   });
@@ -327,6 +376,8 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     expect(html).toContain('href="/operator/facturas/notas-credito?factura=inv-cf"');
     expect(html).toContain("Anular y emitir nota crédito");
     expect(html).toContain("Marcar como resuelta");
+    // Plegado: se despliega desde «Revisar» en la franja.
+    expect(html).toMatch(/aria-expanded="false" aria-controls="[^"]+"[^>]*>.*?Revisar/);
   });
 
   it("sin rechazadas ni casos tardíos, no hay avisos", async () => {
@@ -335,12 +386,15 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     const html = await renderOn();
     expect(html).not.toContain("rechazadas en los últimos 30 días");
     expect(html).not.toContain("después de que se emitió a consumidor final");
+    expect(html).not.toContain('id="facturas-atender-title"');
   });
 
-  it("paginación: página y total, y el siguiente conserva los filtros", async () => {
+  it("paginación: «Mostrando X–Y de N», y el siguiente conserva los filtros y deja la vista en la lista", async () => {
     const html = await renderOn({ state: "accepted", q: "ana" });
-    expect(html).toContain("Página 1 de 2 · 73 facturas");
+    expect(html).toContain("Mostrando 1–2 de 73 facturas");
+    expect(html).toContain("Página 1 de 2");
     expect(html).toContain('href="/operator/facturas?state=accepted&amp;q=ana&amp;page=2#facturas-lista"');
+    expect(html).toContain('id="facturas-lista"');
     expect(html).not.toContain(">Anterior<");
   });
 
@@ -381,6 +435,14 @@ describe("/operator/facturas CON facturación electrónica: lista de facturas", 
     expect(html.match(/>Consultar en la DIAN</g)).toHaveLength(4);
     // Para esas causas no aparece el «Reintentar emisión» de siempre.
     expect(html).not.toContain("Reintentar emisión");
+    // Fila compacta: la recomendada es la acción principal (con su nombre
+    // accesible) y el motivo de una línea lleva la explicación en el título.
+    expect(html).toContain('aria-label="Reenviar a la DIAN · FESM7913"');
+    expect(html).toContain('aria-label="Consultar en la DIAN · FESM7920"');
+    expect(html).toContain(">Producto en $0: la DIAN no acepta líneas sin valor<");
+    expect(html).toContain(
+      'title="Tenía un producto en $0 (por ejemplo, una cortesía) y la DIAN no acepta líneas sin valor. Ya lo corregimos: los productos sin costo no van en la factura y el total no cambia. Reenvíala con el mismo número."',
+    );
   });
 
   it("el filtro de estado cambia de estado y vuelve a la página 1", async () => {

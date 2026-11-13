@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
+import { loadIngredientCostViews } from "@/lib/erp/recipeData";
 import { InsumosClient } from "./InsumosClient";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,11 @@ const GATE: ModuleSlug[] = ["inventory", "purchasing", "recipes"];
  * Solo visible con algún módulo del track A activado; con todo apagado
  * la página no existe (notFound) y la card en settings tampoco aparece.
  */
-export default async function InsumosSettingsPage() {
+export default async function InsumosSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = await getTranslations("opErp");
   const tSettings = await getTranslations("opSettings");
   const restaurantId = await getActiveRestaurantId();
@@ -41,7 +46,8 @@ export default async function InsumosSettingsPage() {
   // Moneda = país del comercio (regla idioma ≠ moneda de @/lib/format).
   const currency = await getCurrencyForCountry(tenant.country);
 
-  const ingredients = await db.ingredient.findMany({
+  const { editar } = await searchParams;
+  const [ingredients, costs] = await Promise.all([db.ingredient.findMany({
     where: { restaurantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
@@ -51,6 +57,8 @@ export default async function InsumosSettingsPage() {
       measureKind: true,
       sku: true,
       barcode: true,
+      // Todos los códigos: el buscador encuentra el insumo por cualquiera.
+      barcodes: { where: { restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
       notes: true,
       active: true,
       trackInventory: true,
@@ -61,7 +69,11 @@ export default async function InsumosSettingsPage() {
       reorderQtyBase: true,
       _count: { select: { supplierItems: true } },
     },
-  });
+  }), loadIngredientCostViews(restaurantId)]);
+  const initial = ingredients.map(ingredient => ({
+    ...ingredient,
+    ...(costs.get(ingredient.id) ?? { costPerBase: null, costSource: null, purchaseCost: null }),
+  }));
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -77,9 +89,11 @@ export default async function InsumosSettingsPage() {
       <p className="text-sm text-op-muted mb-6">{t("insumosIntro")}</p>
 
       <InsumosClient
-        initial={ingredients}
+        initial={initial}
         currency={currency}
         canImport={canImport}
+        // «Editar insumo» desde el menú ⋯ de Inventario abre su ficha.
+        initialEditId={typeof editar === "string" ? editar : null}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { MAX_MENU_PRICE_CENTS } from "@/lib/menus";
 import { z } from "zod";
 import { env, requireAnthropicKey } from "./env";
 import { inferPurchaseInvoiceTaxBases } from "./erp/invoiceTaxBasis";
+import { InvoiceExtractionError } from "./erp/invoiceExtractionError";
 
 /**
  * Anthropic client + small surface for the features we use today.
@@ -893,6 +894,65 @@ Reglas estrictas:
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
+/** Read a complete response, never repair or concatenate fragments of an invoice. */
+async function readPurchaseInvoice(
+  c: Anthropic,
+  content: Anthropic.Messages.ContentBlockParam[],
+): Promise<z.infer<typeof RawInvoiceSchema>> {
+  // These 4.5 models support 64k output tokens. Keep the previous budget for
+  // custom/older models rather than requesting an unsupported output limit.
+  const largeOutput = /^claude-(?:haiku|sonnet)-4-5(?:-|$)/.test(env.ANTHROPIC_MODEL);
+  const budgets = largeOutput ? [32_000, 64_000] : [8192, 8192];
+  const deadline = new AbortController();
+  // One deadline shared by both attempts, below nginx's 600-second timeout.
+  const timer = setTimeout(() => deadline.abort(), 480_000);
+  try {
+    for (let attempt = 0; attempt < budgets.length; attempt++) {
+      const stream = c.messages.stream({
+        model: env.ANTHROPIC_MODEL,
+        max_tokens: budgets[attempt],
+        system: [{ type: "text", text: PURCHASE_INVOICE_SYSTEM, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: [
+          ...content,
+          { type: "text", text: attempt === 0
+            ? "Devuelve JSON compacto, sin sangría ni bloques Markdown. Incluye todas las líneas y los totales del documento."
+            : "La lectura anterior no pudo completarse o validarse. Vuelve a leer TODO el documento original y devuelve un único JSON compacto válido, con todas las líneas y los totales. No continúes una respuesta anterior ni inventes datos." },
+        ] }],
+      }, { signal: deadline.signal, timeout: 480_000, maxRetries: 0 });
+      const resp = await stream.finalMessage();
+      // Even a parseable fragment is unsafe when the provider says it stopped
+      // early. Refusal/other termination modes are not retried or accepted.
+      if (resp.stop_reason !== "end_turn" && resp.stop_reason !== "max_tokens") {
+        throw new InvoiceExtractionError("ai_invalid_response");
+      }
+      const truncated = resp.stop_reason === "max_tokens";
+      if (!truncated) {
+        const text = resp.content
+          .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+          .map((b) => b.text).join("").trim();
+        const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+        let parsed: unknown;
+        try { parsed = JSON.parse(cleaned); } catch { /* Retry the original, never patch JSON. */ }
+        const result = RawInvoiceSchema.safeParse(parsed);
+        if (result.success) return result.data;
+      }
+      const code = truncated ? "ai_response_incomplete" : "ai_invalid_response";
+      console.warn("purchase_invoice_read_failed", {
+        code, attempt: attempt + 1, outputTokens: resp.usage.output_tokens,
+      });
+      if (attempt === budgets.length - 1) throw new InvoiceExtractionError(code);
+    }
+    throw new InvoiceExtractionError("ai_invalid_response");
+  } catch (error) {
+    if (deadline.signal.aborted || (error instanceof Error && error.name === "APIConnectionTimeoutError")) {
+      throw new InvoiceExtractionError("ai_timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Lee una factura de compra (PDF o imagen). El caller guarda el archivo
  * original; esto solo extrae los datos para que el operador los revise
@@ -930,62 +990,7 @@ export async function extractPurchaseInvoice(
           { type: "text", text: instruction },
         ];
 
-  const empty: PurchaseInvoiceExtraction = {
-    documentType: null,
-    supplierNit: null,
-    supplierName: null,
-    supplierInvoiceNumber: null,
-    issueDate: null,
-    currency: "unknown",
-    lines: [],
-    invoiceSubtotalCents: null,
-    invoiceDiscountCents: null,
-    invoiceTaxCents: null,
-    invoiceTotalCents: null,
-    invoiceIncCents: null,
-    retefuenteCents: null,
-    reteIvaCents: null,
-    reteIcaCents: null,
-    confidence: 0,
-    notes: "",
-  };
-
-  const resp = await c.messages.create({
-    model: env.ANTHROPIC_MODEL,
-    // Each line now also carries its printed discount; leave room so long
-    // invoices are not truncated into invalid JSON.
-    max_tokens: 8192,
-    system: [
-      {
-        type: "text",
-        text: PURCHASE_INVOICE_SYSTEM,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages: [{ role: "user", content }],
-  });
-
-  const text = resp.content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
-  const cleaned = text
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    return { ...empty, notes: `model returned non-JSON: ${text.slice(0, 200)}` };
-  }
-  const result = RawInvoiceSchema.safeParse(parsed);
-  if (!result.success) {
-    return { ...empty, notes: `schema mismatch: ${result.error.issues[0]?.message}` };
-  }
-  const r = result.data;
+  const r = await readPurchaseInvoice(c, content);
   // El modelo devuelve el TEXTO impreso; el CÓDIGO interpreta el número de
   // forma agnóstica al formato (CO/US) y convierte pesos → centavos. Se valida
   // contra el schema de salida (centavos) antes de devolver. Se descartan

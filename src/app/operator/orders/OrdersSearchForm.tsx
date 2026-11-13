@@ -31,6 +31,8 @@ export function OrdersSearchForm({ view, today }: { view: OrdersView; today: str
       className="flex w-full min-w-0 items-center gap-2 lg:w-auto"
     >
       {view.status !== "all" && <input type="hidden" name="status" value={view.status} />}
+      {view.source !== "all" && <input type="hidden" name="source" value={view.source} />}
+      {view.source === "tables" && view.tableId && <input type="hidden" name="tableId" value={view.tableId} />}
       {customPeriod && (
         <>
           <input type="hidden" name="desde" value={view.period.desde} />
@@ -59,6 +61,11 @@ export function OrdersSearchForm({ view, today }: { view: OrdersView; today: str
           type="search"
           name="q"
           defaultValue={view.q}
+          onChange={(e) => {
+            if (e.currentTarget.value === "" && view.q) {
+              router.push(ordersHref(view, today, { q: "" }), { scroll: false });
+            }
+          }}
           placeholder={t("searchPlaceholder")}
           aria-label={t("searchPlaceholder")}
           className="h-11 w-full min-w-0 rounded-lg border border-op-border bg-op-bg pl-9 pr-3 text-sm placeholder:text-op-muted focus:border-op-text/30 focus:outline-none lg:h-10"

@@ -281,6 +281,7 @@ describe("POST /api/operator/order-items/serve-all — qué sirve", () => {
   });
 
   it("en el bar con sub-estación sirve sólo lo de ESA sub-estación (según la categoría actual del plato)", async () => {
+    setRole("bar");
     m.store.items.push(
       item("b-cafe", { station: "bar", menuItem: { category: { barSubStation: "Cafetería" } } }),
       item("b-libre", { station: "bar", menuItemId: null, menuItem: null }),
@@ -295,6 +296,7 @@ describe("POST /api/operator/order-items/serve-all — qué sirve", () => {
   });
 
   it("el bar sin sub-estación activa sirve todo el bar (y nada de la cocina)", async () => {
+    setRole("bar");
     m.store.items.push(item("b-cafe", { station: "bar", menuItem: { category: { barSubStation: "Cafetería" } } }));
     const res = await post({ station: "bar", barSubStation: null, itemIds: ["b-1", "b-cafe", "k-1"] });
     expect(await res.json()).toMatchObject({ served: 2 });
@@ -412,6 +414,39 @@ describe("POST /api/operator/order-items/serve-all — transacción, evento y au
 });
 
 describe("POST /api/operator/order-items/serve-all — permisos", () => {
+  it("el rol bar sirve sólo sus pendientes y reintentar no vuelve a servirlos", async () => {
+    setRole("bar");
+    m.store.items.push(
+      item("b-cancelled", { station: "bar", cancelledAt: EARLIER, cancellationKind: "cancel" }),
+      item("b-served", { station: "bar", servedAt: EARLIER }),
+      item("b-foreign", { station: "bar", orderId: "o-x", roundId: "rd-x" }),
+    );
+    const body = { station: "bar", itemIds: ["b-1", "b-1", "b-cancelled", "b-served", "b-foreign", "k-1"] };
+    const first = await post(body);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ ok: true, served: 1, skipped: 4 });
+    expect(servedIds()).toEqual(["b-1"]);
+    const firstServedAt = (m.store.items as ItemRow[]).find(i => i.id === "b-1")!.servedAt;
+    const second = await post(body);
+    expect(await second.json()).toEqual({ ok: true, served: 0, skipped: 5 });
+    expect((m.store.items as ItemRow[]).find(i => i.id === "b-1")!.servedAt).toBe(firstServedAt);
+    expect(m.event).toHaveBeenCalledTimes(1);
+    expect(m.audit).toHaveBeenCalledTimes(1);
+    expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({
+      actor: { userId: "user-bar", email: "bar@test.co", role: "bar" },
+      target: { type: "station", id: "bar" },
+    }));
+  });
+
+  it("el rol bar no puede usar la acción masiva de cocina", async () => {
+    setRole("bar");
+    const res = await post({ station: "kitchen", itemIds: ["k-1", "b-1"] });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "forbidden" });
+    expect(m.dbFindMany).not.toHaveBeenCalled();
+    expect(m.transaction).not.toHaveBeenCalled();
+  });
+
   it.each(["operator", "group_admin", "platform_admin"])("%s (administración, también impersonando) puede", async (role) => {
     setRole(role);
     const res = await post({ station: "kitchen", itemIds: ["k-1"] });
@@ -419,12 +454,12 @@ describe("POST /api/operator/order-items/serve-all — permisos", () => {
     expect(servedIds()).toEqual(["k-1"]);
   });
 
-  it.each(["kitchen", "bar", "mesero", "terminal", "comercial", "customer"])(
+  it.each(["kitchen", "mesero", "terminal", "comercial", "customer"])(
     "%s recibe 403 y la base queda sin cambios",
     async (role) => {
       setRole(role);
       const before = JSON.stringify(m.store);
-      const res = await post({ station: role === "bar" ? "bar" : "kitchen", itemIds: ["k-1", "k-2", "b-1"] });
+      const res = await post({ station: "bar", itemIds: ["k-1", "k-2", "b-1"] });
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ error: "forbidden" });
       expect(JSON.stringify(m.store)).toBe(before);

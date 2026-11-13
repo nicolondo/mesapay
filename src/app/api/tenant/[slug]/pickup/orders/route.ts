@@ -4,6 +4,7 @@ import { markPaymentUncertain } from "@/lib/payments/intent";
 import { grantGuestAccess } from "@/lib/guestAccess";
 import { demoPaymentsAllowed } from "@/lib/payments/validation";
 import { secureApi } from "@/lib/secureApi";
+import { capturePaymentTrackingFields } from "@/lib/walletTrackingCapture";
 import { shortCode } from "@/lib/shortCode";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -166,9 +167,12 @@ async function POSTHandler(
   const readyEta = new Date(now.getTime() + etaMinutes * 60_000);
 
   const isKushki = parsed.data.method === "kushki_apple_pay";
-  const provider = isKushki ? await getPaymentProvider(await getRestaurantKushkiMode(tenant)) : null;
+  const mode = isKushki ? await getRestaurantKushkiMode(tenant) : "mock";
+  const provider = isKushki ? await getPaymentProvider(mode) : null;
   const privateKey = isKushki ? await getRestaurantPrivateKey(tenant.id) : null;
   if (isKushki && (!tenant.kushkiMerchantId || !privateKey || !parsed.data.token)) return NextResponse.json({ error: "credentials_missing" }, { status: 409 });
+  const currency = await getCurrencyForCountry(tenant.country);
+  const tracking = isKushki && privateKey ? await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, privateKey }) : {};
   if (!Number.isSafeInteger(subtotalCents) || subtotalCents <= 0 || subtotalCents > 2_000_000_000) return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   const requestKey = parsed.data.token ? createHash("sha256").update(`pickup:${tenant.id}:${parsed.data.token}`).digest("hex") : null;
 
@@ -291,6 +295,7 @@ async function POSTHandler(
         amountCents: subtotalCents,
         requestKey,
         settledAt: isKushki ? null : now,
+        ...tracking,
       },
     });
 
@@ -301,7 +306,7 @@ async function POSTHandler(
     try {
       const charge = await provider.chargeWithToken({
         merchantId: privateKey, token: parsed.data.token,
-        amount: { amountCents: subtotalCents, currency: await getCurrencyForCountry(tenant.country) },
+        amount: { amountCents: subtotalCents, currency },
         metadata: { orderId: result.order.id, paymentId: result.payment.id, tableId: pickupTable.id },
       });
       if (charge.status === "pending") {

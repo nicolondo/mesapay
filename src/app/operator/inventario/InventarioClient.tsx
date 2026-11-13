@@ -5,8 +5,9 @@ import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
+import { formatDate, pesosToCents } from "@/lib/format";
 import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { applyArchive, fold } from "@/lib/erp/inventoryView";
 import { IngredientBarcodes } from "./IngredientBarcodes";
 import { CountQuantityFields } from "./CountQuantityFields";
 import { countEntriesFromBase, parseCountEntry as parseCounted, parseCountEntries, nextCountEntry, formatCountQty, type CountEntry } from "@/lib/erp/stockCountInput";
@@ -15,153 +16,32 @@ import { MoneyInput } from "@/components/MoneyInput";
 import {
   DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
-  displayUnitFor,
   formatBaseQty,
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
-
-type StockLevel = {
-  qtyBase: number;
-  totalValueCents: number;
-  updatedAt: string | Date;
-};
-
-type StockRow = {
-  id: string;
-  name: string;
-  category: string | null;
-  measureKind: MeasureKind;
-  active: boolean;
-  barcode: string | null;
-  barcodes: { barcode: string }[];
-  // A4 — punto de reorden (null = sin aviso) y cantidad sugerida de compra.
-  reorderPointBase: number | null;
-  reorderQtyBase: number | null;
-  stockLevel: StockLevel | null;
-};
-
-/**
- * "Bajo mínimo" (spec A4·D3): existencia actual ≤ punto de reorden,
- * negativos incluidos; sin nivel de stock cuenta como 0. Insumos sin
- * punto de reorden nunca alertan, y los inactivos tampoco — no tiene
- * sentido pedir un insumo descatalogado.
- */
-function isLowStock(r: StockRow): boolean {
-  return (
-    r.active &&
-    r.reorderPointBase != null &&
-    (r.stockLevel?.qtyBase ?? 0) <= r.reorderPointBase
-  );
-}
-
-type MovementRow = {
-  id: string;
-  kind: string;
-  qtyBase: number;
-  valueCents: number;
-  wasteReason: string | null;
-  note: string | null;
-  createdAt: string;
-  ingredient: { id: string; name: string; measureKind: MeasureKind };
-  createdBy: { id: string; name: string | null } | null;
-};
-
-// ── Conteos (spec D5): sesión borrador → cierre con ajustes ──
-type CountSummary = {
-  id: string;
-  status: "draft" | "closed";
-  revision: number;
-  preliminaryAt: string | null;
-  recountStartedAt: string | null;
-  finalReview: { token: string; revision: number } | null;
-  notes: string | null;
-  createdAt: string;
-  closedAt: string | null;
-  createdBy: { name: string | null } | null;
-  _count: { items: number };
-};
-
-type CountItemRow = {
-  id: string;
-  expectedQty: number;
-  countedQty: number | null;
-  countedParts?: number[];
-  preliminaryQty: number | null;
-  preliminaryParts?: number[];
-  finalExpectedQty: number | null;
-  ingredient: {
-    id: string;
-    name: string;
-    measureKind: MeasureKind;
-    category: string | null;
-    active: boolean;
-    trackInventory: boolean;
-    // Código de barras del empaque — lo usa el escaneo del conteo.
-    barcode: string | null;
-    barcodes: { barcode: string }[];
-  };
-};
-
-type CountDetail = Omit<CountSummary, "_count"> & { items: CountItemRow[] };
-
-// Orden de la tabla de existencias: cada columna con sus dos direcciones.
-type StockSort =
-  | "name"
-  | "nameDesc"
-  | "qtyDesc"
-  | "qtyAsc"
-  | "valueDesc"
-  | "valueAsc"
-  | "avgDesc"
-  | "avgAsc";
-
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
+import { BarcodeSheet } from "./BarcodeSheet";
+import { CountsTab } from "./CountsTab";
+import { InvIcon } from "./InventoryIcons";
+import { MovementsTab } from "./MovementsTab";
+import { StockTab } from "./StockTab";
+import {
+  TAB_PARAM,
+  WASTE_REASONS,
+  WASTE_REASON_KEYS,
+  type CountDetail,
+  type CountItemRow,
+  type SheetMode,
+  type StockLevel,
+  type StockRow,
+  type Tab,
+  type WasteReason,
+} from "./types";
 
 /** "g/kg", "ml/L", "un" — símbolos de unidad, iguales en es/en/pt. */
 function unitSymbols(kind: MeasureKind): string {
   return DISPLAY_UNITS[kind].map((u) => u.symbol).join("/");
 }
-
-// Claves i18n por kind de movimiento — resueltas con t() al render.
-// A1 solo genera los 4 manuales; count_adjust llega con los conteos (A1.4)
-// y ya queda cubierto. Kinds futuros (A4/A5) caen al código crudo.
-const KIND_LABEL_KEYS: Record<string, string> = {
-  purchase_in: "kindPurchaseIn",
-  adjust_in: "kindAdjustIn",
-  adjust_out: "kindAdjustOut",
-  waste: "kindWaste",
-  count_adjust: "kindCountAdjust",
-  // A4 — consumo automático por venta (lo escribe el server al pagar una
-  // orden; acá solo se lee).
-  sale_consumption: "kindSaleConsumption",
-  // A5 — producción de lotes (los escribe /operator/produccion).
-  production_in: "kindProductionIn",
-  production_out: "kindProductionOut",
-};
-
-const WASTE_REASONS = [
-  "expired",
-  "damaged",
-  "kitchen_error",
-  "spill",
-  "other",
-] as const;
-type WasteReason = (typeof WASTE_REASONS)[number];
-
-const WASTE_REASON_KEYS: Record<string, string> = {
-  expired: "wasteExpired",
-  damaged: "wasteDamaged",
-  kitchen_error: "wasteKitchenError",
-  spill: "wasteSpill",
-  other: "wasteOther",
-};
 
 // Errores de la API de movimientos → clave i18n (fallback errSaveFailed).
 const API_ERROR_KEYS: Record<string, string> = {
@@ -172,150 +52,144 @@ const API_ERROR_KEYS: Record<string, string> = {
   ingredient_not_found: "errIngredientNotFound",
 };
 
-type Tab = "stock" | "movements" | "counts";
-type SheetMode = "entry" | "adjust" | "waste";
+const TABS: Tab[] = ["stock", "movements", "counts"];
+const TAB_LABEL_KEYS: Record<Tab, string> = { stock: "tabStock", movements: "tabMovements", counts: "tabCounts" };
+
+/** Esc cierra las hojas simples (las que no usan <dialog> nativo). */
+function useEscapeToClose(onClose: () => void, enabled = true) {
+  const ref = useRef(onClose);
+  useEffect(() => {
+    ref.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") ref.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [enabled]);
+}
+
+type Notice = { tone: "ok" | "error"; text: string };
 
 export function InventarioClient({
   initial,
   currency,
+  initialTab = "stock",
 }: {
   initial: StockRow[];
   currency: string;
+  initialTab?: Tab;
 }) {
   const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
   const router = useRouter();
   const [rows, setRows] = useState<StockRow[]>(initial);
-  const [tab, setTab] = useState<Tab>("stock");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  // Las pestañas se montan la primera vez que se abren y después solo se
+  // esconden: conservan filtros, orden, página y lo ya cargado.
+  const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set([initialTab]));
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
   // Ajustes de categorías sin inventario — sheet propio (carga perezosa).
   const [invSettingsOpen, setInvSettingsOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const [cat, setCat] = useState<string>("all");
-  // Filtro "bajo mínimo" (A4·D3) — lo activan el chip y el banner contador.
-  const [lowOnly, setLowOnly] = useState(false);
-  // Filtro "con existencias" — esconde los saldos en 0 (ruido en bodegas
-  // con catálogo grande) y orden elegido por el operador. En desktop el
-  // orden se controla clickeando los encabezados de la tabla (toggle
-  // asc/desc); en móvil, con el select.
-  const [stockedOnly, setStockedOnly] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const [sort, setSort] = useState<StockSort>("name");
-  const [sheet, setSheet] = useState<SheetMode | null>(null);
+  const [sheet, setSheet] = useState<{ mode: SheetMode; ingredientId: string | null } | null>(null);
+  const [barcodeFor, setBarcodeFor] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
-  // Historial — se carga perezoso al abrir el tab; null = sin cargar (un
-  // movimiento nuevo lo resetea a null para forzar refetch fresco).
-  const [movements, setMovements] = useState<MovementRow[] | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [movErr, setMovErr] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Movimientos: filtro por insumo (lo fija «Ver movimientos») y versión
+  // para invalidar lo cargado cuando se registra algo nuevo.
+  const [movementIngredient, setMovementIngredient] = useState<string | null>(null);
+  const [movementsVersion, setMovementsVersion] = useState(0);
 
-  // Conteos — mismo patrón perezoso que el historial.
-  const [counts, setCounts] = useState<CountSummary[] | null>(null);
-  const [countsErr, setCountsErr] = useState(false);
+  // Conteos.
+  const [countsVersion, setCountsVersion] = useState(0);
   const [newCountOpen, setNewCountOpen] = useState(false);
   const [openCount, setOpenCount] = useState<CountDetail | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const activeIngredients = useMemo(() => rows.filter((r) => r.active), [rows]);
+  const barcodeRow = barcodeFor ? rows.find((r) => r.id === barcodeFor) ?? null : null;
 
   function updateBarcodes(ingredient: IngredientBarcodeUpdate) {
     setRows((current) => current.map((row) => row.id === ingredient.id ? mergeIngredientBarcodes(row, ingredient) : row));
   }
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) if (r.category) set.add(r.category);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  function selectTab(next: Tab, focus = false) {
+    setTab(next);
+    setVisited((current) => (current.has(next) ? current : new Set([...current, next])));
+    // La pestaña queda en la URL (?tab=…) sin navegar ni mover el scroll.
+    const url = new URL(window.location.href);
+    if (next === "stock") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", TAB_PARAM[next]);
+    window.history.replaceState(null, "", url);
+    if (focus) tabRefs.current[next]?.focus();
+  }
 
-  const filtered = useMemo(() => {
-    const needle = fold(q.trim());
-    const out = rows.filter((r) => {
-      if (!showArchived && !r.active) return false;
-      if (lowOnly && !isLowStock(r)) return false;
-      if (stockedOnly && (r.stockLevel?.qtyBase ?? 0) === 0) return false;
-      if (cat !== "all" && r.category !== cat) return false;
-      if (needle) {
-        const hay = fold(`${r.name} ${r.category ?? ""} ${ingredientBarcodeValues(r).join(" ")}`);
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-    if (sort === "name") return out; // ya viene A→Z del server
-    // Costo unitario comparable entre kinds: valor/cantidad base (el factor
-    // de símbolo es constante por fila, no cambia el orden relativo).
-    const qty = (r: StockRow) => r.stockLevel?.qtyBase ?? 0;
-    const val = (r: StockRow) => r.stockLevel?.totalValueCents ?? 0;
-    const avg = (r: StockRow) => (qty(r) > 0 ? val(r) / qty(r) : -1);
-    const cmp: Record<Exclude<StockSort, "name">, (a: StockRow, b: StockRow) => number> = {
-      nameDesc: (a, b) => b.name.localeCompare(a.name),
-      qtyDesc: (a, b) => qty(b) - qty(a),
-      qtyAsc: (a, b) => qty(a) - qty(b),
-      valueDesc: (a, b) => val(b) - val(a),
-      valueAsc: (a, b) => val(a) - val(b),
-      avgDesc: (a, b) => avg(b) - avg(a),
-      avgAsc: (a, b) => avg(a) - avg(b),
-    };
-    return [...out].sort(
-      (a, b) => cmp[sort](a, b) || a.name.localeCompare(b.name),
-    );
-  }, [rows, q, cat, lowOnly, stockedOnly, sort, showArchived]);
+  function onTabKeyDown(event: React.KeyboardEvent) {
+    const index = TABS.indexOf(tab);
+    const next =
+      event.key === "ArrowRight" ? TABS[(index + 1) % TABS.length]
+      : event.key === "ArrowLeft" ? TABS[(index - 1 + TABS.length) % TABS.length]
+      : event.key === "Home" ? TABS[0]
+      : event.key === "End" ? TABS[TABS.length - 1]
+      : null;
+    if (!next) return;
+    event.preventDefault();
+    selectTab(next, true);
+  }
 
-  const hasArchivedStock = rows.some((r) => !r.active);
+  function openMovement(mode: SheetMode, row?: StockRow) {
+    setNotice(null);
+    setSheet({ mode, ingredientId: row?.id ?? null });
+  }
 
-  const lowCount = useMemo(() => rows.filter(isLowStock).length, [rows]);
+  function viewMovements(row: StockRow) {
+    setMovementIngredient(row.id);
+    selectTab("movements");
+  }
 
-  const activeIngredients = useMemo(
-    () => rows.filter((r) => r.active),
-    [rows],
-  );
-
-  useEffect(() => {
-    if (tab !== "movements" || movements !== null || movErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/operator/stock/movements");
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (cancelled) return;
-        setMovements((j.movements ?? []) as MovementRow[]);
-        setNextCursor(j.nextCursor ?? null);
-      } catch {
-        if (!cancelled) setMovErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [tab, movements, movErr]);
-
-  useEffect(() => {
-    if (tab !== "counts" || counts !== null || countsErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/operator/stock/counts");
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (!cancelled) setCounts((j.counts ?? []) as CountSummary[]);
-      } catch {
-        if (!cancelled) setCountsErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [tab, counts, countsErr]);
+  async function toggleArchive(row: StockRow) {
+    if (archivingId) return;
+    const archiving = row.active;
+    if (archiving && !window.confirm(t("archiveConfirm", { name: row.name }))) return;
+    setArchivingId(row.id);
+    setNotice(null);
+    try {
+      const r = await fetch(`/api/operator/ingredients/${row.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: !row.active }),
+      });
+      if (!r.ok) throw new Error("archive_failed");
+      const j = await r.json();
+      if (j.ingredient?.id !== row.id || j.ingredient.active !== !row.active) throw new Error("invalid_archive_response");
+      setRows((prev) => applyArchive(prev, row.id, !row.active));
+      const hasStock = (row.stockLevel?.qtyBase ?? 0) !== 0;
+      setNotice({
+        tone: "ok",
+        text: archiving
+          ? t(hasStock ? "archivedNoticeStock" : "archivedNoticeGone", { name: row.name })
+          : t("restoredNotice", { name: row.name }),
+      });
+    } catch {
+      setNotice({ tone: "error", text: t("errSaveFailed") });
+    } finally {
+      setArchivingId(null);
+    }
+  }
 
   async function openSession(id: string) {
     if (openingId) return;
     setOpeningId(id);
+    setNotice(null);
     try {
       const r = await fetch(`/api/operator/stock/counts/${id}`);
       if (!r.ok) throw new Error("load_failed");
       const j = await r.json();
       setOpenCount(j.count as CountDetail);
     } catch {
-      setCountsErr(true);
+      setNotice({ tone: "error", text: t("errLoadFailed") });
     }
     setOpeningId(null);
   }
@@ -323,12 +197,7 @@ export function InventarioClient({
   // Cierre de conteo: los ajustes tocan N saldos a la vez → se refrescan
   // las existencias completas desde el server y se invalidan historial y
   // lista de sesiones (misma filosofía que handleMovementDone).
-  async function handleCountClosed() {
-    setCounts(null);
-    setCountsErr(false);
-    setMovements(null);
-    setNextCursor(null);
-    setMovErr(false);
+  async function reloadStock() {
     try {
       const r = await fetch("/api/operator/stock");
       if (r.ok) {
@@ -340,595 +209,136 @@ export function InventarioClient({
     }
   }
 
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const r = await fetch(
-        `/api/operator/stock/movements?cursor=${encodeURIComponent(nextCursor)}`,
-      );
-      if (!r.ok) throw new Error("load_failed");
-      const j = await r.json();
-      setMovements((prev) => [
-        ...(prev ?? []),
-        ...((j.movements ?? []) as MovementRow[]),
-      ]);
-      setNextCursor(j.nextCursor ?? null);
-    } catch {
-      setMovErr(true);
-    }
-    setLoadingMore(false);
+  async function handleCountClosed() {
+    setCountsVersion((v) => v + 1);
+    setMovementsVersion((v) => v + 1);
+    await reloadStock();
   }
 
   // Movimiento registrado: el saldo del row viene del server (fuente de
-  // verdad) y el historial cargado queda stale → se invalida para refetch.
+  // verdad) y el historial cargado queda viejo → se invalida.
   function handleMovementDone(ingredientId: string, level: StockLevel) {
-    setRows((prev) =>
-      prev.map((r) => (r.id === ingredientId ? { ...r, stockLevel: level } : r)),
-    );
-    setMovements(null);
-    setNextCursor(null);
-    setMovErr(false);
+    const name = rows.find((r) => r.id === ingredientId)?.name ?? "";
+    setRows((prev) => prev.map((r) => (r.id === ingredientId ? { ...r, stockLevel: level } : r)));
+    setMovementsVersion((v) => v + 1);
     setSheet(null);
+    setNotice({ tone: "ok", text: t("movementSavedNotice", { name }) });
   }
 
   return (
-    <div className="space-y-4">
-      {/* Segmentos Existencias / Movimientos / Conteos + acceso a ajustes */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="mp-seg" role="tablist">
-          {(
-            [
-              ["stock", t("tabStock")],
-              ["movements", t("tabMovements")],
-              ["counts", t("tabCounts")],
-            ] as [Tab, string][]
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              onClick={() => setTab(value)}
-              className="mp-seg__i"
-            >
-              {label}
-            </button>
-          ))}
+    <div>
+      <header className="mp-page-header mp-inv-header">
+        <div className="min-w-0">
+          <h1 className="mp-page-title">{t("inventarioTitle")}</h1>
+          <p className="mp-page-description">{t("inventarioIntro")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setInvSettingsOpen(true)}
-          aria-label={t("invSettingsTitle")}
-          title={t("invSettingsTitle")}
-          className="mp-icobtn shrink-0 text-base"
-        >
-          {"⚙"}
-        </button>
-      </div>
-
-      {tab === "stock" ? (
-        <>
-          {/* Acciones — abren sheets con combobox de insumo */}
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setSheet("entry")}
-              className="mp-btn mp-btn--primary mp-btn--block"
-            >
-              {t("actionEntry")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSheet("adjust")}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
+        {/* Registrar un movimiento: Entrada es la acción principal; Ajuste
+            y Merma, secundarias agrupadas. */}
+        <div className="mp-inv-actions" role="group" aria-label={t("invActionsLabel")}>
+          <button type="button" onClick={() => openMovement("entry")} className="mp-btn mp-btn--primary mp-btn--sm">
+            <InvIcon name="plus" />
+            {t("actionEntry")}
+          </button>
+          <div className="mp-btngroup">
+            <button type="button" onClick={() => openMovement("adjust")} className="mp-btn mp-btn--secondary mp-btn--sm">
               {t("actionAdjust")}
             </button>
-            <button
-              type="button"
-              onClick={() => setSheet("waste")}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
+            <button type="button" onClick={() => openMovement("waste")} className="mp-btn mp-btn--secondary mp-btn--sm">
               {t("actionWaste")}
             </button>
           </div>
-
-          {/* Aviso bajo mínimo (A4·D3): contador que aplica el filtro */}
-          {lowCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setLowOnly(true)}
-              className="w-full text-left rounded-2xl border border-[#C98A2E]/40 bg-[#C98A2E]/10 px-4 py-3 text-sm font-medium text-[#7F5A1F] hover:bg-[#C98A2E]/15"
-            >
-              {t("reorderBannerCount", { count: lowCount })}
-            </button>
-          )}
-
-          {/* Búsqueda + filtros (categoría · bajo mínimo) */}
-          <div className="space-y-2">
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("searchPlaceholder")}
-              className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-surface text-sm focus:outline-none focus:border-op-text/40"
-            />
-            <div className="flex items-center gap-2 flex-wrap">
-              {categories.length > 0 && (
-                <select
-                  value={cat}
-                  onChange={(e) => setCat(e.target.value)}
-                  className="min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
-                >
-                  <option value="all">{t("allCategories")}</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as StockSort)}
-                className="md:hidden min-h-[44px] px-3 rounded-full border border-op-border bg-op-surface text-sm max-w-[220px]"
-              >
-                <option value="name">{t("sortName")}</option>
-                <option value="qtyDesc">{t("sortQtyDesc")}</option>
-                <option value="qtyAsc">{t("sortQtyAsc")}</option>
-                <option value="valueDesc">{t("sortValueDesc")}</option>
-                <option value="valueAsc">{t("sortValueAsc")}</option>
-                <option value="avgDesc">{t("sortAvgDesc")}</option>
-                <option value="avgAsc">{t("sortAvgAsc")}</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => setLowOnly((v) => !v)}
-                aria-pressed={lowOnly}
-                className="mp-chip"
-              >
-                {t("reorderLowBadge")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockedOnly((v) => !v)}
-                aria-pressed={stockedOnly}
-                className="mp-chip"
-              >
-                {t("stockedOnly")}
-              </button>
-              {hasArchivedStock && (
-                <button
-                  type="button"
-                  onClick={() => setShowArchived((v) => !v)}
-                  aria-pressed={showArchived}
-                  className="mp-chip"
-                >
-                  {t("showArchivedIngredients")}
-                </button>
-              )}
-            </div>
-            {hasArchivedStock && (
-              <p className="text-xs text-op-muted">{t("archivedStockHint")}</p>
-            )}
-          </div>
-
-          {/* Existencias */}
-          {rows.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
-              <div className="font-display text-lg mb-1">
-                {t("emptyStockTitle")}
-              </div>
-              <p className="text-sm text-op-muted">{t("emptyStockBody")}</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-              {t("emptyFiltered")}
-            </div>
-          ) : (
-            <>
-              {/* Móvil: lista compacta (dos líneas por fila). */}
-              <div className="md:hidden bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-                {filtered.map((r) => {
-                  const qty = r.stockLevel?.qtyBase ?? 0;
-                  const value = r.stockLevel?.totalValueCents ?? 0;
-                  const costUnit = displayUnitFor(qty, r.measureKind);
-                  const avg =
-                    qty > 0
-                      ? Math.round((value / qty) * costUnit.factor)
-                      : null;
-                  const low = isLowStock(r);
-                  return (
-                    <div
-                      key={r.id}
-                      className="px-4 py-2.5 border-b border-op-border last:border-b-0"
-                    >
-                      <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className={
-                              "text-sm font-medium truncate" +
-                              (r.active ? "" : " opacity-50")
-                            }
-                          >
-                            {r.name}
-                          </span>
-                          {!r.active && (
-                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                              {t("ingredientArchivedBadge")}
-                            </span>
-                          )}
-                          {low && (
-                            <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                              {t("reorderLowBadge")}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                          {[
-                            r.category ?? t("noCategory"),
-                            low && r.reorderPointBase != null
-                              ? t("reorderMinRef", {
-                                  qty: formatBaseQty(
-                                    r.reorderPointBase,
-                                    r.measureKind,
-                                    locale,
-                                  ),
-                                })
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div
-                          className={
-                            "text-sm font-medium tabular-nums" +
-                            (qty < 0 ? " text-danger" : "")
-                          }
-                        >
-                          {formatBaseQty(qty, r.measureKind, locale)}
-                        </div>
-                        <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
-                          {[
-                            t("stockTotalValue", {
-                              amount: formatMoney(value, { currency, locale }),
-                            }),
-                            avg != null
-                              ? `${formatMoney(avg, { currency, locale })}/${costUnit.symbol}`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      </div>
-                      </div>
-                      <IngredientBarcodes ingredient={r} canAdd={r.active} onSaved={updateBarcodes} />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Desktop: tabla con columnas separadas y encabezados
-                  ordenables (click = alterna asc/desc en esa columna). */}
-              <div className="hidden md:block bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-op-bg">
-                    <tr>
-                      <SortableTh
-                        label={t("invColItem")}
-                        dir={
-                          sort === "name"
-                            ? "asc"
-                            : sort === "nameDesc"
-                              ? "desc"
-                              : null
-                        }
-                        onClick={() =>
-                          setSort((s) => (s === "name" ? "nameDesc" : "name"))
-                        }
-                      />
-                      <SortableTh
-                        label={t("invColQty")}
-                        align="right"
-                        dir={
-                          sort === "qtyDesc"
-                            ? "desc"
-                            : sort === "qtyAsc"
-                              ? "asc"
-                              : null
-                        }
-                        onClick={() =>
-                          setSort((s) =>
-                            s === "qtyDesc" ? "qtyAsc" : "qtyDesc",
-                          )
-                        }
-                      />
-                      <SortableTh
-                        label={t("invColUnitCost")}
-                        align="right"
-                        dir={
-                          sort === "avgDesc"
-                            ? "desc"
-                            : sort === "avgAsc"
-                              ? "asc"
-                              : null
-                        }
-                        onClick={() =>
-                          setSort((s) =>
-                            s === "avgDesc" ? "avgAsc" : "avgDesc",
-                          )
-                        }
-                      />
-                      <SortableTh
-                        label={t("invColTotal")}
-                        align="right"
-                        dir={
-                          sort === "valueDesc"
-                            ? "desc"
-                            : sort === "valueAsc"
-                              ? "asc"
-                              : null
-                        }
-                        onClick={() =>
-                          setSort((s) =>
-                            s === "valueDesc" ? "valueAsc" : "valueDesc",
-                          )
-                        }
-                      />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((r) => {
-                      const qty = r.stockLevel?.qtyBase ?? 0;
-                      const value = r.stockLevel?.totalValueCents ?? 0;
-                      const costUnit = displayUnitFor(qty, r.measureKind);
-                      const avg =
-                        qty > 0
-                          ? Math.round((value / qty) * costUnit.factor)
-                          : null;
-                      const low = isLowStock(r);
-                      return (
-                        <tr
-                          key={r.id}
-                          className="border-t border-op-border hover:bg-op-bg"
-                        >
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className={
-                                  "font-medium truncate" +
-                                  (r.active ? "" : " opacity-50")
-                                }
-                              >
-                                {r.name}
-                              </span>
-                              {!r.active && (
-                                <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                                  {t("ingredientArchivedBadge")}
-                                </span>
-                              )}
-                              {low && (
-                                <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium shrink-0">
-                                  {t("reorderLowBadge")}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                              {[
-                                r.category ?? t("noCategory"),
-                                low && r.reorderPointBase != null
-                                  ? t("reorderMinRef", {
-                                      qty: formatBaseQty(
-                                        r.reorderPointBase,
-                                        r.measureKind,
-                                        locale,
-                                      ),
-                                    })
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </div>
-                            <IngredientBarcodes ingredient={r} canAdd={r.active} onSaved={updateBarcodes} />
-                          </td>
-                          <td
-                            className={
-                              "px-4 py-2.5 text-right tabular-nums font-medium" +
-                              (qty < 0 ? " text-danger" : "")
-                            }
-                          >
-                            {formatBaseQty(qty, r.measureKind, locale)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-op-muted">
-                            {avg != null
-                              ? `${formatMoney(avg, { currency, locale })}/${costUnit.symbol}`
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                            {formatMoney(value, { currency, locale })}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </>
-      ) : tab === "movements" ? (
-        /* Movimientos */
-        <>
-          {movErr ? (
-            <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-          ) : movements === null ? (
-            <div className="py-6 text-center text-sm text-op-muted">
-              {t("loading")}
-            </div>
-          ) : movements.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-              {t("movementsEmpty")}
-            </div>
-          ) : (
-            <>
-              <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-                {movements.map((m) => {
-                  const isIn = m.qtyBase >= 0;
-                  const labelKey = KIND_LABEL_KEYS[m.kind];
-                  const reasonKey = m.wasteReason
-                    ? WASTE_REASON_KEYS[m.wasteReason]
-                    : null;
-                  const kindLabel =
-                    (labelKey ? t(labelKey) : m.kind) +
-                    (reasonKey ? ` · ${t(reasonKey)}` : "");
-                  return (
-                    <div
-                      key={m.id}
-                      className="px-4 py-2.5 border-b border-op-border last:border-b-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {m.ingredient.name}
-                          </div>
-                          <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                            {[
-                              formatDate(m.createdAt, { locale }),
-                              kindLabel,
-                              m.createdBy?.name ?? null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div
-                            className={
-                              "text-sm font-medium tabular-nums " +
-                              (isIn ? "text-ok" : "text-danger")
-                            }
-                          >
-                            {(isIn ? "+" : "−") +
-                              formatBaseQty(
-                                Math.abs(m.qtyBase),
-                                m.ingredient.measureKind,
-                                locale,
-                              )}
-                          </div>
-                          <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
-                            {(m.valueCents >= 0 ? "+" : "−") +
-                              formatMoney(Math.abs(m.valueCents), {
-                                currency,
-                                locale,
-                              })}
-                          </div>
-                        </div>
-                      </div>
-                      {m.note && (
-                        <div className="text-[11px] text-op-muted mt-1">
-                          {m.note === "inventory_tracking_disabled" ? t("stockResetMovementNote") : m.note}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {nextCursor && (
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="w-full min-h-[44px] rounded-full border border-op-border bg-op-surface text-sm font-medium hover:bg-op-bg disabled:opacity-40"
-                >
-                  {loadingMore ? t("loading") : t("loadMore")}
-                </button>
-              )}
-            </>
-          )}
-        </>
-      ) : (
-        /* Conteos físicos (sesiones borrador → cierre) */
-        <>
           <button
             type="button"
-            onClick={() => setNewCountOpen(true)}
-            className="min-h-[44px] px-5 rounded-full bg-ink text-bone text-sm font-medium hover:bg-ink/90"
+            onClick={() => setInvSettingsOpen(true)}
+            aria-label={t("invSettingsTitle")}
+            title={t("invSettingsTitle")}
+            className="mp-icobtn mp-inv-settings shrink-0"
           >
-            {t("newCount")}
+            <InvIcon name="settings" size={20} />
           </button>
+        </div>
+      </header>
 
-          {countsErr ? (
-            <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-          ) : counts === null ? (
-            <div className="py-6 text-center text-sm text-op-muted">
-              {t("loading")}
-            </div>
-          ) : counts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-              {t("countsEmpty")}
-            </div>
-          ) : (
-            <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-              {counts.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => openSession(c.id)}
-                  disabled={openingId !== null}
-                  className="w-full text-left px-4 py-2.5 border-b border-op-border last:border-b-0 hover:bg-op-bg disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium">
-                          {formatDate(c.createdAt, { locale })}
-                        </span>
-                        <span
-                          className={
-                            "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-                            (c.status === "draft"
-                              ? "bg-ink text-bone"
-                              : "bg-paper text-op-muted")
-                          }
-                        >
-                          {c.status === "draft"
-                            ? t(c.recountStartedAt ? "countStageDefinitive" : c.preliminaryAt ? "countStagePreliminary" : "countStageInitial")
-                            : t("countStatusClosed")}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {[
-                          t("countItems", { count: c._count.items }),
-                          c.createdBy?.name ?? null,
-                          c.notes,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                    <span className="text-op-muted text-sm shrink-0">
-                      {openingId === c.id ? t("loading") : "›"}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </>
+      {/* Pestañas (los ajustes del módulo viven junto a las acciones). */}
+      <div className="mp-inv-tabsrow">
+        <div className="mp-seg no-scrollbar" role="tablist" aria-label={t("inventarioTitle")} onKeyDown={onTabKeyDown}>
+          {TABS.map((value) => (
+            <button
+              key={value}
+              ref={(el) => { tabRefs.current[value] = el; }}
+              id={`inv-tab-${value}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              aria-controls={`inv-panel-${value}`}
+              tabIndex={tab === value ? 0 : -1}
+              onClick={() => selectTab(value)}
+              className="mp-seg__i"
+            >
+              {t(TAB_LABEL_KEYS[value])}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {notice && (
+        <div role={notice.tone === "error" ? "alert" : "status"} className={"mp-inv-notice" + (notice.tone === "error" ? " is-error" : "")}>
+          <span className="min-w-0 flex-1">{notice.text}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label={t("closeSheet")} className="mp-inv-notice__close">
+            <InvIcon name="close" size={16} />
+          </button>
+        </div>
       )}
+
+      <div id="inv-panel-stock" role="tabpanel" aria-labelledby="inv-tab-stock" hidden={tab !== "stock"}>
+        {visited.has("stock") && (
+          <StockTab
+            rows={rows}
+            currency={currency}
+            archivingId={archivingId}
+            onMovement={openMovement}
+            onViewMovements={viewMovements}
+            onBarcodes={(row) => setBarcodeFor(row.id)}
+            onToggleArchive={toggleArchive}
+          />
+        )}
+      </div>
+      <div id="inv-panel-movements" role="tabpanel" aria-labelledby="inv-tab-movements" hidden={tab !== "movements"}>
+        {visited.has("movements") && (
+          <MovementsTab
+            key={movementIngredient ?? "all"}
+            ingredients={rows}
+            ingredientId={movementIngredient}
+            onIngredientChange={setMovementIngredient}
+            version={movementsVersion}
+            currency={currency}
+          />
+        )}
+      </div>
+      <div id="inv-panel-counts" role="tabpanel" aria-labelledby="inv-tab-counts" hidden={tab !== "counts"}>
+        {visited.has("counts") && (
+          <CountsTab
+            version={countsVersion}
+            openingId={openingId}
+            onNew={() => setNewCountOpen(true)}
+            onOpen={openSession}
+          />
+        )}
+      </div>
 
       {sheet && (
         <MovementSheet
-          mode={sheet}
+          mode={sheet.mode}
           ingredients={activeIngredients}
+          preselected={sheet.ingredientId ? activeIngredients.find((r) => r.id === sheet.ingredientId) ?? null : null}
           currency={currency}
           onClose={() => setSheet(null)}
           onDone={handleMovementDone}
         />
+      )}
+
+      {barcodeRow && (
+        <BarcodeSheet ingredient={barcodeRow} onClose={() => setBarcodeFor(null)} onSaved={updateBarcodes} />
       )}
 
       {newCountOpen && (
@@ -937,8 +347,7 @@ export function InventarioClient({
           onClose={() => setNewCountOpen(false)}
           onCreated={(count) => {
             setNewCountOpen(false);
-            setCounts(null); // lista stale → refetch al volver al tab
-            setCountsErr(false);
+            setCountsVersion((v) => v + 1); // lista vieja → se vuelve a pedir
             setOpenCount(count);
           }}
         />
@@ -954,8 +363,7 @@ export function InventarioClient({
             // Un borrador no tocó saldos: basta con cerrar el sheet e
             // invalidar la lista (no hace falta refrescar existencias).
             setOpenCount(null);
-            setCounts(null);
-            setCountsErr(false);
+            setCountsVersion((v) => v + 1);
           }}
         />
       )}
@@ -963,10 +371,13 @@ export function InventarioClient({
       {invSettingsOpen && (
         <InventorySettingsSheet
           onClose={() => setInvSettingsOpen(false)}
-          onSaved={() => {
+          onSaved={async () => {
             setInvSettingsOpen(false);
             // Las categorías excluidas cambian qué insumos ve el server
-            // (existencias/reorden) → recomponer la página.
+            // (existencias/reorden): se vuelven a pedir las existencias (el
+            // estado local no se rehace con router.refresh) y se recompone
+            // el resto de la página.
+            await reloadStock();
             router.refresh();
           }}
         />
@@ -993,6 +404,7 @@ function InventorySettingsSheet({
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useEscapeToClose(onClose, !busy);
 
   useEffect(() => {
     let cancelled = false;
@@ -1046,11 +458,14 @@ function InventorySettingsSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("invSettingsTitle")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -1140,28 +555,32 @@ const SHEET_TITLE_KEYS: Record<SheetMode, string> = {
 function MovementSheet({
   mode,
   ingredients,
+  preselected,
   currency,
   onClose,
   onDone,
 }: {
   mode: SheetMode;
   ingredients: StockRow[];
+  /** Insumo ya elegido (desde el menú ⋯ de su fila). */
+  preselected?: StockRow | null;
   currency: string;
   onClose: () => void;
   onDone: (ingredientId: string, level: StockLevel) => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const [selected, setSelected] = useState<StockRow | null>(null);
+  const [selected, setSelected] = useState<StockRow | null>(preselected ?? null);
   const [ingQ, setIngQ] = useState("");
   const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState("");
+  const [unit, setUnit] = useState(preselected ? DEFAULT_INPUT_UNIT[preselected.measureKind] : "");
   const [cost, setCost] = useState("");
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [reason, setReason] = useState<WasteReason | "">("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useEscapeToClose(onClose, !busy);
 
   const kind = selected?.measureKind ?? null;
   const unitOptions = kind ? DISPLAY_UNITS[kind] : [];
@@ -1229,11 +648,14 @@ function MovementSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t(SHEET_TITLE_KEYS[mode])}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1462,6 +884,7 @@ function NewCountSheet({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useEscapeToClose(onClose, !busy);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -1499,11 +922,14 @@ function NewCountSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("newCountTitle")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -1624,6 +1050,25 @@ function CountSheet({
   const readOnly = count.status === "closed" || closedResult !== null;
   const phase = readOnly ? "closed" : count.finalReview ? "review" : count.recountStartedAt ? "recount" : count.preliminaryAt ? "preliminary" : "initial";
   const canEdit = phase === "initial" || phase === "recount";
+  // Lo guardado, en la misma forma que `entries`: si difieren, hay
+  // cantidades digitadas que se perderían al cerrar.
+  const savedEntries = useMemo(
+    () => JSON.stringify(Object.fromEntries(count.items.map((item) => [item.id, countEntriesFromBase(item.countedQty, item.ingredient.measureKind, item.countedParts)]))),
+    [count],
+  );
+  const dirty = canEdit && JSON.stringify(entries) !== savedEntries;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  /** ✕ y Cancelar: con cantidades sin guardar, pregunta antes de perderlas. */
+  function requestClose() {
+    if (busy) return;
+    if (dirty && !window.confirm(t("countUnsavedConfirm"))) return;
+    onClose();
+  }
   const finalStage = !!count.recountStartedAt;
   const baseline = (item: CountItemRow) => finalStage ? (item.finalExpectedQty ?? item.expectedQty) : item.expectedQty;
   const quantity = (item: CountItemRow) => {
@@ -1836,8 +1281,8 @@ function CountSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={() => { if (!busy) onClose(); }}
     >
       <div
         role="dialog"
@@ -1861,7 +1306,7 @@ function CountSheet({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={busy}
             className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
             aria-label={t("cancel")}
@@ -2120,7 +1565,7 @@ function CountSheet({
 
         <div className="sticky [@media(max-height:600px)]:static bottom-0 -mx-5 px-5 mt-4 pt-3 pb-5 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
           {readOnly ? (
-            <button type="button" onClick={onClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
+            <button type="button" onClick={requestClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
           ) : (
             <>
               <button type="button" onClick={deleteSession} disabled={busy} className="mr-auto min-h-[44px] px-3 text-danger text-sm disabled:opacity-40">{t("deleteCount")}</button>
@@ -2169,44 +1614,3 @@ function Field({
 const inputCls =
   "w-full min-h-[44px] px-3 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40";
 
-/**
- * Encabezado de columna ordenable (tabla desktop de existencias): click
- * alterna la dirección; la flecha marca la columna activa.
- */
-function SortableTh({
-  label,
-  dir,
-  onClick,
-  align,
-}: {
-  label: string;
-  dir: "asc" | "desc" | null;
-  onClick: () => void;
-  align?: "right";
-}) {
-  return (
-    <th
-      aria-sort={
-        dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none"
-      }
-      className={
-        "px-4 py-2 font-mono text-[10px] tracking-wider uppercase text-op-muted font-normal" +
-        (align === "right" ? " text-right" : " text-left")
-      }
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className={
-          "inline-flex items-center gap-1 hover:text-op-text cursor-pointer" +
-          (dir ? " text-op-text" : "")
-        }
-      >
-        {label}
-        <span aria-hidden className={dir ? "" : "opacity-30"}>
-          {dir === "asc" ? "↑" : dir === "desc" ? "↓" : "↕"}
-        </span>
-      </button>
-    </th>
-  );
-}

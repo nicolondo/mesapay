@@ -10,6 +10,7 @@
  *    las lleva (la barra de arriba enlaza `?q=` a secas).
  *  · `status` — all | open | paid | cancelled.
  *  · `q` — búsqueda por código de la cuenta o número de factura.
+ *  · `source` — all | tables | manual; `tableId` — mesa física concreta.
  *  · `fechas=todas` — sin filtro de fecha (búsqueda global de la barra de
  *    arriba, «Buscar en todas las fechas», enlaces viejos `period=all`).
  *  · `page` — página de 50, desde 1.
@@ -24,9 +25,12 @@ import type { HistoryRange } from "./history";
 export const ORDERS_PAGE_SIZE = 50;
 
 export type OrdersStatusFilter = "all" | "open" | "paid" | "cancelled";
+export type OrdersSourceFilter = "all" | "tables" | "manual";
 
 export type OrdersView = {
   status: OrdersStatusFilter;
+  source: OrdersSourceFilter;
+  tableId: string;
   q: string;
   period: ReportPeriod;
   /** Sin filtro de fecha. */
@@ -59,6 +63,9 @@ export function parseOrdersView(sp: RawParams, today: string): OrdersView {
   const status: OrdersStatusFilter =
     rawStatus === "open" || rawStatus === "paid" || rawStatus === "cancelled" ? rawStatus : "all";
   const q = first(sp.q).trim().slice(0, 100);
+  const rawSource = first(sp.source);
+  const tableId = rawSource === "manual" ? "" : first(sp.tableId).trim().slice(0, 100);
+  const source: OrdersSourceFilter = rawSource === "manual" ? "manual" : rawSource === "tables" || tableId ? "tables" : "all";
   const rawPage = first(sp.page);
   const page = /^\d{1,6}$/.test(rawPage) && Number(rawPage) >= 1 ? Number(rawPage) : 1;
 
@@ -79,7 +86,7 @@ export function parseOrdersView(sp: RawParams, today: string): OrdersView {
       allDates = allDates || legacy.allDates;
     }
   }
-  return { status, q, period, allDates, page };
+  return { status, source, tableId, q, period, allDates, page };
 }
 
 /**
@@ -93,6 +100,8 @@ export function ordersHref(
   patch: Partial<OrdersView> = {},
 ): string {
   const next = { ...view, page: 1, ...patch };
+  if (patch.source && patch.source !== "tables") next.tableId = "";
+  else if (patch.tableId) next.source = "tables";
   const qs = new URLSearchParams();
   if (!(next.period.desde === today && next.period.hasta === today)) {
     qs.set("desde", next.period.desde);
@@ -101,6 +110,8 @@ export function ordersHref(
   if (next.status !== "all") qs.set("status", next.status);
   if (next.q) qs.set("q", next.q);
   if (next.allDates) qs.set("fechas", "todas");
+  if (next.source !== "all") qs.set("source", next.source);
+  if (next.source === "tables" && next.tableId) qs.set("tableId", next.tableId);
   if (next.page > 1) qs.set("page", String(next.page));
   const s = qs.toString();
   return s ? `/operator/orders?${s}` : "/operator/orders";
@@ -151,7 +162,7 @@ export function ordersStatusWhere(filter: OrdersStatusFilter): Prisma.OrderWhere
  */
 export function ordersWhere(
   restaurantId: string,
-  view: Pick<OrdersView, "status" | "q" | "period" | "allDates">,
+  view: Pick<OrdersView, "status" | "q" | "period" | "allDates"> & Partial<Pick<OrdersView, "source" | "tableId">>,
   cutoffHour: number,
   documentOrderIds: readonly string[] = [],
 ): {
@@ -166,7 +177,14 @@ export function ordersWhere(
   range: HistoryRange;
   scope: "period" | "all";
 } {
-  const countWhere: Prisma.OrderWhereInput = { restaurantId };
+  // All branches (including pinned invoice-number matches) use the same
+  // source scope. A foreign/nonstandard table ID deliberately matches nothing.
+  const sourceScope: Prisma.OrderWhereInput = view.source === "manual"
+    ? { table: { restaurantId, kind: "manual" } }
+    : view.source === "tables" || view.tableId
+      ? { table: { restaurantId, kind: "standard" }, ...(view.tableId ? { tableId: view.tableId } : {}) }
+      : {};
+  const countWhere: Prisma.OrderWhereInput = { restaurantId, ...sourceScope };
   const byDocument = view.q !== "" && documentOrderIds.length > 0;
   if (view.q) {
     const code = { shortCode: { contains: view.q, mode: "insensitive" as const } };
@@ -180,10 +198,11 @@ export function ordersWhere(
   return {
     where,
     countWhere,
-    pinned: byDocument ? { restaurantId, ...(status ? { status } : {}), id: { in: ids } } : null,
+    pinned: byDocument ? { restaurantId, ...sourceScope, ...(status ? { status } : {}), id: { in: ids } } : null,
     rest: byDocument
       ? {
           restaurantId,
+          ...sourceScope,
           shortCode: { contains: view.q, mode: "insensitive" },
           ...(status ? { status } : {}),
           id: { notIn: ids },

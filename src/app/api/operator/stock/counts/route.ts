@@ -28,17 +28,25 @@ const ITEM_INCLUDE = {
   },
 } as const;
 
+/** Tamaño de página de la lista de conteos (se sigue con `?cursor=`). */
+const COUNTS_PAGE_SIZE = 20;
+
 /** Sesiones de conteo (recientes primero). Livianas: los items completos
- * se piden por sesión en GET /counts/[id]. */
-async function GETHandler() {
+ * se piden por sesión en GET /counts/[id]. Paginadas por cursor: la UI
+ * ofrece «Cargar más» en vez de cortar en silencio en las 20 primeras. */
+async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const counts = await db.stockCount.findMany({
+  const cursor = new URL(req.url).searchParams.get("cursor") || undefined;
+  const page = await db.stockCount.findMany({
     where: { restaurantId: ctx.restaurantId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
+    // id desempata sesiones creadas en el mismo milisegundo: el cursor
+    // necesita un orden total para no repetir ni saltar filas.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: COUNTS_PAGE_SIZE + 1,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     select: {
       id: true,
       status: true,
@@ -52,7 +60,9 @@ async function GETHandler() {
       _count: { select: { items: true } },
     },
   });
-  return NextResponse.json({ counts });
+  const counts = page.slice(0, COUNTS_PAGE_SIZE);
+  const nextCursor = page.length > COUNTS_PAGE_SIZE ? counts[counts.length - 1].id : null;
+  return NextResponse.json({ counts, nextCursor });
 }
 
 const createSchema = z.object({

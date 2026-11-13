@@ -44,7 +44,7 @@ export function ResolveLateRequestButton({ requestId }: { requestId: string }) {
         type="button"
         onClick={resolve}
         disabled={busy}
-        className="mp-btn mp-btn--ghost mp-btn--sm"
+        className="mp-btn mp-btn--ghost mp-btn--xs"
       >
         {busy ? t("lateResolving") : t("lateResolve")}
       </button>

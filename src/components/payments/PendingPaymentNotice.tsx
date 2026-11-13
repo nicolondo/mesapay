@@ -59,7 +59,7 @@ export type PendingPaymentView = {
  *     lo que contestó el equipo (TerminalAttemptActions): en curso,
  *     «Cancelar en el datáfono»; el equipo no lo aprobó, «Reintentar en el
  *     datáfono» / «Cancelar y cobrar de otra forma» al instante; sin
- *     respuesta, pasados 3 minutos el administrador (`canResolveTerminal`,
+ *     respuesta, el administrador puede resolver de inmediato (`canResolveTerminal`,
  *     nunca el mesero) tiene "Resolver cobro", con evidencia.
  *
  * `chargeLocked`: "solo el administrador cobra" y quien mira es un mesero —

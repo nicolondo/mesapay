@@ -8,11 +8,12 @@ import { env } from "@/lib/env";
 import { extractPurchaseInvoice } from "@/lib/anthropic";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { expensePrefillFromInvoice } from "@/lib/erp/expenseAi";
+import { InvoiceExtractionError } from "@/lib/erp/invoiceExtractionError";
 import { findSupplierByTaxId } from "@/lib/erp/supplierTaxId";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120; // la lectura con IA puede tardar
+export const maxDuration = 540; // margen sobre el plazo compartido del extractor (480 s)
 
 const GATE: ModuleSlug[] = ["accounting"];
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -111,7 +112,9 @@ async function POSTHandler(req: Request) {
     }
     return NextResponse.json({ fileUrl, prefill: { ...prefill, supplierId } }, { status: 201 });
   } catch (err) {
-    console.error("[expenses/attachments] lectura con IA falló", err);
+    console.error("expense_attachment_ai_failed", {
+      code: err instanceof InvoiceExtractionError ? err.code : "ai_failed",
+    });
     return NextResponse.json({ fileUrl, aiError: "ai_failed" }, { status: 201 });
   }
 }

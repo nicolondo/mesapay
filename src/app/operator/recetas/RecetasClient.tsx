@@ -4,10 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
-import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
+import { MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import {
-  BASE_SYMBOL_FACTOR,
-  BASE_UNIT_SYMBOL,
+  foodCostPct,
+  foodCostTone,
+  netMenuPriceCents,
+  type MenuTax,
+} from "@/lib/erp/recipeDetail";
+import {
   DEFAULT_INPUT_UNIT,
   DISPLAY_UNITS,
   formatBaseQty,
@@ -17,79 +21,29 @@ import {
 import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { parseReferencePriceInput, referencePriceUnit } from "@/lib/erp/ingredientPrice";
 import { MoneyInput } from "@/components/MoneyInput";
-import { useBackdropClose } from "@/lib/useBackdropClose";
+import {
+  baseToInputQty,
+  editLineFromItem,
+  fold,
+  formatPct,
+  formatPerBase,
+  liveLinesTotal,
+  minQtyLabel,
+  newEditLine,
+  parseLine,
+  unitSymbols,
+  type CostDto,
+  type DishRow,
+  type EditLine,
+  type IngredientOption,
+  type RecipeDto,
+  type RecipeItemDto,
+} from "./recipeModel";
+import { RecipeDetail } from "./detalle/RecipeDetail";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/recipes (dishes + subRecipes + ingredients)
 // y de GET /api/operator/menu-engineering (tab Ingeniería).
-
-type CostSource = "stock" | "subrecipe" | "reference" | "supplier" | null;
-
-type RecipeItemDto = {
-  ingredientId: string;
-  qtyBase: number;
-  wastePct: number;
-  ingredientName: string;
-  measureKind: MeasureKind;
-};
-
-// Delta de insumo por opción de modificador. qtyBase con SIGNO: + agrega,
-// − quita. Reusa la forma de RecipeItemDto (nombre + dimensión).
-type ModifierItemDto = RecipeItemDto & {
-  modifierId: string;
-  optLabel: string;
-};
-
-// Grupo de modificador del plato (para colgarle insumos por opción).
-type ModifierGroupDto = {
-  id: string;
-  label: string;
-  type: "radio" | "checkbox";
-  opts: string[];
-};
-
-type RecipeDto = {
-  id: string;
-  notes: string | null;
-  items: RecipeItemDto[];
-  modifierItems: ModifierItemDto[];
-};
-
-type CostLineDto = {
-  ingredientId: string;
-  qtyBase: number;
-  wastePct: number;
-  grossQtyBase: number;
-  costPerBase: number | null;
-  source: CostSource;
-  lineCostCents: number | null;
-};
-
-type CostDto = {
-  costCents: number;
-  complete: boolean;
-  lines: CostLineDto[];
-};
-
-type DishRow = {
-  menuItemId: string;
-  name: string;
-  category: { id: string; label: string };
-  priceCents: number;
-  available: boolean;
-  modifiers: ModifierGroupDto[];
-  recipe: RecipeDto | null;
-  cost: CostDto | null;
-};
-
-type IngredientOption = {
-  id: string;
-  name: string;
-  measureKind: MeasureKind;
-  /** Centavos por unidad base (float) o null = sin fuente de costo (D3). */
-  costPerBase: number | null;
-  costSource: CostSource;
-};
 
 type SubRecipeRow = {
   recipeId: string;
@@ -207,74 +161,34 @@ type EngineeringData = {
 
 /* ─────────────────────────── Helpers ───────────────────────────────── */
 
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
-/** "g/kg", "ml/L", "un" — símbolos de unidad, iguales en es/en/pt. */
-function unitSymbols(kind: MeasureKind): string {
-  return DISPLAY_UNITS[kind].map((u) => u.symbol).join("/");
-}
-
-/** 2500 g → { qty: "2.5", unit: "kg" } — para precargar inputs de cantidad. */
-function baseToInputQty(
-  base: number,
-  kind: MeasureKind,
-): { qty: string; unit: string } {
-  const units = DISPLAY_UNITS[kind];
-  const big = units[units.length - 1];
-  if (big.factor > 1 && base >= big.factor) {
-    return { qty: String(base / big.factor), unit: big.symbol };
-  }
-  // units[0].factor: 1 para g/ml, 1000 para count "un" (base milesimal).
-  return { qty: String(base / units[0].factor), unit: units[0].symbol };
-}
-
-/** "32,5%" con separador decimal del idioma. */
-function formatPct(pct: number, locale: string): string {
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(pct)}%`;
-}
-
-/**
- * "$16/g" — costo por unidad base (mismo formato que el picker de insumos
- * del editor de Platos, para que ambos tabs hablen igual).
- */
-function formatPerBase(
-  costPerBase: number,
-  kind: MeasureKind,
-  currency: string,
-  locale: Locale,
-): string {
-  // costPerBase es por unidad BASE (por milésima en count); se rotula por el
-  // símbolo base ("/un"), así que se escala por BASE_SYMBOL_FACTOR.
-  return `${formatMoney(Math.round(costPerBase * BASE_SYMBOL_FACTOR[kind]), { currency, locale })}/${BASE_UNIT_SYMBOL[kind]}`;
-}
-
-// Semáforo food cost (spec D6, umbrales estándar fijos en A3):
-// ≤30% ok · 30-40% atención (ámbar, mismos tokens del chip "parcial" de
-// compras) · >40% rojo.
+// Semáforo food cost (spec D6, umbrales estándar fijos en A3, en
+// @/lib/erp/recipeDetail): ≤30% ok · 30-40% atención (ámbar, mismos tokens
+// del chip "parcial" de compras) · >40% rojo.
 function foodCostCls(pct: number): string {
-  if (pct <= 30) return "text-ok";
-  if (pct <= 40) return "text-[#7F5A1F]";
+  const tone = foodCostTone(pct);
+  if (tone === "ok") return "text-ok";
+  if (tone === "warn") return "text-[#7F5A1F]";
   return "text-danger";
 }
 
 /** Rojo del semáforo — mismo umbral que foodCostCls (no se duplica el 40). */
 function isHighFoodCost(pct: number): boolean {
-  return foodCostCls(pct) === "text-danger";
+  return foodCostTone(pct) === "high";
 }
 
 /**
- * Food cost del plato (%) — solo con costo COMPLETO y precio > 0 (un costo
- * a medias mentiría; spec: nunca $0). Null = no medible.
+ * Food cost del plato (%) sobre el precio de carta SIN el impuesto embebido
+ * (el impoconsumo/IVA no es venta del comercio) — solo con costo COMPLETO y
+ * precio > 0 (un costo a medias mentiría; spec: nunca $0). Null = no medible.
+ * Es el mismo número que muestra el detalle de la receta.
  */
-function dishFoodCostPct(d: DishRow): number | null {
-  if (d.cost === null || !d.cost.complete || d.priceCents <= 0) return null;
-  return (d.cost.costCents / d.priceCents) * 100;
+function dishFoodCostPct(d: DishRow, tax: MenuTax): number | null {
+  if (d.cost === null) return null;
+  return foodCostPct(
+    d.cost.costCents,
+    netMenuPriceCents(d.priceCents, tax),
+    d.cost.complete,
+  );
 }
 
 // Tono del % de alza (D5): el server ya filtra < 10%; ámbar de ahí en
@@ -283,14 +197,6 @@ function dishFoodCostPct(d: DishRow): number | null {
 function priceAlertPctCls(pct: number): string {
   return pct >= 20 ? "text-danger" : "text-[#7F5A1F]";
 }
-
-// Errores del PUT de receta → clave i18n (fallback errSaveFailed).
-const API_ERROR_KEYS: Record<string, string> = {
-  invalid: "errLineInvalid",
-  duplicate_ingredient: "errDuplicateIngredient",
-  ingredient_not_found: "errIngredientNotFound",
-  menu_item_not_found: "errMenuItemNotFound",
-};
 
 // Errores del PUT/DELETE de sub-receta → clave i18n (fallback errSaveFailed).
 // recipe_cycle (409) e ingredient_in_own_recipe son defensivos: el picker de
@@ -308,7 +214,14 @@ type Tab = "dishes" | "subs" | "engineering";
 
 /* ───────────────────────────── Lista ───────────────────────────────── */
 
-export function RecetasClient({ currency }: { currency: string }) {
+export function RecetasClient({
+  currency,
+  tax,
+}: {
+  currency: string;
+  /** Impuesto de venta del comercio (va embebido en el precio de carta). */
+  tax: MenuTax;
+}) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
 
@@ -339,6 +252,28 @@ export function RecetasClient({ currency }: { currency: string }) {
   const [engCache, setEngCache] = useState<Record<number, EngineeringData>>(
     {},
   );
+
+  useEffect(() => {
+    let frame: number | null = null;
+    const refreshCosts = () => {
+      if (document.visibilityState !== "visible" || frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        setEngCache({});
+        setReloadSeq(sequence => sequence + 1);
+      });
+    };
+    // Refresh catalog costs when returning from Purchases or Ingredients in
+    // another tab. RecipeDetail keeps its own unsaved lines and uses this new
+    // catalog only for cost resolution, so quantities and notes stay intact.
+    window.addEventListener("focus", refreshCosts);
+    document.addEventListener("visibilitychange", refreshCosts);
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      window.removeEventListener("focus", refreshCosts);
+      document.removeEventListener("visibilitychange", refreshCosts);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,7 +341,7 @@ export function RecetasClient({ currency }: { currency: string }) {
     return (dishes ?? []).filter((d) => {
       if (cat !== "all" && d.category.id !== cat) return false;
       if (fcHighOnly) {
-        const fc = dishFoodCostPct(d);
+        const fc = dishFoodCostPct(d, tax);
         if (fc == null || !isHighFoodCost(fc)) return false;
       }
       if (gapsOnly && !gapDishIds.has(d.menuItemId)) return false;
@@ -416,7 +351,7 @@ export function RecetasClient({ currency }: { currency: string }) {
       }
       return true;
     });
-  }, [dishes, q, cat, fcHighOnly, gapsOnly, gapDishIds]);
+  }, [dishes, q, cat, fcHighOnly, gapsOnly, gapDishIds, tax]);
 
   // Ids visibles tras búsqueda/categoría: el panel de costos incompletos
   // respeta los mismos filtros que la lista.
@@ -430,11 +365,17 @@ export function RecetasClient({ currency }: { currency: string }) {
   const fcHighCount = useMemo(() => {
     let n = 0;
     for (const d of dishes ?? []) {
-      const fc = dishFoodCostPct(d);
+      const fc = dishFoodCostPct(d, tax);
       if (fc != null && isHighFoodCost(fc)) n++;
     }
     return n;
-  }, [dishes]);
+  }, [dishes, tax]);
+
+  // Insumos que tienen sub-receta: el detalle los marca «Sub-receta».
+  const subRecipeIds = useMemo(
+    () => new Set(subs.map((s) => s.ingredientId)),
+    [subs],
+  );
 
   // Receta guardada/borrada: el server devuelve receta + costo recalculado
   // (fuente de verdad) → se actualiza el row local y se cierra el sheet.
@@ -515,6 +456,7 @@ export function RecetasClient({ currency }: { currency: string }) {
       ) : tab === "engineering" ? (
         <EngineeringTab
           currency={currency}
+          tax={tax}
           days={engDays}
           onDaysChange={setEngDays}
           cache={engCache}
@@ -643,9 +585,9 @@ export function RecetasClient({ currency }: { currency: string }) {
                 // Food cost/margen solo con costo COMPLETO — un costo a
                 // medias mentiría (spec: nunca $0); incompleto → badge.
                 const complete = d.cost !== null && d.cost.complete;
-                const fc = dishFoodCostPct(d);
+                const fc = dishFoodCostPct(d, tax);
                 const margin = complete
-                  ? d.priceCents - d.cost!.costCents
+                  ? netMenuPriceCents(d.priceCents, tax) - d.cost!.costCents
                   : null;
                 return (
                   <button
@@ -732,12 +674,16 @@ export function RecetasClient({ currency }: { currency: string }) {
       )}
 
       {openDish && (
-        <RecipeSheet
+        <RecipeDetail
+          key={openDish.menuItemId}
           dish={openDish}
           ingredients={ingredients}
+          subRecipeIds={subRecipeIds}
           currency={currency}
+          tax={tax}
           onClose={() => setOpenDish(null)}
           onSaved={handleSaved}
+          onCostFixed={handleFixedCost}
         />
       )}
     </div>
@@ -1146,555 +1092,18 @@ function IngredientCostFixRow({
   );
 }
 
-/* ─────────────────── Editor de receta (sheet) ──────────────────────── */
-
-type EditLine = {
-  key: number;
-  ingredientId: string;
-  ingredientName: string;
-  measureKind: MeasureKind;
-  /** Snapshot de la cascada D3 para el costo EN VIVO (null = sin costo). */
-  costPerBase: number | null;
-  qtyRaw: string;
-  unit: string;
-  wasteRaw: string;
-  /** Solo líneas de modificador: +1 agrega, −1 quita. undefined = +1 (base). */
-  sign?: 1 | -1;
-};
-
-// Línea de insumo atada a una opción de modificador (extiende EditLine).
-type ModLine = EditLine & { modifierId: string; optLabel: string };
-
-type ParsedLine =
-  | {
-      qtyBase: number;
-      wastePct: number;
-      grossBase: number;
-      lineCost: number | null;
-    }
-  | "qty_invalid"
-  | "qty_too_small"
-  | "waste_invalid";
-
-/** Menor cantidad representable en una unidad de display (1 unidad base). */
-function minQtyLabel(kind: MeasureKind, unitSymbol: string): string {
-  const unit = DISPLAY_UNITS[kind].find((u) => u.symbol === unitSymbol);
-  if (!unit) return "";
-  const min = 1 / unit.factor;
-  const decimals = String(unit.factor).length - 1;
-  return `${min.toFixed(decimals).replace(".", ",")} ${unit.symbol}`;
-}
-
-/** Parseo + costo en vivo de una línea: bruto = neto / (1 − merma%). */
-function parseLine(l: EditLine): ParsedLine {
-  const value = parseDecimalInput(l.qtyRaw);
-  const qtyBase = toBaseQty(value, l.measureKind, l.unit);
-  if (qtyBase == null) {
-    // Un número positivo que no llega a 1 unidad base no es un error de
-    // tipeo: es que la unidad elegida no tiene esa resolución (0,05 ml).
-    // Se distingue para poder decir cuál es el mínimo y no un genérico.
-    return isFinite(value) && value > 0 ? "qty_too_small" : "qty_invalid";
-  }
-  const wRaw = l.wasteRaw.trim();
-  const wastePct = wRaw === "" ? 0 : Number(wRaw);
-  if (!Number.isInteger(wastePct) || wastePct < 0 || wastePct > MAX_WASTE_PCT) {
-    return "waste_invalid";
-  }
-  const gross = grossQty(qtyBase, wastePct);
-  const lineCost =
-    l.costPerBase != null ? Math.round(gross * l.costPerBase) : null;
-  return { qtyBase, wastePct, grossBase: Math.round(gross), lineCost };
-}
-
-let lineKeySeq = 0;
-
-/** Línea nueva desde el picker de insumos (unidad base, sin merma). */
-function newEditLine(ing: IngredientOption): EditLine {
-  return {
-    key: ++lineKeySeq,
-    ingredientId: ing.id,
-    ingredientName: ing.name,
-    measureKind: ing.measureKind,
-    costPerBase: ing.costPerBase,
-    qtyRaw: "",
-    unit: DEFAULT_INPUT_UNIT[ing.measureKind],
-    wasteRaw: "0",
-  };
-}
-
-/** Línea precargada desde una receta guardada (rescatando el costo D3). */
-function editLineFromItem(
-  it: RecipeItemDto,
-  ingById: Map<string, IngredientOption>,
-  costLines: CostLineDto[] | undefined,
-): EditLine {
-  const { qty, unit } = baseToInputQty(it.qtyBase, it.measureKind);
-  // El costPerBase sale del catálogo de insumos activos; para insumos que
-  // salieron del catálogo (inactivos) se rescata el de las líneas de costo.
-  const fromCatalog = ingById.get(it.ingredientId)?.costPerBase;
-  const fromCost = costLines?.find(
-    (l) => l.ingredientId === it.ingredientId,
-  )?.costPerBase;
-  return {
-    key: ++lineKeySeq,
-    ingredientId: it.ingredientId,
-    ingredientName: it.ingredientName,
-    measureKind: it.measureKind,
-    costPerBase: fromCatalog ?? fromCost ?? null,
-    qtyRaw: qty,
-    unit,
-    wasteRaw: String(it.wastePct),
-  };
-}
+/* ─────────────── Editor de líneas (sub-recetas) ───────────── */
 
 /**
- * Suma EN VIVO de las líneas del editor (criterio de aceptación 1: se
- * recalcula al teclear, antes de guardar): total de las líneas costeables;
- * incompleto si alguna línea no tiene fuente de costo o aún no parsea.
- */
-function liveLinesTotal(lines: EditLine[]): {
-  total: number;
-  complete: boolean;
-} {
-  let total = 0;
-  let incomplete = false;
-  for (const l of lines) {
-    const p = parseLine(l);
-    if (
-      p === "qty_invalid" ||
-      p === "qty_too_small" ||
-      p === "waste_invalid" ||
-      p.lineCost == null
-    ) {
-      incomplete = true;
-      continue;
-    }
-    total += p.lineCost;
-  }
-  return { total, complete: lines.length > 0 && !incomplete };
-}
-
-function RecipeSheet({
-  dish,
-  ingredients,
-  currency,
-  onClose,
-  onSaved,
-}: {
-  dish: DishRow;
-  ingredients: IngredientOption[];
-  currency: string;
-  onClose: () => void;
-  onSaved: (
-    menuItemId: string,
-    recipe: RecipeDto | null,
-    cost: CostDto | null,
-  ) => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-
-  const ingById = useMemo(() => {
-    const m = new Map<string, IngredientOption>();
-    for (const i of ingredients) m.set(i.id, i);
-    return m;
-  }, [ingredients]);
-
-  // Líneas iniciales desde la receta guardada.
-  const [lines, setLines] = useState<EditLine[]>(() =>
-    (dish.recipe?.items ?? []).map((it) =>
-      editLineFromItem(it, ingById, dish.cost?.lines),
-    ),
-  );
-  const [notes, setNotes] = useState(dish.recipe?.notes ?? "");
-  // Deltas de insumo por opción de modificador (± por línea). Se precargan
-  // de la receta guardada; qtyBase negativo → sign −1 (quitar).
-  const [modLines, setModLines] = useState<ModLine[]>(() =>
-    (dish.recipe?.modifierItems ?? []).map((it) => ({
-      ...editLineFromItem(
-        { ...it, qtyBase: Math.abs(it.qtyBase) },
-        ingById,
-        undefined,
-      ),
-      modifierId: it.modifierId,
-      optLabel: it.optLabel,
-      sign: it.qtyBase < 0 ? -1 : 1,
-    })),
-  );
-  const [busy, setBusy] = useState(false);
-  const [deletingBusy, setDeletingBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  function addLine(ing: IngredientOption) {
-    setErr(null);
-    setLines((prev) => [...prev, newEditLine(ing)]);
-  }
-
-  function updateLine(key: number, patch: Partial<EditLine>) {
-    setErr(null);
-    setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
-    );
-  }
-
-  function removeLine(key: number) {
-    setLines((prev) => prev.filter((x) => x.key !== key));
-  }
-
-  function addModLine(modifierId: string, optLabel: string, ing: IngredientOption) {
-    setErr(null);
-    setModLines((prev) => [
-      ...prev,
-      { ...newEditLine(ing), modifierId, optLabel, sign: 1 },
-    ]);
-  }
-
-  function updateModLine(key: number, patch: Partial<EditLine>) {
-    setErr(null);
-    setModLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
-    );
-  }
-
-  function removeModLine(key: number) {
-    setModLines((prev) => prev.filter((x) => x.key !== key));
-  }
-
-  function toggleModSign(key: number) {
-    setErr(null);
-    setModLines((prev) =>
-      prev.map((l) =>
-        l.key === key ? { ...l, sign: l.sign === -1 ? 1 : -1 } : l,
-      ),
-    );
-  }
-
-  // Totales EN VIVO: costo + food cost + margen contra el precio de carta.
-  const live = useMemo(() => {
-    const { total, complete } = liveLinesTotal(lines);
-    const fc =
-      complete && dish.priceCents > 0
-        ? (total / dish.priceCents) * 100
-        : null;
-    const margin = complete ? dish.priceCents - total : null;
-    return { total, complete, fc, margin };
-  }, [lines, dish.priceCents]);
-
-  type ModItemPayload = {
-    modifierId: string;
-    optLabel: string;
-    ingredientId: string;
-    qtyBase: number;
-    wastePct: number;
-  };
-
-  async function put(body: {
-    items: { ingredientId: string; qtyBase: number; wastePct: number }[];
-    modifierItems?: ModItemPayload[];
-    notes: string | null;
-  }): Promise<Response> {
-    return fetch(`/api/operator/recipes/dish/${dish.menuItemId}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  async function save() {
-    setErr(null);
-    const items: { ingredientId: string; qtyBase: number; wastePct: number }[] =
-      [];
-    for (const l of lines) {
-      const p = parseLine(l);
-      if (p === "qty_invalid") {
-        setErr(t("errContentInvalid"));
-        return;
-      }
-      if (p === "qty_too_small") {
-        setErr(
-          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
-        );
-        return;
-      }
-      if (p === "waste_invalid") {
-        setErr(t("errWasteInvalid"));
-        return;
-      }
-      items.push({
-        ingredientId: l.ingredientId,
-        qtyBase: p.qtyBase,
-        wastePct: p.wastePct,
-      });
-    }
-    if (items.length === 0) return;
-    // Deltas de modificador: qtyBase con signo (sign −1 = quitar).
-    const modifierItems: ModItemPayload[] = [];
-    for (const l of modLines) {
-      const p = parseLine(l);
-      if (p === "qty_invalid") {
-        setErr(t("errContentInvalid"));
-        return;
-      }
-      if (p === "qty_too_small") {
-        setErr(
-          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
-        );
-        return;
-      }
-      if (p === "waste_invalid") {
-        setErr(t("errWasteInvalid"));
-        return;
-      }
-      modifierItems.push({
-        modifierId: l.modifierId,
-        optLabel: l.optLabel,
-        ingredientId: l.ingredientId,
-        qtyBase: (l.sign === -1 ? -1 : 1) * p.qtyBase,
-        wastePct: p.wastePct,
-      });
-    }
-    setBusy(true);
-    const r = await put({ items, modifierItems, notes: notes.trim() || null });
-    setBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_ERROR_KEYS[j.error as string];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    const j = await r.json();
-    // El PUT devuelve items sin nombre/dimensión (a diferencia del GET) —
-    // se enriquecen desde las líneas recién validadas.
-    const raw = j.recipe as {
-      id: string;
-      notes: string | null;
-      items: { ingredientId: string; qtyBase: number; wastePct: number }[];
-      modifierItems: ModItemPayload[];
-    };
-    const nameOf = (id: string) =>
-      lines.find((l) => l.ingredientId === id) ??
-      modLines.find((l) => l.ingredientId === id);
-    const recipe: RecipeDto = {
-      id: raw.id,
-      notes: raw.notes,
-      items: raw.items.map((it) => {
-        const line = nameOf(it.ingredientId);
-        return {
-          ...it,
-          ingredientName: line?.ingredientName ?? "",
-          measureKind: line?.measureKind ?? "count",
-        };
-      }),
-      modifierItems: (raw.modifierItems ?? []).map((it) => {
-        const line = nameOf(it.ingredientId);
-        return {
-          ...it,
-          ingredientName: line?.ingredientName ?? "",
-          measureKind: line?.measureKind ?? "count",
-        };
-      }),
-    };
-    onSaved(dish.menuItemId, recipe, j.cost as CostDto);
-  }
-
-  // Borrado = PUT con items: [] (contrato del API); el plato queda "sin
-  // receta". Confirm nativo — mismo patrón que compras/conteos.
-  async function deleteRecipe() {
-    if (!window.confirm(t("confirmDeleteRecipe"))) return;
-    setErr(null);
-    setDeletingBusy(true);
-    const r = await put({ items: [], notes: null });
-    setDeletingBusy(false);
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      const key = API_ERROR_KEYS[j.error as string];
-      setErr(key ? t(key) : t("errSaveFailed"));
-      return;
-    }
-    onSaved(dish.menuItemId, null, null);
-  }
-
-  const anyBusy = busy || deletingBusy;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      {...useBackdropClose(onClose)}
-    >
-      <div
-        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="font-display text-2xl truncate">{dish.name}</h2>
-            {!dish.available && (
-              <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                {t("unavailableBadge")}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
-            aria-label={t("cancel")}
-          >
-            {"✕"}
-          </button>
-        </div>
-        <div className="text-[11px] text-op-muted mb-4">
-          {[
-            dish.category.label,
-            `${t("dishPriceLabel")}: ${formatMoney(dish.priceCents, {
-              currency,
-              locale,
-            })}`,
-          ].join(" · ")}
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-              {t("linesTitle")}
-            </div>
-            <div className="text-[10px] text-op-muted mt-0.5">
-              {t("recipeLinesHint")}
-            </div>
-          </div>
-
-          <LinesEditor
-            lines={lines}
-            ingredients={ingredients}
-            currency={currency}
-            onAdd={addLine}
-            onUpdate={updateLine}
-            onRemove={removeLine}
-          />
-
-          {/* Resumen EN VIVO: costo total, food cost con semáforo y margen */}
-          <div className="rounded-2xl border border-op-border bg-op-bg/50 px-4 py-3 space-y-1">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("recipeCostLabel")}
-              </span>
-              <span className="text-sm font-medium tabular-nums flex items-center gap-2">
-                {!live.complete && lines.length > 0 && (
-                  <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/15 text-[#7F5A1F] text-[10px] font-medium">
-                    {t("incompleteCostBadge")}
-                  </span>
-                )}
-                {live.complete
-                  ? formatMoney(live.total, { currency, locale })
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("foodCostLabel")}
-              </span>
-              <span
-                className={
-                  "text-sm font-medium tabular-nums " +
-                  (live.fc != null ? foodCostCls(live.fc) : "text-op-muted")
-                }
-              >
-                {live.fc != null ? formatPct(live.fc, locale) : "—"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("marginLabel")}
-              </span>
-              <span
-                className={
-                  "text-sm font-medium tabular-nums" +
-                  (live.margin != null && live.margin < 0 ? " text-danger" : "")
-                }
-              >
-                {live.margin != null
-                  ? formatMoney(live.margin, { currency, locale })
-                  : "—"}
-              </span>
-            </div>
-          </div>
-
-          {/* Los deltas de modificador se cuelgan de la receta base: solo se
-              muestran cuando ya hay al menos un insumo base (sin base, guardar
-              está deshabilitado y el server borraría la receta). */}
-          {lines.length > 0 && (
-            <DishModifiersEditor
-              modifiers={dish.modifiers}
-              modLines={modLines}
-              ingredients={ingredients}
-              currency={currency}
-              onAdd={addModLine}
-              onUpdate={updateModLine}
-              onRemove={removeModLine}
-              onToggleSign={toggleModSign}
-            />
-          )}
-
-          <Field label={t("fieldNotes")}>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              maxLength={1000}
-              rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40"
-            />
-          </Field>
-
-          {err && <div className="text-xs text-danger">{err}</div>}
-
-          <div className="flex items-center gap-3 pt-1">
-            {dish.recipe !== null && (
-              <button
-                type="button"
-                onClick={deleteRecipe}
-                disabled={anyBusy}
-                className="min-h-[44px] px-3 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
-              >
-                {deletingBusy ? t("deleting") : t("deleteRecipe")}
-              </button>
-            )}
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="mp-btn mp-btn--secondary"
-            >
-              {t("cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={anyBusy || lines.length === 0}
-              className="mp-btn mp-btn--primary"
-            >
-              {busy ? t("saving") : t("save")}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── Editor de líneas (compartido plato/sub) ───────────── */
-
-/**
- * Lista de líneas de receta + picker para agregar insumos. Compartido por
- * el editor de Platos y el de Sub-recetas: misma edición de cantidad neta
- * (unidades display), merma % y costo de línea EN VIVO.
+ * Lista de líneas de receta + picker para agregar insumos del editor de
+ * Sub-recetas: edición de cantidad neta (unidades display), merma % y costo
+ * de línea EN VIVO. (Los platos usan el detalle de ./detalle.)
  */
 function LinesEditor({
   lines,
   ingredients,
   excludeIds,
   currency,
-  signed,
-  onToggleSign,
   onAdd,
   onUpdate,
   onRemove,
@@ -1704,9 +1113,6 @@ function LinesEditor({
   /** Ids extra fuera del picker (p. ej. el insumo output de la sub-receta). */
   excludeIds?: Set<string>;
   currency: string;
-  /** Modo modificador: muestra un toggle +/− (agregar / quitar) por línea. */
-  signed?: boolean;
-  onToggleSign?: (key: number) => void;
   onAdd: (ing: IngredientOption) => void;
   onUpdate: (key: number, patch: Partial<EditLine>) => void;
   onRemove: (key: number) => void;
@@ -1767,12 +1173,21 @@ function LinesEditor({
                       (invalid ? "text-danger" : "text-op-muted")
                     }
                   >
-                    {invalid
-                      ? "✕"
-                      : parsed.lineCost != null
-                        ? (signed && l.sign === -1 ? "−" : "") +
-                          formatMoney(parsed.lineCost, { currency, locale })
-                        : "—"}
+                    {invalid ? (
+                      "✕"
+                    ) : parsed.lineCost != null ? (
+                      formatMoney(parsed.lineCost, { currency, locale })
+                    ) : (
+                      // Sin fuente de costo: distintivo corto (el detalle
+                      // va en el título), no un párrafo por línea.
+                      <span
+                        className="inline-flex items-center gap-1 text-[#7F5A1F]"
+                        title={t("noCostHint")}
+                      >
+                        <WarningIcon />
+                        {t("noCostBadge")}
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -1783,24 +1198,6 @@ function LinesEditor({
                   </button>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
-                  {signed && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleSign?.(l.key)}
-                      aria-label={
-                        l.sign === -1 ? t("modSignRemove") : t("modSignAdd")
-                      }
-                      title={l.sign === -1 ? t("modSignRemove") : t("modSignAdd")}
-                      className={
-                        "min-h-[44px] w-10 rounded-lg border text-base font-bold shrink-0 " +
-                        (l.sign === -1
-                          ? "border-danger/40 text-danger bg-danger/10"
-                          : "border-ok/40 text-ok bg-ok/10")
-                      }
-                    >
-                      {l.sign === -1 ? "−" : "+"}
-                    </button>
-                  )}
                   <input
                     type="text"
                     inputMode="decimal"
@@ -1854,11 +1251,6 @@ function LinesEditor({
                     )}`}
                   </div>
                 )}
-                {l.costPerBase == null && (
-                  <div className="text-[10px] text-op-muted mt-1">
-                    {t("noCostHint")}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -1909,133 +1301,6 @@ function LinesEditor({
         </div>
       </div>
     </>
-  );
-}
-
-/* ─────────── Insumos por opción de modificador (plato) ─────────── */
-
-// Por cada grupo de modificador del plato y cada opción, un editor de
-// deltas de insumo (± agregar/quitar). Se aplica al consumo/CMV solo cuando
-// el comensal eligió esa opción. Sin modificadores no renderiza nada.
-function DishModifiersEditor({
-  modifiers,
-  modLines,
-  ingredients,
-  currency,
-  onAdd,
-  onUpdate,
-  onRemove,
-  onToggleSign,
-}: {
-  modifiers: ModifierGroupDto[];
-  modLines: ModLine[];
-  ingredients: IngredientOption[];
-  currency: string;
-  onAdd: (modifierId: string, optLabel: string, ing: IngredientOption) => void;
-  onUpdate: (key: number, patch: Partial<EditLine>) => void;
-  onRemove: (key: number) => void;
-  onToggleSign: (key: number) => void;
-}) {
-  const t = useTranslations("opErp");
-  if (modifiers.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <div>
-        <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-          {t("modRecipeTitle")}
-        </div>
-        <div className="text-[10px] text-op-muted mt-0.5">
-          {t("modRecipeHint")}
-        </div>
-      </div>
-      {modifiers.map((m) => (
-        <div
-          key={m.id}
-          className="rounded-2xl border border-op-border overflow-hidden"
-        >
-          <div className="px-3 py-2 bg-op-bg/50 text-sm font-medium">
-            {m.label}
-          </div>
-          <div className="divide-y divide-op-border">
-            {m.opts.map((opt) => (
-              <OptionEditor
-                key={opt}
-                label={opt}
-                lines={modLines.filter(
-                  (l) => l.modifierId === m.id && l.optLabel === opt,
-                )}
-                ingredients={ingredients}
-                currency={currency}
-                onAdd={(ing) => onAdd(m.id, opt, ing)}
-                onUpdate={onUpdate}
-                onRemove={onRemove}
-                onToggleSign={onToggleSign}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Una opción del modificador: colapsable, abre el LinesEditor (modo signed)
-// para colgarle insumos. Estado `open` local para no depender de <details>.
-function OptionEditor({
-  label,
-  lines,
-  ingredients,
-  currency,
-  onAdd,
-  onUpdate,
-  onRemove,
-  onToggleSign,
-}: {
-  label: string;
-  lines: EditLine[];
-  ingredients: IngredientOption[];
-  currency: string;
-  onAdd: (ing: IngredientOption) => void;
-  onUpdate: (key: number, patch: Partial<EditLine>) => void;
-  onRemove: (key: number) => void;
-  onToggleSign: (key: number) => void;
-}) {
-  const t = useTranslations("opErp");
-  const [open, setOpen] = useState(lines.length > 0);
-  return (
-    <div className="px-3 py-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full min-h-[40px] flex items-center justify-between gap-2 text-sm"
-      >
-        <span className="flex items-center gap-2 min-w-0">
-          <span aria-hidden className="text-op-muted">
-            {open ? "▾" : "▸"}
-          </span>
-          <span className="truncate">{label}</span>
-        </span>
-        <span className="text-[10px] text-op-muted shrink-0">
-          {lines.length > 0
-            ? t("modOptLineCount", { count: lines.length })
-            : t("modOptAdd")}
-        </span>
-      </button>
-      {open && (
-        <div className="mt-2">
-          <LinesEditor
-            lines={lines}
-            ingredients={ingredients}
-            currency={currency}
-            signed
-            onToggleSign={onToggleSign}
-            onAdd={onAdd}
-            onUpdate={onUpdate}
-            onRemove={onRemove}
-          />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -2332,7 +1597,9 @@ function SubRecipeSheet({
       }
       if (p === "qty_too_small") {
         setErr(
-          t("errQtyTooSmall", { min: minQtyLabel(l.measureKind, l.unit) }),
+          t("errQtyTooSmall", {
+            min: minQtyLabel(l.measureKind, l.unit, locale),
+          }),
         );
         return;
       }
@@ -2655,12 +1922,14 @@ const ENG_QUADRANTS: { id: EngineeringQuadrantId; emoji: string }[] = [
 
 function EngineeringTab({
   currency,
+  tax,
   days,
   onDaysChange,
   cache,
   setCache,
 }: {
   currency: string;
+  tax: MenuTax;
   days: number;
   onDaysChange: (d: number) => void;
   cache: Record<number, EngineeringData>;
@@ -2797,10 +2066,13 @@ function EngineeringTab({
                     </div>
                     <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
                       {rows.map((d) => {
-                        const fc =
-                          d.priceCents > 0
-                            ? (d.costCents / d.priceCents) * 100
-                            : null;
+                        // Mismo food cost que la lista y el detalle:
+                        // sobre el precio sin el impuesto embebido.
+                        const fc = foodCostPct(
+                          d.costCents,
+                          netMenuPriceCents(d.priceCents, tax),
+                          true,
+                        );
                         return (
                           <div
                             key={d.menuItemId}

@@ -429,6 +429,7 @@ export async function receivePurchaseOrder(
       where: { id: item.id },
       data: {
         receivedQtyBase: item.receivedQtyBase + line.qtyBase,
+        lastReceivedAt: new Date(),
         receivedCostCents: item.receivedCostCents + line.costCents,
         // Freeze treatment at reception, so future tracking toggles do not
         // rewrite a supplier invoice's historical accounting classification.

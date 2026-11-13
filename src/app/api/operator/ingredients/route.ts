@@ -1,4 +1,5 @@
 import { secureApi } from "@/lib/secureApi";
+import { barcodeTakenResponse } from "@/lib/erp/barcodeOwner";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma, type Ingredient } from "@prisma/client";
@@ -6,6 +7,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { BARCODE_MAX_LENGTH, normalizeBarcode } from "@/lib/erp/barcode";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { EMPTY_INGREDIENT_COST_VIEW, loadIngredientCostViews } from "@/lib/erp/recipeData";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -33,15 +35,17 @@ async function GETHandler() {
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const ingredients = await db.ingredient.findMany({
+  const [ingredients, costViews] = await Promise.all([db.ingredient.findMany({
     where: { restaurantId: ctx.restaurantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     include: {
       _count: { select: { supplierItems: true } },
       barcodes: { where: { restaurantId: ctx.restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
     },
-  });
-  return NextResponse.json({ ingredients });
+  }), loadIngredientCostViews(ctx.restaurantId)]);
+  return NextResponse.json({ ingredients: ingredients.map((ingredient) => ({
+    ...ingredient, ...(costViews.get(ingredient.id) ?? EMPTY_INGREDIENT_COST_VIEW),
+  })) });
 }
 
 async function POSTHandler(req: Request) {
@@ -76,9 +80,7 @@ async function POSTHandler(req: Request) {
       },
       select: { ingredientId: true },
     });
-    if (dupCode) {
-      return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
-    }
+    if (dupCode) return barcodeTakenResponse(ctx.restaurantId, barcode);
   }
   let ingredient: Ingredient;
   try {
@@ -105,7 +107,7 @@ async function POSTHandler(req: Request) {
         where: { restaurantId_barcode: { restaurantId: ctx.restaurantId, barcode } },
         select: { ingredientId: true },
       });
-      if (barcodeTarget || conflictingCode) return NextResponse.json({ error: "barcode_taken" }, { status: 409 });
+      if (barcodeTarget || conflictingCode) return barcodeTakenResponse(ctx.restaurantId, barcode);
     }
     throw error;
   }
@@ -121,7 +123,10 @@ async function POSTHandler(req: Request) {
       },
     });
   }
-  return NextResponse.json({ ingredient }, { status: 201 });
+  const costViews = await loadIngredientCostViews(ctx.restaurantId);
+  return NextResponse.json({ ingredient: {
+    ...ingredient, ...(costViews.get(ingredient.id) ?? EMPTY_INGREDIENT_COST_VIEW),
+  } }, { status: 201 });
 }
 
 export const GET = secureApi(GETHandler);

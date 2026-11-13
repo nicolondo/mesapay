@@ -15,8 +15,8 @@ export default async function AdminAccountPage() {
   const t = await getTranslations("myAccount");
 
   return (
-    <div className="p-4 md:p-6 max-w-xl mx-auto w-full">
-      <h1 className="font-display text-3xl mb-1">{t("title")}</h1>
+    <div className="mp-page mp-page--account">
+      <h1 className="mp-page-title mb-2">{t("title")}</h1>
       <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
 
       <section className="rounded-2xl border border-op-border bg-op-surface p-5 mb-6">

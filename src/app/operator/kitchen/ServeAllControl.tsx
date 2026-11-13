@@ -11,7 +11,7 @@ export type ServeAllOutcome =
 
 /**
  * «Servir todo»: enlace chico en el encabezado del tablero de cocina / bar.
- * Sólo lo monta el tablero para la administración del comercio (ver
+ * Sólo lo monta el tablero para roles autorizados en esa estación (ver
  * `canServeAll`) y sólo cuando hay algo pendiente.
  *
  * Al tocarlo se CONGELA la lista de lo pendiente en ese momento y se pide

@@ -48,12 +48,13 @@ type Busy = "abort" | "retry" | "cancel" | "check" | null;
  * staff, Salón y la pantalla de espera del staff):
  *
  *   - en curso: «Cancelar en el datáfono» (le pide al equipo que cancele; la
- *     cuenta se libera sola cuando el equipo responde);
+ *     cuenta se libera sola cuando el equipo responde). El administrador
+ *     también puede cancelar manualmente, con evidencia, sin esperar;
  *   - el equipo contestó que no: «Reintentar en el datáfono» y «Cancelar y
  *     cobrar de otra forma», al instante y para cualquiera que cobre la mesa,
  *     confirmando en la pantalla del datáfono que el cobro no salió;
  *   - sin respuesta: puede haber cobrado. Revisar el datáfono y el voucher, y
- *     "Resolver cobro" (administrador, 3 minutos, evidencia).
+ *     "Resolver cobro" (administrador, sin espera, con evidencia).
  *
  * El servidor vuelve a exigir todo (estado del intento bajo `lockOrder`,
  * roles, control de caja). Ver /api/operator/payments/[id]/terminal-attempt.
@@ -77,7 +78,7 @@ export function TerminalAttemptActions({
   currency?: string;
   /** Qué se sabe del intento; null/undefined = dato viejo, sólo "Resolver cobro". */
   attempt: TerminalAttemptView | null | undefined;
-  /** Cuándo se envió (ISO), para la cuenta regresiva de "Resolver cobro". */
+  /** Cuándo se envió (ISO), para verificar que el cobro salió al equipo. */
   pushedAt: string | null | undefined;
   /** Para volver a mandar el cobro por `terminal/charge`. */
   tenantSlug?: string | null;
@@ -87,6 +88,7 @@ export function TerminalAttemptActions({
   canResolve: boolean;
   /** "Solo el administrador cobra" y quien mira es un mesero. */
   chargeLocked?: boolean;
+  /** Bloquea acciones normales mientras se envía; no la resolución manual administrativa. */
   disabled?: boolean;
   /** Después de cualquier acción: refrescar la cuenta. */
   onChanged: () => void;
@@ -119,7 +121,10 @@ export function TerminalAttemptActions({
       amountCents={amountCents}
       currency={currency}
       canResolve={canResolve}
-      disabled={disabled || busy !== null}
+      // El envío/consulta remotos pueden seguir esperando. La resolución
+      // manual existe para destrabarlos y valida el estado bajo lockOrder.
+      disabled={busy === "retry" || busy === "cancel"}
+      initialOutcome={state === "in_flight" ? "declined" : undefined}
       onResolved={onChanged}
     />
   );
@@ -278,6 +283,7 @@ export function TerminalAttemptActions({
           </button>
         )}
         {feedback}
+        {resolve}
       </div>
     );
   }
@@ -321,7 +327,7 @@ export function TerminalAttemptActions({
     );
   }
 
-  // Sin respuesta: el equipo pudo cobrar. Primero, preguntarle a Kushki.
+  // Consulta remota y resolución manual son alternativas. La consulta no bloquea el diálogo.
   return (
     <div className="space-y-2">
       <p className="text-[12px] leading-snug">{t("noAnswerBody")}</p>

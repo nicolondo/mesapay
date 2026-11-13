@@ -407,13 +407,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "inventario-del-dia-a-dia",
       title: "Registra entradas, ajustes y mermas de inventario",
       covers:
-        "\"Existencias\" (filtros \"Bajo mínimo\", \"Con existencias\", \"Mostrar archivados\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
+        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
     },
     {
       slug: "conteo-de-inventario",
       title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), asociar códigos (\"Agregar código de barras\" / \"Agregar otro código\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias (principal, \"Quitar\") y asociarlos desde el conteo (\"Agregar código de barras\" / \"Agregar otro código\"), lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",

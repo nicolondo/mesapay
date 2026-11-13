@@ -9,8 +9,9 @@
 //   1. Costo promedio del inventario (StockLevel con qty > 0) — el real.
 //   2. Sub-receta del insumo: costo recursivo / rendimiento.
 //   3. Referencia manual por kg/L/un: referencePriceCents / 1000.
-//   4. Precio del proveedor preferido: lastPriceCents / contentQty.
-//   5. null → "costo incompleto" (nunca $0 implícito).
+//   4. Costo de una compra recibida: costo congelado / cantidad recibida.
+//   5. Precio del proveedor preferido: lastPriceCents / contentQty.
+//   6. null → "costo incompleto" (nunca $0 implícito).
 //
 // Recursión con tope de profundidad 3 y detección de ciclos.
 
@@ -19,12 +20,14 @@ import { REFERENCE_PRICE_QTY_BASE } from "@/lib/erp/ingredientPrice";
 export const MAX_RECIPE_DEPTH = 3;
 export const MAX_WASTE_PCT = 90;
 
-export type CostSource = "stock" | "subrecipe" | "reference" | "supplier" | null;
+export type CostSource = "stock" | "subrecipe" | "reference" | "purchase" | "supplier" | null;
 
 export type CtxIngredient = {
   stock?: { qtyBase: number; totalValueCents: number } | null;
   /** Manual cents per 1000 base units (1 kg, 1 L or 1 whole unit). */
   referencePriceCents?: number | null;
+  /** Weighted cost of the received quantity of a purchase, independent of current stock. */
+  purchase?: { qtyBase: number; totalCostCents: number } | null;
   /** Proveedor preferido de la lista de precios (A0). */
   preferred?: { lastPriceCents: number | null; contentQty: number } | null;
   /** Sub-receta del insumo (si es un elaborado). */
@@ -105,7 +108,13 @@ export function resolveIngredientCost(
     };
   }
 
-  // 4. Proveedor preferido.
+  // 4. Actual received purchase, without overwriting a deliberate manual reference.
+  if (ing.purchase && Number.isSafeInteger(ing.purchase.qtyBase) && ing.purchase.qtyBase > 0 &&
+      Number.isSafeInteger(ing.purchase.totalCostCents) && ing.purchase.totalCostCents >= 0) {
+    return { costPerBase: ing.purchase.totalCostCents / ing.purchase.qtyBase, source: "purchase" };
+  }
+
+  // 5. Proveedor preferido.
   if (
     ing.preferred &&
     ing.preferred.lastPriceCents != null &&

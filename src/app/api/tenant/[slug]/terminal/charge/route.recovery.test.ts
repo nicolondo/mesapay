@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Prisma } from "@prisma/client";
 import { createFakePaymentsDb } from "@/test/fakePaymentsDb";
 
 /**
@@ -97,6 +98,7 @@ vi.mock("@/lib/payments/mockBridge", () => ({ ensureMockBridge: () => {} }));
 vi.mock("@/lib/payments", () => ({ getPaymentProvider: vi.fn() }));
 
 import { POST } from "./route";
+import { reconcilePaymentInTx } from "@/lib/payments/reconciliation";
 import { decryptData, tokenPassword } from "@/lib/payments/kushki/cloudTerminal";
 import {
   TERMINAL_RECOVERY_INTERVAL_MS,
@@ -159,6 +161,25 @@ const claim = () => h.fake.state.financialOperations.find((o) => o.key === `term
 const calls = () => h.fetch.mock.calls.map((c) => String(c[0]));
 const searchCalls = () => calls().filter((u) => u.endsWith("/sync/transaction_search_online"));
 
+/** Another administrator resolves the sent charge while the real HTTP request is still waiting. */
+async function manuallyApproveDuringPush() {
+  await h.fake.tx.payment.update({ where: { id: PAYMENT_ID }, data: { reconciliationRequired: true } });
+  await h.fake.$transaction((tx) => reconcilePaymentInTx(tx as unknown as Prisma.TransactionClient, {
+    paymentId: PAYMENT_ID, restaurantId: TENANT.id, outcome: "approved", providerRef: `manual:admin-1:${PAYMENT_ID}`,
+    evidence: "El administrador verificó el voucher aprobado", actor: { id: "admin-1", email: "admin@example.test", role: "operator" },
+    auditExtra: { manualTerminalResolution: true, authorizationCode: "AUTH-123" },
+  }));
+  Object.assign(h.fake.tx.auditEvent, {
+    findFirst: async ({ where }: { where: Record<string, unknown> }) => h.fake.state.auditEvents.find((event) =>
+      Object.entries(where).every(([key, value]) => {
+        if (key !== "diff") return event[key] === value;
+        const filter = value as { path: string[]; equals: unknown };
+        return (event.diff as Record<string, unknown>)?.[filter.path[0]] === filter.equals;
+      }),
+    ) ?? null,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.fetch.mockReset();
@@ -178,6 +199,26 @@ afterEach(() => {
   Object.assign(recoveryClock, realClock);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("terminal/charge: respuesta tardía después de aprobación manual", () => {
+  it.each([
+    ["rechazo del banco", 200, { approved: false, rawResponse: { transaction_reference: "late-decline" } }],
+    ["cancelación del equipo", 200, { type: "TERMINAL", code: "TER-004", message: "User cancel the process" }],
+    ["rechazo de la solicitud", 400, { type: "INTERNAL", code: "CLOUDPAYMENT_VALIDATION_ERROR", message: "Unable to validate request" }],
+  ])("%s queda en revisión, nunca anuncia que la cuenta quedó libre", async (_name, httpStatus, body) => {
+    h.fetch.mockImplementationOnce(async () => {
+      await manuallyApproveDuringPush();
+      return new Response(JSON.stringify(body), { status: httpStatus as number });
+    });
+    expect(await charge()).toEqual({ status: 202, json: { pending: true, error: "payment_pending" } });
+    expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "approved", reconciliationRequired: true });
+    expect(h.fake.order().status).toBe("paid");
+    expect(h.fake.state.kushkiTransactions).toHaveLength(1);
+    expect(h.fake.state.kushkiTransactions[0].status).toBe("approved");
+    expect(h.publish).not.toHaveBeenCalledWith("rest-1", expect.objectContaining({ type: "payment.declined" }));
+    expect(h.issueInvoice).not.toHaveBeenCalled();
+  });
 });
 
 describe("terminal/charge: 504 del gateway y el datáfono aprobó", () => {

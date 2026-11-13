@@ -2,7 +2,6 @@
 // (/api/operator/payments/[id]/resolve-terminal) lo vuelve a exigir.
 import { describe, expect, it } from "vitest";
 import {
-  TERMINAL_RESOLVE_AFTER_MS,
   canResolveTerminalCharge,
   manualTerminalRef,
   terminalResolvableAt,
@@ -21,10 +20,9 @@ describe("canResolveTerminalCharge", () => {
 });
 
 describe("terminalResolvableAt", () => {
-  it("3 minutos después de enviarlo al datáfono (el Cloud Terminal corta a ~90 s)", () => {
-    expect(TERMINAL_RESOLVE_AFTER_MS).toBe(180_000);
-    expect(terminalResolvableAt("2026-10-31T18:30:00.000Z")).toBe(Date.parse("2026-10-31T18:33:00.000Z"));
-    expect(terminalResolvableAt(new Date("2026-10-31T18:30:00.000Z"))).toBe(Date.parse("2026-10-31T18:33:00.000Z"));
+  it("permite resolver desde el envío, sin espera obligatoria", () => {
+    expect(terminalResolvableAt("2026-10-31T18:30:00.000Z")).toBe(Date.parse("2026-10-31T18:30:00.000Z"));
+    expect(terminalResolvableAt(new Date("2026-10-31T18:30:00.000Z"))).toBe(Date.parse("2026-10-31T18:30:00.000Z"));
   });
 
   it("sin envío (o una fecha rota) no hay desde cuándo: no se ofrece", () => {

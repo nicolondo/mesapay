@@ -18,6 +18,11 @@ import i18next from "eslint-plugin-i18next";
  * MIGRATED cubra `src/**` entero.
  */
 const MIGRATED = [
+  "src/components/WalletPendingBalance.tsx",
+  "src/components/WalletTrackingPanel.tsx",
+  "src/components/walletTracking/**/*.{ts,tsx}",
+  "src/components/WalletIncomingActivity.tsx",
+  "src/app/admin/wallet/**/*.{ts,tsx}",
   // Reportes contables: nacieron trilingües, quedan blindados de una.
   "src/app/operator/reportes/**/*.{ts,tsx}",
   // Análisis de ventas y los gráficos reutilizables: nacieron trilingües.
@@ -160,7 +165,8 @@ const MIGRATED = [
   "src/app/operator/shifts/page.tsx",
   "src/app/operator/shifts/\\[id\\]/**/*.{ts,tsx}",
   "src/app/admin/layout.tsx",
-  "src/app/admin/AdminMobileMenu.tsx",
+  "src/app/admin/AdminShell.tsx",
+  "src/app/admin/resumen/page.tsx",
   "src/app/admin/page.tsx",
   "src/app/admin/KushkiModeSwitcher.tsx",
   "src/app/admin/KushkiBillingKeysCard.tsx",

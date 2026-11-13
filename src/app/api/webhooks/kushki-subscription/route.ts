@@ -9,6 +9,7 @@ import {
 } from "@/lib/billing/subscription";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { getBillingWebhookSecret } from "@/lib/platformConfig";
+import { recurringTrackingContext } from "@/lib/billing/subscriptionTracking";
 
 /**
  * Listener de COBROS RECURRENTES de la suscripción (Kushki "Webhook card
@@ -179,6 +180,8 @@ async function POSTHandler(req: Request) {
       restaurantId: true,
       amountCents: true,
       currency: true,
+      walletTrackingKey: true,
+      walletTrackingMode: true,
       restaurant: { select: { name: true, periodEndsAt: true } },
     },
   });
@@ -222,6 +225,7 @@ async function POSTHandler(req: Request) {
           ? sub.restaurant.periodEndsAt
           : now;
       const periodEnd = new Date(addMonthsIso(base, 1));
+      const tracking = await recurringTrackingContext({ ...sub, subscriptionId });
 
       const applied = await applyRecurringCharge({
         restaurantId: sub.restaurantId,
@@ -230,6 +234,7 @@ async function POSTHandler(req: Request) {
         providerRef,
         periodStart: now,
         periodEnd,
+        ...(tracking ? { tracking } : {}),
       });
       if (!applied) return NextResponse.json({ ok: true, status: "already_processed" });
       await recordAuditEvent({

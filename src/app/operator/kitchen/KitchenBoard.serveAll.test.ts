@@ -42,13 +42,21 @@ describe("«Servir todo» en el encabezado del tablero", () => {
     expect(header(role, [round("a", false)], "bar")).toContain("serveAll");
   });
 
-  it.each(["kitchen", "bar", "mesero", "terminal", null])("%s no lo ve (ni deshabilitado)", (role) => {
-    const html = header(role, [round("a", false)], role === "bar" ? "bar" : "kitchen");
-    expect(html).not.toContain("serveAll");
-    expect(html).toBe("");
+  it("el rol bar lo ve sólo en su estación", () => {
+    expect(header("bar", [round("a", false)], "bar")).toContain("serveAll");
+    expect(header("bar", [round("a", false)], "kitchen")).toBe("");
+  });
+
+  it.each(["kitchen", "mesero", "terminal", null])("%s no lo ve (ni deshabilitado)", (role) => {
+    for (const mode of ["kitchen", "bar"] as const) {
+      const html = header(role, [round("a", false)], mode);
+      expect(html).not.toContain("serveAll");
+      expect(html).toBe("");
+    }
   });
 
   it("sin nada pendiente no aparece", () => {
     expect(header("operator", [round("a", true)])).not.toContain("serveAll");
+    expect(header("bar", [round("a", true)], "bar")).not.toContain("serveAll");
   });
 });

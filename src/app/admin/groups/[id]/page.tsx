@@ -116,7 +116,7 @@ export default async function GroupDetailPage({
   }
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-5xl mx-auto w-full">
+    <div className="mp-page mp-page--narrow">
       <Link
         href="/admin/groups"
         className="font-mono text-[10px] tracking-wider uppercase text-op-muted hover:text-op-text"
@@ -132,9 +132,9 @@ export default async function GroupDetailPage({
             {t("platformGroup")}
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <div className="font-display text-3xl tracking-[-0.015em]">
+            <h1 className="mp-page-title mb-2">
               {group.name}
-            </div>
+            </h1>
             <div className="font-mono text-xs text-op-muted">/{group.slug}</div>
           </div>
           <div className="font-mono text-[11px] text-op-muted mt-1">

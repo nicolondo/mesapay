@@ -78,7 +78,7 @@ export async function terminalClaimedIds(
 /**
  * Cada pago con `replaceable` ya calculado (lo que las pantallas reciben para
  * decidir si muestran "Cancelar solicitud" o "esperando resultado"),
- * `pushedAt` (cuándo se envió al datáfono, para la cuenta regresiva de
+ * `pushedAt` (cuándo se envió al datáfono, para habilitar
  * "Resolver cobro"; null = nunca se envió) y `terminalAttempt`: qué se sabe
  * del intento enviado (en curso, el equipo contestó que no, sin respuesta).
  */

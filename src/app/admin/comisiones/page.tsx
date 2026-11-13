@@ -57,13 +57,13 @@ export default async function AdminComisionesPage() {
   }));
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-6xl mx-auto w-full">
+    <div className="mp-page">
       <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted mb-1">
         {"MESAPAY"}
       </div>
-      <div className="font-display text-3xl tracking-[-0.015em] mb-1">
+      <h1 className="mp-page-title mb-2">
         {t("pageTitle")}
-      </div>
+      </h1>
       <p className="text-sm text-op-muted mb-6">{t("pageSubtitle")}</p>
 
       <CommissionsClient comerciales={comerciales} />

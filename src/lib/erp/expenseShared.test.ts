@@ -43,6 +43,25 @@ const payload = (over: Partial<Parameters<typeof resolveExpenseTaxes>[0]["payloa
 });
 
 describe("resolveExpenseTaxes", () => {
+  it("conserva una retención elegida manualmente aunque el concepto no esté activo para sugerencias", async () => {
+    const inactive = { ...HONORARIOS, active: false };
+    m.concepts.mockResolvedValueOnce([inactive]);
+    const result = await resolveExpenseTaxes({
+      restaurantId: "r1",
+      payload: payload({ retentions: [{ conceptId: inactive.id, amountCents: 110_000 }] }),
+      ivaDeductible: true,
+      hasSupplier: true,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.retentions).toEqual([
+      expect.objectContaining({ conceptId: inactive.id, rateBps: 1100, amountCents: 110_000, accountCode: "236515" }),
+    ]);
+    expect(result.fields).toMatchObject({ retefuenteCents: 110_000, payableCents: 1_080_000 });
+    expect(inactive.active).toBe(false);
+    expect(m.concepts).toHaveBeenCalledWith({ where: { restaurantId: "r1", id: { in: [inactive.id] } } });
+  });
+
   it("toma del concepto la tarifa, el nombre y la cuenta; del cliente sólo el monto", async () => {
     const r = await resolveExpenseTaxes({
       restaurantId: "r1",

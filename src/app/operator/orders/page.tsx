@@ -12,6 +12,7 @@ import { LiveRefresh } from "../LiveRefresh";
 import { OrderInvoiceMenu } from "./OrderInvoiceMenu";
 import { OrdersPeriodNav } from "./OrdersPeriodNav";
 import { OrdersSearchForm } from "./OrdersSearchForm";
+import { OrdersSourceFilters } from "./OrdersSourceFilters";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
@@ -74,7 +75,10 @@ export default async function OrdersPage({
 
   // Sin tope oculto: una página de 50 y los totales de TODO el período (o
   // de toda la historia si se buscó un número de factura).
-  const list = await loadOrdersList(restaurantId, requested, cutoff);
+  const [list, tables] = await Promise.all([
+    loadOrdersList(restaurantId, requested, cutoff),
+    db.table.findMany({ where: { restaurantId, kind: "standard" }, select: { id: true, number: true, label: true }, orderBy: { number: "asc" } }),
+  ]);
   const view: OrdersView = { ...requested, page: list.page };
   const allDates = list.scope === "all";
   const singleDay = !allDates && view.period.desde === view.period.hasta;
@@ -138,7 +142,8 @@ export default async function OrdersPage({
     };
   });
 
-  const filtered = view.status !== "all" || view.q !== "";
+  const filtered = view.status !== "all" || view.q !== "" || view.source !== "all" || view.tableId !== "";
+  const tableOptions = tables.map((table) => ({ id: table.id, name: [table.number === 0 && counterMode ? t("channelCounter") : t("tableNumber", { number: table.number }), table.label].filter(Boolean).join(" · ") }));
 
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto w-full">
@@ -216,6 +221,8 @@ export default async function OrdersPage({
           <OrdersSearchForm view={view} today={today} />
         </div>
 
+        <OrdersSourceFilters view={view} today={today} tables={tableOptions} />
+
         {view.q && !allDates && (
           // Búsqueda por código dentro del período: un clic la amplía.
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-op-muted">
@@ -255,6 +262,7 @@ export default async function OrdersPage({
             actions={[
               ...(view.q && !allDates ? [{ href: href({ allDates: true }), label: t("searchAllDates") }] : []),
               ...(view.status !== "all" ? [{ href: href({ status: "all" }), label: t("showAll") }] : []),
+              ...(view.source !== "all" || view.tableId ? [{ href: href({ source: "all", tableId: "" }), label: t("sourceClear") }] : []),
               ...(!filtered && !allDates && !periodIncludes(view.period, today)
                 ? [{ href: href({ period: { desde: today, hasta: today } }), label: t("backToToday") }]
                 : []),

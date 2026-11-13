@@ -80,7 +80,7 @@ export default async function AdminPagosPage({
   const bank = rest.bankInfo as Record<string, unknown> | null;
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto w-full">
+    <div className="mp-page mp-page--narrow">
       <div className="flex flex-wrap items-center gap-2 text-sm text-op-muted mb-2">
         <Link href={`/admin/restaurants/${id}`} className="hover:underline">
           {"← "}
@@ -89,9 +89,9 @@ export default async function AdminPagosPage({
         <span aria-hidden>{"/"}</span>
         <span>{tr("pagosBreadcrumb")}</span>
       </div>
-      <div className="font-display text-2xl md:text-3xl mb-1 break-words">
+      <h1 className="mp-page-title mb-2 break-words">
         {tr("pagosTitle", { name: rest.name })}
-      </div>
+      </h1>
       <p className="text-sm text-op-muted mb-6">
         {tr("pagosIntro")}
       </p>

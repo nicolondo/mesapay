@@ -48,6 +48,7 @@ export default async function OperatorOrderDetail({
 }) {
   const t = await getTranslations("opOrders");
   const tSend = await getTranslations("manualInvoiceSend");
+  const tManual = await getTranslations("manualInvoices");
   const locale = (await getLocale()) as Locale;
   const fmtDateTime = (date: Date) => formatDate(date, { locale });
   const fmtTime = (date: Date) => formatDate(date, { locale, dateStyle: undefined, timeStyle: "short" });
@@ -249,6 +250,17 @@ export default async function OperatorOrderDetail({
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {t("actions")}
           </div>
+          {/* Factura manual: no está en Mesas; su ficha (platos, cargos,
+              cliente, emitir) está en Facturas manuales. */}
+          {order.table.kind === "manual" && (
+            <Link
+              href={`/operator/facturas-manuales?open=${encodeURIComponent(order.tableId)}`}
+              prefetch={false}
+              className="mb-3 mt-1 inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-medium text-bone hover:bg-ink/90"
+            >
+              {tManual("continueEditing")}
+            </Link>
+          )}
           <TableActions
             orderId={order.id}
             tenantSlug={tenant!.slug}

@@ -1492,7 +1492,8 @@
     "navCustomers": "Clientes",
     "navRepresentation": "Despesas de representação",
     "navUncollected": "Produtos não cobrados",
-    "navSalesAnalysis": "Análise de vendas"
+    "navSalesAnalysis": "Análise de vendas",
+    "navManualInvoices": "Faturas manuais"
   },
   "kitchen": {
     "noRestaurant": "Sem restaurante.",
@@ -2151,8 +2152,6 @@
     "manualInvoiceButton": "Fatura manual",
     "manualInvoiceOpening": "Abrindo…",
     "manualInvoiceOpenFailed": "Não foi possível abrir a fatura manual.",
-    "manualSectionTitle": "Faturamento manual",
-    "manualSectionHint": "Contas sem mesa: pratos, cobranças ou serviços cobrados e faturados no caixa. Não passam pela cozinha.",
     "manualInvoiceLabel": "Fatura manual",
     "manualTileEmpty": "sem itens",
     "manualNoItems": "Ainda não tem pratos nem cobranças. Adicione com os botões acima.",
@@ -2219,7 +2218,8 @@
     "moveAdminOnly": "Somente o administrador pode mover pratos ou pedidos entre mesas.",
     "moveOrderSameTable": "A conta já está nessa mesa.",
     "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido.",
-    "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato."
+    "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato.",
+    "manualPendingLink": "Pendentes ({count})"
   },
   "browserPrint": {
     "preparing": "Preparando a impressão…",
@@ -11054,7 +11054,7 @@
   },
   "manualInvoiceSend": {
     "sectionTitle": "Fatura e link de pagamento",
-    "introOpen": "Emita a fatura em nome do cliente e envie por e-mail com um link para pagar on-line. A conta sai de Mesas e fica a receber em Contas a receber e a pagar até o pagamento.",
+    "introOpen": "Emita a fatura em nome do cliente e envie por e-mail com um link para pagar on-line. Ela fica a receber em Contas a receber e a pagar até o pagamento.",
     "introReceivable": "Fatura emitida e a receber. O cliente paga com o link; se ele pagar de outra forma, registre o pagamento aqui.",
     "issueButton": "Emitir e enviar fatura",
     "sendIssuedButton": "Enviar fatura",
@@ -11093,9 +11093,9 @@
     "dialogTitleIssue": "Emitir e enviar fatura",
     "dialogTitleResend": "Reenviar fatura",
     "dialogTitleLink": "Enviar link de pagamento",
-    "dialogIssueSummary": "A fatura de {amount} é emitida em nome de {customer} e enviada com o link de pagamento. A conta sai de Mesas e fica a receber até o cliente pagar.",
+    "dialogIssueSummary": "A fatura de {amount} é emitida em nome de {customer} e enviada com o link de pagamento. Ela fica a receber até o cliente pagar.",
     "dialogResendSummary": "Vai a fatura com o link para pagar {amount}.",
-    "dialogLinkSummary": "O cliente paga {amount} com o link. A conta continua aberta em Mesas até o pagamento, e a fatura é emitida ao pagar.",
+    "dialogLinkSummary": "O cliente paga {amount} com o link. A fatura continua pendente em Faturas manuais até o pagamento e é emitida ao pagar.",
     "recipientsLabel": "E-mails",
     "recipientPlaceholder": "cliente@empresa.com",
     "recipientAria": "E-mail {n}",
@@ -11107,7 +11107,7 @@
     "issuing": "Emitindo e enviando…",
     "sending": "Enviando…",
     "close": "Fechar",
-    "doneIssued": "Fatura emitida e enviada para {emails}. A conta saiu de Mesas e ficou a receber.",
+    "doneIssued": "Fatura emitida e enviada para {emails}. Ficou a receber.",
     "doneIssuedNoEmail": "A fatura foi emitida e está a receber, mas o e-mail não saiu. Copie o link e compartilhe por outro meio.",
     "doneSent": "Enviado para {emails}.",
     "donePartial": "Não foi possível enviar para {emails}.",
@@ -11120,7 +11120,7 @@
     "errEmail": "Não foi possível enviar o e-mail. Copie o link e compartilhe por outro meio.",
     "errInvalidEmail": "Revise os e-mails.",
     "errGeneric": "Não foi possível concluir. Tente de novo.",
-    "sentBanner": "Fatura emitida. Ela não está mais em Mesas: você a encontra aqui, em Pedidos e em Contas a receber e a pagar.",
+    "sentBanner": "Fatura emitida e enviada. Você a encontra aqui, em Faturas manuais (a receber), em Pedidos e em Contas a receber e a pagar.",
     "rowIssue": "Emitir e enviar",
     "rowLink": "Enviar link",
     "rowResend": "Reenviar link",
@@ -11129,5 +11129,27 @@
     "chipPaidByLink": "Recebida",
     "introPaid": "Fatura emitida e paga.",
     "introCancelled": "Fatura anulada: não há nada a receber."
+  },
+  "manualInvoices": {
+    "title": "Faturas manuais",
+    "description": "Contas sem mesa: pratos, cobranças ou serviços faturados no caixa. Não aparecem em Mesas: aqui você as monta, emite e envia.",
+    "noRestaurant": "Não há um restaurante ativo.",
+    "pendingTitle": "Pendentes",
+    "pendingHint": "Em rascunho ou enviadas só com o link de pagamento. Toque em uma para continuar editando, emitir ou cobrar.",
+    "pendingEmpty": "Não há faturas manuais pendentes.",
+    "newButton": "Nova fatura manual",
+    "stateDraft": "Rascunho",
+    "stateSent": "Enviada",
+    "stateCollected": "Recebida",
+    "receivableTitle": "A receber",
+    "receivableHint": "Emitidas e enviadas: o cliente paga com o link, ou você registra o pagamento na ficha.",
+    "receivableEmpty": "Não há faturas manuais a receber.",
+    "receivableInvoice": "Fatura {number}",
+    "receivableDue": "Vence em {date}",
+    "receivableOverdue": "Vencida desde {date}",
+    "historyHint": "As recebidas e as descartadas ficam em",
+    "historyLink": "Pedidos › Faturas manuais",
+    "continueEditing": "Continuar editando a fatura",
+    "rowEdit": "Editar"
   }
 }

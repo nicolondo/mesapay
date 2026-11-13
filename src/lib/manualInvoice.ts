@@ -34,6 +34,19 @@ export const OPEN_ORDER_STATUS_FILTER = {
 } as const satisfies Prisma.OrderWhereInput;
 
 /**
+ * Fuera las facturas manuales. El dueño: «no quiero que las facturas
+ * manuales queden en la pantalla de Mesas hasta que quede pagada». Una
+ * factura manual NO es una cuenta abierta del salón en ningún estado
+ * (borrador, enviada con link, emitida por cobrar): no sale en Mesas, el
+ * Salón, «Mesas en vivo» del datáfono, el Resumen (cuentas abiertas, lo
+ * que falta cobrar) ni el cierre de turno. Vive en /operator/facturas-manuales,
+ * en Órdenes y, emitida, en Cartera.
+ */
+export const NOT_MANUAL_INVOICE = {
+  table: { kind: { not: "manual" } },
+} as const satisfies Prisma.OrderWhereInput;
+
+/**
  * Próximo número para una mesa manual nueva dado TODOS los números del
  * comercio (no sólo los manuales: la unique es por comercio y número).
  * Empieza en -100 y baja de a uno; nunca cae en -1 ni en 0.

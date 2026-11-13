@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { requestTime } from "@/lib/requestTime";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { terminalTablesWhere } from "@/lib/tables/salonTables";
 import { getActiveContext } from "@/lib/activeRestaurant";
 import { computeOrderTotals } from "@/lib/orderTotals";
 import { isCashMethod } from "@/lib/payments/methods";
@@ -41,7 +42,8 @@ export default async function TerminalPage() {
   // All tables of the tenant (excluding the pickup virtual table number -1
   // since the terminal can't charge a pickup customer at the table).
   const tables = await db.table.findMany({
-    where: { restaurantId: tenant.id, number: { gte: 0 } },
+    // Sin la de recogida ni las facturas manuales (src/lib/tables/salonTables.ts).
+    where: terminalTablesWhere(tenant.id),
     orderBy: { number: "asc" },
     include: {
       orders: {

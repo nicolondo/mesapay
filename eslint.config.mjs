@@ -211,6 +211,8 @@ const MIGRATED = [
   // "Emitir y enviar factura" de la factura manual (ficha en Mesas, ficha
   // de la orden, fila de Órdenes): nació trilingüe.
   "src/components/manualInvoice/**/*.{ts,tsx}",
+  // Facturas manuales (su casa, fuera de Mesas): nació trilingüe.
+  "src/app/operator/facturas-manuales/**/*.{ts,tsx}",
   // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
   "src/components/MunicipioAutocomplete.tsx",
   // Autocompletado de proveedor: nació trilingüe, queda blindado.

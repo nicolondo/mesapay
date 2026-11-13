@@ -1492,7 +1492,8 @@
     "navCustomers": "Clientes",
     "navRepresentation": "Gastos de representación",
     "navUncollected": "Productos no cobrados",
-    "navSalesAnalysis": "Análisis de ventas"
+    "navSalesAnalysis": "Análisis de ventas",
+    "navManualInvoices": "Facturas manuales"
   },
   "kitchen": {
     "noRestaurant": "Sin restaurante.",
@@ -2151,11 +2152,9 @@
     "manualInvoiceButton": "Factura manual",
     "manualInvoiceOpening": "Abriendo…",
     "manualInvoiceOpenFailed": "No se pudo abrir la factura manual.",
-    "manualSectionTitle": "Facturación manual",
-    "manualSectionHint": "Cuentas sin mesa: platos, cargos o servicios que se cobran y facturan desde caja. No pasan por cocina.",
     "manualInvoiceLabel": "Factura manual",
     "manualTileEmpty": "sin ítems",
-    "manualNoItems": "Todavía no tiene platos ni cargos. Agregalos con los botones de arriba.",
+    "manualNoItems": "Todavía no tiene platos ni cargos. Agrégalos con los botones de arriba.",
     "cancelManualInvoice": "Descartar factura manual",
     "cancelManualInvoiceBusy": "Descartando…",
     "confirmCancelManualInvoice": "¿Descartar esta factura manual? Se pierden los platos y cargos que tenga.",
@@ -2219,7 +2218,8 @@
     "moveAdminOnly": "Solo el administrador puede mover platos o pedidos entre mesas.",
     "moveOrderSameTable": "La cuenta ya está en esa mesa.",
     "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido.",
-    "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato."
+    "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.",
+    "manualPendingLink": "Pendientes ({count})"
   },
   "browserPrint": {
     "preparing": "Preparando impresión…",
@@ -11054,7 +11054,7 @@
   },
   "manualInvoiceSend": {
     "sectionTitle": "Factura y link de pago",
-    "introOpen": "Emite la factura a nombre del cliente y envíasela por correo con un link para pagar en línea. La cuenta sale de Mesas y queda por cobrar en Cartera hasta que pague.",
+    "introOpen": "Emite la factura a nombre del cliente y envíasela por correo con un link para pagar en línea. Queda por cobrar en Cartera hasta que pague.",
     "introReceivable": "Factura emitida y por cobrar. El cliente la paga con el link; si te paga por otro medio, registra el pago aquí.",
     "issueButton": "Emitir y enviar factura",
     "sendIssuedButton": "Enviar factura",
@@ -11093,9 +11093,9 @@
     "dialogTitleIssue": "Emitir y enviar factura",
     "dialogTitleResend": "Reenviar factura",
     "dialogTitleLink": "Enviar link de pago",
-    "dialogIssueSummary": "Se emite la factura por {amount} a nombre de {customer} y se envía con el link de pago. La cuenta sale de Mesas y queda por cobrar en Cartera hasta que el cliente pague.",
+    "dialogIssueSummary": "Se emite la factura por {amount} a nombre de {customer} y se envía con el link de pago. Queda por cobrar en Cartera hasta que el cliente pague.",
     "dialogResendSummary": "Va la factura con el link para pagar {amount}.",
-    "dialogLinkSummary": "El cliente paga {amount} con el link. La cuenta sigue abierta en Mesas hasta que pague y la factura se emite al pagar.",
+    "dialogLinkSummary": "El cliente paga {amount} con el link. La factura sigue pendiente en Facturas manuales hasta que pague, y se emite al pagar.",
     "recipientsLabel": "Correos",
     "recipientPlaceholder": "cliente@empresa.com",
     "recipientAria": "Correo {n}",
@@ -11107,7 +11107,7 @@
     "issuing": "Emitiendo y enviando…",
     "sending": "Enviando…",
     "close": "Cerrar",
-    "doneIssued": "Factura emitida y enviada a {emails}. La cuenta salió de Mesas y quedó por cobrar.",
+    "doneIssued": "Factura emitida y enviada a {emails}. Quedó por cobrar.",
     "doneIssuedNoEmail": "La factura quedó emitida y por cobrar, pero el correo no salió. Copia el link y compártelo por otro medio.",
     "doneSent": "Enviado a {emails}.",
     "donePartial": "No se pudo enviar a {emails}.",
@@ -11120,7 +11120,7 @@
     "errEmail": "No se pudo enviar el correo. Copia el link y compártelo por otro medio.",
     "errInvalidEmail": "Revisa los correos.",
     "errGeneric": "No se pudo completar. Intenta de nuevo.",
-    "sentBanner": "Factura emitida. Ya no está en Mesas: la encuentras aquí, en Órdenes y en Cartera.",
+    "sentBanner": "Factura emitida y enviada. La encuentras aquí, en Facturas manuales (por cobrar), en Órdenes y en Cartera.",
     "rowIssue": "Emitir y enviar",
     "rowLink": "Enviar link",
     "rowResend": "Reenviar link",
@@ -11129,5 +11129,27 @@
     "chipPaidByLink": "Cobrada",
     "introPaid": "Factura emitida y pagada.",
     "introCancelled": "Factura anulada: no hay nada por cobrar."
+  },
+  "manualInvoices": {
+    "title": "Facturas manuales",
+    "description": "Cuentas sin mesa: platos, cargos o servicios que se facturan desde caja. No aparecen en Mesas: aquí las armas, las emites y las envías.",
+    "noRestaurant": "No hay un restaurante activo.",
+    "pendingTitle": "Pendientes",
+    "pendingHint": "En borrador o enviadas solo con el link de pago. Toca una para seguir editándola, emitirla o cobrarla.",
+    "pendingEmpty": "No hay facturas manuales pendientes.",
+    "newButton": "Nueva factura manual",
+    "stateDraft": "Borrador",
+    "stateSent": "Enviada",
+    "stateCollected": "Cobrada",
+    "receivableTitle": "Por cobrar",
+    "receivableHint": "Emitidas y enviadas: el cliente las paga con el link, o registras el pago en su ficha.",
+    "receivableEmpty": "No hay facturas manuales por cobrar.",
+    "receivableInvoice": "Factura {number}",
+    "receivableDue": "Vence el {date}",
+    "receivableOverdue": "Vencida desde el {date}",
+    "historyHint": "Las cobradas y las descartadas quedan en",
+    "historyLink": "Órdenes › Facturas manuales",
+    "continueEditing": "Seguir editando la factura",
+    "rowEdit": "Editar"
   }
 }

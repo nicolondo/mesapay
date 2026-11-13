@@ -1492,7 +1492,8 @@
     "navCustomers": "Customers",
     "navRepresentation": "Representation expenses",
     "navUncollected": "Uncharged products",
-    "navSalesAnalysis": "Sales analysis"
+    "navSalesAnalysis": "Sales analysis",
+    "navManualInvoices": "Manual invoices"
   },
   "kitchen": {
     "noRestaurant": "No restaurant.",
@@ -2151,8 +2152,6 @@
     "manualInvoiceButton": "Manual invoice",
     "manualInvoiceOpening": "Opening…",
     "manualInvoiceOpenFailed": "Could not open the manual invoice.",
-    "manualSectionTitle": "Manual invoicing",
-    "manualSectionHint": "Bills with no table: dishes, charges or services charged and invoiced from the register. They never reach the kitchen.",
     "manualInvoiceLabel": "Manual invoice",
     "manualTileEmpty": "no items",
     "manualNoItems": "No dishes or charges yet. Add them with the buttons above.",
@@ -2219,7 +2218,8 @@
     "moveAdminOnly": "Only an administrator can move dishes or orders between tables.",
     "moveOrderSameTable": "The bill is already at that table.",
     "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
-    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish."
+    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish.",
+    "manualPendingLink": "Pending ({count})"
   },
   "browserPrint": {
     "preparing": "Preparing to print…",
@@ -11054,7 +11054,7 @@
   },
   "manualInvoiceSend": {
     "sectionTitle": "Invoice and payment link",
-    "introOpen": "Issue the invoice in the customer's name and email it with a link to pay online. The bill leaves Tables and stays as a receivable in Receivables & payables until they pay.",
+    "introOpen": "Issue the invoice in the customer's name and email it with a link to pay online. It stays receivable in Receivables & payables until they pay.",
     "introReceivable": "Invoice issued and awaiting payment. The customer pays it with the link; if they pay you another way, record the payment here.",
     "issueButton": "Issue and send invoice",
     "sendIssuedButton": "Send invoice",
@@ -11093,9 +11093,9 @@
     "dialogTitleIssue": "Issue and send invoice",
     "dialogTitleResend": "Resend invoice",
     "dialogTitleLink": "Send payment link",
-    "dialogIssueSummary": "The invoice for {amount} is issued in the name of {customer} and sent with the payment link. The bill leaves Tables and stays as a receivable until the customer pays.",
+    "dialogIssueSummary": "The invoice for {amount} is issued in the name of {customer} and sent with the payment link. It stays receivable until the customer pays.",
     "dialogResendSummary": "The invoice goes with the link to pay {amount}.",
-    "dialogLinkSummary": "The customer pays {amount} with the link. The bill stays open in Tables until they pay, and the invoice is issued on payment.",
+    "dialogLinkSummary": "The customer pays {amount} with the link. The invoice stays pending in Manual invoices until they pay, and it's issued on payment.",
     "recipientsLabel": "Emails",
     "recipientPlaceholder": "customer@company.com",
     "recipientAria": "Email {n}",
@@ -11107,7 +11107,7 @@
     "issuing": "Issuing and sending…",
     "sending": "Sending…",
     "close": "Close",
-    "doneIssued": "Invoice issued and sent to {emails}. The bill left Tables and is now a receivable.",
+    "doneIssued": "Invoice issued and sent to {emails}. It's now receivable.",
     "doneIssuedNoEmail": "The invoice was issued and is awaiting payment, but the email didn't go out. Copy the link and share it another way.",
     "doneSent": "Sent to {emails}.",
     "donePartial": "Couldn't send to {emails}.",
@@ -11120,7 +11120,7 @@
     "errEmail": "Couldn't send the email. Copy the link and share it another way.",
     "errInvalidEmail": "Check the email addresses.",
     "errGeneric": "Couldn't complete it. Try again.",
-    "sentBanner": "Invoice issued. It's no longer in Tables: you'll find it here, in Orders and in Receivables & payables.",
+    "sentBanner": "Invoice issued and sent. You'll find it here, in Manual invoices (receivable), in Orders and in Receivables & payables.",
     "rowIssue": "Issue and send",
     "rowLink": "Send link",
     "rowResend": "Resend link",
@@ -11129,5 +11129,27 @@
     "chipPaidByLink": "Collected",
     "introPaid": "Invoice issued and paid.",
     "introCancelled": "Invoice voided: nothing left to collect."
+  },
+  "manualInvoices": {
+    "title": "Manual invoices",
+    "description": "Bills without a table: dishes, charges or services invoiced from the register. They don't show in Tables: here you build, issue and send them.",
+    "noRestaurant": "There's no active restaurant.",
+    "pendingTitle": "Pending",
+    "pendingHint": "Drafts, or sent with just the payment link. Tap one to keep editing, issue or charge it.",
+    "pendingEmpty": "No pending manual invoices.",
+    "newButton": "New manual invoice",
+    "stateDraft": "Draft",
+    "stateSent": "Sent",
+    "stateCollected": "Collected",
+    "receivableTitle": "Receivable",
+    "receivableHint": "Issued and sent: the customer pays them with the link, or you record the payment on their page.",
+    "receivableEmpty": "No manual invoices awaiting payment.",
+    "receivableInvoice": "Invoice {number}",
+    "receivableDue": "Due on {date}",
+    "receivableOverdue": "Overdue since {date}",
+    "historyHint": "Collected and discarded ones stay in",
+    "historyLink": "Orders › Manual invoices",
+    "continueEditing": "Keep editing the invoice",
+    "rowEdit": "Edit"
   }
 }

@@ -127,14 +127,25 @@ export default async function OrdersPage({
       }),
   );
   const tSend = await getTranslations("manualInvoiceSend");
-  const receivableChip = (info: ManualInvoiceSendInfo | undefined) => {
+  const tManual = await getTranslations("manualInvoices");
+  // Estado de una FACTURA MANUAL en la lista: Borrador / Enviada (con link,
+  // cuenta abierta) · Por cobrar / Vencida (emitida) · Cobrada. Las
+  // descartadas siguen con «Cancelada». null = no es manual (va el estado
+  // de siempre).
+  const manualChip = (o: { status: string; table: { kind: string } }, info: ManualInvoiceSendInfo | undefined) => {
+    if (o.table.kind !== "manual" || o.status === "cancelled") return null;
     const r = info?.receivable;
-    if (!r || r.totalCents <= 0) return null;
-    const paid = r.outstandingCents <= 0;
-    return {
-      label: paid ? tSend("chipPaidByLink") : r.overdue ? tSend("chipOverdue") : tSend("chipReceivable"),
-      tint: paid ? "bg-[#2E6B4C]/15 text-[#1E5339]" : r.overdue ? "bg-terracotta/15 text-terracotta" : "bg-[#C9A227]/15 text-[#7A5E0A]",
-    };
+    if (r && r.totalCents > 0) {
+      const paid = r.outstandingCents <= 0;
+      return {
+        label: paid ? tSend("chipPaidByLink") : r.overdue ? tSend("chipOverdue") : tSend("chipReceivable"),
+        tint: paid ? "bg-[#2E6B4C]/15 text-[#1E5339]" : r.overdue ? "bg-terracotta/15 text-terracotta" : "bg-[#C9A227]/15 text-[#7A5E0A]",
+      };
+    }
+    if (o.status === "paid") return { label: tManual("stateCollected"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+    return info?.link
+      ? { label: tManual("stateSent"), tint: "bg-[#C9A227]/15 text-[#7A5E0A]" }
+      : { label: tManual("stateDraft"), tint: "bg-paper text-op-muted" };
   };
 
   // Derivados una sola vez: la fila (escritorio) y la tarjeta (celular)
@@ -173,7 +184,13 @@ export default async function OrdersPage({
             ? t("channelCounter")
             : t("tableNumber", { number: o.table.number }),
       send: sendInfos.get(o.id) ?? null,
-      receivable: receivableChip(sendInfos.get(o.id)),
+      // Factura manual abierta (borrador o enviada con link): se sigue
+      // editando en su ficha, en Facturas manuales (no está en Mesas).
+      editHref:
+        o.table.kind === "manual" && o.status !== "paid" && o.status !== "cancelled"
+          ? `/operator/facturas-manuales?open=${encodeURIComponent(o.tableId)}`
+          : null,
+      receivable: manualChip(o, sendInfos.get(o.id)),
     };
   });
 
@@ -374,6 +391,15 @@ export default async function OrdersPage({
                       ) : (
                         <span className="text-op-muted">{"—"}</span>
                       )}
+                      {r.editHref && (
+                        <Link
+                          href={r.editHref}
+                          prefetch={false}
+                          className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
+                        >
+                          {tManual("rowEdit")}
+                        </Link>
+                      )}
                       {r.send && <ManualInvoiceSendButton info={r.send} />}
                     </span>
                     <span className="flex justify-end">{menu}</span>
@@ -405,9 +431,18 @@ export default async function OrdersPage({
                         {menu}
                       </div>
                     )}
-                    {r.send && (
-                      <div className="mt-2 flex justify-end">
-                        <ManualInvoiceSendButton info={r.send} />
+                    {(r.send || r.editHref) && (
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        {r.editHref && (
+                          <Link
+                            href={r.editHref}
+                            prefetch={false}
+                            className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
+                          >
+                            {tManual("rowEdit")}
+                          </Link>
+                        )}
+                        {r.send && <ManualInvoiceSendButton info={r.send} />}
                       </div>
                     )}
                   </div>

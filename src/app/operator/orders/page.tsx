@@ -392,13 +392,14 @@ export default async function OrdersPage({
                         <span className="text-op-muted">{"—"}</span>
                       )}
                       {r.editHref && (
-                        <Link
+                        // Carga completa (no navegación del cliente): la ficha
+                        // abre al cargar con `?open=` (ver ManualInvoicesBoard).
+                        <a
                           href={r.editHref}
-                          prefetch={false}
                           className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
                         >
                           {tManual("rowEdit")}
-                        </Link>
+                        </a>
                       )}
                       {r.send && <ManualInvoiceSendButton info={r.send} />}
                     </span>
@@ -434,13 +435,12 @@ export default async function OrdersPage({
                     {(r.send || r.editHref) && (
                       <div className="mt-2 flex flex-wrap justify-end gap-2">
                         {r.editHref && (
-                          <Link
+                          <a
                             href={r.editHref}
-                            prefetch={false}
                             className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
                           >
                             {tManual("rowEdit")}
-                          </Link>
+                          </a>
                         )}
                         {r.send && <ManualInvoiceSendButton info={r.send} />}
                       </div>

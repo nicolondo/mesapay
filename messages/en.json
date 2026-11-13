@@ -2219,7 +2219,7 @@
     "moveOrderSameTable": "The bill is already at that table.",
     "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
     "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish.",
-    "manualPendingLink": "Pending ({count})"
+    "manualPendingLink": "Manual invoices ({count})"
   },
   "browserPrint": {
     "preparing": "Preparing to print…",

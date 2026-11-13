@@ -211,7 +211,6 @@ export function MesasGrid({
   phonePaidHighlightMinutes: number;
 }) {
   const tr = useTranslations("opTables");
-  const router = useRouter();
   const [filter, setFilter] = useState<FilterChip>("all");
   // Reloj del cliente (tick de 10 s): el refresh de la grilla es por SSE y
   // nada avisa cuando VENCE un resalte, así que "ahora" se reevalúa acá para
@@ -244,7 +243,9 @@ export function MesasGrid({
         return;
       }
       const j = (await res.json()) as { tableId: string };
-      router.push(`/operator/facturas-manuales?open=${encodeURIComponent(j.tableId)}`);
+      // Carga completa: su ficha abre al cargar con `?open=` (una
+      // navegación del cliente la cerraba con el historial de la ficha).
+      window.location.assign(`/operator/facturas-manuales?open=${encodeURIComponent(j.tableId)}`);
     } catch {
       window.alert(tr("manualInvoiceOpenFailed"));
     } finally {
@@ -375,7 +376,8 @@ export function MesasGrid({
               <Link
                 href="/operator/facturas-manuales"
                 prefetch={false}
-                className="h-8 px-3 inline-flex items-center rounded-full text-xs font-medium border border-op-border text-op-muted bg-op-surface hover:text-op-text transition-colors"
+                // Misma altura que los botones de al lado (que crecen en táctil).
+                className="min-h-8 self-stretch px-3 inline-flex items-center rounded-full text-xs font-medium border border-op-border text-op-muted bg-op-surface hover:text-op-text transition-colors"
               >
                 {tr("manualPendingLink", { count: manualPendingCount })}
               </Link>

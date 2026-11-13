@@ -253,13 +253,13 @@ export default async function OperatorOrderDetail({
           {/* Factura manual: no está en Mesas; su ficha (platos, cargos,
               cliente, emitir) está en Facturas manuales. */}
           {order.table.kind === "manual" && (
-            <Link
+            // Carga completa: la ficha abre al cargar con `?open=`.
+            <a
               href={`/operator/facturas-manuales?open=${encodeURIComponent(order.tableId)}`}
-              prefetch={false}
               className="mb-3 mt-1 inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-medium text-bone hover:bg-ink/90"
             >
               {tManual("continueEditing")}
-            </Link>
+            </a>
           )}
           <TableActions
             orderId={order.id}

@@ -2219,7 +2219,7 @@
     "moveOrderSameTable": "La cuenta ya está en esa mesa.",
     "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido.",
     "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.",
-    "manualPendingLink": "Pendientes ({count})"
+    "manualPendingLink": "Facturas manuales ({count})"
   },
   "browserPrint": {
     "preparing": "Preparando impresión…",

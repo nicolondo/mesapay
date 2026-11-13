@@ -458,8 +458,8 @@ function InventorySettingsSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
@@ -648,8 +648,8 @@ function MovementSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
@@ -922,8 +922,8 @@ function NewCountSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
@@ -1050,6 +1050,25 @@ function CountSheet({
   const readOnly = count.status === "closed" || closedResult !== null;
   const phase = readOnly ? "closed" : count.finalReview ? "review" : count.recountStartedAt ? "recount" : count.preliminaryAt ? "preliminary" : "initial";
   const canEdit = phase === "initial" || phase === "recount";
+  // Lo guardado, en la misma forma que `entries`: si difieren, hay
+  // cantidades digitadas que se perderían al cerrar.
+  const savedEntries = useMemo(
+    () => JSON.stringify(Object.fromEntries(count.items.map((item) => [item.id, countEntriesFromBase(item.countedQty, item.ingredient.measureKind, item.countedParts)]))),
+    [count],
+  );
+  const dirty = canEdit && JSON.stringify(entries) !== savedEntries;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  /** ✕ y Cancelar: con cantidades sin guardar, pregunta antes de perderlas. */
+  function requestClose() {
+    if (busy) return;
+    if (dirty && !window.confirm(t("countUnsavedConfirm"))) return;
+    onClose();
+  }
   const finalStage = !!count.recountStartedAt;
   const baseline = (item: CountItemRow) => finalStage ? (item.finalExpectedQty ?? item.expectedQty) : item.expectedQty;
   const quantity = (item: CountItemRow) => {
@@ -1262,8 +1281,8 @@ function CountSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={() => { if (!busy) onClose(); }}
     >
       <div
         role="dialog"
@@ -1287,7 +1306,7 @@ function CountSheet({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={busy}
             className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
             aria-label={t("cancel")}
@@ -1546,7 +1565,7 @@ function CountSheet({
 
         <div className="sticky [@media(max-height:600px)]:static bottom-0 -mx-5 px-5 mt-4 pt-3 pb-5 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
           {readOnly ? (
-            <button type="button" onClick={onClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
+            <button type="button" onClick={requestClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
           ) : (
             <>
               <button type="button" onClick={deleteSession} disabled={busy} className="mr-auto min-h-[44px] px-3 text-danger text-sm disabled:opacity-40">{t("deleteCount")}</button>

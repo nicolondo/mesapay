@@ -8312,7 +8312,8 @@
     "barcodeAddTakenBy": "Este código ya lo tiene «{name}». Para usarlo aquí, quítaselo primero a ese producto.",
     "barcodeAddTakenByArchived": "Este código ya lo tiene «{name}», que está archivado. Para usarlo aquí, quítaselo en Inventario → Archivados → ⋯ → Códigos de barras, o restaura ese producto.",
     "errBarcodeTakenBy": "Ese código de barras ya lo tiene «{name}». Quítaselo primero a ese insumo.",
-    "errBarcodeTakenByArchived": "Ese código de barras ya lo tiene «{name}», que está archivado. Quítaselo en Inventario → Archivados → ⋯ → Códigos de barras, o restaura ese insumo."
+    "errBarcodeTakenByArchived": "Ese código de barras ya lo tiene «{name}», que está archivado. Quítaselo en Inventario → Archivados → ⋯ → Códigos de barras, o restaura ese insumo.",
+    "countUnsavedConfirm": "Tienes cantidades sin guardar. Si sales ahora se pierden. ¿Salir sin guardar?"
   },
   "opDian": {
     "title": "Facturación electrónica DIAN",

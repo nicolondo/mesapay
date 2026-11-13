@@ -8312,7 +8312,8 @@
     "barcodeAddTakenBy": "This code already belongs to «{name}». To use it here, remove it from that product first.",
     "barcodeAddTakenByArchived": "This code already belongs to «{name}», which is archived. To use it here, remove it in Inventory → Archived → ⋯ → Barcodes, or restore that product.",
     "errBarcodeTakenBy": "That barcode already belongs to «{name}». Remove it from that ingredient first.",
-    "errBarcodeTakenByArchived": "That barcode already belongs to «{name}», which is archived. Remove it in Inventory → Archived → ⋯ → Barcodes, or restore that ingredient."
+    "errBarcodeTakenByArchived": "That barcode already belongs to «{name}», which is archived. Remove it in Inventory → Archived → ⋯ → Barcodes, or restore that ingredient.",
+    "countUnsavedConfirm": "You have unsaved quantities. If you leave now they are lost. Leave without saving?"
   },
   "opDian": {
     "title": "DIAN electronic invoicing",

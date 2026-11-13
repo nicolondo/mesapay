@@ -163,8 +163,8 @@ function Overlay({
 }) {
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
     >
       <div
         className="bg-op-surface text-op-text w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[85vh] flex flex-col"

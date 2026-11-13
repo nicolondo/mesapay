@@ -136,7 +136,7 @@ export function LineEditorSheet({
     ) : null;
 
   return (
-    <AppDialog label={isNew ? t("ocAddProduct") : t("ocLineEditorTitle")} onClose={onClose} className="mp-sheet mp-sheet--md-center">
+    <AppDialog label={isNew ? t("ocAddProduct") : t("ocLineEditorTitle")} onClose={onClose} dismissOnBackdrop={false} className="mp-sheet mp-sheet--md-center">
       <div className="flex flex-col max-h-[85dvh]">
         <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2 shrink-0">
           <h3 className="font-display text-xl">{isNew ? t("ocAddProduct") : t("ocLineEditorTitle")}</h3>

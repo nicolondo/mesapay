@@ -8312,7 +8312,8 @@
     "barcodeAddTakenBy": "Este código já pertence a «{name}». Para usá-lo aqui, remova-o primeiro desse produto.",
     "barcodeAddTakenByArchived": "Este código já pertence a «{name}», que está arquivado. Para usá-lo aqui, remova-o em Estoque → Arquivados → ⋯ → Códigos de barras, ou restaure esse produto.",
     "errBarcodeTakenBy": "Esse código de barras já pertence a «{name}». Remova-o primeiro desse insumo.",
-    "errBarcodeTakenByArchived": "Esse código de barras já pertence a «{name}», que está arquivado. Remova-o em Estoque → Arquivados → ⋯ → Códigos de barras, ou restaure esse insumo."
+    "errBarcodeTakenByArchived": "Esse código de barras já pertence a «{name}», que está arquivado. Remova-o em Estoque → Arquivados → ⋯ → Códigos de barras, ou restaure esse insumo.",
+    "countUnsavedConfirm": "Você tem quantidades não salvas. Se sair agora, elas se perdem. Sair sem salvar?"
   },
   "opDian": {
     "title": "Faturação eletrónica DIAN",

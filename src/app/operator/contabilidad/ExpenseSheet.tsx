@@ -670,8 +670,8 @@ export function ExpenseSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto overscroll-contain"
@@ -1544,10 +1544,8 @@ export function SupplierQuickCreate({
   return (
     <div
       className="fixed inset-0 z-[60] bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={(e) => {
-        e.stopPropagation();
-        onCancel();
-      }}
+      // Sin cierre al tocar afuera (y sin dejar pasar el clic a la hoja del gasto).
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[88dvh] overflow-y-auto overscroll-contain"

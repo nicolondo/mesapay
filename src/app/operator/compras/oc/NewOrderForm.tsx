@@ -906,6 +906,7 @@ export function NewOrderForm({
       <AppDialog
         label={t("newOrderTitle")}
         onClose={requestClose}
+        dismissOnBackdrop={false}
         className="m-0! inset-0! w-screen! max-w-none! h-dvh! max-h-none! overflow-hidden! rounded-none! border-0! lg:m-auto! lg:w-[min(1560px,calc(100vw-48px))]! lg:h-[calc(100dvh-48px)]! lg:rounded-[18px]! lg:border!"
       >
         <div
@@ -985,7 +986,7 @@ export function NewOrderForm({
         />
       )}
       {creatingIng && (
-        <AppDialog label={t("ocCreateIngredientTitle")} onClose={() => setCreatingIng(null)} className="mp-sheet mp-sheet--md-center">
+        <AppDialog label={t("ocCreateIngredientTitle")} onClose={() => setCreatingIng(null)} dismissOnBackdrop={false} className="mp-sheet mp-sheet--md-center">
           <div className="p-5">
             <div className="flex items-center justify-between gap-3 mb-1">
               <h3 className="font-display text-xl">{t("ocCreateIngredientTitle")}</h3>

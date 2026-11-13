@@ -35,6 +35,7 @@ export function AppDialog({
   style,
   mobileOnly = false,
   placement = "default",
+  dismissOnBackdrop = true,
 }: {
   label: string;
   onClose: () => void;
@@ -43,6 +44,12 @@ export function AppDialog({
   style?: CSSProperties;
   mobileOnly?: boolean;
   placement?: "default" | "center";
+  /**
+   * `false` en los formularios: tocar afuera NO cierra (un clic perdido
+   * borraba lo digitado). Esc y los botones del propio diálogo siguen
+   * pasando por `onClose`, que es donde cada uno pide confirmar.
+   */
+  dismissOnBackdrop?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
@@ -155,7 +162,7 @@ export function AppDialog({
         onClose();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (dismissOnBackdrop && e.target === e.currentTarget) {
           const r = e.currentTarget.getBoundingClientRect();
           if (
             e.clientX < r.left ||

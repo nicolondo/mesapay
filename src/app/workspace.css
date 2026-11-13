@@ -811,6 +811,24 @@
 .mp-table-filters button {
   min-height: 42px;
 }
+/* Vistas del personal (mesero, cocina, barra) en pantallas pobres: la
+   terracotta (#C9532E) y el ámbar (#C98A2E) de marca usados como color de
+   TEXTO dan 2.7–4.1:1 sobre los fondos claros (los minutos de cocina en ámbar
+   eran 2.7:1, la cuenta regresiva de la barra 4.0:1), el texto claro sobre un botón terracotta 3.9:1 y el gris
+   --muted-2 en letra de 10 px 3.4:1. Acá el texto usa el tono oscuro de cada
+   color (≥ 4.5:1); la marca sigue igual en bordes, puntos y tintes. */
+:is(.mesero-shell, .mp-staff-board) .text-terracotta {
+  color: var(--terracotta-2);
+}
+:is(.mesero-shell, .mp-staff-board) :is(.text-\[\#C98A2E\], .text-\[\#8F6828\]) {
+  color: #7f5a1f;
+}
+:is(.mesero-shell, .mp-staff-board) .text-muted-2 {
+  color: var(--muted);
+}
+:is(.mesero-shell, .mp-staff-board) .bg-terracotta.text-bone {
+  background-color: var(--terracotta-2);
+}
 /* Chip sin elegir: el borde --op-border (1.2:1 contra el fondo) desaparecía
    en el datáfono y el chip parecía texto suelto. */
 .mp-table-filters button[aria-pressed="false"] {

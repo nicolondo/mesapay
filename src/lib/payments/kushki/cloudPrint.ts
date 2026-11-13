@@ -34,7 +34,7 @@ import {
  * Kushki ONE — Print API (Cloud). Manda un trabajo de impresión a la
  * impresora térmica del datáfono SmartPOS vía el relay cloud:
  *
- *   POST {cloudt|uat-cloudt}/terminal/v1/{serial}/sync/print/job
+ *   POST {cloudt|uat-cloudt}/terminal/v1/{serial}/sync/print
  *   body { printJobId, commands[], externalReference, skipIfBusy }
  *   → 202 { printJobId, status: "PENDING" } (la impresión es asíncrona)
  *
@@ -200,7 +200,7 @@ export async function printOnCloudTerminal(args: {
   const encryptedData = encryptPayload(JSON.stringify(payload), ts, password);
   const url =
     terminalBaseUrl(args.mode) +
-    `/terminal/v1/${encodeURIComponent(args.serialNumber)}/sync/print/job`;
+    `/terminal/v1/${encodeURIComponent(args.serialNumber)}/sync/print`;
 
   console.log("[kushki/cloud-print] job", {
     url,

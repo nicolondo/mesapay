@@ -568,7 +568,11 @@ export function ActivosTab({ currency }: { currency: string }) {
       {selectedId && (
         <div
           className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-          onClick={closeDetail}
+          // El detalle es de consulta y cierra al tocar afuera; mientras se
+          // edita NO, porque un clic perdido borraba lo digitado.
+          onClick={() => {
+            if (!editing) closeDetail();
+          }}
         >
           <div
             role="dialog"

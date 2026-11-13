@@ -58,7 +58,7 @@ export function MerchantPayoutSheet({ payout, maxCents, currency, bankLabel, own
   }
   const title = t(bankLabel ? "toBank" : "toOther");
   const locked = payout.busy || Boolean(payout.pending && !payout.canRebuild) || Boolean(payout.result);
-  return <AppDialog label={title} placement="center" onClose={() => { if (!payout.busy) onClose(); }} className="rounded-2xl bg-op-surface text-op-text"><div className="p-5 md:p-6">
+  return <AppDialog label={title} placement="center" onClose={() => { if (!payout.busy) onClose(); }} dismissOnBackdrop={false} className="rounded-2xl bg-op-surface text-op-text"><div className="p-5 md:p-6">
     <header className="mb-4 flex items-start justify-between gap-4"><h2 className="font-display text-2xl">{title}</h2><button type="button" onClick={onClose} disabled={payout.busy} className="min-h-11 px-2 text-sm text-op-muted">{t("close")}</button></header>
     <MerchantPayoutNotice payout={payout} />
     {review ? <div className="space-y-4">

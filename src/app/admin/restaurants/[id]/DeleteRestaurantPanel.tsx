@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney, localeTag } from "@/lib/format";
-import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { Locale } from "@/i18n/config";
 import type { BlockerCode, DeletionCounts, WarningCode } from "@/lib/restaurantDeletion";
 import {
@@ -128,9 +127,6 @@ function DeleteDialog({
   const [opening, setOpening] = useState<OperatorDestination | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const working = busy || running !== null || opening !== null;
-  const backdrop = useBackdropClose(() => {
-    if (!working) onClose();
-  });
 
   const previewUrl = `/api/admin/restaurants/${restaurantId}/delete`;
   const [attempt, setAttempt] = useState(0);
@@ -270,8 +266,8 @@ function DeleteDialog({
 
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba lo digitado para confirmar.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      {...backdrop}
     >
       <div
         role="dialog"

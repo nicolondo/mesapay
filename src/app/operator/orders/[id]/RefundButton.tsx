@@ -67,8 +67,8 @@ export function RefundButton({
       </button>
       {open && (
         <div
+          // Sin cierre al tocar afuera: un clic perdido borraba el monto digitado.
           className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 md:items-center md:p-6"
-          onClick={() => !busy && setOpen(false)}
         >
           <div
             className="w-full space-y-4 rounded-t-3xl border border-op-border bg-op-surface p-5 md:max-w-sm md:rounded-3xl"

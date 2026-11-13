@@ -13,6 +13,12 @@ import {
   type CreatePoLine,
 } from "@/lib/erp/purchasing";
 import type { ModuleSlug } from "@/lib/modules";
+import { POSSIBLE_DUPLICATE_MODES } from "@/lib/erp/documentNumber";
+import {
+  assertNotDuplicatePurchase,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +66,9 @@ const confirmSchema = z.object({
   // Descuento sobre el total de la factura, prorrateado entre las líneas.
   discountPct: z.number().int().min(0).max(100).nullish(),
   discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
+  // Factura sin número parecida a otra (proveedor + día + total): "check"
+  // pide la advertencia; "allow" = el operador la vio y guarda igual.
+  possibleDuplicate: z.enum(POSSIBLE_DUPLICATE_MODES).optional(),
 });
 
 async function POSTHandler(
@@ -254,6 +263,24 @@ async function POSTHandler(
         });
       }
 
+      // 4b. El número de la factura también en el borrador (antes sólo iba en
+      // las notas): sin él, la misma factura se podía cargar dos veces.
+      if (b.mode === "draft" && b.supplierInvoiceNumber) {
+        await tx.purchaseOrder.update({
+          where: { id: po.id },
+          data: { supplierInvoiceNumber: b.supplierInvoiceNumber },
+        });
+      }
+      // 4c. ¿Ya estaba registrada? Bajo candado y después de escribir: si
+      // choca, se deshace todo (la carga sigue pendiente) y se responde 409.
+      await assertNotDuplicatePurchase(tx, {
+        restaurantId: ctx.restaurantId,
+        purchaseOrderId: po.id,
+        supplierId,
+        number: b.supplierInvoiceNumber,
+        possibleDuplicate: b.possibleDuplicate,
+      });
+
       // 5. Marcar la carga confirmada, ligada a la OC.
       await tx.purchaseInvoiceUpload.update({
         where: { id },
@@ -264,6 +291,7 @@ async function POSTHandler(
 
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
+    if (err instanceof DuplicateDocumentError) return duplicateDocumentResponse(err);
     if (err instanceof InvoiceAliasError) {
       return NextResponse.json({ error: err.code }, { status: 400 });
     }

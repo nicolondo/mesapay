@@ -21,6 +21,7 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { BarcodeSheet } from "./BarcodeSheet";
+import { IngredientDeleteDialog } from "@/components/IngredientDeleteDialog";
 import { CountsTab } from "./CountsTab";
 import { InvIcon } from "./InventoryIcons";
 import { MovementsTab } from "./MovementsTab";
@@ -95,6 +96,7 @@ export function InventarioClient({
   const [sheet, setSheet] = useState<{ mode: SheetMode; ingredientId: string | null } | null>(null);
   const [barcodeFor, setBarcodeFor] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [deleteFor, setDeleteFor] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
   // Movimientos: filtro por insumo (lo fija «Ver movimientos») y versión
@@ -110,6 +112,7 @@ export function InventarioClient({
 
   const activeIngredients = useMemo(() => rows.filter((r) => r.active), [rows]);
   const barcodeRow = barcodeFor ? rows.find((r) => r.id === barcodeFor) ?? null : null;
+  const deleteRow = deleteFor ? rows.find((r) => r.id === deleteFor) ?? null : null;
 
   function updateBarcodes(ingredient: IngredientBarcodeUpdate) {
     setRows((current) => current.map((row) => row.id === ingredient.id ? mergeIngredientBarcodes(row, ingredient) : row));
@@ -177,6 +180,14 @@ export function InventarioClient({
     } finally {
       setArchivingId(null);
     }
+  }
+
+  // «Eliminar» del menú ⋯: el insumo ya no existe (se eliminó acá o antes).
+  function handleDeleted(ingredient: { id: string; name: string }, how: "deleted" | "gone") {
+    setDeleteFor(null);
+    setRows((prev) => prev.filter((r) => r.id !== ingredient.id));
+    setMovementIngredient((current) => (current === ingredient.id ? null : current));
+    setNotice(how === "deleted" ? { tone: "ok", text: t("ingredientDeletedNotice", { name: ingredient.name }) } : null);
   }
 
   async function openSession(id: string) {
@@ -300,6 +311,7 @@ export function InventarioClient({
             onViewMovements={viewMovements}
             onBarcodes={(row) => setBarcodeFor(row.id)}
             onToggleArchive={toggleArchive}
+            onDelete={(row) => { setNotice(null); setDeleteFor(row.id); }}
           />
         )}
       </div>
@@ -339,6 +351,15 @@ export function InventarioClient({
 
       {barcodeRow && (
         <BarcodeSheet ingredient={barcodeRow} onClose={() => setBarcodeFor(null)} onSaved={updateBarcodes} />
+      )}
+
+      {deleteRow && (
+        <IngredientDeleteDialog
+          ingredient={deleteRow}
+          onClose={() => setDeleteFor(null)}
+          onDeleted={handleDeleted}
+          onArchive={() => { setDeleteFor(null); void toggleArchive(deleteRow); }}
+        />
       )}
 
       {newCountOpen && (

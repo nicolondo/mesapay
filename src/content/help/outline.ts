@@ -390,6 +390,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "Insumos (dimensión, \"Llevar inventario\", precio de referencia, punto de reorden, código de barras principal —los demás se agregan en Inventario—, archivar, acciones masivas, \"Importar con IA\" solo con Inventario) y proveedores (datos, condiciones de pago, \"Lista de precios\", un solo preferido por insumo, \"IVA de compras descontable\").",
     },
     {
+      slug: "archivar-o-eliminar-un-insumo",
+      title: "Archiva o elimina un insumo",
+      covers:
+        "Diferencia entre \"Archivar\" y \"Eliminar\"; cuándo se puede eliminar (sin existencias, movimientos, órdenes de compra, conteos, recetas, sub-receta ni historial de precios) y qué se va con el insumo (códigos de barras, presentaciones de proveedor, nombres de factura recordados); \"Eliminar\" en la fila y en la ficha de Insumos y en el menú ⋯ de Inventario; filtro \"Sin movimientos\" y eliminación en bloque (\"Sí, eliminar\"); \"Restaurar\"; los avisos \"No se puede eliminar: …\" y qué hacer con cada motivo.",
+    },
+    {
       slug: "recetas-y-food-cost",
       title: "Arma las recetas y controla el food cost",
       covers:
@@ -407,7 +413,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "inventario-del-dia-a-dia",
       title: "Registra entradas, ajustes y mermas de inventario",
       covers:
-        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
+        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\" y \"Eliminar\" en los que nunca tuvieron movimientos): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
     },
     {
       slug: "conteo-de-inventario",

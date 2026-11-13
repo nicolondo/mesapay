@@ -24,7 +24,11 @@ import { publishOrderEvent, type BillRequestMethod } from "@/lib/events";
 export type BillRequestSource = "diner" | "staff";
 
 /** Roles que cuentan como staff a la hora de atribuir el pedido de cuenta. */
-const STAFF_ROLES = new Set(["mesero", "operator", "platform_admin"]);
+// El datáfono (`terminal`) cobra en la mesa: si inicia el cobro no es "la
+// mesa pidió la cuenta", y con "solo el administrador cobra" no debe
+// disparar el aviso de pantalla completa (el datáfono sí puede cobrar con
+// esa opción: ver chargeControl.ts).
+const STAFF_ROLES = new Set(["mesero", "operator", "platform_admin", "terminal"]);
 
 /**
  * ¿Quién pidió la cuenta? El comensal llega sin sesión (o con la sesión

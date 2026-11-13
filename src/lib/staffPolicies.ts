@@ -97,8 +97,13 @@ export const SHIFT_POLICY_LABELS: Record<ShiftPolicy, string> = {
  * Roles del personal que operan mesas y pueden aparecer en la lista.
  * `kitchen` / `bar` no cobran, así que no aplican; `platform_admin` y
  * `group_admin` no se listan porque pueden siempre (ver canCompOrders).
+ *
+ * El datáfono (`terminal`) NUNCA da cortesías ni deja de cobrar un plato:
+ * es un equipo para cobrar. Antes figuraba en la lista; si un comercio lo
+ * había marcado, `resolveCompAllowedRoles` lo descarta al leerla (no hace
+ * falta migrar nada) y la ruta de cortesías ya lo rechazaba.
  */
-export const COMP_ROLES = ["operator", "mesero", "terminal"] as const;
+export const COMP_ROLES = ["operator", "mesero"] as const;
 export type CompRole = (typeof COMP_ROLES)[number];
 
 /** Default histórico + lo que pidió el dueño: sólo el administrador. */

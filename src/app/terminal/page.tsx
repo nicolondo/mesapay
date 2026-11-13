@@ -12,6 +12,8 @@ import {
   wasPaidFromPhone,
 } from "@/lib/tables/phonePaid";
 import { salonVisualStateOf } from "@/lib/tables/salonVisualState";
+import { withReplaceable } from "@/lib/payments/pendingRequests";
+import { terminalChargeState } from "@/lib/tables/terminalCharge";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +90,19 @@ export default async function TerminalPage() {
     tenant.phonePaidHighlightMinutes,
   );
 
+  // «Cobrar» desde la ficha: qué pagos pendientes son sólo una solicitud
+  // (se reemplazan al cobrar) y cuáles tienen plata en vuelo (un cobro ya
+  // enviado al datáfono, un pago en línea del comensal). Una sola consulta
+  // para todas las mesas.
+  const replaceableById = new Map(
+    (
+      await withReplaceable(
+        db,
+        tables.flatMap((t) => (t.orders[0]?.payments ?? []).filter((p) => p.status === "pending")),
+      )
+    ).map((p) => [p.id, p.replaceable]),
+  );
+
   const cards = tables.map((t) => {
     const order = t.orders[0] ?? null;
     if (!order) {
@@ -113,6 +128,7 @@ export default async function TerminalPage() {
         needsWaiter: false,
         paidAt: null,
         paidFromPhone: false,
+        charge: { canCharge: false, block: null, inFlight: null },
       };
     }
     const approved = order.payments.filter((p) => p.status === "approved");
@@ -218,6 +234,9 @@ export default async function TerminalPage() {
         tipCents: p.tipCents,
         cashTenderCents: p.cashTenderCents,
         createdAt: p.createdAt.toISOString(),
+        // Ya enviado al datáfono (o pago en línea en curso): no se vuelve
+        // a ofrecer "Cobrar con datáfono" para este pago.
+        inFlight: !(replaceableById.get(p.id) ?? false),
       })),
       // amountCents YA es el TOTAL (food + tip). Sumarlo de nuevo
       // duplica la propina en la pantalla del datáfono.
@@ -249,6 +268,18 @@ export default async function TerminalPage() {
         settledAt: p.settledAt?.toISOString() ?? null,
       })),
       visualState,
+      charge: terminalChargeState({
+        paid: isPaid,
+        outstandingCents: totals.outstandingCents,
+        pending: pendingPayments.map((p) => ({
+          method: p.method,
+          amountCents: p.amountCents,
+          tipCents: p.tipCents,
+          // Si no está clasificado (no debería pasar), se trata como en vuelo:
+          // mejor no ofrecer un cobro que el servidor puede rechazar.
+          replaceable: replaceableById.get(p.id) ?? false,
+        })),
+      }),
       needsWaiter: !isPaid && order.needsWaiter,
       paidAt: isPaid ? (order.paidAt?.toISOString() ?? null) : null,
       paidFromPhone: isPaid && wasPaidFromPhone(approved),

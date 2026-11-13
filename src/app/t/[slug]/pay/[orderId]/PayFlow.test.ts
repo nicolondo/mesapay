@@ -44,7 +44,7 @@ beforeEach(() => {
 const flow = (op = "1") => PayFlow({ slug: "sample", orderId: "o1", op });
 
 describe("shared checkout staff scope", () => {
-  it.each(["operator", "platform_admin", "group_admin", "mesero"])("allows %s acting on this restaurant and preserves tax in the balance", async (role) => {
+  it.each(["operator", "platform_admin", "group_admin", "mesero", "terminal"])("allows %s acting on this restaurant and preserves tax in the balance", async (role) => {
     m.session = { user: { id: "u1", role, restaurantId: "r1" } };
     const page = await flow();
     expect(page.props).toMatchObject({
@@ -65,9 +65,52 @@ describe("shared checkout staff scope", () => {
     expect(page.props.terminalDevices).toEqual([]);
   });
 
-  it.each([null, "kitchen", "bar", "terminal"])("does not turn op=1 into collector UI for %s", async (role) => {
+  it.each([null, "kitchen", "bar"])("does not turn op=1 into collector UI for %s", async (role) => {
     m.session = role ? { user: { id: "u1", role, restaurantId: "r1" } } : null;
     expect((await flow()).props).toMatchObject({ operatorMode: false, approvedPayments: [], pendingPayments: [] });
+  });
+
+  it("el datáfono cobra pero sólo cobra: sin cortesías, anular, cliente, crédito, bonos ni factura previa", async () => {
+    m.session = { user: { id: "u-pos", role: "terminal", restaurantId: "r1" } };
+    m.tenant.mockResolvedValue({
+      id: "r1", slug: "sample", country: "CO", serviceMode: "table",
+      // Todo lo que el comercio podría tener prendido: igual no se le ofrece.
+      enabledModules: ["vouchers"], compEnabled: true, compAllowedRoles: ["operator", "mesero", "terminal"],
+    });
+    m.customers.mockResolvedValue(5);
+    const page = await flow();
+    expect(page.props).toMatchObject({
+      operatorMode: true,
+      compEnabled: false,
+      compAdminRequired: false,
+      canAnnulInvoice: false,
+      customerStepEnabled: false,
+      creditEnabled: false,
+      vouchersEnabled: false,
+      preInvoiceEnabled: false,
+      canConfigurePrinters: false,
+      printSameTab: true,
+      terminalMode: true,
+      canResolveTerminal: false,
+      staffHomeHref: "/terminal",
+      staffServeHref: "/terminal",
+      doneHref: "/t/sample/pay/o1/done?op=1",
+    });
+    // Ni se consulta: el datáfono no asocia clientes ni cobra a crédito.
+    expect(m.customers).not.toHaveBeenCalled();
+  });
+
+  it("el mesero y el administrador conservan lo suyo", async () => {
+    m.session = { user: { id: "u2", role: "mesero", restaurantId: "r1" } };
+    expect((await flow()).props).toMatchObject({
+      canAnnulInvoice: false, preInvoiceEnabled: true, printSameTab: true, canConfigurePrinters: false,
+      staffHomeHref: "/mesero/mesas", staffServeHref: "/mesero/salon", doneHref: "/mesero/cobrar/o1/done",
+    });
+    m.session = { user: { id: "u1", role: "operator", restaurantId: "r1" } };
+    expect((await flow()).props).toMatchObject({
+      canAnnulInvoice: true, preInvoiceEnabled: true, printSameTab: false, canConfigurePrinters: true,
+      staffHomeHref: "/operator/tables", staffServeHref: "/operator/serve", doneHref: "/t/sample/pay/o1/done?op=1",
+    });
   });
 
   it("keeps an authenticated operator in the diner flow without the explicit staff flag", async () => {
@@ -104,6 +147,7 @@ describe("datáfono Kushki en el cobro del staff", () => {
     ["platform_admin", true],
     ["group_admin", true],
     ["mesero", false],
+    ["terminal", false],
   ])("«Resolver cobro» para %s: %s", async (role, expected) => {
     m.session = { user: { id: "u1", role, restaurantId: "r1" } };
     expect((await flow()).props.canResolveTerminal).toBe(expected);

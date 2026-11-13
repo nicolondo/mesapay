@@ -437,7 +437,7 @@ test("a new ingredient is created from the count, counted right away and closed 
     const scanner = await createCount(page);
     await quantity(page, "Sal").fill("1,5");
     const dialog = page.getByRole("dialog", { name: "Nuevo insumo", exact: true });
-    const fields = { name: dialog.getByLabel(/^Nombre/), measure: dialog.getByLabel(/^Dimensión de medida/), category: dialog.getByLabel(/^Categoría/), barcode: dialog.getByLabel(/^Código de barras/) };
+    const fields = { name: dialog.getByLabel(/^Nombre/), measure: dialog.getByLabel(/^Se mide en/), category: dialog.getByLabel(/^Categoría/), barcode: dialog.getByLabel(/^Código de barras/) };
 
     // (a) Código que no es de nadie → «Crear insumo con este código», con el código ya escrito.
     await scan(page, scanner, "PIM-777");

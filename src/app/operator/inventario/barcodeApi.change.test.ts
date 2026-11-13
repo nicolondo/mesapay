@@ -104,7 +104,7 @@ describe("textos del conteo y de los códigos en los tres idiomas", () => {
     "countRestGroup", "countAllGroup", "countScanMove", "countScanLink", "countPickLinkIntro", "countPickMoveIntro", "countPickSearch", "countScanLooking", "countLinked",
     "countLinkUndo", "countLinkFix", "countScanUnknown", "countScanFree", "countScanCreate", "countNoCategory", "countScanArchived", "countScanNotTracked",
     "countScanCategoryExcluded", "countScanOutsideScope", "countScanAddedLater", "countNewIngredientIntro", "countNewIngredientOutsideScope",
-    "ingredientNameTakenBy", "ingredientNameTakenByArchived", "ingredientCodeTakenBy", "ingredientCodeTakenByArchived", "draftSaved", "scanBarcodePlaceholder",
+    "ingredientMeasuredIn", "ingredientNameTakenBy", "ingredientNameTakenByArchived", "ingredientCodeTakenBy", "ingredientCodeTakenByArchived", "draftSaved", "scanBarcodePlaceholder",
   ];
   const placeholders = (text: string) => [...text.matchAll(/\{(\w+)[,}]/g)].map((match) => match[1]).sort().join(",");
 

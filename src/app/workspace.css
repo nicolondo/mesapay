@@ -2546,6 +2546,10 @@ li.is-archived .mp-inv-name {
 .mp-tally-field--scan input {
   font-family: var(--font-mono);
 }
+/* El código leído va en monoespaciada; la pista, en la letra de siempre (cabe entera en el celular). */
+.mp-tally-field--scan input::placeholder {
+  font-family: var(--font-sans);
+}
 .mp-tally-field--search {
   flex: 1 1 0;
 }

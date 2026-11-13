@@ -701,12 +701,12 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
         className={"mp-tally" + (showPreliminary ? " mp-tally--prelim" : "") + (canEdit ? "" : " mp-tally--readonly")}
       >
         <div className="mp-tally__bar">
-          <h2 className="font-display truncate text-xl md:text-2xl">{t("countTitle")}</h2>
+          <h2 className="font-display min-w-0 truncate text-[19px] md:text-2xl">{t("countTitle")}</h2>
           <span className={"mp-inv-pill shrink-0" + (readOnly ? "" : " mp-inv-pill--ink")}>{t(STAGE_LABEL[stage])}</span>
           <span className="hidden min-w-0 flex-1 truncate text-xs text-op-muted md:block">{meta}</span>
           <span className="flex-1 md:hidden" />
           {canEdit && (
-            <button type="button" onClick={() => setCreating({})} disabled={busy} className="mp-btn mp-btn--secondary mp-btn--sm shrink-0" aria-label={t("newIngredient")}>
+            <button type="button" onClick={() => setCreating({})} disabled={busy} className="mp-btn mp-btn--secondary mp-btn--sm shrink-0 max-sm:gap-1.5 max-sm:!px-2.5" aria-label={t("newIngredient")}>
               <InvIcon name="plus" size={16} />
               <span className="hidden sm:inline">{t("newIngredient")}</span>
               <span className="sm:hidden">{t("countNewIngredientShort")}</span>
@@ -809,7 +809,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
             <p id={enterHintId} className="sr-only">{t("countQuantityEnterHint")}</p>
 
             {!readOnly && hintOpen && (
-              <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl border border-op-border bg-op-bg px-3 py-2 text-[13px] leading-relaxed">
+              <div className="mx-3 mt-2 flex items-start gap-2 rounded-[12px] border border-op-border bg-op-bg px-3 py-2 text-[13px] leading-relaxed">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{t(STAGE_HINT[stage])}</p>
                   {canEdit && <p className="mt-1 text-xs text-op-muted">{t("countCompactHint")}</p>}
@@ -823,7 +823,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
             )}
 
             {closedResult !== null && (
-              <div role="status" className="mx-3 mt-2 rounded-xl border border-op-border bg-op-bg px-4 py-3 text-sm text-ok">
+              <div role="status" className="mx-3 mt-2 rounded-[12px] border border-op-border bg-op-bg px-4 py-3 text-sm text-ok">
                 {t("closeCountResult", { count: closedResult })}
               </div>
             )}

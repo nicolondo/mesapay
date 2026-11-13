@@ -196,8 +196,10 @@ export function BarcodeSheet({ ingredient, onClose, onSaved, onMoved, moveTarget
                   ) : (
                     <div className="flex min-h-[44px] items-center gap-2">
                       <InvIcon name="barcode" className="shrink-0 text-op-muted" />
-                      <span className="min-w-0 flex-1 break-all font-mono text-sm">{code}</span>
-                      {code === ingredient.barcode && <span className="mp-inv-pill shrink-0">{t("barcodePrimaryBadge")}</span>}
+                      <span className="min-w-0 flex-1 py-1">
+                        <span className="block break-all font-mono text-sm">{code}</span>
+                        {code === ingredient.barcode && <span className="mp-inv-pill mt-0.5">{t("barcodePrimaryBadge")}</span>}
+                      </span>
                       {canAdd && (
                         <button
                           type="button"

@@ -360,7 +360,7 @@ export function IngredientInlineForm({
           className={inputCls}
         />
       </Field>
-      <Field label={t("fieldMeasure")} required>
+      <Field label={t(showUnits ? "ingredientMeasuredIn" : "fieldMeasure")} required>
         <select
           value={measureKind}
           onChange={(e) => setMeasureKind(e.target.value as MeasureKind)}

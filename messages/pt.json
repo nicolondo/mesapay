@@ -8504,6 +8504,16 @@
     "failed": "O pagamento foi recusado. Você pode escolher outro método.",
     "back": "Voltar à conta"
   },
+  "chargeDecline": {
+    "security_rejected": "O banco ou o sistema de segurança recusou o pagamento. Tente com outro cartão ou outra forma de pagamento.",
+    "card_cvv": "O código de segurança (CVV) do cartão não é válido. Confira ou tente com outro cartão.",
+    "card_funds": "O cartão não tem saldo suficiente. Tente com outro cartão ou outra forma de pagamento.",
+    "card_invalid": "O cartão não é válido. Confira os dados ou tente com outro cartão.",
+    "card_blocked": "O cartão está bloqueado. Tente com outro cartão ou outra forma de pagamento.",
+    "merchant_config": "O estabelecimento está com um problema na configuração de pagamentos online. Avise a equipe e pague de outra forma.",
+    "charge_failed": "O pagamento foi recusado. Tente com outro cartão ou outra forma de pagamento.",
+    "uncertain": "Não conseguimos confirmar se a cobrança foi feita. Antes de tentar de novo, confira os lançamentos do seu cartão ou consulte o estabelecimento."
+  },
   "apiErrors": {
     "internal_error": "Não foi possível concluir a operação. Tente novamente mais tarde.",
     "operation_conflict": "A conta mudou ou já existe uma operação pendente. Atualize antes de continuar.",
@@ -8544,6 +8554,10 @@
     "confirmError": "Não foi possível confirmar o pagamento. Atualize e tente novamente.",
     "inFlightKicker": "Pagamento online em andamento",
     "inFlightBody": "Aguarde até que o provedor o aprove ou recuse antes de cobrar de outra forma. Você pode vê-lo em Salão ou em Cobranças.",
+    "inFlightReviewKicker": "Pagamento online sem confirmação",
+    "inFlightReviewBody": "O provedor não confirmou ao MESAPAY o resultado deste pagamento, por isso a conta continua bloqueada. Se o resultado já é conhecido (o cliente foi recusado ou foi cobrado), resolve-se conciliando o pagamento: salvo como recusado, a conta fica livre para cobrar de outra forma; salvo como aprovado, fica paga.",
+    "reconcile": "Conciliar pagamento",
+    "reconcileAskAdmin": "Peça a um administrador para conciliar este pagamento e liberar a conta.",
     "methods": {
       "cash": "Dinheiro",
       "demo_cash": "Dinheiro",

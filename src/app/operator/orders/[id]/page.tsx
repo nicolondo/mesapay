@@ -35,14 +35,19 @@ const REFUNDABLE_METHODS = new Set([
 
 export default async function OperatorOrderDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // `conciliar=<paymentId>`: llega desde el aviso «Conciliar pago» de la mesa
+  // o del cobro; ese pago abre su formulario de conciliación.
+  searchParams: Promise<{ conciliar?: string }>;
 }) {
   const t = await getTranslations("opOrders");
   const locale = (await getLocale()) as Locale;
   const fmtDateTime = (date: Date) => formatDate(date, { locale });
   const fmtTime = (date: Date) => formatDate(date, { locale, dateStyle: undefined, timeStyle: "short" });
   const { id } = await params;
+  const { conciliar } = await searchParams;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -456,7 +461,12 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
-                    {canReconcile && p.reconciliationRequired && <ReconcilePayment paymentId={p.id} refund={p.refundReservedCents > 0} pending={p.status === "pending"} />}
+                    {canReconcile && p.reconciliationRequired && (
+                      // Ancla del enlace «Conciliar pago» (reconcilePaymentHref).
+                      <div id={`conciliar-${p.id}`} className="scroll-mt-24">
+                        <ReconcilePayment paymentId={p.id} refund={p.refundReservedCents > 0} pending={p.status === "pending"} defaultOpen={conciliar === p.id} />
+                      </div>
+                    )}
                     {p.refundedCents > 0 && (
                       <div className="text-[11px] text-danger mt-0.5">
                         {t("refundedNote", { amount: fmtCOP(p.refundedCents) })}

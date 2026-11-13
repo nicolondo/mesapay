@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
+import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
 
 /**
@@ -133,12 +134,18 @@ export function PayLinkClient(props: Props) {
   );
 }
 
-/** Traduce el `reason` del server; si no lo conoce, el genérico. */
+/**
+ * Traduce el `reason` del server; si no lo conoce, el genérico. Los motivos
+ * del cobro con tarjeta que esta página no tiene propios (p. ej.
+ * `security_rejected`, `uncertain`) salen del catálogo compartido
+ * `chargeDecline`.
+ */
 function useReason() {
   const t = useTranslations("payLink");
+  const declineText = useChargeDeclineText();
   return (reason: unknown, fallback: string) => {
     const key = typeof reason === "string" ? `reason_${reason}` : "";
-    return key && t.has(key) ? t(key) : fallback;
+    return key && t.has(key) ? t(key) : (declineText(reason) ?? fallback);
   };
 }
 

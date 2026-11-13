@@ -49,7 +49,7 @@ async function guard(req: Request): Promise<Response | null> {
   if (tenant.suspended && mutation && /^(orders$|pickup\/orders|reservations$)/.test(action)) return deny("restaurant_suspended");
   const body = mutation ? await req.clone().json().catch(() => ({})) : {};
   if (mutation && (action === "pay" || action.startsWith("pay/") || action === "pickup/orders")) {
-    const method = action === "pay/terminal-request" ? "kushki_card_terminal" : action === "pay/external-terminal-request" ? "external_terminal" : action === "pay/kushki-pse-init" ? "kushki_pse" : isCashMethod(body?.method) ? "cash" : body?.method;
+    const method = action === "pay/terminal-request" ? "kushki_card_terminal" : action === "pay/external-terminal-request" ? "external_terminal" : action === "pay/kushki-pse-init" ? "kushki_pse" : action === "pay/bre-b" ? "kushki_bre_b" : isCashMethod(body?.method) ? "cash" : body?.method;
     if (typeof method === "string" && !method.startsWith("demo_") && !resolveEnabledPaymentMethods(tenant.enabledPaymentMethods).includes(method as PaymentMethodSlug)) return deny("method_disabled");
   }
   let orderId: unknown = action.match(/^orders\/([^/]+)/)?.[1] ?? body?.orderId;

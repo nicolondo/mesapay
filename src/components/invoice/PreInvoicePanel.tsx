@@ -532,6 +532,7 @@ export function InvoicedOrderBanner({
           ) : (
             <span className="inline-flex flex-col">
               <StaffPrintButton
+                destinationVariant="pay"
                 doc={{ kind: "invoice", orderId, href: invoicePrintHref({ invoiceId: invoice.invoiceId }) }}
                 label={t("reprint")}
                 sameTab={sameTab}

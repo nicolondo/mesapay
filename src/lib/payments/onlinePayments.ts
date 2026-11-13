@@ -1,4 +1,4 @@
-import { DEPOSIT_CAPABLE_SLUGS, resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { DEPOSIT_CAPABLE_SLUGS, resolveEnabledPaymentMethods, type PaymentMethodSlug } from "@/lib/paymentMethods";
 
 /**
  * "Pagos en línea listos": el comercio puede cobrar por Kushki desde el
@@ -18,8 +18,13 @@ export function onlinePaymentsReady(tenant: OnlinePaymentsTenant): boolean {
   return !!tenant.kushkiMerchantId && tenant.kushkiOnboardingStatus === "active";
 }
 
-/** Medios que un pagador REMOTO puede usar: los de Kushki en línea. */
-export const ONLINE_METHOD_SLUGS = DEPOSIT_CAPABLE_SLUGS;
+/**
+ * Medios que un pagador REMOTO puede usar: los de Kushki en línea. Son los
+ * del depósito de reserva más Bre-B (el QR se paga desde la app del banco,
+ * sin nadie del comercio presente). Bre-B NO es medio de depósito de
+ * reserva: por eso no está en `DEPOSIT_CAPABLE_SLUGS`.
+ */
+export const ONLINE_METHOD_SLUGS: PaymentMethodSlug[] = [...DEPOSIT_CAPABLE_SLUGS, "kushki_bre_b"];
 
 /**
  * Medios en línea habilitados por el comercio (∩ con los que admite el

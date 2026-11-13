@@ -78,6 +78,16 @@ describe("invoicePaymentMeans — factura emitida ANTES de cobrar", () => {
       }),
     ).toEqual({ paymentMeansCode: "1", paymentMeansId: "2", paymentDueDate: "2026-11-19" });
   });
+  it("pagada toda con Bre-B: transferencia (47); mezclada o emitida antes de cobrar, como siempre", () => {
+    const breB = { method: "kushki_bre_b", billingCustomer: null };
+    expect(invoicePaymentMeans([breB, breB], "2026-11-13")).toEqual({ paymentMeansCode: "47" });
+    expect(invoicePaymentMeans([breB, { method: "cash", billingCustomer: null }], "2026-11-13")).toEqual({
+      paymentMeansCode: "10",
+    });
+    expect(invoicePaymentMeans([breB], "2026-11-13", { issuedBeforePayment: true })).toEqual({
+      paymentMeansCode: "1",
+    });
+  });
   it("el XML de una factura antes de cobrar declara <cbc:ID>1</cbc:ID> y <cbc:PaymentMeansCode>1</cbc:PaymentMeansCode>", () => {
     const means = invoicePaymentMeans([], "2026-11-04", { issuedBeforePayment: true });
     expect(means.paymentMeansId).toBeUndefined();

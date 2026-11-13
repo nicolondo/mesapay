@@ -27,6 +27,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/erp/consumption", () => ({ sweepUnconsumedOrders: async () => ({ consumed: 0 }) }));
+// El barrido de Bre-B consulta a Kushki: acá sólo importa que corra (y que
+// un fallo suyo no tumbe el resto del cron).
+const breBSweep = vi.hoisted(() => vi.fn(async () => ({ checked: 2, resolved: 1 })));
+vi.mock("@/lib/payments/breB/service", () => ({ sweepBreBCharges: breBSweep }));
 vi.mock("@/auth", () => ({ auth: async () => null }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: async () => null }));
 
@@ -59,6 +63,7 @@ beforeEach(() => {
       { id: "pse-new", method: "kushki_pse", status: "pending", amountCents: 100, createdAt: RECENT },
       { id: "cash-old", method: "cash", status: "pending", amountCents: 100, createdAt: OLD },
       { id: "ext-old", method: "external_terminal", status: "pending", amountCents: 100, createdAt: OLD },
+      { id: "breb-old", method: "kushki_bre_b", status: "pending", amountCents: 100, createdAt: OLD },
     ],
     financialOperations: [{ key: "terminal:smart-sent", paymentId: "smart-sent", status: "completed", createdAt: OLD }],
   });
@@ -69,7 +74,16 @@ describe("cron stock-consumption: pendientes viejos con proveedor a conciliació
     const { status } = await sweep();
     expect(status).toBe(200);
     const flagged = h.fake.state.payments.filter((p) => p.reconciliationRequired).map((p) => p.id).sort();
-    expect(flagged).toEqual(["card-old", "pse-old", "smart-ref", "smart-sent"]);
+    expect(flagged).toEqual(["breb-old", "card-old", "pse-old", "smart-ref", "smart-sent"]);
+  });
+
+  it("corre el barrido de Bre-B y un fallo suyo no tumba el resto", async () => {
+    const ok = await sweep();
+    expect(ok.json.breB).toEqual({ checked: 2, resolved: 1 });
+    breBSweep.mockRejectedValueOnce(new Error("kushki down"));
+    const failed = await sweep();
+    expect(failed.status).toBe(200);
+    expect(failed.json.breB).toEqual({ checked: 0, resolved: 0 });
   });
 
   it("un datáfono Kushki que nunca se envió no aparece como «Requiere revisión»", async () => {

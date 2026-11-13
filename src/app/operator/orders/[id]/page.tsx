@@ -28,6 +28,8 @@ export const dynamic = "force-dynamic";
 
 // Métodos Kushki con tarjeta que se pueden devolver (mismo criterio que el
 // endpoint /api/operator/payments/[id]/refund). Efectivo y PSE quedan fuera.
+// Bre-B también: Kushki no documenta devoluciones para Bre-B, así que el
+// detalle del pago dice cómo devolverlo a mano (`breBRefundManual`).
 const REFUNDABLE_METHODS = new Set([
   "kushki_card",
   "kushki_apple_pay",
@@ -473,6 +475,13 @@ export default async function OperatorOrderDetail({
                         {t("refundedNote", { amount: fmtCOP(p.refundedCents) })}
                       </div>
                     )}
+                    {/* Bre-B no se devuelve por MESAPAY ni por Kushki: se dice
+                        acá, donde saldría «Devolver», con el camino manual. */}
+                    {canReconcile && p.method === "kushki_bre_b" && p.status === "approved" && (
+                      <div className="text-[11px] text-op-muted mt-1 max-w-md leading-snug">
+                        {t("breBRefundManual")}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {canReconcile && REFUNDABLE_METHODS.has(p.method) &&
@@ -635,6 +644,8 @@ function methodLabel(m: string, t: (key: string) => string) {
       return t("mExternalTerminal");
     case "kushki_pse":
       return t("mKushkiPse");
+    case "kushki_bre_b":
+      return t("mKushkiBreB");
     case "reservation_deposit":
       return t("mReservationDeposit");
     case "voucher":

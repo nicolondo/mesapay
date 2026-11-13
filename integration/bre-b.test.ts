@@ -98,6 +98,10 @@ if (!["localhost", "127.0.0.1"].includes(database.hostname) || !/^\/mesapay_.*(?
   throw new Error("Isolated local database required");
 }
 
+// Respuesta JSON de una ruta, tal como la lee el test.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Body = Record<string, any>;
+
 const tenants: string[] = [];
 let slug = "";
 let tableId = "";
@@ -118,15 +122,15 @@ async function start(orderId: string, amountCents = TOTAL, tipCents = 0, key?: s
     json({ orderId, amountCents, tipCents }, key ? { "idempotency-key": key } : {}),
     tenantParams(),
   );
-  return { status: res.status, body: (await res.json()) as Record<string, any> };
+  return { status: res.status, body: (await res.json()) as Body };
 }
 async function action(paymentId: string, body: Record<string, unknown>) {
   const res = await breBAction(json(body), paymentParams(paymentId));
-  return { status: res.status, body: (await res.json()) as Record<string, any> };
+  return { status: res.status, body: (await res.json()) as Body };
 }
 async function webhook(body: Record<string, unknown>) {
   const res = await kushkiWebhook(json(body));
-  return { status: res.status, body: (await res.json()) as Record<string, any> };
+  return { status: res.status, body: (await res.json()) as Body };
 }
 const approvedBody = (
   charge: { id: string; token: string | null; paymentId: string | null; ticketNumber: string | null; transactionReference: string | null },
@@ -475,7 +479,7 @@ describe("link de pago de monto fijo", () => {
 describe("credenciales Bre-B y habilitación (admin de plataforma)", () => {
   const put = async (body: unknown) => {
     const res = await breBCredsPut(json(body), adminParams());
-    return { status: res.status, body: (await res.json()) as Record<string, any> };
+    return { status: res.status, body: (await res.json()) as Body };
   };
 
   it("sólo el admin de plataforma; las llaves se cifran y nunca vuelven enteras", async () => {

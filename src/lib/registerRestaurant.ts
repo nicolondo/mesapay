@@ -26,6 +26,7 @@ const RESERVED = new Set([
   "app",
   "signin",
   "signup",
+  "salir",
   "operator",
   "operador",
   "t",

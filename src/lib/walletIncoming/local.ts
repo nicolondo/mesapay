@@ -6,6 +6,11 @@ import type { LocalCharge } from "./matching";
 import type { SettlementPeriod } from "./report";
 
 const LIMIT = 200;
+// Bre-B (`kushki_bre_b`) NO está acá a propósito: lo recauda OTRO comercio
+// de Kushki (otras llaves, otra wallet), así que no aparece en las
+// liquidaciones de la wallet de tarjeta/PSE que este reporte compara. Hasta
+// que Kushki confirme dónde liquida Bre-B, incluirlo sólo mostraría cobros
+// "sin liquidar" que nunca van a casar. Lo fija `breB/wiring.test.ts`.
 const METHODS: PaymentMethod[] = ["kushki_card", "kushki_apple_pay", "kushki_google_pay", "kushki_pse", "kushki_card_terminal"];
 type Mirror = { kushkiTxId: string; amountCents: number; raw: unknown; createdAt?: Date };
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

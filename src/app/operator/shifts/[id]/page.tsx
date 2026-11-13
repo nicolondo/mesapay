@@ -30,6 +30,7 @@ const METHOD_KEY: Record<string, string> = {
   kushki_card: "methodKushkiCard",
   external_terminal: "methodExternalTerminal",
   kushki_pse: "methodKushkiPse",
+  kushki_bre_b: "methodKushkiBreB",
   reservation_deposit: "methodReservationDeposit",
   voucher: "methodVoucher",
   customer_credit: "methodCustomerCredit",

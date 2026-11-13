@@ -311,7 +311,8 @@ describe("Emitir y enviar factura", () => {
     expect(m.issueReceivable).toHaveBeenCalledWith(
       expect.objectContaining({ restaurantId: "r1", orderId: "o1", userId: "u1", currency: "COP" }),
     );
-    expect(m.issueInvoice).toHaveBeenCalledWith({ tenantId: "r1", orderId: "o1", emit: "inline" });
+    // El comprobante no sale aparte: este correo ya lleva la factura.
+    expect(m.issueInvoice).toHaveBeenCalledWith({ tenantId: "r1", orderId: "o1", emit: "inline", deliverEmail: false });
     expect(m.publish).toHaveBeenCalledWith("r1", { type: "order.paid", orderId: "o1" });
     expect(m.sendEmail.mock.calls[0][0]).toMatchObject({
       to: ["pagos@empresa.com", "contabilidad@empresa.com"],

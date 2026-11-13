@@ -194,12 +194,16 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
       link = issued.link;
       amountCents = issued.amountCents;
       receivable = { dueDate: issued.dueDate };
-      // Sale de Mesas, Salón y el datáfono al instante.
-      publishOrderEvent(scope.restaurantId, { type: "order.paid", orderId: order.id });
       // La factura, por el riel de siempre. Se espera la DIAN para que el
       // correo lleve el CUFE y el XML si responde rápido; si no, el correo
       // lo dice y la factura electrónica llega sola al aceptarla.
-      await issueInvoiceOnPaid({ tenantId: scope.restaurantId, orderId: order.id, emit: "inline" });
+      // El comprobante no sale por separado si este envío lleva la factura.
+      await issueInvoiceOnPaid({
+        tenantId: scope.restaurantId,
+        orderId: order.id,
+        emit: "inline",
+        ...(emails.length > 0 ? { deliverEmail: false } : {}),
+      });
       await recordAuditEvent({
         kind: "order.manual_invoice.issue_receivable",
         restaurantId: scope.restaurantId,
@@ -290,6 +294,11 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
       );
     }
   }
+
+  // Emitida: sale de Mesas, Salón y el datáfono. Se avisa al final (con la
+  // factura emitida y el correo enviado) para que la ficha que la emitió
+  // reciba la respuesta antes de que la grilla la quite.
+  if (issuedNow) publishOrderEvent(scope.restaurantId, { type: "order.paid", orderId: order.id });
 
   return NextResponse.json({
     url,

@@ -78,7 +78,9 @@ export async function renderManualInvoicePayLinkEmail(
     ? t("subjectInvoice", { restaurant: args.restaurantName, number: issued.number, total })
     : t("subject", { restaurant: args.restaurantName, code, total });
   const title = issued ? t("titleInvoice", { number: issued.number }) : t("title");
-  const greeting = args.customerName ? t("greetingNamed", { name: args.customerName }) : t("greeting");
+  // "Empresa S.A.S." + "Hola, {name}." no debe quedar con dos puntos.
+  const customerName = args.customerName?.trim().replace(/\.+$/, "") || null;
+  const greeting = customerName ? t("greetingNamed", { name: customerName }) : t("greeting");
   const intro = issued
     ? t("introInvoice", { restaurant: args.restaurantName, number: issued.number, total })
     : t("intro", { restaurant: args.restaurantName, code, total });

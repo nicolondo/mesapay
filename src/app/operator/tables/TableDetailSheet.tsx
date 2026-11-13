@@ -1234,7 +1234,14 @@ export function TableDetailSheet({
                         href={`/t/${tenantSlug}/pay/${orderId}?op=1`}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                        // En una factura manual la acción principal es
+                        // "Emitir y enviar factura" (arriba); cobrar en caja
+                        // queda como alternativa.
+                        className={
+                          manual && sendInfo
+                            ? "mp-btn mp-btn--secondary mp-btn--block"
+                            : "w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                        }
                       >
                         {tr("chargeBill")}
                       </a>

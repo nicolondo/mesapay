@@ -317,7 +317,7 @@ export function ManualInvoiceSendCard({
       )}
 
       {showSecondary && (
-        <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button type="button" onClick={copy} disabled={busy !== null} className="mp-btn mp-btn--secondary mp-btn--sm">
             {busy === "copy" ? t("working") : t("copyLink")}
           </button>

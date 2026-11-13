@@ -19,6 +19,7 @@ import { GroupSwitcher } from "./GroupSwitcher";
 import { BillRequestAlert } from "./BillRequestAlert";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
+import { Icon } from "@/components/ui/Icon";
 
 /**
  * Área con sesión del equipo: todo lo que pinta este layout (menús, avisos,
@@ -224,6 +225,24 @@ async function OperatorLayoutContent({
     </form>
   );
 
+  // «Cerrar sesión» del riel del cockpit (escritorio y cajón del celular):
+  // botón con ícono, borde y fondo propios — `.mp-rail-signout` en
+  // workspace.css. El de arriba (`signOutMobile`) queda para el shell clásico.
+  const signOutRail = (
+    <form
+      className="mp-rail-signout-form"
+      action={async () => {
+        "use server";
+        await signOut({ redirectTo: "/" });
+      }}
+    >
+      <button type="submit" className="mp-rail-signout">
+        <Icon name="logout" width="16" height="16" />
+        <span>{t("signOutFull")}</span>
+      </button>
+    </form>
+  );
+
   // Fecha de vencimiento localizada (para el banner "por vencer").
   const dueDateStr = tenant?.periodEndsAt
     ? new Date(tenant.periodEndsAt).toLocaleDateString(
@@ -312,7 +331,7 @@ async function OperatorLayoutContent({
         userEmail={session.user.email}
         isAdmin={session.user.role === "platform_admin"}
         localeSwitcher={<LocaleSwitcher />}
-        signOut={signOutMobile}
+        signOut={signOutRail}
         banners={banners}
       >
         {children}

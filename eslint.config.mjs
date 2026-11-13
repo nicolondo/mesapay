@@ -102,6 +102,7 @@ const MIGRATED = [
   "src/app/factura/\\[id\\]/PrintButton.tsx",
   "src/app/operator/layout.tsx",
   "src/app/operator/OperatorMobileMenu.tsx",
+  "src/app/operator/OperatorCockpit.tsx",
   "src/app/operator/GroupSwitcher.tsx",
   "src/app/operator/BillRequestAlert.tsx",
   "src/app/operator/page.tsx",

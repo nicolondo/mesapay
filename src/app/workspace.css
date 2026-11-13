@@ -126,6 +126,70 @@
   color: var(--ink);
   background: var(--ivory);
 }
+/* Bloque de cuenta del riel del operador: usuario + idioma + «Cerrar
+   sesión». Nunca se encoge ni entra al área que hace scroll. */
+.mp-rail-account {
+  flex-shrink: 0;
+}
+.mp-rail-session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.mp-rail-signout-form {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* «Cerrar sesión»: antes heredaba el fondo del pie (un chip casi del mismo
+   color que el riel, ≈ 1,06:1) y no se leía como botón. Ahora lleva borde
+   (≥ 3:1 contra el riel), fondo propio, ícono y ocupa el ancho que deja el
+   selector de idioma. Los rgba son --rail-text con alfa: el riel es oscuro
+   siempre, no cambia con el tema. */
+.mp-rail-signout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(241, 234, 221, 0.42);
+  border-radius: var(--radius-btn);
+  background: rgba(241, 234, 221, 0.09);
+  color: var(--rail-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.mp-rail-signout:hover {
+  background: rgba(241, 234, 221, 0.16);
+  border-color: rgba(241, 234, 221, 0.6);
+}
+.mp-rail-signout:active {
+  background: rgba(241, 234, 221, 0.22);
+}
+.mp-rail-signout:focus-visible {
+  outline: 2px solid var(--rail-accent);
+  outline-offset: 2px;
+}
+.mp-rail-signout svg {
+  flex-shrink: 0;
+}
+/* Riel de escritorio angosto (248px hasta xl): «Español ▾» + ícono +
+   «Cerrar sesión» no caben en una fila; el ícono aparece cuando el riel
+   pasa a 264px. En el cajón del celular siempre va (ver más abajo). */
+@media (max-width: 1279.98px) {
+  .mp-rail:not(.mp-rail--drawer) .mp-rail-signout svg {
+    display: none;
+  }
+}
 .mp-workspace-search {
   display: inline-flex;
   align-items: center;
@@ -232,8 +296,60 @@
   background: var(--rail-2);
   z-index: 1;
 }
-.mp-navigation-drawer .mp-rail > div:first-child {
+.mp-navigation-drawer .mp-rail-brand {
   padding-right: 60px;
+}
+/* Cajón del operador en el celular: el bloque de cuenta va ARRIBA, debajo
+   de la marca, y no al pie. El dueño reportó que en el celular no encontraba
+   «Cerrar sesión»: el pie del cajón es la franja que el navegador puede
+   tapar (barra de Safari, indicador de inicio; WebKit a veces mide 100dvh
+   más alto que lo visible con la barra desplegada, y acá no hay scroll de
+   página que lo corrija). Arriba se ve apenas se abre el menú y no depende
+   de cómo mida el viewport cada navegador. */
+.mp-navigation-drawer .mp-rail-account--top {
+  padding: 14px 16px 16px;
+  border-top: 0;
+  border-bottom: 1px solid var(--rail-line);
+}
+.mp-navigation-drawer .mp-rail-account--top .mp-rail-session {
+  margin-top: 14px;
+}
+.mp-navigation-drawer .mp-rail-signout {
+  font-size: 14px;
+}
+/* Sin pie, la lista llega hasta el borde inferior: la franja del indicador
+   de inicio se reserva DENTRO del scroll (mismo patrón que `.op-app-shell
+   main`) y no como padding del riel. La cola deja subir los últimos ítems
+   («Configuración», «Ayuda») por encima de la barra del navegador si ésta
+   llega a tapar el fondo del cajón; en la PWA instalada no hay barra y
+   basta con el área segura. overscroll-behavior: al llegar al tope el gesto
+   no se encadena. */
+.mp-navigation-drawer .mp-rail--drawer {
+  padding-bottom: 0;
+}
+.mp-navigation-drawer .mp-rail-nav {
+  padding-bottom: 112px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media all and (display-mode: standalone) {
+  .mp-navigation-drawer .mp-rail-nav {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+}
+/* Pantallas bajas (iPhone SE con las barras de Safari, celular en
+   horizontal): marca y cuenta más compactas para dejarle alto a la lista. */
+@media (max-height: 600px) {
+  .mp-navigation-drawer .mp-rail-brand {
+    padding-top: 14px;
+    padding-bottom: 12px;
+  }
+  .mp-navigation-drawer .mp-rail-account--top {
+    padding: 10px 16px 12px;
+  }
+  .mp-navigation-drawer .mp-rail-account--top .mp-rail-session {
+    margin-top: 10px;
+  }
 }
 /* PWA instalada (iOS): 100dvh se queda corto —el viewport dinámico no
    cubre la pantalla entera— y el cajón, anclado arriba, dejaba una franja
@@ -876,6 +992,12 @@
 }
 .mp-rail-footer .mp-locale-switcher span {
   color: var(--rail-text);
+}
+/* En la fila de sesión el selector iguala el alto de «Cerrar sesión»
+   (44px: mismo objetivo táctil, y no queda una pastilla más baja al lado). */
+.mp-rail-session .mp-locale-switcher {
+  height: 44px;
+  flex-shrink: 0;
 }
 .mp-signin {
   min-height: 100dvh;

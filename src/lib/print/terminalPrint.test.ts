@@ -42,7 +42,6 @@ const dev = (id: string, over: Record<string, unknown> = {}) => ({
   label: `Datáfono ${id}`,
   serialNumber: `SN-${id}`,
   active: true,
-  assignedUserId: null as string | null,
   ...over,
 });
 
@@ -76,24 +75,24 @@ beforeEach(() => {
 });
 
 describe("a qué datáfono va", () => {
-  it("el asignado al usuario gana; luego el que el equipo recuerda; luego el único", () => {
+  it("el que el equipo recuerda; si no, el único del comercio", () => {
     const a = dev("A");
-    const b = dev("B", { assignedUserId: "user-1" });
-    expect(chooseTerminalDevice([a, b], { userId: "user-1", deviceId: "A" })).toEqual({ ok: true, device: b });
-    expect(chooseTerminalDevice([a, dev("B")], { userId: "user-1", deviceId: "B" })).toMatchObject({
+    expect(chooseTerminalDevice([a, dev("B")], { deviceId: "B" })).toMatchObject({
       ok: true,
       device: { kushkiDeviceId: "B" },
     });
-    expect(chooseTerminalDevice([a], { userId: "user-1" })).toEqual({ ok: true, device: a });
+    expect(chooseTerminalDevice([a], {})).toEqual({ ok: true, device: a });
+    // Un recuerdo que ya no existe no se adivina: con uno solo, ése.
+    expect(chooseTerminalDevice([a], { deviceId: "Z" })).toEqual({ ok: true, device: a });
   });
 
   it("varios sin recuerdo: hay que elegir; ninguno: no hay datáfonos", () => {
-    expect(chooseTerminalDevice([dev("A"), dev("B")], { userId: "u" })).toEqual({ ok: false, error: "choose_device" });
-    expect(chooseTerminalDevice([dev("A"), dev("B")], { userId: "u", deviceId: "Z" })).toEqual({
+    expect(chooseTerminalDevice([dev("A"), dev("B")], {})).toEqual({ ok: false, error: "choose_device" });
+    expect(chooseTerminalDevice([dev("A"), dev("B")], { deviceId: "Z" })).toEqual({
       ok: false,
       error: "choose_device",
     });
-    expect(chooseTerminalDevice([], { userId: "u" })).toEqual({ ok: false, error: "no_devices" });
+    expect(chooseTerminalDevice([], {})).toEqual({ ok: false, error: "no_devices" });
   });
 });
 

@@ -16,10 +16,11 @@
  * se pasa a comandos (`terminalCommands.ts`).
  *
  * ¿A cuál datáfono? En este orden:
- *   1. el que tiene asignado el usuario que imprime (`assignedUserId`);
- *   2. el que este equipo recuerda («este datáfono es: X», `deviceId`);
- *   3. el único del comercio, si hay uno solo;
- *   4. si hay varios, `choose_device` con la lista: se elige una vez.
+ *   1. el que este equipo recuerda («este datáfono es: X», `deviceId`);
+ *   2. el único del comercio, si hay uno solo;
+ *   3. si hay varios, `choose_device` con la lista: se elige una vez.
+ * No se mira a quién está "asignado" el datáfono: los datáfonos son del
+ * COMERCIO, no de una persona (`terminalNotAssigned.test.ts`).
  *
  * En modo `mock` (sin Business-Code) NO se llama a Kushki: se simula el
  * envío (`simulated: true`), igual que el cobro mock. En producción el mock
@@ -183,17 +184,14 @@ type DeviceRow = {
   label: string;
   serialNumber: string | null;
   active: boolean;
-  assignedUserId: string | null;
 };
 
 /** El datáfono al que va la impresión (ver el orden en el encabezado). */
 export function chooseTerminalDevice(
   devices: readonly DeviceRow[],
-  { userId, deviceId }: { userId: string; deviceId?: string | null },
+  { deviceId }: { deviceId?: string | null },
 ): { ok: true; device: DeviceRow } | { ok: false; error: "no_devices" | "choose_device" } {
   if (devices.length === 0) return { ok: false, error: "no_devices" };
-  const assigned = devices.find((d) => d.assignedUserId === userId);
-  if (assigned) return { ok: true, device: assigned };
   const remembered = deviceId ? devices.find((d) => d.kushkiDeviceId === deviceId) : undefined;
   if (remembered) return { ok: true, device: remembered };
   if (devices.length === 1) return { ok: true, device: devices[0] };
@@ -229,10 +227,10 @@ export async function printOnTerminalDevice(
   const rows = await db.terminalDevice.findMany({
     where: { restaurantId: tenant.id, active: true },
     orderBy: { createdAt: "asc" },
-    select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true, assignedUserId: true },
+    select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true },
   });
   const usable = rows.filter((d) => terminalDeviceUsable(d, useRealTerminal));
-  const chosen = chooseTerminalDevice(usable, { userId: args.userId, deviceId: args.deviceId });
+  const chosen = chooseTerminalDevice(usable, { deviceId: args.deviceId });
   if (!chosen.ok) {
     return {
       ok: false,

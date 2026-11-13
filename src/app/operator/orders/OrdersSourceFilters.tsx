@@ -39,7 +39,15 @@ export function OrdersSourceFilters({ view, today, tables }: {
         <div role="group" aria-label={t("creditFilterLabel")} className="flex min-w-0 items-center">
           <Link href={ordersHref(view, today, { credit: !view.credit })} prefetch={false} scroll={false}
             aria-current={view.credit ? "true" : undefined}
-            className={chip(view.credit)}>
+            className={`${chip(view.credit)} gap-2`}>
+            {/* Casilla: es un interruptor que se suma al tipo de cuenta, no otra opción del grupo. */}
+            <span aria-hidden className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${view.credit ? "border-op-surface" : "border-op-muted/60"}`}>
+              {view.credit && (
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 6.5 5 9l4.5-6" />
+                </svg>
+              )}
+            </span>
             {t("creditFilter")}
           </Link>
         </div>

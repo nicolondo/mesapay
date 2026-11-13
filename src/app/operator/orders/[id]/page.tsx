@@ -496,7 +496,7 @@ export default async function OperatorOrderDetail({
                             <span aria-hidden className="text-op-muted">{" · "}</span>
                             <Link
                               href={customerListHref({ q: credit.customerName })}
-                              className="underline underline-offset-2 hover:text-op-text"
+                              className="whitespace-nowrap underline underline-offset-2 hover:text-op-text"
                             >
                               {t("creditOpenCustomer")}
                             </Link>

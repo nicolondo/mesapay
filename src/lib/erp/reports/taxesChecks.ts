@@ -40,6 +40,7 @@ export type CheckKey =
   | "dianPendiente"
   | "tarifaDistinta"
   | "sinImpuesto"
+  | "descuentoSinDeclarar"
   | "retencionOmitida"
   | "retencionBajoUmbral"
   | "ivaNoDescontable"
@@ -60,6 +61,7 @@ export const CHECK_ORDER: readonly CheckKey[] = [
   "dianPendiente",
   "tarifaDistinta",
   "sinImpuesto",
+  "descuentoSinDeclarar",
   "retencionOmitida",
   "retencionBajoUmbral",
   "ivaNoDescontable",
@@ -80,6 +82,7 @@ const SEVERITY: Record<CheckKey, CheckSeverity> = {
   dianPendiente: "warning",
   tarifaDistinta: "warning",
   sinImpuesto: "warning",
+  descuentoSinDeclarar: "warning",
   retencionOmitida: "warning",
   retencionBajoUmbral: "warning",
   ivaNoDescontable: "warning",
@@ -341,6 +344,26 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
     }
   }
 
+  // ── Facturas que declararon el valor sin el descuento del cliente ────
+  // Las facturas con descuento del cliente emitidas antes de que el
+  // descuento fuera dentro de las líneas (`discountInLines`): la DIAN las
+  // ACEPTÓ con el precio de lista, así que declaran base e impuesto de más.
+  // No se reescriben (ya son documentos de la DIAN): se corrigen con nota
+  // crédito, y eso lo decide el contador. Sólo las aceptadas: una que no lo
+  // está sale con el descuento en las líneas cuando se reenvíe.
+  const sinDescuento: AuxRow[] = [];
+  const sinDescuentoTaxes: DrillTaxKey[] = [];
+  let sinDescuentoBase = 0;
+  let sinDescuentoDiscount = 0;
+  for (const s of input.sales) {
+    const u = s.undeclaredDiscount;
+    if (!u || input.dianInvoices.get(s.invoiceId)?.state !== "accepted") continue;
+    sinDescuento.push({ ...saleRow(s, u.taxCents), baseCents: u.baseCents });
+    if (u.taxCents > 0) sinDescuentoTaxes.push(...salesTaxKey(s));
+    sinDescuentoBase += u.baseCents;
+    sinDescuentoDiscount += u.discountCents;
+  }
+
   // ── Retenciones ──────────────────────────────────────────────────────
   const omitidas: AuxRow[] = [];
   const omitTaxes: DrillTaxKey[] = [];
@@ -511,6 +534,12 @@ export function runTaxChecks(input: ChecksInput): CheckResult[] {
       taxes: currentTax.kind === "none" ? [] : [currentTax.kind],
       amountCents: sinImp.reduce((s, r) => s + (r.baseCents ?? 0), 0),
       params: { kind: currentTax.kind, pct: currentTax.pct },
+    }),
+  );
+  out.push(
+    result("descuentoSinDeclarar", sinDescuento, {
+      taxes: uniq(sinDescuentoTaxes),
+      params: { baseCents: sinDescuentoBase, discountCents: sinDescuentoDiscount },
     }),
   );
   out.push(result("retencionOmitida", omitidas, { taxes: uniq(omitTaxes) }));

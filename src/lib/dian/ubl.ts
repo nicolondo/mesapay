@@ -57,10 +57,22 @@ export type DianLine = {
   description: string;
   /** Cantidad (entera en restaurantes). */
   quantity: number;
-  /** Precio unitario SIN impuesto, en centavos. */
+  /** Precio unitario SIN impuesto y SIN descuento, en centavos. */
   unitPriceCents: number;
-  /** Total de línea SIN impuesto (qty × unit, ya redondeado), en centavos. */
+  /**
+   * Total de línea SIN impuesto (qty × unit, ya redondeado), en centavos,
+   * NETO del descuento de la línea si lo hay (FAV06: cantidad × precio −
+   * descuentos). Es también la base de su impuesto (FAX05).
+   */
   lineTotalCents: number;
+  /**
+   * Descuento comercial NO condicionado de la línea, SIN impuesto, en
+   * centavos (el descuento del cliente repartido en la línea — ver
+   * `discountedLines.ts`). Va en `cac:InvoiceLine/cac:AllowanceCharge`
+   * (FBE01–FBE09) con BaseAmount = `lineTotalCents + allowanceCents`.
+   * Ausente o 0 ⇒ la línea no lleva el grupo, como siempre.
+   */
+  allowanceCents?: number;
   /** Impuesto de la línea en centavos (0 si no grava). */
   taxCents: number;
   /** Tarifa ("8.00", "19.00", "0.00"). */
@@ -314,6 +326,41 @@ export function taxTotalXml(schemeId: "01" | "04", subtotals: TaxSubtotal[]): st
   );
 }
 
+/**
+ * Razón del descuento de línea (FBE04, texto libre de 10 a 5000
+ * caracteres). Es un literal del documento fiscal, como los motivos de la
+ * nota crédito: no es texto de la interfaz. Nombra la categoría de la tabla
+ * 13.3.8 que corresponde a un descuento de línea («00 Descuento no
+ * condicionado»); el código en sí no se informa a nivel de ítem (FBE01:
+ * «no es necesario codificarlos»).
+ */
+export const LINE_DISCOUNT_REASON = "Descuento comercial no condicionado";
+
+/**
+ * `cac:AllowanceCharge` de una línea con descuento (Anexo Técnico 1.8,
+ * FBE01–FBE09, págs. 95–96): un solo descuento por línea (ID 1),
+ * ChargeIndicator false, el porcentaje efectivo con 2 decimales (FBE05),
+ * el valor del descuento (FBE06) y la base sobre la que se calculó (FBE08):
+ * la línea antes del descuento. Va después de cbc:LineExtensionAmount y
+ * antes de cac:TaxTotal (orden del esquema UBL 2.1 de InvoiceLine).
+ */
+export function lineAllowanceXml(l: DianLine): string {
+  const allowance = l.allowanceCents ?? 0;
+  if (allowance <= 0) return "";
+  const base = l.lineTotalCents + allowance;
+  const pct = (Math.round((allowance * 10000) / base) / 100).toFixed(2);
+  return (
+    `<cac:AllowanceCharge>` +
+    `<cbc:ID>1</cbc:ID>` +
+    `<cbc:ChargeIndicator>false</cbc:ChargeIndicator>` +
+    `<cbc:AllowanceChargeReason>${LINE_DISCOUNT_REASON}</cbc:AllowanceChargeReason>` +
+    `<cbc:MultiplierFactorNumeric>${pct}</cbc:MultiplierFactorNumeric>` +
+    `<cbc:Amount currencyID="COP">${A(allowance)}</cbc:Amount>` +
+    `<cbc:BaseAmount currencyID="COP">${A(base)}</cbc:BaseAmount>` +
+    `</cac:AllowanceCharge>`
+  );
+}
+
 // ── Builder ─────────────────────────────────────────────────────────────────
 
 export type BuiltDianInvoice = {
@@ -386,6 +433,9 @@ export function buildDianInvoiceXml(input: DianInvoiceInput): BuiltDianInvoice {
         `<cbc:ID>${idx + 1}</cbc:ID>` +
         `<cbc:InvoicedQuantity unitCode="EA">${l.quantity}.000000</cbc:InvoicedQuantity>` +
         `<cbc:LineExtensionAmount currencyID="COP">${A(l.lineTotalCents)}</cbc:LineExtensionAmount>` +
+        // Descuento del cliente repartido en la línea: LineExtensionAmount
+        // ya es neto (FAV06) y la base del impuesto también (FAX05).
+        lineAllowanceXml(l) +
         (lineDeclaresTax(l)
           ? taxTotalXml(l.taxSchemeId, [
               { taxCents: l.taxCents, taxableCents: l.lineTotalCents, pct: l.taxPct },
@@ -396,6 +446,8 @@ export function buildDianInvoiceXml(input: DianInvoiceInput): BuiltDianInvoice {
         `<cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente">${itemId}</cbc:ID>` +
         `</cac:StandardItemIdentification>` +
         `</cac:Item>` +
+        // El precio es el de lista, ANTES del descuento: cantidad × precio −
+        // descuento = LineExtensionAmount (FAV06).
         `<cac:Price>` +
         `<cbc:PriceAmount currencyID="COP">${A(l.unitPriceCents)}</cbc:PriceAmount>` +
         `<cbc:BaseQuantity unitCode="EA">1.000000</cbc:BaseQuantity>` +
@@ -465,6 +517,9 @@ export function buildDianInvoiceXml(input: DianInvoiceInput): BuiltDianInvoice {
     // mandábamos el bruto y con líneas sin impuesto no cuadraba nunca.
     `<cbc:TaxExclusiveAmount currencyID="COP">${A(totals.taxableBaseCents)}</cbc:TaxExclusiveAmount>` +
     `<cbc:TaxInclusiveAmount currencyID="COP">${A(totals.payableCents)}</cbc:TaxInclusiveAmount>` +
+    // FAU08: suma SÓLO los descuentos del DOCUMENTO (que no bajan la base).
+    // El descuento del cliente va en cada línea y ya está dentro de
+    // LineExtensionAmount: acá sigue en 0, y PayableAmount = lo cobrado.
     `<cbc:AllowanceTotalAmount currencyID="COP">0.00</cbc:AllowanceTotalAmount>` +
     `<cbc:PrepaidAmount currencyID="COP">0.00</cbc:PrepaidAmount>` +
     `<cbc:PayableAmount currencyID="COP">${A(totals.payableCents)}</cbc:PayableAmount>` +

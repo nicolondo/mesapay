@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getPaymentProvider, getRestaurantPrivateKey } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { paymentLinkIsOpen, settlePaymentLinkInTx } from "@/lib/paymentLinks";
-import { kushkiDeclineReason } from "@/lib/payments/kushki/declineReason";
+import { chargeFailureLogFields, classifyKushkiChargeError } from "@/lib/payments/kushki/chargeError";
 import { captureLinkTrackingFields } from "@/lib/walletTrackingCapture";
 
 /**
@@ -77,12 +77,17 @@ async function POSTHandler(
       metadata: { kind: "payment_link", paymentLinkId: link.id },
     });
   } catch (err) {
-    const detail = err instanceof Error ? err.message.slice(0, 300) : "provider_error";
-    console.error("[pay-link] charge FAILED", { linkId: link.id, detail });
-    return NextResponse.json(
-      { error: "charge_failed", reason: kushkiDeclineReason(detail) },
-      { status: 502 },
-    );
+    // El link no tiene estado «incierto»: sigue pendiente y el pagador puede
+    // volver a intentar. Por eso importa NO decirle «falló, prueba de nuevo»
+    // cuando no sabemos si Kushki cobró (red, timeout, 5xx, token ya usado):
+    // ahí el motivo es `uncertain` y la página pide revisar antes de repetir.
+    // Tabla de decisión: lib/payments/kushki/chargeError.ts.
+    const failure = classifyKushkiChargeError(err);
+    console.error("[pay-link] charge FAILED", { linkId: link.id, ...chargeFailureLogFields(failure) });
+    if (failure.outcome === "uncertain") {
+      return NextResponse.json({ error: "charge_uncertain", reason: "uncertain" }, { status: 502 });
+    }
+    return NextResponse.json({ error: "charge_failed", reason: failure.reason }, { status: 502 });
   }
 
   // Espejo KushkiTransaction (sin paymentId — no hay Order). best-effort.

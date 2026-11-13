@@ -38,6 +38,14 @@ vi.mock("@/lib/walletTrackingCapture", () => ({ captureLinkTrackingFields: m.cap
 
 import { POST } from "./route";
 
+/** Misma forma que `KushkiHttpError` (status + body), sin cargar el cliente real. */
+const kushkiError = (status: number, body: unknown) =>
+  Object.assign(new Error(`kushki ${status}`), {
+    name: "KushkiHttpError",
+    status,
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+
 const link = {
   id: "link-1",
   restaurantId: "rest-1",
@@ -151,11 +159,31 @@ describe("cobro", () => {
     expect(await res.json()).toEqual({ approved: false, reason: "declined" });
     expect(m.linkUpdateMany).not.toHaveBeenCalled();
   });
-  it("el proveedor falla: 502 con motivo traducible, nunca texto fijo", async () => {
-    m.charge.mockRejectedValue(new Error('kushki 402 {"code":"021","message":"Fondos insuficientes"}'));
+  it("Kushki rechaza con un 4xx: 502 con motivo traducible, nunca texto fijo", async () => {
+    // Lo que de verdad lanza el proveedor: KushkiHttpError con status y body.
+    m.charge.mockRejectedValue(kushkiError(402, { code: "021", message: "Fondos insuficientes" }));
     const res = await call();
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "charge_failed", reason: "card_funds" });
+    expect(m.linkUpdateMany).not.toHaveBeenCalled();
+  });
+  it("K322 (antifraude de Kushki): motivo security_rejected", async () => {
+    m.charge.mockRejectedValue(kushkiError(400, { code: "K322", message: "Transacción rechazada." }));
+    const res = await call();
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "charge_failed", reason: "security_rejected" });
+  });
+  it.each([
+    ["5xx", () => kushkiError(503, "Service Unavailable")],
+    ["timeout", () => Object.assign(new Error("aborted"), { name: "TimeoutError" })],
+    ["red caída", () => new TypeError("fetch failed")],
+    ["token ya usado (577)", () => kushkiError(400, { code: "577", message: "Token de la transacción no válido" })],
+  ])("resultado incierto (%s): no dice «falló», pide revisar antes de repetir", async (_label, make) => {
+    m.charge.mockRejectedValue(make());
+    const res = await call();
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "charge_uncertain", reason: "uncertain" });
+    expect(m.linkUpdateMany).not.toHaveBeenCalled();
   });
   it("payload inválido: 400", async () => {
     expect((await call("son-y-melona", { nope: 1 })).status).toBe(400);

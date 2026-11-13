@@ -37,13 +37,14 @@ const PHONE_PREFIXES_COUNTRIES = [
 
 // ── Sheet primitives ───────────────────────────────────────────────────────
 
-function Overlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function Overlay({ children }: { children: React.ReactNode }) {
   // position: fixed en el body: `overflow: hidden` no frena el scroll
   // táctil en iOS y el dedo sobre el panel movía la página de atrás.
   useLockBodyScroll(true);
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      {/* Sin cierre al tocar afuera: son formularios, y un clic perdido borraba lo digitado. */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
       {children}
     </div>
   );
@@ -206,7 +207,7 @@ function CreateSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("createMemberTitle")} onClose={onClose} />
@@ -335,7 +336,7 @@ function EditSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("editMemberTitle")} onClose={onClose} />

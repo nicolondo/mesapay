@@ -79,7 +79,8 @@ export function CreditPaymentSheet({ customer, currency, onClose, onSaved }: {
   }
 
   const inputClass = "w-full min-w-0 rounded-xl border border-hairline bg-ivory px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta/40";
-  return <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6" onClick={onClose}>
+  // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
+  return <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6">
     <form onSubmit={submit} onClick={e => e.stopPropagation()} aria-label={t("abonoTitle", { name: customer.customerName })} className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto">
       <div className="flex items-start justify-between gap-3">
         <div>

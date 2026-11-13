@@ -234,7 +234,9 @@ export function useStaffPrint(
 
   async function runAt(destination: PrintDestination) {
     if (busy || !pref.ready) return;
-    if (destination === "device" && pref.role === "terminal") {
+    // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
+    // mismo): la impresora del Smart POS por Kushki.
+    if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
       await runOnTerminal();
       return;
     }
@@ -383,15 +385,19 @@ export function StaffPrintNotice({
       {unsupported && (
         <>
           {" "}
-          <button
-            type="button"
-            className={actionClass}
-            disabled={print.busy}
-            onClick={() => void print.runOnTerminal()}
-          >
-            {t("useTerminal")}
-          </button>
-          {" · "}
+          {print.pref.terminalDevices.length > 0 && (
+            <>
+              <button
+                type="button"
+                className={actionClass}
+                disabled={print.busy}
+                onClick={() => void print.runOnTerminal()}
+              >
+                {t("useTerminal")}
+              </button>
+              {" · "}
+            </>
+          )}
           <button
             type="button"
             className={actionClass}
@@ -426,9 +432,13 @@ export function StaffPrintNotice({
             type="button"
             className={actionClass}
             disabled={print.busy}
-            onClick={() => void print.switchTo(otherDestination(notice.destination!))}
+            onClick={() => void print.switchTo(otherDestination(notice.destination!, print.pref.role))}
           >
-            {notice.destination === "caja" ? t("useDevice") : t("useCaja")}
+            {otherDestination(notice.destination, print.pref.role) === "caja"
+              ? t("useCaja")
+              : otherDestination(notice.destination, print.pref.role) === "terminal"
+                ? t("useTerminal")
+                : t("useDevice")}
           </button>
         </>
       )}

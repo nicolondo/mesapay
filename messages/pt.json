@@ -2292,7 +2292,8 @@
     "deviceNoDialog": "A impressão do aparelho não abriu. Imprima na maquininha ou na impressora do caixa, ou abra mesapay.co no navegador do aparelho e use o menu ⋮ → Imprimir.",
     "deviceBrowserError": "Seu navegador não permitiu abrir a impressão. Tente na maquininha ou na impressora do caixa, ou atualize o navegador.",
     "useTerminal": "Imprimir na maquininha",
-    "back": "Voltar"
+    "back": "Voltar",
+    "destinationTerminal": "Maquininha"
   },
   "opCartera": {
     "hubCategory": "Comerciais",

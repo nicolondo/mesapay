@@ -216,9 +216,13 @@ export function PrintButton({
       return;
     }
     if (busy || !pref.ready) return;
+    // «Datáfono» (y «Este dispositivo» del usuario Datáfono): Kushki.
+    if (destination === "terminal" || (destination === "device" && isTerminal)) {
+      void sendToTerminal(agent);
+      return;
+    }
     if (destination === "device") {
-      if (isTerminal) void sendToTerminal(agent);
-      else printOnThisDevice(agent);
+      printOnThisDevice(agent);
       return;
     }
     void sendToCaja(agent);
@@ -244,17 +248,21 @@ export function PrintButton({
           {agent && note.alternatives && (
             <>
               {" "}
-              <a
-                href="#"
-                className="print-help"
-                onClick={(e) => {
-                  e.preventDefault();
-                  void sendToTerminal(agent);
-                }}
-              >
-                {ts("useTerminal")}
-              </a>
-              {" · "}
+              {pref.terminalDevices.length > 0 && (
+                <>
+                  <a
+                    href="#"
+                    className="print-help"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void sendToTerminal(agent);
+                    }}
+                  >
+                    {ts("useTerminal")}
+                  </a>
+                  {" · "}
+                </>
+              )}
               <a
                 href="#"
                 className="print-help"

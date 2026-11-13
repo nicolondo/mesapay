@@ -2292,7 +2292,8 @@
     "deviceNoDialog": "The device's print dialog didn't open. Print on the card reader or on the register printer, or open mesapay.co in the device's browser and use its ⋮ → Print menu.",
     "deviceBrowserError": "Your browser didn't allow opening the print dialog. Try the card reader or the register printer, or update your browser.",
     "useTerminal": "Print on the card reader",
-    "back": "Back"
+    "back": "Back",
+    "destinationTerminal": "Card reader"
   },
   "opCartera": {
     "hubCategory": "Commercial",

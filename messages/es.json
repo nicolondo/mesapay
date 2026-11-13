@@ -2292,7 +2292,8 @@
     "deviceNoDialog": "No se abrió la impresión del equipo. Imprime en el datáfono o en la impresora de caja, o abre mesapay.co en el navegador del equipo y usa su menú ⋮ → Imprimir.",
     "deviceBrowserError": "Tu navegador no permitió abrir la impresión. Prueba en el datáfono o en la impresora de caja, o actualiza el navegador.",
     "useTerminal": "Imprimir en el datáfono",
-    "back": "Volver"
+    "back": "Volver",
+    "destinationTerminal": "Datáfono"
   },
   "opCartera": {
     "hubCategory": "Comerciales",

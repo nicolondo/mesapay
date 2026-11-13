@@ -35,7 +35,7 @@ vi.mock("@/lib/payments/kushki/cloudPrint", () => ({
   },
 }));
 
-import { chooseTerminalDevice, printOnTerminalDevice } from "./terminalPrint";
+import { chooseTerminalDevice, listTerminalPrintDevices, printOnTerminalDevice } from "./terminalPrint";
 
 const dev = (id: string, over: Record<string, unknown> = {}) => ({
   kushkiDeviceId: id,
@@ -167,5 +167,21 @@ describe("imprimir en el datáfono", () => {
       ok: false,
       error: "order_closed",
     });
+  });
+});
+
+describe("¿hay datáfonos para ofrecer «Datáfono»?", () => {
+  it("los usables, en orden; ninguno sin Business-Code o con el mock en producción", async () => {
+    m.devices.mockResolvedValue([dev("A"), dev("B", { serialNumber: null })]);
+    expect(await listTerminalPrintDevices("rest-1", { isProduction: false })).toEqual([
+      { id: "A", label: "Datáfono A" },
+      { id: "B", label: "Datáfono B" },
+    ]);
+    m.setup.mockResolvedValue({ mode: "production", businessCode: "BC-1", useRealTerminal: true });
+    expect(await listTerminalPrintDevices("rest-1")).toEqual([{ id: "A", label: "Datáfono A" }]);
+    m.setup.mockResolvedValue({ mode: "production", businessCode: null, useRealTerminal: true });
+    expect(await listTerminalPrintDevices("rest-1")).toEqual([]);
+    m.setup.mockResolvedValue({ mode: "mock", businessCode: null, useRealTerminal: false });
+    expect(await listTerminalPrintDevices("rest-1", { isProduction: true })).toEqual([]);
   });
 });

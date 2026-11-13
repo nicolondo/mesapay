@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useId, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { SessionContext } from "next-auth/react";
 import {
   parseStoredPrintPreference,
+  printDestinationsFor,
   printPreferenceStorageKey,
   resolvePrintPreference,
   serializePrintPreference,
@@ -96,8 +97,40 @@ export type PrintPreferenceState = PrintPreference & {
    * marca nada y el botón espera, para no imprimir en el destino equivocado.
    */
   ready: boolean;
+  /** Los destinos que se ofrecen («Datáfono» sólo con datáfonos Kushki). */
+  destinations: PrintDestination[];
+  /** Los datáfonos a los que se puede imprimir (vacío mientras no se sabe). */
+  terminalDevices: Array<{ id: string; label: string }>;
   setDestination: (destination: PrintDestination) => void;
 };
+
+/**
+ * ¿El comercio tiene datáfonos Kushki para imprimir? Una consulta por
+ * página y comercio (`GET /api/operator/print/terminal`), compartida por
+ * todos los botones. Si falla, como si no hubiera: no se ofrece «Datáfono».
+ */
+const terminalDevicesCache = new Map<string, Promise<Array<{ id: string; label: string }>>>();
+
+function loadTerminalDevices(scope: string | null): Promise<Array<{ id: string; label: string }>> {
+  const key = scope ?? "";
+  let p = terminalDevicesCache.get(key);
+  if (!p) {
+    p = fetch("/api/operator/print/terminal", { method: "GET" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        const list = j && typeof j === "object" ? (j as { devices?: unknown }).devices : null;
+        return Array.isArray(list)
+          ? list.filter(
+              (d): d is { id: string; label: string } =>
+                !!d && typeof (d as { id?: unknown }).id === "string" && typeof (d as { label?: unknown }).label === "string",
+            )
+          : [];
+      })
+      .catch(() => []);
+    terminalDevicesCache.set(key, p);
+  }
+  return p;
+}
 
 /** Quién mira, cuando la pantalla ya lo sabe (lo decide el servidor). */
 export type PrintViewer = { role: string | null; scope: string | null };
@@ -127,9 +160,26 @@ export function usePrintPreference(viewer?: PrintViewer | null): PrintPreference
     () => readRaw(key),
     () => null,
   );
+  // `undefined` = todavía no se sabe si hay datáfonos.
+  const [terminalDevices, setTerminalDevices] = useState<Array<{ id: string; label: string }> | undefined>(undefined);
+  useEffect(() => {
+    if (!ready || !role) return;
+    let alive = true;
+    void loadTerminalDevices(scope).then((list) => {
+      if (alive) setTerminalDevices(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [ready, role, scope]);
+  const terminalAvailable = terminalDevices === undefined ? undefined : terminalDevices.length > 0;
   const resolved = useMemo(
-    () => resolvePrintPreference(parseStoredPrintPreference(raw), role),
-    [raw, role],
+    () => resolvePrintPreference(parseStoredPrintPreference(raw), role, terminalAvailable),
+    [raw, role, terminalAvailable],
+  );
+  const destinations = useMemo(
+    () => printDestinationsFor(role, terminalAvailable === true),
+    [role, terminalAvailable],
   );
   // Lo que quedó de otra versión (el ancho de papel por equipo) se limpia;
   // el destino recordado se conserva.
@@ -145,7 +195,16 @@ export function usePrintPreference(viewer?: PrintViewer | null): PrintPreference
     },
     [key],
   );
-  return { ...resolved, role, scope, ready, setDestination };
+  return {
+    ...resolved,
+    role,
+    scope,
+    // Hasta saber si hay datáfonos no se sabe a dónde va: se espera.
+    ready: ready && (!role || terminalDevices !== undefined),
+    destinations,
+    terminalDevices: terminalDevices ?? [],
+    setDestination,
+  };
 }
 
 export type PrintDestinationVariant = "op" | "pay" | "receipt";
@@ -189,10 +248,7 @@ export function PrintDestinationPicker({
   variant = "op",
   className = "",
 }: {
-  pref: Pick<
-    PrintPreferenceState,
-    "destination" | "ready" | "setDestination"
-  >;
+  pref: Pick<PrintPreferenceState, "destination" | "destinations" | "ready" | "setDestination">;
   disabled?: boolean;
   variant?: PrintDestinationVariant;
   className?: string;
@@ -204,10 +260,12 @@ export function PrintDestinationPicker({
   // Mientras la sesión carga, nada marcado (todavía no se sabe qué vale).
   const isOn = (checked: boolean) => pref.ready && checked;
   const off = disabled || !pref.ready;
-  const destinations: { value: PrintDestination; label: string }[] = [
-    { value: "caja", label: t("destinationCaja") },
-    { value: "device", label: t("destinationDevice") },
-  ];
+  const label: Record<PrintDestination, string> = {
+    caja: t("destinationCaja"),
+    terminal: t("destinationTerminal"),
+    device: t("destinationDevice"),
+  };
+  const destinations = pref.destinations.map((value) => ({ value, label: label[value] }));
   return (
     <div className={`print-destination space-y-1.5 ${className}`}>
       <div className="flex flex-wrap items-center gap-1.5">

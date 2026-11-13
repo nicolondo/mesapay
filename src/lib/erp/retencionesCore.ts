@@ -39,16 +39,27 @@ export const PPM_PER_PCT = 10_000;
 export const MAX_RATE_PPM = 1_000_000;
 
 /**
- * Tarifa efectiva en bps de una fila de la BD: `ratePpm` (exacta) si la
- * tiene; si no, `rateBps` (conceptos y fotos anteriores a la columna).
+ * ¿`ratePpm` sigue siendo la tarifa de la fila? Sólo si `rateBps` es su
+ * redondeo. Si no, alguien cambió `rateBps` sin tocar `ratePpm` (la versión
+ * anterior del código durante el despliegue blue/green o un rollback, que
+ * no conoce la columna nueva) y la tarifa vigente es `rateBps`.
  */
-export function conceptRateBps(c: { rateBps: number; ratePpm?: number | null }): number {
-  return c.ratePpm != null ? c.ratePpm / 100 : c.rateBps;
+function ppmIsCurrent(c: { rateBps: number; ratePpm?: number | null }): c is { rateBps: number; ratePpm: number } {
+  return c.ratePpm != null && Math.round(c.ratePpm / 100) === Math.round(c.rateBps);
 }
 
-/** Tarifa exacta en ppm de una fila de la BD. */
+/**
+ * Tarifa efectiva en bps de una fila de la BD: la exacta (`ratePpm`) si
+ * está al día; si no, `rateBps` (conceptos y fotos anteriores a la columna,
+ * o editados por la versión anterior del código).
+ */
+export function conceptRateBps(c: { rateBps: number; ratePpm?: number | null }): number {
+  return ppmIsCurrent(c) ? c.ratePpm / 100 : c.rateBps;
+}
+
+/** Tarifa exacta en ppm de una fila de la BD (misma regla). */
 export function conceptRatePpm(c: { rateBps: number; ratePpm?: number | null }): number {
-  return c.ratePpm != null ? c.ratePpm : Math.round(c.rateBps * 100);
+  return ppmIsCurrent(c) ? c.ratePpm : Math.round(c.rateBps * 100);
 }
 
 /**

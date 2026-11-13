@@ -129,6 +129,14 @@ describe("tarifa: % con decimales y por mil", () => {
     expect(conceptRateBps({ rateBps: 250, ratePpm: null })).toBe(250);
     expect(conceptRatePpm({ rateBps: 250 })).toBe(25_000);
   });
+
+  it("si la versión anterior del código cambió sólo rateBps, manda rateBps (blue/green, rollback)", () => {
+    // Era 4 % (40.000 ppm, 400 bps); la versión vieja la subió a 6 % tocando sólo rateBps.
+    expect(conceptRateBps({ rateBps: 600, ratePpm: 40_000 })).toBe(600);
+    expect(conceptRatePpm({ rateBps: 600, ratePpm: 40_000 })).toBe(60_000);
+    // Sin cambio: el redondeo coincide y vale la exacta.
+    expect(conceptRatePpm({ rateBps: 41, ratePpm: 4_140 })).toBe(4_140);
+  });
 });
 
 describe("validateConceptFields", () => {

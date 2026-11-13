@@ -43,8 +43,18 @@ type Props = {
   errorIndex: number | null;
   /** Hay un código escaneado sin dueño: el botón de códigos lo recibe. */
   codesAccent: boolean;
+  /**
+   * Conteo definitivo: por qué hay que recontarlo («difference», «uncounted»,
+   * «moved», separados por coma) o «confirmed» si quedó confirmado del
+   * preliminar. Vacío en las demás etapas.
+   */
+  tags: string;
   enterHintId: string;
   handlers: CountRowHandlers;
+};
+
+const TAG_LABEL: Record<string, string> = {
+  difference: "countReasonDifference", uncounted: "countReasonUncounted", moved: "countReasonMoved", confirmed: "countConfirmedTag",
 };
 
 const STATE_ICON: Record<CountRowState, InventoryIconName> = {
@@ -60,7 +70,7 @@ const STATE_LABEL: Record<CountRowState, string> = {
  * esperado y diferencia. Las partes se despliegan debajo solo en esta fila.
  */
 export const CountRow = memo(function CountRow({
-  item, entries, canEdit, finalStage, showPreliminary, codesEnabled, busy, locale, hit, expanded, errorIndex, codesAccent, enterHintId, handlers,
+  item, entries, canEdit, finalStage, showPreliminary, codesEnabled, busy, locale, hit, expanded, errorIndex, codesAccent, tags, enterHintId, handlers,
 }: Props) {
   const t = useTranslations("opErp");
   const { ingredient } = item;
@@ -146,6 +156,9 @@ export const CountRow = memo(function CountRow({
           {!ingredient.active && <span className="mp-inv-pill shrink-0 self-center">{t("inactiveBadge")}</span>}
           {!tracked && <span className="mp-tally-name__cat">{t("nonInventoriable")}</span>}
           {ingredient.category && <span className="mp-tally-name__cat">{ingredient.category}</span>}
+          {tags && tags.split(",").map((tag) => (
+            <span key={tag} className="mp-tally-tag" data-tag={tag} title={tag === "moved" ? t("countReasonMovedTitle") : undefined}>{t(TAG_LABEL[tag])}</span>
+          ))}
         </div>
       </div>
 

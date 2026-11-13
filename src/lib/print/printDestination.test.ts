@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DEVICE_PAPER_MM,
+  DEVICE_PAPER_PRESETS,
+  TERMINAL_DEVICE_PAPER_MM,
+  defaultDevicePaperMm,
   defaultPrintDestination,
   devicePaperFromParam,
   devicePrintHelpHref,
   devicePrintHref,
   otherDestination,
+  parseDevicePaperMm,
   parseStoredPrintPreference,
   printPreferenceStorageKey,
+  receiptSidePaddingMm,
   readPrintPreference,
   resolvePrintPreference,
   withQueryParam,
@@ -51,13 +56,27 @@ describe("el valor por defecto (la primera vez en el equipo)", () => {
     }
   });
 
-  it("el papel del equipo arranca en 58 mm", () => {
+  it("el papel arranca en 55 mm para el datáfono (Sunmi P3 de Kushki) y en 58 para los demás", () => {
+    expect(TERMINAL_DEVICE_PAPER_MM).toBe(55);
     expect(DEFAULT_DEVICE_PAPER_MM).toBe(58);
+    expect(defaultDevicePaperMm("terminal")).toBe(55);
+    for (const role of ["operator", "mesero", "platform_admin", null]) {
+      expect(defaultDevicePaperMm(role)).toBe(58);
+    }
+    expect(resolvePrintPreference(null, "terminal")).toEqual({
+      destination: "device",
+      paperMm: 55,
+      remembered: false,
+    });
     expect(resolvePrintPreference(null, "mesero")).toEqual({
       destination: "caja",
       paperMm: 58,
       remembered: false,
     });
+  });
+
+  it("los atajos del selector son 55, 58 y 80", () => {
+    expect(DEVICE_PAPER_PRESETS).toEqual([55, 58, 80]);
   });
 });
 
@@ -104,9 +123,25 @@ describe("recordado por equipo y por comercio", () => {
   });
 
   it("basura guardada (JSON roto, otra versión, valores raros) se ignora", () => {
-    for (const raw of ["", "no-json", "null", "42", '"device"', "[]", '{"destination":"impresora"}', '{"paperMm":57}']) {
+    for (const raw of [
+      "",
+      "no-json",
+      "null",
+      "42",
+      '"device"',
+      "[]",
+      '{"destination":"impresora"}',
+      '{"paperMm":39}',
+      '{"paperMm":121}',
+      '{"paperMm":57.5}',
+    ]) {
       expect(parseStoredPrintPreference(raw)).toBeNull();
     }
+    // Un ancho fuera de los atajos, pero del rango, vale (se escribió en «Otro»).
+    expect(parseStoredPrintPreference('{"destination":"device","paperMm":52}')).toEqual({
+      destination: "device",
+      paperMm: 52,
+    });
     // Lo que sirve se rescata y lo demás vuelve al valor por defecto.
     expect(parseStoredPrintPreference('{"destination":"device","paperMm":"80"}')).toEqual({
       destination: "device",
@@ -127,13 +162,36 @@ describe("la vista imprimible al papel del equipo", () => {
     expect(withQueryParam("/a?x=1#y", "print", "1")).toBe("/a?x=1&print=1#y");
   });
 
-  it("la página sólo acepta 58 u 80; cualquier otra cosa es el papel del comercio", () => {
+  it("la página acepta cualquier ancho entero de 40 a 120 mm; lo demás es el papel del comercio", () => {
+    expect(devicePaperFromParam("55")).toBe(55);
     expect(devicePaperFromParam("58")).toBe(58);
     expect(devicePaperFromParam("80")).toBe(80);
-    expect(devicePaperFromParam(["58", "80"])).toBe(58);
-    for (const raw of [undefined, null, "", "57", "120", "58mm", "abc"]) {
+    expect(devicePaperFromParam("40")).toBe(40);
+    expect(devicePaperFromParam("120")).toBe(120);
+    expect(devicePaperFromParam(["55", "80"])).toBe(55);
+    for (const raw of [undefined, null, "", "39", "121", "999", "55mm", "5e1", "55.5", " 55", "abc"]) {
       expect(devicePaperFromParam(raw)).toBeNull();
     }
+  });
+
+  it("«Otro»: lo que se escribe se lleva a mm enteros del rango, o no se guarda", () => {
+    expect(parseDevicePaperMm("55")).toBe(55);
+    expect(parseDevicePaperMm(" 52 ")).toBe(52);
+    expect(parseDevicePaperMm("57,5")).toBe(58);
+    expect(parseDevicePaperMm(56.4)).toBe(56);
+    for (const raw of ["", "abc", "39", "121", "-55", "55mm", null, undefined, Number.NaN]) {
+      expect(parseDevicePaperMm(raw)).toBeNull();
+    }
+  });
+
+  it("el relleno lateral deja el texto en ~48 mm (cabezal de 384 puntos): 58 y 80 como siempre", () => {
+    expect(receiptSidePaddingMm(80)).toBe(4);
+    expect(receiptSidePaddingMm(58)).toBe(5);
+    expect(receiptSidePaddingMm(55)).toBe(3.5);
+    expect(receiptSidePaddingMm(52)).toBe(2);
+    expect(receiptSidePaddingMm(45)).toBe(2);
+    expect(receiptSidePaddingMm(70)).toBe(5);
+    expect(55 - 2 * receiptSidePaddingMm(55)).toBe(48);
   });
 });
 

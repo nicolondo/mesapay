@@ -190,15 +190,57 @@ describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
     expect(mocks.printButtonProps).toMatchObject({ paperMm: 58 });
   });
 
-  it("un ?w= que no es 58 ni 80 se ignora: el papel del comercio", async () => {
-    expect(await render({ w: "120" })).toContain('data-print-width-mm="80"');
+  it("un ?w= fuera de 40–120 mm (o que no es un número) se ignora: el papel del comercio", async () => {
+    expect(await render({ w: "150" })).toContain('data-print-width-mm="80"');
     expect(await render({ w: "abc" })).toContain('data-print-width-mm="80"');
+    expect(await render({ w: "55mm" })).toContain('data-print-width-mm="80"');
+  });
+
+  it("?w=55 (el datáfono): página de 55 mm con el texto en 48 mm, y el QR nunca más ancho que el 60 %", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: {
+        ...snapshot,
+        items: [
+          {
+            qty: 12,
+            name: "Bandeja paisa especial de la casa con chicharrón, morcilla, arepa, aguacate y huevo frito",
+            priceCents: 8_333_333_300,
+          },
+          { qty: 1, name: "Supercalifragilisticoespialidosoconsalsadelacasa", priceCents: 99_999_999_900 },
+        ],
+        subtotalCents: 199_999_999_500,
+        tipCents: 19_999_999_900,
+        totalCents: 219_999_999_400,
+      },
+      dianDocument: { state: "accepted", cufe: "f".repeat(96) },
+      restaurant: { ...row.restaurant, enabledModules: ["einvoicing"] },
+    });
+    const html = await render({ w: "55" });
+    const article = receipt(html);
+    expect(article).toContain('data-print-width-mm="55"');
+    expect(article).toContain("width:55mm;padding-inline:3.5mm");
+    // Montos de 9 dígitos enteros, sin partirse (la columna del monto no envuelve).
+    expect(article).toContain('<span class="amount">$999.999.999</span>');
+    expect(article).toContain('class="dian-qr"');
+    expect(article).toContain("f".repeat(96));
+    // Lo que evita que algo se salga: nombres y CUFE parten donde haga falta,
+    // y el QR no pasa del 60 % del ancho.
+    expect(html).toMatch(/\.items \.line \{[^}]*overflow-wrap: anywhere/);
+    expect(html).toMatch(/\.dian-cufe \{[^}]*word-break: break-all/);
+    expect(html).toMatch(/\.dian-qr \{[^}]*max-width: 60%/);
+    expect(article).toMatchSnapshot();
   });
 
   it("es la MISMA tirilla que la del comercio, sólo cambia el ancho (snapshot a 58 mm)", async () => {
     const at80 = receipt(await render());
     const at58 = receipt(await render({ w: "58" }));
-    expect(at58.replace(/58mm|="58"|padding-inline:5mm/g, "")).toBe(
+    // Lo único que cambia además del ancho: en papel angosto el TOTAL A
+    // PAGAR va un punto menor (`narrow`), para caber en un renglón.
+    expect(at58).toContain('class="row to-pay narrow"');
+    expect(at80).toContain('class="row to-pay"');
+    expect(at58.replace(/58mm|="58"|padding-inline:5mm| narrow/g, "")).toBe(
       at80.replace(/80mm|="80"|padding-inline:4mm/g, ""),
     );
     expect(at58).toMatchSnapshot();

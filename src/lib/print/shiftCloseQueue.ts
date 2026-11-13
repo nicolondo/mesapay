@@ -29,18 +29,21 @@ import { buildShiftCloseTicket, SHIFT_METHOD_KEY, shiftDurationLabel } from "./s
 import { invoicePrinterWhere, isInvoicePrinter, printerReachable } from "./routing";
 
 export type LoadShiftCloseResult =
-  | { ok: true; doc: ThermalReport; paperMm: 58 | 80 }
+  | { ok: true; doc: ThermalReport; paperMm: number }
   | { ok: false; reason: "not_found" };
 
 /**
- * El documento del cierre de un turno de ESTE comercio, al ancho pedido
- * (`paperWidthMm`) o, sin él, al papel del comercio. Un turno de otro
- * comercio es `not_found`.
+ * El documento del cierre de un turno de ESTE comercio. El ancho:
+ *   - `devicePaperMm` («Este dispositivo»): ése, tal cual (40–120 mm);
+ *   - si no, `paperWidthMm` (la impresora del agente) o el papel del
+ *     comercio, llevados a 58 u 80 como siempre.
+ * Un turno de otro comercio es `not_found`.
  */
 export async function loadShiftCloseTicket(args: {
   shiftId: string;
   restaurantId: string;
   paperWidthMm?: number | null;
+  devicePaperMm?: number | null;
 }): Promise<LoadShiftCloseResult> {
   const report = await buildShiftReport(args.shiftId);
   if (!report || report.shift.restaurantId !== args.restaurantId) {
@@ -63,8 +66,9 @@ export async function loadShiftCloseTicket(args: {
   const trTips = (key: string, values?: Record<string, string | number>) =>
     tTips(key as Parameters<typeof tTips>[0], values as never) as string;
 
-  const paperMm: 58 | 80 =
-    (args.paperWidthMm ?? tenant?.printPaperWidthMm ?? 80) <= 58 ? 58 : 80;
+  const paperMm: number =
+    args.devicePaperMm ??
+    ((args.paperWidthMm ?? tenant?.printPaperWidthMm ?? 80) <= 58 ? 58 : 80);
   const durationMs = report.shift.closedAt
     ? report.shift.closedAt.getTime() - report.shift.openedAt.getTime()
     : 0;

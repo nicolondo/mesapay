@@ -41,7 +41,7 @@ import {
  *     página como siempre.
  *   - Este dispositivo: imprime acá, al papel del equipo. Si esta página
  *     ya está a ese ancho, la misma página; si no, la tirilla a ese ancho
- *     en el iframe oculto (`?w=58`).
+ *     en el iframe oculto (`?w=55`).
  * Sin `agent` (el comensal) imprime esta página y nada más.
  *
  * `autoPrint` (llegado como ?print=1): abre el diálogo de impresión solo

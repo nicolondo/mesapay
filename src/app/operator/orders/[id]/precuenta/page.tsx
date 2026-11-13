@@ -8,7 +8,7 @@ import { loadPrebill } from "@/lib/print/prebillData";
 import { buildPrebillDocument } from "@/lib/print/prebillQueue";
 import { PrintButton } from "@/app/factura/[id]/PrintButton";
 import { itemDetailText } from "@/lib/invoice";
-import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
 import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +36,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * "Imprimir" (el botón de acá) manda la precuenta al AGENTE, como las
  * comandas, y sólo si el local no tiene impresora de facturas imprime
  * esta página; o, con «Este dispositivo», la imprime en el equipo de quien
- * la mira. `?w=58` (u 80) la dibuja al papel DEL EQUIPO (ver
- * `lib/print/printDestination.ts`).
+ * la mira. `?w=55` (cualquier ancho entero de 40 a 120 mm) la dibuja al
+ * papel DEL EQUIPO (ver `lib/print/printDestination.ts`).
  *
  * La sirven tres rutas: ésta (panel), `/mesero/precuenta/[id]` (PWA del
  * mesero) y `/terminal/precuenta/[id]` (el datáfono), cada una dentro del
@@ -116,7 +116,7 @@ export default async function PrecuentaPage({
           className="receipt"
           style={{
             width: `${paperMm}mm`,
-            paddingInline: `${paperMm === 80 ? 4 : 5}mm`,
+            paddingInline: `${receiptSidePaddingMm(paperMm)}mm`,
           }}
           data-print-document="precuenta"
           data-print-width-mm={paperMm}

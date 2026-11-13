@@ -30,7 +30,7 @@ import {
 } from "@/lib/print/staffPrint";
 import { PrintButton } from "./PrintButton";
 import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
-import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
 import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
@@ -85,10 +85,12 @@ export async function generateMetadata({
  * agente, como las comandas, o la imprime en su propio dispositivo (ver
  * `PrintButton`).
  *
- * `?w=58` (u 80): el ancho del papel DEL EQUIPO que imprime, cuando no es
- * el de la caja — «Este dispositivo» desde un datáfono con impresora
- * integrada de 58 mm en un comercio cuya caja usa 80 (ver
- * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho.
+ * `?w=55` (cualquier ancho entero de 40 a 120 mm): el papel DEL EQUIPO que
+ * imprime, cuando no es el de la caja — «Este dispositivo» desde el
+ * datáfono (55 mm) en un comercio cuya caja usa 80 (ver
+ * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho: el
+ * relleno lateral sale de `receiptSidePaddingMm` y el QR no pasa del 60 %
+ * del ancho.
  */
 export default async function FacturaPage({
   params,
@@ -254,7 +256,7 @@ export default async function FacturaPage({
           className="receipt"
           data-print-document="factura"
           data-print-width-mm={paperMm}
-          style={{ width: `${paperMm}mm`, paddingInline: `${paperMm === 80 ? 4 : 5}mm` }}
+          style={{ width: `${paperMm}mm`, paddingInline: `${receiptSidePaddingMm(paperMm)}mm` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -368,7 +370,9 @@ export default async function FacturaPage({
                 PAGAR en negrita y más grande: factura + propina cobrada. */}
             {finalRows.map((r) => (
               <div
-                className={r.strong ? "row to-pay" : "row"}
+                // Papel angosto (menos de 80 mm): el TOTAL A PAGAR un punto
+                // menor, para que rótulo y monto quepan en un renglón.
+                className={r.strong ? (paperMm < 80 ? "row to-pay narrow" : "row to-pay") : "row"}
                 key={r.label}
                 data-total-to-pay={r.strong ? r.cents : undefined}
               >
@@ -554,9 +558,10 @@ ${PRINT_DESTINATION_STYLES}
     overflow-wrap: anywhere;
   }
   /* El TOTAL A PAGAR: negrita y más grande que todo lo demás (12px). En
-     58 mm, un punto menos y apenas más apretado para que rótulo y monto
-     (hasta $999.999) quepan en un renglón; si no entra, el monto baja
-     entero al renglón de abajo, alineado a la derecha: nunca se parte. */
+     papel angosto (58, 55… mm: el contenido mide ~48 mm), un punto menos y
+     apenas más apretado para que rótulo y monto (hasta $999.999) quepan en
+     un renglón; si no entra, el monto baja entero al renglón de abajo,
+     alineado a la derecha: nunca se parte. */
   .receipt .totals .to-pay {
     font-weight: 700;
     font-size: 16px;
@@ -565,7 +570,7 @@ ${PRINT_DESTINATION_STYLES}
     padding-top: 2px;
     border-top: 1px solid #000;
   }
-  .receipt[data-print-width-mm="58"] .totals .to-pay {
+  .receipt .totals .to-pay.narrow {
     font-size: 14px;
     letter-spacing: -0.03em;
     column-gap: 4px;
@@ -576,7 +581,9 @@ ${PRINT_DESTINATION_STYLES}
     display: block;
     margin: 2px auto;
     width: 28mm;
-    height: 28mm;
+    max-width: 60%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     image-rendering: pixelated;
   }
   .receipt .dian-fiscal .dian-cufe {

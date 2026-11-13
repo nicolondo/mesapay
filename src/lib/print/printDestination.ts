@@ -14,8 +14,8 @@
  *   - `device`: ni se intenta el agente. La tirilla se imprime desde ESTE
  *     navegador, con el diálogo de impresión del sistema (en Android, el
  *     servicio de impresión del equipo; en el Sunmi P3 del datáfono, su
- *     impresora térmica integrada), al ANCHO DEL PAPEL DEL EQUIPO (58 u
- *     80 mm), que no tiene por qué ser el de la caja.
+ *     impresora térmica integrada), al ANCHO DEL PAPEL DEL EQUIPO (55, 58,
+ *     80 mm u otro), que no tiene por qué ser el de la caja.
  *
  * QUIÉN elige: el personal que cobra o lleva la cuenta — operador (y los
  * admins que entran como operador), mesero y el usuario Datáfono, que son
@@ -35,21 +35,45 @@
  *   - los demás → `caja`: es lo que hacía el botón hasta hoy, y si el
  *     comercio no tiene impresora de facturas en el agente el respaldo YA
  *     imprime desde este dispositivo, así que nadie se queda sin papel.
- * El papel del equipo arranca en 58 mm: es el de los equipos móviles con
- * impresora integrada (Sunmi P2/P3/V2, PAX, iMin…); 80 mm se elige una vez
- * y queda recordado.
+ * EL PAPEL DEL EQUIPO es un número en mm (40–120), recordado por equipo,
+ * con 55 · 58 · 80 como atajos y «Otro» para lo que haga falta: el ancho
+ * que de verdad imprime un equipo se ajusta probando en el equipo, sin
+ * esperar un despliegue. Arranca en:
+ *   - 55 mm para el usuario Datáfono: el ancho que pidió el dueño para la
+ *     tirilla en el Sunmi P3 de Kushki;
+ *   - 58 mm para los demás: el rollo de los equipos móviles con impresora
+ *     integrada (Sunmi P2/P3/V2, PAX, iMin…).
+ * Sólo afecta a «Este dispositivo»: la impresora de caja (el agente) y su
+ * respaldo siguen con el papel del comercio.
  *
  * Archivo sin React ni DOM: lo usan los botones y los tests.
  */
 
 export type PrintDestination = "caja" | "device";
 
-/** Anchos de papel que se pueden elegir para «Este dispositivo». */
-export const DEVICE_PAPER_WIDTHS = [58, 80] as const;
-export type DevicePaperMm = (typeof DEVICE_PAPER_WIDTHS)[number];
+/** Ancho del papel del equipo, en mm enteros (`DEVICE_PAPER_MIN_MM`–`MAX`). */
+export type DevicePaperMm = number;
+
+/** Atajos del selector de papel; cualquier otro entero del rango vale. */
+export const DEVICE_PAPER_PRESETS: readonly DevicePaperMm[] = [55, 58, 80];
+
+/**
+ * El rango aceptado: el mismo que `fitPageToContent` acepta para declarar
+ * la página (`paperWidthMmFrom`), así lo pedido y lo impreso coinciden.
+ */
+export const DEVICE_PAPER_MIN_MM = 40;
+export const DEVICE_PAPER_MAX_MM = 120;
 
 /** El papel de los equipos móviles con impresora integrada. */
 export const DEFAULT_DEVICE_PAPER_MM: DevicePaperMm = 58;
+
+/** El papel del Smart POS del usuario Datáfono (Sunmi P3 de Kushki). */
+export const TERMINAL_DEVICE_PAPER_MM: DevicePaperMm = 55;
+
+/** El papel de la primera vez en un equipo, según el rol. */
+export function defaultDevicePaperMm(role: string | null | undefined): DevicePaperMm {
+  return role === "terminal" ? TERMINAL_DEVICE_PAPER_MM : DEFAULT_DEVICE_PAPER_MM;
+}
 
 export type PrintPreference = {
   destination: PrintDestination;
@@ -78,7 +102,28 @@ export function isPrintDestination(v: unknown): v is PrintDestination {
 }
 
 export function isDevicePaperMm(v: unknown): v is DevicePaperMm {
-  return v === 58 || v === 80;
+  return (
+    typeof v === "number" &&
+    Number.isInteger(v) &&
+    v >= DEVICE_PAPER_MIN_MM &&
+    v <= DEVICE_PAPER_MAX_MM
+  );
+}
+
+/**
+ * Lo que alguien escribió en «Otro» (texto o número) → mm enteros dentro
+ * del rango, o null si no sirve. Redondea ("57,5" → 58).
+ */
+export function parseDevicePaperMm(raw: unknown): DevicePaperMm | null {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && /^\s*\d+([.,]\d+)?\s*$/.test(raw)
+        ? Number(raw.trim().replace(",", "."))
+        : NaN;
+  if (!Number.isFinite(n)) return null;
+  const mm = Math.round(n);
+  return isDevicePaperMm(mm) ? mm : null;
 }
 
 /**
@@ -143,7 +188,7 @@ export function resolvePrintPreference(
 ): PrintPreference & { remembered: boolean } {
   return {
     destination: stored?.destination ?? defaultPrintDestination(role),
-    paperMm: stored?.paperMm ?? DEFAULT_DEVICE_PAPER_MM,
+    paperMm: stored?.paperMm ?? defaultDevicePaperMm(role),
     remembered: !!stored?.destination,
   };
 }
@@ -155,17 +200,31 @@ export function otherDestination(d: PrintDestination): PrintDestination {
 
 /**
  * Parámetro con el que la vista imprimible recibe el ancho del papel DEL
- * EQUIPO (`/factura/[id]?w=58`). Sin él, la vista usa el papel del
+ * EQUIPO (`/factura/[id]?w=55`). Sin él, la vista usa el papel del
  * comercio, como siempre.
  */
 export const DEVICE_PAPER_PARAM = "w";
 
-/** `?w=` → 58 u 80; cualquier otra cosa, null (el papel del comercio). */
+/**
+ * `?w=` → mm enteros del rango (40–120); cualquier otra cosa, null (el papel
+ * del comercio). Sólo dígitos: `?w=55mm` o `?w=5e1` no valen.
+ */
 export function devicePaperFromParam(raw: string | string[] | null | undefined): DevicePaperMm | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (v === "58") return 58;
-  if (v === "80") return 80;
-  return null;
+  if (typeof v !== "string" || !/^\d{2,3}$/.test(v)) return null;
+  const mm = Number(v);
+  return isDevicePaperMm(mm) ? mm : null;
+}
+
+/**
+ * Relleno a cada lado de la tirilla, en mm, para un papel de `paperMm`. El
+ * contenido apunta a ~48 mm, el ancho de un cabezal térmico de 384 puntos:
+ * 58 → 5 mm (como siempre), 55 → 3,5 mm, 52 o menos → 2 mm (el mínimo,
+ * para no pegar el texto al borde). 80 mm conserva sus 4 mm de siempre.
+ */
+export function receiptSidePaddingMm(paperMm: number): number {
+  if (paperMm >= 80) return 4;
+  return Math.max(2, Math.min(5, (paperMm - 48) / 2));
 }
 
 /**

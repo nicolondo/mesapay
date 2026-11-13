@@ -17,8 +17,8 @@ import type { InvoiceSnapshot } from "@/lib/invoice";
 import {
   formatInvoiceNumber,
   itemDetailLines,
-  taxLabelsFrom,
-  taxRows,
+  summaryLabelsFrom,
+  summaryRows,
 } from "@/lib/invoice";
 import { groupInvoiceLines } from "@/lib/invoiceLines";
 import {
@@ -138,22 +138,11 @@ export function buildInvoiceCommands(
   });
   c.push(totalRow(t("subtotal"), money(snapshot.subtotalCents)));
   // Impuesto embebido congelado en la factura (base + "Incl. impoconsumo
-  // 8%") y el que suman encima las líneas libres — las mismas filas, en el
-  // mismo orden, que la térmica y el correo. Sin impuesto no hay filas.
-  for (const row of taxRows(snapshot, taxLabelsFrom(t))) {
-    c.push(totalRow(row.label, money(row.cents)));
-  }
-  // Descuento del comensal identificado. Las facturas viejas no traen el
-  // campo (opcional en el snapshot) y la tirilla sale igual que antes.
-  if ((snapshot.discountCents ?? 0) > 0) {
-    c.push(
-      totalRow(
-        snapshot.discountPct
-          ? t("discountRowPct", { pct: snapshot.discountPct })
-          : t("discountRow"),
-        "-" + money(snapshot.discountCents ?? 0),
-      ),
-    );
+  // 8%"), el que suman encima las líneas libres y el descuento del cliente
+  // — las mismas filas, en el mismo orden, que la térmica y el correo
+  // (`summaryRows`). Las facturas viejas salen igual que antes.
+  for (const row of summaryRows(snapshot, summaryLabelsFrom(t))) {
+    c.push(totalRow(row.label, (row.negative ? "-" : "") + money(row.cents)));
   }
   if (snapshot.tipCents > 0) {
     c.push(totalRow(t("tip"), money(snapshot.tipCents)));

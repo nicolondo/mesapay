@@ -316,3 +316,39 @@ describe("factura emitida ANTES de cobrar (pendiente de pago)", () => {
   });
 });
 
+describe("descuentoSinDeclarar — facturas que declararon el valor sin el descuento del cliente", () => {
+  // Una factura de $113.400 con 20 % de descuento que la DIAN aceptó con el
+  // precio de lista: declaró $21.000 de base y $1.680 de INC de más.
+  const old = sale("old-1", {
+    document: "FE501",
+    baseCents: 10_500_000,
+    taxCents: 840_000,
+    undeclaredDiscount: { discountCents: 2_268_000, valueCents: 2_100_000, baseCents: 2_100_000, taxCents: 168_000 },
+  });
+  const accepted = (...ids: string[]) => new Map(ids.map((id) => [id, { state: "accepted", lastError: null }]));
+
+  it("lista la aceptada con su base e impuesto de más, sin tocar lo declarado", () => {
+    const c = get(base({ sales: [old, sale("2")], dianInvoices: accepted("old-1", "2") }), "descuentoSinDeclarar");
+    expect(c).toMatchObject({
+      severity: "warning",
+      count: 1,
+      amountCents: 168_000,
+      taxes: ["inc"],
+      params: { baseCents: 2_100_000, discountCents: 2_268_000 },
+    });
+    expect(c.rows[0]).toMatchObject({ docKind: "invoice", docId: "old-1", document: "FE501", amountCents: 168_000, baseCents: 2_100_000, pct: 8 });
+  });
+
+  it("no lista las que la DIAN no aceptó (se reenvían con el descuento en las líneas) ni las tirillas sin factura electrónica", () => {
+    for (const state of ["rejected", "error", "to_send", "pending"]) {
+      const c = get(base({ sales: [old], dianInvoices: new Map([["old-1", { state, lastError: null }]]) }), "descuentoSinDeclarar");
+      expect(c.count).toBe(0);
+    }
+    expect(get(base({ sales: [old] }), "descuentoSinDeclarar").count).toBe(0);
+  });
+
+  it("pasa cuando las facturas no tienen descuento o ya lo declaran en sus líneas", () => {
+    expect(get(base({ sales: [sale("1")], dianInvoices: accepted("1") }), "descuentoSinDeclarar").count).toBe(0);
+  });
+});
+

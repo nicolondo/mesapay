@@ -33,8 +33,8 @@ import { DEFAULT_TIP_PCT, tipCentsFor } from "@/lib/prebill";
 import {
   formatInvoiceNumber,
   isIssuedBeforePayment,
-  taxLabelsFrom,
-  taxRows,
+  summaryLabelsFrom,
+  summaryRows,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 import type {
@@ -220,21 +220,14 @@ export function buildThermalInvoice(args: {
   const totals: ThermalInvoiceRow[] = [
     { label: t("subtotal"), amount: money(s.subtotalCents) },
   ];
-  // Primero el impuesto EMBEBIDO en los platos (base gravable + "Incl.
+  // El impuesto EMBEBIDO en los platos (base gravable + "Incl.
   // impoconsumo 8%": informativo, ya está dentro del subtotal) tal como
-  // quedó congelado en la factura, y después el que suman ENCIMA las
-  // líneas libres. Sin impuesto embebido ni líneas libres no hay filas.
-  for (const row of taxRows(s, taxLabelsFrom(t))) {
-    totals.push({ label: row.label, amount: money(row.cents) });
-  }
-  const discountCents = s.discountCents ?? 0;
-  if (discountCents > 0) {
-    totals.push({
-      label: s.discountPct
-        ? t("discountRowPct", { pct: s.discountPct })
-        : t("discountRow"),
-      amount: "-" + money(discountCents),
-    });
+  // quedó congelado en la factura, el que suman ENCIMA las líneas libres y
+  // el descuento del cliente, en el orden de `summaryRows`: con el
+  // descuento dentro de las líneas va primero el descuento y la base y el
+  // impuesto son netos, como en el XML; una factura vieja sale como siempre.
+  for (const row of summaryRows(s, summaryLabelsFrom(t))) {
+    totals.push({ label: row.label, amount: (row.negative ? "-" : "") + money(row.cents) });
   }
   if (s.tipCents > 0) {
     totals.push({ label: t("tip"), amount: money(s.tipCents) });

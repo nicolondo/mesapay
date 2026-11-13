@@ -3246,6 +3246,7 @@
     "colNonDeductible": "Non-deductible",
     "colDelta": "Effect on the match",
     "colEstimatedTax": "Estimated tax",
+    "colOverstatedTax": "Overstated tax",
     "colExpectedRet": "Expected withholding",
     "colDeductible": "Deductible VAT",
     "othersTitle": "Other tax accounts in the ledger",
@@ -3318,6 +3319,10 @@
     "check_sinImpuesto_body": "Your business charges {current}, but these invoices carry no tax (base {amount}). It happens with invoices issued before setting up the tax or because of a setup error.",
     "check_sinImpuesto_action": "Check the setup in Settings › Taxes and, with your accountant, whether those invoices need fixing.",
     "check_sinImpuesto_ok": "No invoice left without tax",
+    "check_descuentoSinDeclarar_title": "{count, plural, one {# invoice declared the value without the customer discount} other {# invoices declared the value without the customer discount}}",
+    "check_descuentoSinDeclarar_body": "The DIAN accepted these invoices at list price, without the discount you gave the customer ({discount} in total): they overstate the tax base by {base} and the tax by {amount}. What you charged is right; what is overstated is what the invoice says before the DIAN and, with it, the tax in this report and in the ledger. New invoices already carry the discount inside each product.",
+    "check_descuentoSinDeclarar_action": "Review them with your accountant before filing. They are fixed with one partial credit note per invoice, reason \"3 · Partial or total reduction or discount\", for the discount amount (the table below shows each one's base and tax). Before issuing them, contact support: today MESAPAY books every credit note as money you owe back to the customer, and in these the customer already paid the discounted price.",
+    "check_descuentoSinDeclarar_ok": "Every invoice declared the customer discount",
     "check_retencionOmitida_title": "{count, plural, one {# purchase missing the applicable withholding} other {# purchases missing the applicable withholding}}",
     "check_retencionOmitida_body": "You have active withholding concepts and these purchases exceed their threshold, but no withholding was recorded (the expected amount is {amount}).",
     "check_retencionOmitida_action": "If the supplier is not a self-withholder or large taxpayer, record the withholding on the purchase. If it does not apply, there is nothing to do.",
@@ -3357,7 +3362,8 @@
     "check_facturadaPendiente_body": "They were issued in the period and the DIAN already has them ({amount} in tax), but the bill hasn't been charged yet: they're not in this report's documents or ledger. It's not an error: the sale counts on the day it's charged.",
     "check_facturadaPendiente_action": "Charge them in Tables. If the customer left without paying, void the invoice with a credit note and close the bill without charge.",
     "check_facturadaPendiente_ok": "No invoice issued before payment was left uncharged",
-    "linkTables": "Go to Tables"
+    "linkTables": "Go to Tables",
+    "linkCreditNotes": "Go to Credit notes"
   },
   "opBackups": {
     "cardTitle": "Backups",

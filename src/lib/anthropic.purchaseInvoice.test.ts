@@ -307,7 +307,7 @@ describe("nullable monetary parsing and extraction instructions", () => {
     const request = mock.create.mock.calls[0][0];
     const prompt = request.system[0].text as string;
     for (const field of ["unitPriceTaxBasis", "lineTotalTaxBasis", "unitPriceLabel", "lineTotalLabel",
-      "lineTax", "lineInc", "lineIncAmountKind", "invoiceDiscount", "invoiceIncComponents"]) {
+      "lineTax", "lineInc", "taxColumns", "columnHeaders", "invoiceAdjustment", "invoiceDiscount", "invoiceIncComponents"]) {
       expect(prompt).toContain(`"${field}"`);
     }
     expect(prompt).toContain("VLR NETO FINAL");
@@ -405,5 +405,75 @@ describe("supplier discounts are transcribed, never applied by the extractor", (
     expect(prompt).toContain("lineDiscountPct");
     expect(prompt).toContain("NO calcules ni restes");
     expect(prompt).toContain("pronto pago");
+  });
+});
+
+// Respuesta simulada del modelo para una factura SINTÉTICA con la estructura
+// de un distribuidor de licores (columnas Cant. | Vlr. Unitario | IVA % |
+// IVA (Unitario) | ICO | Vlr. Total; pie Subtotal, Descuentos, IVA, ICO,
+// − Retefuente, Ajustes, Total). Proveedor, productos y montos inventados.
+// El ICO es por unidad aunque su encabezado no lo diga.
+const LIQUOR_LINES = [
+  ["Ginebra de prueba 700ml", "3.00", "45,333.30", "2,266.67", "31,250.00", "135,999.90"],
+  ["Ron de prueba 750ml", "2.00", "38,120.50", "1,906.03", "22,100.00", "76,241.00"],
+  ["Vino de prueba 750ml", "6.00", "27,450.00", "1,372.50", "8,640.00", "164,700.00"],
+  ["Aperitivo de prueba 1L", "1.00", "61,800.40", "3,090.02", "19,980.00", "61,800.40"],
+] as const;
+function liquorReading(consumoScope: string, fields: Record<string, unknown> = {}) {
+  return invoice({
+    supplierName: "Licores Sintéticos S.A.S.", supplierInvoiceNumber: "SIM 1",
+    columnHeaders: ["Nro. Ítem", "Descripción Ítem", "UM", "Cant.", "Vlr. Unitario", "IVA %", "IVA (Unitario)", "ICO", "Vlr. Total"],
+    taxColumns: [
+      { tax: "iva", header: "IVA (Unitario)", scope: "unit", evidence: "El encabezado dice Unitario" },
+      { tax: "consumo", header: "ICO", scope: consumoScope, evidence: "Columna de valor junto al total de la línea" },
+    ],
+    lines: LIQUOR_LINES.map(([description, quantity, unitPrice, lineTax, lineInc, lineTotal]) => ({
+      description, quantity, unit: "UNID", unitPrice, lineTotal, taxPct: "5.00", lineTax, lineInc,
+      unitPriceTaxBasis: "unknown", lineTotalTaxBasis: "unknown", unitPriceLabel: "Vlr. Unitario",
+      lineTotalLabel: "Vlr. Total", listUnitPrice: null, lineDiscountPct: null, lineDiscount: null, confidence: 0.95,
+    })),
+    invoiceSubtotal: "438,741.30", invoiceDiscount: "0.00", invoiceTax: "21,937.07", invoiceInc: "209,770.00",
+    retefuente: "-10,968.53", reteIva: null, reteIca: null, invoiceAdjustment: "0.16", invoiceTotal: "659,480.00",
+    ...fields,
+  });
+}
+
+describe("liquor invoice with a per-unit consumption tax (ICO)", () => {
+  it("corrects an ICO the model read as line total because the footer proves it is per unit", async () => {
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("line"))));
+    const result = await extractPurchaseInvoice(source);
+    expect(result.lines.map(l => l.lineIncCents)).toEqual([9_375_000, 4_420_000, 5_184_000, 1_998_000]);
+    expect(result.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0)).toBe(result.invoiceIncCents);
+    expect(result.lines.every(l => l.lineIncAmbiguous === false)).toBe(true);
+    // IVA (Unitario) × cantidad: guardado como el IVA de cada línea, igual al pie al centavo.
+    expect(result.lines.reduce((sum, l) => sum + (l.lineTaxCents ?? 0), 0)).toBe(2_193_707);
+    expect(result.taxColumns?.consumo).toMatchObject({ status: "matched", scope: "unit", aiScope: "line", header: "ICO" });
+    expect(result.taxColumns?.iva).toMatchObject({ status: "matched", scope: "unit" });
+    expect(result.lines[0]).toMatchObject({ lineIncCell: { cents: 3_125_000, pct: null }, arithmeticDiffCents: null });
+    expect(result).toMatchObject({ retefuenteCents: 1_096_853, invoiceAdjustmentCents: 16, invoiceTotalCents: 65_948_000 });
+    // With consumption resolved, the totals prove each line total is before taxes.
+    expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["net", "net", "net", "net"]);
+  });
+
+  it("also corrects an older-style reading that marked every line as line total", async () => {
+    const reading = liquorReading("line", { taxColumns: undefined });
+    reading.lines = reading.lines.map((l: Record<string, unknown>) => ({ ...l, lineIncAmountKind: "line" }));
+    mock.create.mockResolvedValue(reply(JSON.stringify(reading)));
+    const result = await extractPurchaseInvoice(source);
+    expect(result.lines.map(l => l.lineIncCents)).toEqual([9_375_000, 4_420_000, 5_184_000, 1_998_000]);
+    expect(result.taxColumns?.consumo).toMatchObject({ status: "matched", scope: "unit", aiScope: "line" });
+  });
+
+  it("reads a negative rounding adjustment printed with a unicode minus", async () => {
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("unit", { invoiceAdjustment: "−0,32" }))));
+    expect((await extractPurchaseInvoice(source)).invoiceAdjustmentCents).toBe(-32);
+  });
+
+  it("reports a line whose quantity × unit does not add up", async () => {
+    const reading = liquorReading("unit");
+    reading.lines[1] = { ...reading.lines[1], lineTotal: "86,241.00" };
+    mock.create.mockResolvedValue(reply(JSON.stringify(reading)));
+    const result = await extractPurchaseInvoice(source);
+    expect(result.lines[1]?.arithmeticDiffCents).toBe(1_000_000);
   });
 });

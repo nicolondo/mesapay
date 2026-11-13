@@ -1450,6 +1450,7 @@
     "platformAdminLink": "Admin de plataforma →",
     "signOut": "Salir",
     "signOutFull": "Cerrar sesión",
+    "accountSection": "Tu cuenta",
     "suspendedTitle": "Cuenta suspendida",
     "suspendedBody": "El acceso a <b>{name}</b> está pausado. Ponte en contacto con MESAPAY para reactivarla.",
     "impGroup": "Grupo",

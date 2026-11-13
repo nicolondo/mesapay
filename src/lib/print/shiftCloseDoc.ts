@@ -184,7 +184,10 @@ export function buildShiftCloseTicket(args: {
   };
 }
 
-/** Clave de `opShifts` de cada método de pago (la misma de la pantalla). */
+/**
+ * Clave de `opShifts` de cada método de pago. La usan la pantalla del turno
+ * y la tirilla: un método nuevo se agrega acá una sola vez.
+ */
 export const SHIFT_METHOD_KEY: Record<string, string> = {
   demo_card: "methodDemoCard",
   // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
@@ -199,6 +202,7 @@ export const SHIFT_METHOD_KEY: Record<string, string> = {
   kushki_card: "methodKushkiCard",
   external_terminal: "methodExternalTerminal",
   kushki_pse: "methodKushkiPse",
+  kushki_bre_b: "methodKushkiBreB",
   reservation_deposit: "methodReservationDeposit",
   voucher: "methodVoucher",
   customer_credit: "methodCustomerCredit",

@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useContext, useId, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useContext, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { SessionContext } from "next-auth/react";
 import {
-  DEVICE_PAPER_WIDTHS,
+  DEVICE_PAPER_MAX_MM,
+  DEVICE_PAPER_MIN_MM,
+  DEVICE_PAPER_PRESETS,
+  parseDevicePaperMm,
   parseStoredPrintPreference,
   printPreferenceStorageKey,
   resolvePrintPreference,
@@ -136,7 +139,7 @@ export type PrintDestinationVariant = "op" | "pay" | "receipt";
 
 const STYLES: Record<
   PrintDestinationVariant,
-  { label: string; on: string; off: string; chip: string }
+  { label: string; on: string; off: string; chip: string; input: string }
 > = {
   // Panel del operador y app del mesero.
   // Mismos colores que «¿A qué datáfono?» (TerminalPicker).
@@ -145,6 +148,7 @@ const STYLES: Record<
     on: "border-terracotta bg-terracotta text-bone font-medium",
     off: "border-op-border bg-op-bg text-op-text",
     chip: "min-h-9 px-3 rounded-full border text-xs",
+    input: "h-9 w-20 px-3 rounded-full border border-op-border bg-op-bg text-op-text text-xs",
   },
   // Pantallas con los colores del cobro (datáfono, "listo" del cobro).
   pay: {
@@ -152,6 +156,7 @@ const STYLES: Record<
     on: "border-terracotta bg-terracotta text-bone font-medium",
     off: "border-hairline bg-paper text-ink",
     chip: "min-h-9 px-3 rounded-full border text-xs",
+    input: "h-9 w-20 px-3 rounded-full border border-hairline bg-paper text-ink text-xs",
   },
   // La vista imprimible (blanco y negro, monoespaciada).
   receipt: {
@@ -159,6 +164,7 @@ const STYLES: Record<
     on: "pd-on",
     off: "pd-off",
     chip: "pd-chip",
+    input: "pd-input",
   },
 };
 
@@ -183,7 +189,6 @@ export function PrintDestinationPicker({
 }) {
   const t = useTranslations("staffPrint");
   const destId = useId();
-  const paperId = useId();
   const s = STYLES[variant];
   const chip = (checked: boolean) => `${s.chip} ${checked ? s.on : s.off} disabled:opacity-50`;
   // Mientras la sesión carga, nada marcado (todavía no se sabe qué vale).
@@ -216,26 +221,104 @@ export function PrintDestinationPicker({
         </div>
       </div>
       {pref.ready && pref.destination === "device" && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span id={paperId} className={`font-mono text-[10px] tracking-wider uppercase ${s.label}`}>
-            {t("paperLabel")}
+        <PaperPicker pref={pref} disabled={off} styles={s} chip={chip} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * El papel del equipo: 55 · 58 · 80 mm como atajos y «Otro», que abre un
+ * campo numérico (40–120 mm) para el ancho que de verdad imprime el equipo.
+ * Cada valor válido queda recordado al escribirlo; uno fuera de rango no se
+ * guarda y lo dice.
+ */
+function PaperPicker({
+  pref,
+  disabled,
+  styles,
+  chip,
+}: {
+  pref: Pick<PrintPreferenceState, "paperMm" | "setPaperMm">;
+  disabled: boolean;
+  styles: (typeof STYLES)[PrintDestinationVariant];
+  chip: (checked: boolean) => string;
+}) {
+  const t = useTranslations("staffPrint");
+  const paperId = useId();
+  const inputId = useId();
+  const isPreset = DEVICE_PAPER_PRESETS.includes(pref.paperMm);
+  // `customOpen`: alguien tocó «Otro» y está escribiendo (vale su borrador);
+  // si no, un ancho recordado fuera de los atajos también abre el campo,
+  // con ese valor.
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const showCustom = customOpen || !isPreset;
+  const inputValue = customOpen ? draft : String(pref.paperMm);
+  const invalid = showCustom && parseDevicePaperMm(inputValue) === null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span id={paperId} className={`font-mono text-[10px] tracking-wider uppercase ${styles.label}`}>
+        {t("paperLabel")}
+      </span>
+      <div role="radiogroup" aria-labelledby={paperId} className="flex flex-wrap items-center gap-1.5">
+        {DEVICE_PAPER_PRESETS.map((mm) => (
+          <button
+            key={mm}
+            type="button"
+            role="radio"
+            aria-checked={!showCustom && pref.paperMm === mm}
+            disabled={disabled}
+            onClick={() => {
+              setCustomOpen(false);
+              pref.setPaperMm(mm);
+            }}
+            className={chip(!showCustom && pref.paperMm === mm)}
+          >
+            {t("paperMm", { mm })}
+          </button>
+        ))}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={showCustom}
+          disabled={disabled}
+          onClick={() => {
+            setCustomOpen(true);
+            setDraft(String(pref.paperMm));
+          }}
+          className={chip(showCustom)}
+        >
+          {t("paperOther")}
+        </button>
+      </div>
+      {showCustom && (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <label htmlFor={inputId} className="sr-only">
+            {t("paperCustomLabel")}
+          </label>
+          <input
+            id={inputId}
+            type="number"
+            inputMode="numeric"
+            min={DEVICE_PAPER_MIN_MM}
+            max={DEVICE_PAPER_MAX_MM}
+            step={1}
+            value={inputValue}
+            disabled={disabled}
+            aria-invalid={invalid}
+            onChange={(e) => {
+              setCustomOpen(true);
+              setDraft(e.target.value);
+              const mm = parseDevicePaperMm(e.target.value);
+              if (mm !== null) pref.setPaperMm(mm);
+            }}
+            className={styles.input}
+          />
+          <span className={`text-[11px] ${invalid ? "text-danger" : styles.label}`}>
+            {t("paperCustomHint", { min: DEVICE_PAPER_MIN_MM, max: DEVICE_PAPER_MAX_MM })}
           </span>
-          <div role="radiogroup" aria-labelledby={paperId} className="flex flex-wrap gap-1.5">
-            {DEVICE_PAPER_WIDTHS.map((mm) => (
-              <button
-                key={mm}
-                type="button"
-                role="radio"
-                aria-checked={pref.paperMm === mm}
-                disabled={off}
-                onClick={() => pref.setPaperMm(mm)}
-                className={chip(pref.paperMm === mm)}
-              >
-                {t("paperMm", { mm })}
-              </button>
-            ))}
-          </div>
-        </div>
+        </span>
       )}
     </div>
   );

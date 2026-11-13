@@ -2280,7 +2280,10 @@
     "deviceHelpLink": "Ver guia",
     "retry": "Tentar de novo",
     "useDevice": "Imprimir neste dispositivo",
-    "useCaja": "Enviar para a impressora do caixa"
+    "useCaja": "Enviar para a impressora do caixa",
+    "paperOther": "Outro",
+    "paperCustomLabel": "Largura do papel do aparelho, em milímetros",
+    "paperCustomHint": "mm (de {min} a {max})"
   },
   "opCartera": {
     "hubCategory": "Comerciais",

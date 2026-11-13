@@ -2280,7 +2280,10 @@
     "deviceHelpLink": "See guide",
     "retry": "Try again",
     "useDevice": "Print on this device",
-    "useCaja": "Send to the register printer"
+    "useCaja": "Send to the register printer",
+    "paperOther": "Other",
+    "paperCustomLabel": "Device paper width, in millimeters",
+    "paperCustomHint": "mm ({min} to {max})"
   },
   "opCartera": {
     "hubCategory": "Commercial",

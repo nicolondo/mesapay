@@ -1,9 +1,10 @@
 import type { ThermalReport } from "@/lib/escpos/report";
+import { receiptSidePaddingMm } from "@/lib/print/printDestination";
 
 /**
  * Un REPORTE térmico (hoy, el cierre de turno) dibujado como tirilla en el
  * navegador: el MISMO documento que sale por ESC/POS (`renderReport`), al
- * ancho del papel (58 u 80 mm), en blanco y negro y monoespaciada, como la
+ * ancho del papel (58 u 80 mm, o el del equipo), en blanco y negro y monoespaciada, como la
  * factura y la precuenta imprimibles.
  *
  * Marca `data-print-document` y `data-print-width-mm`: así lo imprime el
@@ -19,7 +20,8 @@ export function ThermalReportReceipt({
   kind,
 }: {
   doc: ThermalReport;
-  paperMm: 58 | 80;
+  /** Ancho del papel en mm (58/80 del comercio, o el del equipo). */
+  paperMm: number;
   /** Valor de `data-print-document` ("cierre"). */
   kind: string;
 }) {
@@ -28,7 +30,7 @@ export function ThermalReportReceipt({
       className="receipt thermal-report"
       data-print-document={kind}
       data-print-width-mm={paperMm}
-      style={{ width: `${paperMm}mm`, paddingInline: `${paperMm === 80 ? 4 : 5}mm` }}
+      style={{ width: `${paperMm}mm`, paddingInline: `${receiptSidePaddingMm(paperMm)}mm` }}
     >
       <div className="biz-name">{doc.businessName}</div>
       {doc.businessLines.length > 0 && <div className="meta">{doc.businessLines.join(" · ")}</div>}
@@ -77,7 +79,7 @@ export function ThermalReportReceipt({
  * Estilos de la tirilla del reporte (van en el `<style>` de la página que
  * la muestra). Mismo tamaño de letra que la factura y la precuenta: 12 px
  * el cuerpo, 13–14 px lo fuerte, nada por debajo de 10 px, para que en
- * la térmica de 58 mm del datáfono se lea sin lupa.
+ * la térmica de 55–58 mm del datáfono se lea sin lupa.
  */
 export const THERMAL_REPORT_STYLES = `
   .thermal-report {

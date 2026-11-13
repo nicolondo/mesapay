@@ -28,8 +28,9 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * La usa «Imprimir cierre» de la pantalla del turno: con «Este
  * dispositivo» (o sin impresora de caja) se carga en el iframe oculto y se
- * imprime en UNA página del alto del documento. `?w=58` (u 80) la dibuja
- * al papel del equipo; sin él, al del comercio. `?print=1` se imprime sola
+ * imprime en UNA página del alto del documento. `?w=55` (cualquier ancho
+ * entero de 40 a 120 mm) la dibuja al papel del equipo; sin él, al del
+ * comercio. `?print=1` se imprime sola
  * al abrirse en pestaña (respaldo).
  *
  * Gate: el comercio activo de la sesión; un turno ajeno es 404.
@@ -50,7 +51,7 @@ export default async function ShiftTicketPage({
   const loaded = await loadShiftCloseTicket({
     shiftId: id,
     restaurantId,
-    paperWidthMm: devicePaperFromParam(w),
+    devicePaperMm: devicePaperFromParam(w),
   });
   if (!loaded.ok) notFound();
   const session = await auth();

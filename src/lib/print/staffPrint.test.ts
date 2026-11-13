@@ -176,6 +176,18 @@ describe("«Este dispositivo»: ni se intenta el agente", () => {
     });
   });
 
+  it("55 mm (el datáfono) u otro ancho del equipo van tal cual en ?w=", async () => {
+    const printInBrowser = browser();
+    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 55 });
+    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=55", {
+      tabUrl: "/factura/inv-1?w=55&print=1",
+    });
+    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 52 });
+    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=52", {
+      tabUrl: "/factura/inv-1?w=52&print=1",
+    });
+  });
+
   it("80 mm si el equipo usa ese papel; sin papel elegido, 58", async () => {
     const printInBrowser = browser();
     await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 80 });

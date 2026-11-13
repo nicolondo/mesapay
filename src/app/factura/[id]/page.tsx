@@ -27,7 +27,7 @@ import {
 } from "@/lib/print/staffPrint";
 import { PrintButton } from "./PrintButton";
 import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
-import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
 import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
@@ -82,10 +82,12 @@ export async function generateMetadata({
  * agente, como las comandas, o la imprime en su propio dispositivo (ver
  * `PrintButton`).
  *
- * `?w=58` (u 80): el ancho del papel DEL EQUIPO que imprime, cuando no es
- * el de la caja — «Este dispositivo» desde un datáfono con impresora
- * integrada de 58 mm en un comercio cuya caja usa 80 (ver
- * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho.
+ * `?w=55` (cualquier ancho entero de 40 a 120 mm): el papel DEL EQUIPO que
+ * imprime, cuando no es el de la caja — «Este dispositivo» desde el
+ * datáfono (55 mm) en un comercio cuya caja usa 80 (ver
+ * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho: el
+ * relleno lateral sale de `receiptSidePaddingMm` y el QR no pasa del 60 %
+ * del ancho.
  */
 export default async function FacturaPage({
   params,
@@ -239,7 +241,7 @@ export default async function FacturaPage({
           className="receipt"
           data-print-document="factura"
           data-print-width-mm={paperMm}
-          style={{ width: `${paperMm}mm`, paddingInline: `${paperMm === 80 ? 4 : 5}mm` }}
+          style={{ width: `${paperMm}mm`, paddingInline: `${receiptSidePaddingMm(paperMm)}mm` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -551,7 +553,9 @@ ${PRINT_DESTINATION_STYLES}
     display: block;
     margin: 2px auto;
     width: 28mm;
-    height: 28mm;
+    max-width: 60%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     image-rendering: pixelated;
   }
   .receipt .dian-fiscal .dian-cufe {

@@ -200,4 +200,13 @@ describe("en «Este dispositivo» (la vista del navegador)", () => {
     expect(html).toContain("width:58mm");
     expect(html).toMatchSnapshot();
   });
+
+  it("a 55 mm (el datáfono): página de 55 mm con el texto en 48 mm", () => {
+    const html = renderToStaticMarkup(
+      createElement(ThermalReportReceipt, { doc: build(55), paperMm: 55, kind: "cierre" }),
+    );
+    expect(html).toContain('data-print-width-mm="55"');
+    expect(html).toContain("width:55mm;padding-inline:3.5mm");
+    expect(html).toMatchSnapshot();
+  });
 });

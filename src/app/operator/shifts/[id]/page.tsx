@@ -11,30 +11,14 @@ import {
   PAYMENT_METHOD_LABEL,
 } from "@/lib/shiftReport";
 import { PrintButton } from "./PrintButton";
+import { SHIFT_METHOD_KEY } from "@/lib/print/shiftCloseDoc";
 import { ShiftConsumptionTax } from "@/components/ShiftConsumptionTax";
 import { TipReturnsBox } from "@/components/TipReturns";
 
 export const dynamic = "force-dynamic";
 
-const METHOD_KEY: Record<string, string> = {
-  demo_card: "methodDemoCard",
-  // Efectivo: el histórico (demo_cash) y el actual (cash) se rotulan igual.
-  demo_cash: "methodCash",
-  cash: "methodCash",
-  wompi_card: "methodWompiCard",
-  wompi_pse: "methodWompiPse",
-  wompi_nequi: "methodWompiNequi",
-  kushki_apple_pay: "methodKushkiApplePay",
-  kushki_google_pay: "methodKushkiGooglePay",
-  kushki_card_terminal: "methodKushkiCardTerminal",
-  kushki_card: "methodKushkiCard",
-  external_terminal: "methodExternalTerminal",
-  kushki_pse: "methodKushkiPse",
-  kushki_bre_b: "methodKushkiBreB",
-  reservation_deposit: "methodReservationDeposit",
-  voucher: "methodVoucher",
-  customer_credit: "methodCustomerCredit",
-};
+// La misma clave de cada método que la tirilla del cierre (shiftCloseDoc.ts).
+const METHOD_KEY = SHIFT_METHOD_KEY;
 
 /**
  * Reporte contable detallado de un turno cerrado. Pensado para el

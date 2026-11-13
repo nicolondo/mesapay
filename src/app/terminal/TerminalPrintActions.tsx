@@ -12,7 +12,7 @@ import { invoicePrintHref } from "@/lib/print/staffPrint";
  * Con «Imprimir en: Impresora de caja · Este dispositivo» encima. El
  * usuario Datáfono arranca en «Este dispositivo»: el Smart POS (Sunmi P3)
  * tiene la impresora térmica integrada, y la tirilla sale ahí al ancho de su
- * papel (58 mm). La elección queda recordada en el equipo.
+ * papel (55 mm). La elección queda recordada en el equipo.
  */
 export function TerminalPrintActions({
   orderId,

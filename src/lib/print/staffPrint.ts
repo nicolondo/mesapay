@@ -23,7 +23,7 @@
  *
  * «ESTE DISPOSITIVO» (`options.destination = "device"`, ver
  * `printDestination.ts`): ni se intenta el agente. La vista HTML se
- * imprime desde este navegador al ancho del papel DEL EQUIPO (`?w=58`), con
+ * imprime desde este navegador al ancho del papel DEL EQUIPO (`?w=55`), con
  * el diálogo de impresión del sistema —en el datáfono Sunmi, su impresora
  * integrada—, y vuelve `{ via: "device" }`. La precuenta igual avisa a su
  * ruta (`{ destination: "device" }`) para que quede el rastro de quién la
@@ -139,7 +139,7 @@ export type StaffPrintResult =
       /** «Este dispositivo»: el diálogo de impresión de este navegador. */
       via: "device";
       outcome: BrowserPrintOutcome;
-      /** La pestaña de respaldo (`?w=58&print=1`), para "abrir a mano". */
+      /** La pestaña de respaldo (`?w=55&print=1`), para "abrir a mano". */
       tabUrl: string;
       paperMm: DevicePaperMm;
     }

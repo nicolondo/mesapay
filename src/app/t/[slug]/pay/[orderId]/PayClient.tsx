@@ -20,6 +20,8 @@ import Link from "next/link";
 import { fmtCOP, formatMoney } from "@/lib/format";
 import { isCashMethod } from "@/lib/payments/methods";
 import { ApplePayButton } from "./ApplePayButton";
+import { BreBSheet, type BreBCloseReason } from "@/components/payments/BreBSheet";
+import type { BreBChargeView } from "@/lib/payments/breB/view";
 import { InvoiceCheckoutCard } from "@/components/invoice/InvoiceCheckoutCard";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import {
@@ -70,10 +72,14 @@ type MethodKind =
   | "kushki_card"
   | "kushki_card_terminal"
   | "kushki_pse"
+  | "kushki_bre_b"
   | "external_terminal"
   | "cash"
   | "customer_credit"
   | "representacion";
+
+/** Dónde se recuerda (en este aparato) el QR Bre-B abierto de una cuenta. */
+const breBStorageKey = (orderId: string) => `mesapay.breb.${orderId}`;
 
 /** Cliente de facturación asociado a la cuenta en el cobro (staff). */
 export type PayCustomer = Pick<
@@ -208,6 +214,9 @@ export function PayClient({
     | "kushki_card"
     | "kushki_apple_pay"
     | "kushki_pse"
+    // Bre-B sólo llega acá si además el comercio tiene cargadas las llaves
+    // de su comercio Bre-B (lo filtra PayFlow con `offerablePaymentMethods`).
+    | "kushki_bre_b"
     | "external_terminal"
     | "cash"
   )[];
@@ -376,6 +385,11 @@ export function PayClient({
   const linkEmphasis = (method: (typeof linkMethods)[number]) =>
     payLinkMode ? (linkPrimary === method ? "primary" : "secondary") : undefined;
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
+  // QR Bre-B abierto: el pago y, si se acaba de crear, el cobro con su QR.
+  const [breB, setBreB] = useState<{ paymentId: string; initial: BreBChargeView | null } | null>(null);
+  // Por qué se cerró el último QR (cancelado / rechazado / vencido), para el aviso.
+  const [breBNotice, setBreBNotice] = useState<"canceled" | "declined" | "expired" | "uncertain" | null>(null);
+  const tBreB = useTranslations("breB");
   const [pseSheetOpen, setPseSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
   const [representacionOpen, setRepresentacionOpen] = useState(false);
@@ -831,6 +845,82 @@ export function PayClient({
     }
   }
 
+  /**
+   * Bre-B — reserva el pago y abre el QR a pantalla completa. El comensal lo
+   * paga desde la app de su banco; el staff lo muestra en su dispositivo para
+   * que el cliente lo escanee. El resultado llega solo (aviso de Kushki +
+   * consulta de estado): la pantalla del QR lo sigue en vivo.
+   *
+   * La llave de idempotencia vive mientras dure el intento: un doble toque o
+   * un reintento por mala red devuelven el MISMO cobro, no otro QR.
+   */
+  const breBAttempt = useRef<string | null>(null);
+  async function payWithBreB() {
+    if (chargeDisabled) return;
+    setBusy("kushki_bre_b");
+    setErr(null);
+    setBreBNotice(null);
+    if (!breBAttempt.current) breBAttempt.current = crypto.randomUUID();
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay/bre-b`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": breBAttempt.current },
+        // amountCents = TOTAL (comida + propina), como el resto de los rieles.
+        body: JSON.stringify({ orderId, amountCents, tipCents: amountTip }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.paymentId || !j.charge) {
+        // Kushki respondió (o el servidor rechazó): este intento terminó.
+        if (res.status < 500 || j.error) breBAttempt.current = null;
+        const key = typeof j.error === "string" ? `err_${j.error}` : "";
+        setErr(key && tBreB.has(key) ? tBreB(key) : apiError(j, tBreB("errStart")));
+        if (operatorMode) refreshBalance();
+        return;
+      }
+      breBAttempt.current = null;
+      try { sessionStorage.setItem(breBStorageKey(orderId), j.paymentId); } catch { /* Storage is optional. */ }
+      setBreB({ paymentId: j.paymentId, initial: j.charge as BreBChargeView });
+    } catch {
+      // Sin respuesta: se conserva la llave para que reintentar no cree otro cobro.
+      setErr(tBreB("errNetwork"));
+      if (operatorMode) refreshBalance();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function forgetBreB() {
+    try { sessionStorage.removeItem(breBStorageKey(orderId)); } catch { /* Storage is optional. */ }
+    setBreB(null);
+  }
+
+  // Se cerró el QR sin pago: vuelve a los medios con su aviso.
+  function breBClosed(reason: BreBCloseReason) {
+    forgetBreB();
+    // `hidden`: el staff ocultó el código y el cobro sigue activo; lo muestra
+    // el aviso de pagos pendientes, no un mensaje acá.
+    setBreBNotice(reason === "hidden" ? null : reason === "dismissed" ? "uncertain" : reason);
+    if (operatorMode) refreshBalance();
+  }
+
+  function breBApproved(view: BreBChargeView) {
+    const paymentId = breB?.paymentId ?? view.paymentId ?? "";
+    forgetBreB();
+    // El staff sigue el camino de siempre (cuenta pagada → recibo; pago
+    // parcial o mixto → aviso y saldo actualizado).
+    if (operatorMode) { paymentConfirmed(view.orderPaid); return; }
+    router.push(`/t/${tenantSlug}/pay/${orderId}/done?pid=${encodeURIComponent(paymentId)}`);
+  }
+
+  // Si este aparato tenía un QR abierto (recargó la página, volvió de la app
+  // del banco con la pestaña descartada), se retoma en vez de dejarlo vivo
+  // sin que nadie lo vea.
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = sessionStorage.getItem(breBStorageKey(orderId)); } catch { return; }
+    if (saved) startTransition(() => setBreB({ paymentId: saved, initial: null }));
+  }, [orderId]);
+
   const cashAttempt = useRef<{ key: string; body: {
     orderId: string; method: "cash"; amountCents: number; tipCents: number;
     cashTenderCents?: number; changeGivenCents?: number; settleNow?: boolean;
@@ -1177,6 +1267,20 @@ export function PayClient({
       )}
 
       {paymentNotice && <p role="status" className="mt-4 rounded-xl bg-ok/10 p-3 text-sm text-ok">{t("mixed.receivedNotice")}</p>}
+      {/* Volvió del QR Bre-B sin pago: por qué, y que no se cobró nada. */}
+      {breBNotice && !err && (
+        <div
+          role="status"
+          className={
+            "mt-4 rounded-2xl border p-4 text-sm " +
+            (breBNotice === "uncertain"
+              ? "border-terracotta/40 bg-terracotta/10"
+              : "border-hairline bg-paper text-muted")
+          }
+        >
+          {tBreB(operatorMode && breBNotice === "uncertain" ? "notice.uncertainOp" : `notice.${breBNotice}`)}
+        </div>
+      )}
       {(!isCounter || operatorMode) && !payLinkMode && (
         <div className="mt-6">
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mb-2">
@@ -1587,6 +1691,19 @@ export function PayClient({
               emphasis={linkEmphasis("kushki_pse")}
             />
           )}
+        {/* Bre-B cobra con las llaves de SU comercio de Kushki: no depende de
+            que tarjeta/PSE estén activos (`kushkiReady`). Sólo pesos. */}
+        {enabledMethods.includes("kushki_bre_b") && currency === "COP" && (
+          <PayButton currency={currency}
+            kind="bre_b"
+            disabled={chargeDisabled}
+            busy={busy === "kushki_bre_b"}
+            onClick={payWithBreB}
+            amountCents={amountCents}
+            operatorMode={operatorMode}
+            emphasis={linkEmphasis("kushki_bre_b")}
+          />
+        )}
         {enabledMethods.includes("cash") && !payLinkMode && (
           <PayButton currency={currency}
             kind="cash"
@@ -1712,6 +1829,21 @@ export function PayClient({
           busy={busy === "representacion"}
           onClose={() => setRepresentacionOpen(false)}
           onConfirm={(note) => payWithRepresentacion(note)}
+        />
+      )}
+      {breB && (
+        <BreBSheet
+          // Un código nuevo es otro pago: pantalla nueva, estado nuevo.
+          key={breB.paymentId}
+          source={{ kind: "payment", tenantSlug, paymentId: breB.paymentId }}
+          initial={breB.initial}
+          operatorMode={operatorMode}
+          onApproved={breBApproved}
+          onClosed={breBClosed}
+          onRetry={() => {
+            forgetBreB();
+            void payWithBreB();
+          }}
         />
       )}
       {pseSheetOpen && (
@@ -3138,6 +3270,7 @@ function PayButton({
     | "terminal"
     | "external_terminal"
     | "pse"
+    | "bre_b"
     | "cash"
     | "credit"
     | "demo_terminal";
@@ -3183,7 +3316,7 @@ type ButtonMeta = { labelKey: string; icon: string; className: string };
 // something on their behalf, so "llamar al mesero" / "pedir datáfono"
 // frame the action correctly.
 const BUTTON_META_DINER: Record<
-  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "credit" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "bre_b" | "cash" | "credit" | "demo_terminal",
   ButtonMeta
 > = {
   apple: {
@@ -3211,6 +3344,11 @@ const BUTTON_META_DINER: Record<
     icon: "🏦",
     className: "mp-pay--outline",
   },
+  bre_b: {
+    labelKey: "btnBreB",
+    icon: "📲",
+    className: "mp-pay--outline",
+  },
   cash: {
     labelKey: "btnCash",
     icon: "💵",
@@ -3232,7 +3370,7 @@ const BUTTON_META_DINER: Record<
 // They aren't "calling the mesero" or "asking for the datáfono" —
 // they're recording how the diner is paying right now.
 const BUTTON_META_OP: Record<
-  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "cash" | "credit" | "demo_terminal",
+  "apple" | "card" | "terminal" | "external_terminal" | "pse" | "bre_b" | "cash" | "credit" | "demo_terminal",
   ButtonMeta
 > = {
   apple: BUTTON_META_DINER.apple, // never shown in op mode, kept for type safety
@@ -3252,6 +3390,11 @@ const BUTTON_META_OP: Record<
     className: "mp-pay--outline",
   },
   pse: BUTTON_META_DINER.pse, // never shown in op mode, kept for type safety
+  bre_b: {
+    labelKey: "opBtnBreB",
+    icon: "📲",
+    className: "mp-pay--outline",
+  },
   cash: {
     labelKey: "opBtnCash",
     icon: "💵",

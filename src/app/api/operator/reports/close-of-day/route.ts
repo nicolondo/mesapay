@@ -15,6 +15,8 @@ const METHOD_LABEL: Record<string, string> = {
   wompi_nequi: "Nequi",
   kushki_apple_pay: "Apple Pay",
   kushki_card_terminal: "Datáfono",
+  // Bre-B es el nombre propio del sistema: igual en cualquier idioma.
+  kushki_bre_b: "Bre-B",
 };
 
 function csvField(v: string | number | null | undefined): string {

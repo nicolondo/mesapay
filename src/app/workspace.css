@@ -2824,6 +2824,64 @@ li.is-archived .mp-inv-name {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+/* Grupo plegable («Confirmados del preliminar»): toda la franja es el botón. */
+.mp-tally-group__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  margin: -5px -12px -4px;
+  padding: 5px 12px 4px;
+  width: calc(100% + 24px);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mp-tally-group__toggle:hover {
+  color: var(--op-text);
+}
+.mp-tally-group__toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--terracotta);
+}
+.mp-tally-group__toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.16s ease;
+}
+.mp-tally-group__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+/* Motivo por el que un insumo se recuenta (o «Confirmado») en el definitivo. */
+.mp-tally-tag {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 12%, var(--op-surface));
+  color: #7f5a1f;
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mp-tally-tag[data-tag="confirmed"] {
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 9%, var(--op-surface));
+  color: var(--ok);
+}
+.mp-tally-tag[data-tag="uncounted"] {
+  border-color: var(--op-border);
+  background: var(--paper);
+  color: var(--op-muted);
+}
 .mp-tally-row {
   min-height: 44px;
   padding-top: 4px;

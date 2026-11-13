@@ -52,6 +52,8 @@ vi.mock("@/lib/db", () => {
         const idsIn = typeof where.ingredientId === "string" ? [where.ingredientId] : where.ingredientId.in;
         return m.ingredients.filter((ingredient) => idsIn.includes(ingredient.id)).reduce((sum, ingredient) => sum + ingredient.movements, 0);
       }),
+      // Movimientos desde que se abrió el conteo (ninguno en estas pruebas).
+      findMany: vi.fn(async () => []),
     },
   };
   return { db: { $transaction: (callback: (client: unknown) => unknown) => callback(tx) } };
@@ -169,6 +171,9 @@ describe("conteo con un insumo recién creado", () => {
     const result = await append();
     expect(result.count.items.find((item) => item.id === "item-a-new")).toMatchObject({ expectedQty: 0, finalExpectedQty: 0, preliminaryQty: null });
     expect(m.count.recountSnapshot).toEqual({
+      // El plan del definitivo se conserva y el recién llegado queda «sin contar».
+      full: false,
+      recount: { "m-rice": ["difference"], "a-new": ["uncounted"] },
       movementCount: 2,
       ingredients: [
         { id: "m-rice", trackInventory: true, measureKind: "count", qtyBase: 10000, totalValueCents: 5000 },

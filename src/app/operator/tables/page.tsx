@@ -39,6 +39,8 @@ import {
   type OrderInvoiceView,
 } from "@/lib/orders/invoicedOrder";
 import type { InvoiceIntent } from "@/components/invoice/types";
+import { resolveFloor } from "@/lib/floorPlan";
+import type { SalonFloor } from "./SalonMap";
 import {
   isSimpleInvoiceRequested,
   simpleInvoiceEmailFrom,
@@ -202,6 +204,22 @@ export default async function TablesPage({
   const manualTables = isMeseroView
     ? []
     : allTables.filter((t) => t.kind === "manual" && t.orders.length > 0);
+
+  // Plano del salón para la vista «Mapa»: las mesas físicas en su lugar
+  // (plano libre, o el de celdas convertido al vuelo). Sin mesas ubicadas
+  // (o en modo mostrador) no hay mapa y el conmutador no aparece.
+  const floorResolved = counterMode ? null : resolveFloor(tenant?.floorPlan, tables);
+  const floorTables: SalonFloor["tables"] = {};
+  if (floorResolved) {
+    for (const t of tables) {
+      const placement = floorResolved.placements[t.id];
+      if (placement) floorTables[t.id] = { placement, shape: t.shape, capacity: t.capacity };
+    }
+  }
+  const floorMap: SalonFloor | null =
+    floorResolved && Object.keys(floorTables).length > 0
+      ? { scene: floorResolved.scene, tables: floorTables }
+      : null;
 
   // Mesas libres (sin orden abierta) — necesarias para "Mover a
   // otra mesa" del detail sheet (mueve el pedido ENTERO, solo a libres).
@@ -576,6 +594,8 @@ export default async function TablesPage({
       )}
 
       <MesasGrid
+        floor={floorMap}
+        viewerId={session?.user?.id ?? null}
         initialTime={nowMs}
         phonePaidHighlightMinutes={phonePaidHighlightMinutes}
         tiles={tiles}

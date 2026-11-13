@@ -2240,7 +2240,15 @@
     "moveAdminOnly": "Only an administrator can move dishes or orders between tables.",
     "moveOrderSameTable": "The bill is already at that table.",
     "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
-    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish."
+    "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish.",
+    "viewLabel": "Tables view",
+    "viewCards": "Cards",
+    "viewMap": "Map",
+    "mapAria": "Floor plan with each table's status. Tap a table to open it.",
+    "mapTableAria": "{table}: {state}",
+    "mapOffHeading": "Not on the map",
+    "mapOffHint": "These tables aren't placed on the floor plan.",
+    "mapEditLink": "Edit the map"
   },
   "browserPrint": {
     "preparing": "Preparing to print…",

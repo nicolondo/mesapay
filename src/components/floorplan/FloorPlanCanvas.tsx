@@ -60,6 +60,8 @@ export type TableTone = {
   /** Punto de estado (mapa del Salón). */
   dot?: string;
   pulse?: boolean;
+  /** Atenuada (no entra en el filtro activo del Salón), sigue tocable. */
+  dim?: boolean;
 };
 
 export const TONE_NEUTRAL: TableTone = {
@@ -388,7 +390,12 @@ const TableShapeNode = memo(function TableShapeNode({
       data-fp="table"
       data-id={tb.id}
       transform={`translate(${x} ${y})`}
-      className={"fp-table" + (button ? " fp-table--button" : "") + (disabled ? " fp-table--disabled" : "")}
+      className={
+        "fp-table" +
+        (button ? " fp-table--button" : "") +
+        (disabled ? " fp-table--disabled" : "") +
+        (tone.dim ? " fp-table--dim" : "")
+      }
       role={button ? "button" : undefined}
       tabIndex={button ? (disabled ? -1 : 0) : undefined}
       aria-label={ariaLabel}

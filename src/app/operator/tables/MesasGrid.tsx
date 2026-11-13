@@ -2,7 +2,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { useClock } from "@/lib/browser/clock";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -23,6 +23,7 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
+import { SalonMap, useSalonView, type SalonFloor } from "./SalonMap";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
 import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
@@ -166,6 +167,8 @@ type AllTable = {
 type FilterChip = "all" | "by_pay" | "recent" | "free";
 
 export function MesasGrid({
+  floor = null,
+  viewerId = null,
   initialTime,
   tiles,
   manualTiles,
@@ -184,6 +187,11 @@ export function MesasGrid({
   salesTax,
   phonePaidHighlightMinutes,
 }: {
+  // Plano del salón (vista «Mapa»). null = no hay mesas ubicadas en el
+  // plano (o modo mostrador): el conmutador Tarjetas / Mapa no aparece.
+  floor?: SalonFloor | null;
+  // Para recordar la vista elegida por usuario en este equipo.
+  viewerId?: string | null;
   initialTime: number;
   tiles: TileData[];
   // Facturas manuales abiertas. Vacío para el mesero (no las ve) y
@@ -325,6 +333,113 @@ export function MesasGrid({
     return ordered.filter((t) => t.state === "free");
   }, [ordered, filter]);
 
+  // Vista «Mapa»: las mesas en su lugar real. Solo si hay plano y fuera
+  // del modo edición (que usa las tarjetas para renombrar/borrar).
+  const [view, setView] = useSalonView(viewerId);
+  const canMap = !!floor && !counterMode;
+  const showMap = canMap && !editMode && view === "map";
+  const visibleIds = useMemo(() => new Set(filtered.map((t) => t.id)), [filtered]);
+  const isHighlighted = useCallback(
+    (t: Extract<TileData, { state: "recently_paid" }>) => isPhonePaidHighlighted(t, sortOpts),
+    [sortOpts],
+  );
+  // Tocar una mesa en el mapa hace lo mismo que tocar su tarjeta: libre o
+  // recién pagada → tomar pedido (pestaña nueva en caja, misma app en el
+  // mesero); con cuenta → la ficha.
+  const activateFromMap = useCallback(
+    (id: string) => {
+      const tile = liveTiles.find((t) => t.id === id);
+      if (!tile) return;
+      if (tile.state === "active") {
+        setOpenTileId(id);
+        return;
+      }
+      const href = isMeseroView
+        ? `/mesero/pedir/${tile.id}`
+        : `/t/${tenantSlug}/menu?table=${tile.qrToken}&op=1`;
+      if (isMeseroView) router.push(href);
+      else window.open(href, "_blank", "noreferrer");
+    },
+    [liveTiles, isMeseroView, tenantSlug, router],
+  );
+  const offMap = useMemo(
+    () => (floor ? filtered.filter((t) => !floor.tables[t.id]) : []),
+    [filtered, floor],
+  );
+  const openOnMap =
+    showMap && openTileId && floor?.tables[openTileId]
+      ? liveTiles.find((t) => t.id === openTileId && t.state === "active")
+      : undefined;
+
+  // Una tarjeta del Salón. La usan la grilla y, en la vista «Mapa», las
+  // mesas que no están en el plano y la ficha de la mesa tocada.
+  function renderTile(tile: TileData, opts?: { sheetOnly?: boolean }) {
+          if (editMode) {
+            return (
+              <ManageTileButton
+                key={tile.id}
+                number={tile.number}
+                label={tile.label}
+                counterMode={counterMode}
+                onClick={() =>
+                  setManageTile({
+                    id: tile.id,
+                    number: tile.number,
+                    label: tile.label,
+                  })
+                }
+              />
+            );
+          }
+          if (tile.state === "free") {
+            return (
+              <FreeTile
+                key={tile.id}
+                tile={tile}
+                counterMode={counterMode}
+                isMeseroView={isMeseroView}
+                tenantSlug={tenantSlug}
+              />
+            );
+          }
+          if (tile.state === "recently_paid") {
+            return (
+              <RecentlyPaidTile
+                key={tile.id}
+                now={now}
+                tile={tile}
+                highlight={isPhonePaidHighlighted(tile, sortOpts)}
+                counterMode={counterMode}
+                isMeseroView={isMeseroView}
+                tenantSlug={tenantSlug}
+              />
+            );
+          }
+          // active
+          return (
+            <ActiveTile
+              key={tile.id}
+              tile={tile}
+              sheetOnly={opts?.sheetOnly}
+              counterMode={counterMode}
+              open={openTileId === tile.id}
+              onOpenChange={(next) =>
+                setOpenTileId(next ? tile.id : null)
+              }
+              freeTables={freeTables.filter((ft) => ft.id !== tile.id)}
+              allTables={allTables.filter((at) => at.id !== tile.id)}
+              tenantSlug={tenantSlug}
+              isMeseroView={isMeseroView}
+              country={country}
+              salesTax={salesTax}
+              chargeLocked={chargeLocked}
+              moveLocked={moveLocked}
+              compPolicy={compPolicy}
+              viewerRole={viewerRole}
+            />
+          );
+  }
+
   return (
     <>
       {/* Filter chips debajo de la cabecera de la página. Los counts
@@ -365,8 +480,30 @@ export function MesasGrid({
             count={counts.free}
           />
         </div>
-        {(canOpenManual || !isMeseroView) && (
+        {(canOpenManual || !isMeseroView || (canMap && !editMode)) && (
           <div className="mp-table-filters__actions">
+            {canMap && !editMode && (
+              <div className="mp-seg mp-seg--sm" role="group" aria-label={tr("viewLabel")}>
+                <button
+                  type="button"
+                  aria-pressed={view === "cards"}
+                  data-active={view === "cards"}
+                  onClick={() => setView("cards")}
+                  className="mp-seg__i"
+                >
+                  {tr("viewCards")}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "map"}
+                  data-active={view === "map"}
+                  onClick={() => setView("map")}
+                  className="mp-seg__i"
+                >
+                  {tr("viewMap")}
+                </button>
+              </div>
+            )}
             {canOpenManual && (
               <button
                 type="button"
@@ -437,79 +574,50 @@ export function MesasGrid({
         </section>
       )}
 
-      {/* Grid de tiles compactos */}
-      <div className="mp-table-grid">
-        {filtered.length === 0 && (
-          <div className="col-span-full text-center text-sm text-op-muted py-8">
-            {tr("emptyFilter")}
-          </div>
-        )}
-        {filtered.map((tile) => {
-          if (editMode) {
-            return (
-              <ManageTileButton
-                key={tile.id}
-                number={tile.number}
-                label={tile.label}
-                counterMode={counterMode}
-                onClick={() =>
-                  setManageTile({
-                    id: tile.id,
-                    number: tile.number,
-                    label: tile.label,
-                  })
-                }
-              />
-            );
-          }
-          if (tile.state === "free") {
-            return (
-              <FreeTile
-                key={tile.id}
-                tile={tile}
-                counterMode={counterMode}
-                isMeseroView={isMeseroView}
-                tenantSlug={tenantSlug}
-              />
-            );
-          }
-          if (tile.state === "recently_paid") {
-            return (
-              <RecentlyPaidTile
-                key={tile.id}
-                now={now}
-                tile={tile}
-                highlight={isPhonePaidHighlighted(tile, sortOpts)}
-                counterMode={counterMode}
-                isMeseroView={isMeseroView}
-                tenantSlug={tenantSlug}
-              />
-            );
-          }
-          // active
-          return (
-            <ActiveTile
-              key={tile.id}
-              tile={tile}
-              counterMode={counterMode}
-              open={openTileId === tile.id}
-              onOpenChange={(next) =>
-                setOpenTileId(next ? tile.id : null)
-              }
-              freeTables={freeTables.filter((ft) => ft.id !== tile.id)}
-              allTables={allTables.filter((at) => at.id !== tile.id)}
-              tenantSlug={tenantSlug}
-              isMeseroView={isMeseroView}
-              country={country}
-              salesTax={salesTax}
-              chargeLocked={chargeLocked}
-              moveLocked={moveLocked}
-              compPolicy={compPolicy}
-              viewerRole={viewerRole}
-            />
-          );
-        })}
-      </div>
+      {showMap && floor ? (
+        <>
+          <SalonMap
+            floor={floor}
+            tiles={ordered}
+            visibleIds={visibleIds}
+            isHighlighted={isHighlighted}
+            now={now}
+            onActivate={activateFromMap}
+          />
+          {/* La ficha de una mesa con cuenta tocada en el mapa (la misma
+              que abre su tarjeta). */}
+          {openOnMap && renderTile(openOnMap, { sheetOnly: true })}
+          {offMap.length > 0 && (
+            <section className="mt-5">
+              <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
+                {tr("mapOffHeading")}
+              </div>
+              <p className="text-[11px] text-op-muted mt-0.5 mb-2">
+                {tr("mapOffHint")}
+                {!isMeseroView && (
+                  <>
+                    {" "}
+                    <Link href="/operator/settings/salon" className="text-terracotta hover:underline">
+                      {tr("mapEditLink")}
+                    </Link>
+                  </>
+                )}
+              </p>
+              <div className="mp-table-grid">{offMap.map((tile) => renderTile(tile))}</div>
+            </section>
+          )}
+        </>
+      ) : (
+        /* Grid de tiles compactos */
+        <div className="mp-table-grid">
+          {filtered.length === 0 && (
+            <div className="col-span-full text-center text-sm text-op-muted py-8">
+              {tr("emptyFilter")}
+            </div>
+          )}
+          {filtered.map((tile) => renderTile(tile))}
+        </div>
+      )}
 
       {manageTile && (
         <ManageTableSheet
@@ -997,6 +1105,7 @@ function ManualInvoiceTile({
  */
 function ActiveTile({
   tile,
+  sheetOnly = false,
   counterMode,
   open,
   onOpenChange,
@@ -1012,6 +1121,8 @@ function ActiveTile({
   viewerRole,
 }: {
   tile: Extract<TileData, { state: "active" }>;
+  /** Solo la ficha (la abrió el mapa): sin la tarjeta. */
+  sheetOnly?: boolean;
   counterMode: boolean;
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -1049,6 +1160,7 @@ function ActiveTile({
       : "");
   return (
     <>
+      {!sheetOnly && (
       <button
         type="button"
         onClick={() => onOpenChange(true)}
@@ -1114,6 +1226,7 @@ function ActiveTile({
           </span>
         )}
       </button>
+      )}
 
       {/* Sheet de detalle en modo controlled. Sólo se monta cuando
           está abierto para no inflar el DOM con N sheets cerrados. */}

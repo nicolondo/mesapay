@@ -2240,7 +2240,15 @@
     "moveAdminOnly": "Solo el administrador puede mover platos o pedidos entre mesas.",
     "moveOrderSameTable": "La cuenta ya está en esa mesa.",
     "moveOrderTargetBusy": "La mesa de destino ya tiene una cuenta abierta. Ciérrala antes de mover el pedido.",
-    "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato."
+    "preparedCancellationAdminOnly": "Desde que empieza la preparación, solo el administrador puede cancelar o dejar de cobrar un plato.",
+    "viewLabel": "Vista de las mesas",
+    "viewCards": "Tarjetas",
+    "viewMap": "Mapa",
+    "mapAria": "Mapa del salón con el estado de cada mesa. Toca una mesa para abrirla.",
+    "mapTableAria": "{table}: {state}",
+    "mapOffHeading": "Fuera del mapa",
+    "mapOffHint": "Estas mesas no están ubicadas en el mapa del salón.",
+    "mapEditLink": "Editar el mapa"
   },
   "browserPrint": {
     "preparing": "Preparando impresión…",

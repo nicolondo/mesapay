@@ -111,6 +111,9 @@
 .fp-table--disabled {
   cursor: not-allowed;
 }
+.fp-table--dim {
+  opacity: 0.32;
+}
 .fp-focus {
   fill: none;
   stroke: var(--fp-accent);
@@ -798,4 +801,16 @@
   font-size: 20px;
   box-shadow: var(--shadow-3);
   pointer-events: none;
+}
+
+/* ─────────────────────── MAPA DEL SALÓN (Mesas) ─────────────────────── */
+
+.fp-view--salon {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--op-border);
+  background: var(--op-surface);
+  max-height: min(72dvh, 820px);
+}
+.fp-view--salon .fp-canvas {
+  --fp-paper: color-mix(in srgb, var(--op-surface) 55%, var(--op-bg));
 }

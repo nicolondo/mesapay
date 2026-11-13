@@ -41,7 +41,13 @@ import { loadSupportDocConfig, type LoadedSupportDocConfig } from "./config";
 import { SupportDocError } from "./errors";
 import { allocateNumber, nextFileSequence, supportDocFileNames } from "./numbering";
 import { customizationFor, missingSellerFields, sellerFromSupplier } from "./seller";
-import { activeKeyFor, loadSupportDocDraft, proportionalSplit, type SupportDocDraft } from "./source";
+import {
+  activeKeyFor,
+  generationFormFor,
+  loadSupportDocDraft,
+  proportionalSplit,
+  type SupportDocDraft,
+} from "./source";
 import type {
   SupportDocKind,
   SupportDocLine,
@@ -429,7 +435,10 @@ export async function transmitSupportDocument(args: {
     let result: DianResult | null = null;
     let attempts = doc.attempts;
 
-    if (doc.xmlZip && doc.cuds && doc.submissionFileName && previous === "error") {
+    // Bytes ya firmados de un intento que pudo haber llegado a la DIAN (error
+    // de canal, o un reclamo que murió a mitad): primero se pregunta por el
+    // CUDS; nunca se arma un XML nuevo con el mismo número a ciegas.
+    if (doc.xmlZip && doc.cuds && doc.submissionFileName && (previous === "error" || previous === "sent")) {
       // Reintento de un envío incierto: ¿la DIAN ya lo tiene?
       zip = Buffer.from(doc.xmlZip);
       zipFileName = doc.submissionFileName.replace(/^(ds|nas)/, "z").replace(/\.xml$/i, ".zip");
@@ -439,8 +448,15 @@ export async function transmitSupportDocument(args: {
       else if (status.state === "error") throw new Error("status_unavailable");
     } else {
       const fresh = await db.supportDocument.findUniqueOrThrow({ where: { id: doc.id } });
-      const snap = snapshotOf(fresh.snapshot);
+      const stored = snapshotOf(fresh.snapshot);
       const { date, time } = dianIssueDateTime(now);
+      // La forma de generación depende del día de la FIRMA (DSFC02b/c): se
+      // recalcula al armar. Si ya pasaron más de 6 días, la DIAN lo
+      // rechazaría: se bloquea con el motivo en vez de gastar un envío.
+      const snap: SupportDocSnapshot =
+        fresh.kind === "support_document"
+          ? { ...stored, lines: stored.lines.map((l) => ({ ...l, generationForm: generationFormFor(l.purchaseDate, date) })) }
+          : stored;
       const common = {
         environment: config.envCode,
         softwareId: config.softwareId,

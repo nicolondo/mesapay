@@ -125,6 +125,7 @@ import {
   createSupportDocument,
   refreshSupportDocumentStatus,
   resendSupportDocument,
+  transmitSupportDocument,
 } from "./service";
 
 const NOW = new Date("2026-11-13T15:00:00Z");
@@ -309,6 +310,35 @@ describe("rechazos y errores", () => {
       code: "environment_changed",
     });
     expect([...m.rows.values()][0].state).toBe("rejected");
+  });
+
+  it("un documento que quedó sin enviar se arma con la forma de generación del día de la firma", async () => {
+    // Numerado hoy pero nunca transmitido (p. ej. bloqueado por configuración).
+    const created = await create();
+    const reset = () => Object.assign(m.rows.get(created.id)!, { state: "to_send", xmlZip: null, cuds: null, submissionFileName: null });
+    reset();
+    // Dos días después ya no es "por operación": sale como acumulado semanal.
+    const later = await transmitSupportDocument({ restaurantId: "r1", id: created.id, now: new Date(NOW.getTime() + 2 * 86_400_000) });
+    expect(later.state).toBe("accepted");
+    expect(m.sign.mock.calls.at(-1)?.[0]).toContain("<cbc:DescriptionCode>2</cbc:DescriptionCode>");
+    // Pasados 6 días se bloquea con el motivo en vez de ir a un rechazo seguro.
+    reset();
+    const sends = m.send.mock.calls.length;
+    const tooLate = await transmitSupportDocument({ restaurantId: "r1", id: created.id, now: new Date(NOW.getTime() + 8 * 86_400_000) });
+    expect(tooLate.state).toBe("to_send");
+    expect(m.rows.get(created.id)!.lastError).toBe("operation_too_old");
+    expect(m.send.mock.calls.length).toBe(sends);
+  });
+
+  it("un reclamo que murió a mitad: consulta por CUDS y reenvía los mismos bytes, sin firmar otro XML", async () => {
+    const created = await create();
+    const row = m.rows.get(created.id)!;
+    Object.assign(row, { state: "sent", updatedAt: new Date(NOW.getTime() - 60 * 60_000) });
+    const signed = m.sign.mock.calls.length;
+    const r = await transmitSupportDocument({ restaurantId: "r1", id: created.id, now: NOW });
+    expect(r.state).toBe("accepted");
+    expect(m.status).toHaveBeenCalledWith(row.cuds, expect.anything());
+    expect(m.sign.mock.calls.length).toBe(signed);
   });
 
   it("dos envíos simultáneos: sólo el que gana el reclamo firma", async () => {

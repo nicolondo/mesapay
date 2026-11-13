@@ -38,9 +38,15 @@ import {
   lineTaxOnTopCents,
   salesTaxRates,
   MAX_FREE_LINE_QTY,
-  MAX_FREE_LINE_TOTAL_CENTS,
   type RestaurantTax,
 } from "@/lib/salesTax";
+import {
+  maxFreeLineCents,
+  maxFreeLineDisplayCents,
+  orderRoomFromLines,
+  type OrderRoomInput,
+} from "@/lib/freeLineLimit";
+import { FreeLineLimitNotice } from "./FreeLineLimitNotice";
 
 /**
  * Impuesto de una línea libre tal como lo elige quien la carga:
@@ -657,6 +663,26 @@ export function TableDetailSheet({
     startTx(() => router.refresh());
   }
 
+  // Lo que la cuenta ya tiene, para el tope de un cargo nuevo: los platos de
+  // las rondas vivas (impuesto adentro) + los cargos (su impuesto encima).
+  // Misma cuenta que el servidor; si quedó vieja, la API corrige con su máximo.
+  const freeLineRoom = orderRoomFromLines([
+    ...rounds
+      .filter((rd) => rd.status !== "cancelled")
+      .flatMap((rd) =>
+        rd.items.map((it) => ({
+          amountCents: it.priceCents * it.qty,
+          taxKind: null,
+          taxPct: null,
+        })),
+      ),
+    ...freeLines.map((l) => ({
+      amountCents: l.priceCents * l.qty,
+      taxKind: l.taxKind,
+      taxPct: l.taxPct,
+    })),
+  ]);
+
   /**
    * Agrega una línea libre a la cuenta. El backend recalcula subtotal,
    * impuesto y total con la función canónica; acá sólo refrescamos.
@@ -675,7 +701,7 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      return freeLineErrorMessage(j.error);
+      return freeLineErrorMessage(j.error, j.maxLineCents);
     }
     setShowFreeLineSheet(false);
     // Traer la línea recién creada + el total nuevo del server.
@@ -691,7 +717,14 @@ export function TableDetailSheet({
   }
 
   /** Códigos del endpoint de líneas libres → copy traducido. */
-  function freeLineErrorMessage(code: unknown): string {
+  function freeLineErrorMessage(code: unknown, maxLineCents?: unknown): string {
+    // El servidor manda: si la cuenta cambió desde que se abrió el diálogo
+    // (otro dispositivo sumó platos), su máximo es el que vale.
+    if (code === "line_too_large" && typeof maxLineCents === "number") {
+      return `${tr("freeLineMaxForAccount", {
+        max: fmtCOP(maxFreeLineDisplayCents(maxLineCents)),
+      })} ${tr("freeLineMaxSplitHint")}`;
+    }
     switch (code) {
       case "order_paying":
         return tr("freeLineErrorPaying");
@@ -1674,6 +1707,7 @@ export function TableDetailSheet({
           // Una factura manual se arma con cargos que son ventas del
           // restaurante: nacen con el impuesto de la carta incluido.
           defaultIncluded={manual}
+          room={freeLineRoom}
           onClose={() => setShowFreeLineSheet(false)}
           onSubmit={addFreeLine}
         />
@@ -1913,6 +1947,7 @@ function FreeLineSheet({
   country,
   salesTax,
   defaultIncluded,
+  room,
   onClose,
   onSubmit,
 }: {
@@ -1921,6 +1956,8 @@ function FreeLineSheet({
   salesTax: RestaurantTax | null;
   /** true ⇒ el selector nace en "incluido" (factura manual). */
   defaultIncluded: boolean;
+  /** Lo que la cuenta ya tiene: define el máximo de esta línea. */
+  room: OrderRoomInput;
   onClose: () => void;
   /** Devuelve un mensaje de error ya traducido, o null si guardó bien. */
   onSubmit: (input: {
@@ -1963,6 +2000,14 @@ function FreeLineSheet({
   // La "base" de la vista previa es como la muestra la tirilla: con el
   // impuesto incluido, el precio menos lo que va adentro; si no, el precio.
   const previewBaseCents = lineCents - includedCents;
+  // Tope DINÁMICO (`freeLineLimit.ts`): lo que le queda libre a la cuenta con
+  // el impuesto elegido. Pasarlo NO apaga el botón en silencio: debajo del
+  // precio sale cuánto es el máximo y qué hacer.
+  const maxLineCents = maxFreeLineCents(room, {
+    taxKind: taxKind === "included" ? null : taxKind,
+    taxPct,
+  });
+  const overMax = lineCents > maxLineCents;
 
   function changeKind(k: FreeLineTaxChoice) {
     setErr(null);
@@ -1981,7 +2026,7 @@ function FreeLineSheet({
     qty >= 1 &&
     qty <= MAX_FREE_LINE_QTY &&
     lineCents > 0 &&
-    lineCents <= MAX_FREE_LINE_TOTAL_CENTS &&
+    !overMax &&
     !busy;
 
   async function submit() {
@@ -2074,10 +2119,17 @@ function FreeLineSheet({
                 setPriceDigits(digits);
               }}
               ariaLabel={tr("freeLineUnitPrice")}
+              aria-invalid={overMax || undefined}
               className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm tabular focus:outline-none focus:border-ink/40"
             />
           </label>
         </div>
+
+        <FreeLineLimitNotice
+          lineCents={lineCents}
+          maxLineCents={maxLineCents}
+          qty={qty}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">

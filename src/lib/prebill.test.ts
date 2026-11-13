@@ -8,6 +8,7 @@ import {
   type PrebillOrderItem,
   type PrebillRestaurant,
 } from "./prebill";
+import { saleLines } from "./dian/discountedLines";
 
 /**
  * Qué dice la precuenta, en números. Lo que hay que blindar: que sólo
@@ -167,6 +168,24 @@ describe("buildPrebillData — totales", () => {
     expect(d.discountCents).toBe(610_000);
     expect(d.netSubtotalCents).toBe(5_490_000);
     expect(d.totalCents).toBe(5_490_000);
+  });
+
+  it("con descuento, la base y el impuesto embebido son los NETOS: los mismos que congela la factura", () => {
+    const d = build({ discountPct: 10, discountCents: 1 });
+    // Mismo reparto que el XML (`saleLines`): 10 % menos en cada plato y
+    // cada neto partido con el 8 %.
+    const sale = saleLines(
+      order.items.map((i) => ({ ...i, cancelledAt: null })),
+      { kind: "inc", pct: 8 },
+      610_000,
+    );
+    expect(d.embeddedTax).toEqual({
+      kind: "inc",
+      pct: 8,
+      taxCents: sale.embedded.taxCents,
+      baseCents: sale.embedded.baseCents,
+    });
+    expect(d.embeddedTax!.taxCents + d.embeddedTax!.baseCents).toBe(5_490_000);
   });
 
   it("sin % pactado, el monto persistido vale pero nunca supera el subtotal", () => {

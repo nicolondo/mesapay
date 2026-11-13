@@ -196,6 +196,7 @@ export function LineEditSheet<L extends EditLine>({
     <AppDialog
       label={l.ingredientName}
       onClose={done}
+      dismissOnBackdrop={false}
       className="mp-sheet mp-sheet--md-center"
     >
       <div className="p-5 pb-4 overflow-y-auto max-h-[85dvh]" data-testid="recipe-line-sheet">

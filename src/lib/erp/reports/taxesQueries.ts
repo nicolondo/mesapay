@@ -43,7 +43,7 @@ import {
   receivedPurchaseLineAmounts,
 } from "@/lib/erp/purchaseTax";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
-import { saleTaxOfSnapshot } from "./saleTaxSnapshot";
+import { saleTaxOfSnapshot, undeclaredDiscountOf } from "./saleTaxSnapshot";
 import type { CreditNoteSnapshot } from "@/lib/dian/creditNotes/types";
 import {
   acceptedCreditNoteWhere,
@@ -175,6 +175,9 @@ function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
     invoiceSnapshot: snap,
     freeLines: toFreeLines(r.order.items),
   }).map(({ kind, pct, baseCents, taxCents }) => ({ kind, pct, baseCents, taxCents }));
+  // Factura vieja con descuento que declaró el precio de lista: cuánto de
+  // más (la revisión «descuentoSinDeclarar»). No cambia lo declarado.
+  const undeclaredDiscount = undeclaredDiscountOf(snap);
   return {
     invoiceId: r.id,
     document: formatInvoiceNumber(snap, r.invoiceNumber),
@@ -185,6 +188,7 @@ function saleTaxInputOf(r: SaleDocRow): SaleTaxInput {
     taxCents,
     ...(freeLineSlices.length > 0 ? { freeLineSlices } : {}),
     customer,
+    ...(undeclaredDiscount ? { undeclaredDiscount } : {}),
   };
 }
 

@@ -1787,8 +1787,8 @@ function RepresentacionSheet({
 
   return (
     <div
+      // Hoja del STAFF (cortesía con motivo): sin cierre al tocar afuera, un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
@@ -2483,8 +2483,8 @@ function OperatorCashSheet({
 
   return (
     <div
+      // Hoja del STAFF (cobro en efectivo): sin cierre al tocar afuera, un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
@@ -3598,8 +3598,8 @@ function CreditSheet({
   const overLimit = available != null && total > available;
   return (
     <div
+      // Hoja del STAFF (cobro a crédito): sin cierre al tocar afuera, un clic perdido borraba lo elegido.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"

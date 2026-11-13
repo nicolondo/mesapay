@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/invoiceProfiles";
 import { Field, Select } from "./InvoiceFields";
 import { ExtraEmailsField } from "./ExtraEmailsField";
+import { RememberConsent, SavedDataDisclosure } from "./RememberConsent";
 import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
 import { billingDocument, type BillingCustomerRecord } from "@/components/billingCustomers/types";
 import type { DocType, InvoiceRequestSummary } from "./types";
@@ -39,9 +40,10 @@ import { MAX_INVOICE_EMAILS } from "@/lib/invoiceEmails";
  *     Personal y encontrado → `form` con TODO cargado para revisar/corregir.
  *  3. No encontrado → `form`, como siempre.
  * En el formulario, la casilla "Recordar mis datos" (marcada por defecto,
- * fácil de desmarcar) con el enlace a la política de privacidad. El
- * personal además puede agregar correos adicionales (la factura sale a
- * todos; ver src/lib/invoiceEmails.ts).
+ * fácil de desmarcar) en una sola fila; la explicación y el enlace a la
+ * política de privacidad van plegados en "¿Qué guardamos?"
+ * (`RememberConsent`). El personal además puede agregar correos adicionales
+ * (la factura sale a todos; ver src/lib/invoiceEmails.ts).
  *
  * Se abre en dos momentos:
  *  - `beforePayment` (checkout): la orden todavía no está paga. Los datos se
@@ -101,7 +103,6 @@ export function InvoiceFormSheet({
 }) {
   const t = useTranslations("done");
   const router = useRouter();
-  const rememberId = useId();
   // Una solicitud previa con datos a la vista abre directo el formulario
   // para corregir. Una ENMASCARADA (armada con datos guardados) no se
   // precarga: se vuelve a empezar por el documento.
@@ -642,7 +643,7 @@ export function InvoiceFormSheet({
             >
               {t("invChangeMyData")}
             </button>
-            <p className="text-[11px] text-muted-2 text-center">{t("invPrivacy")}</p>
+            <SavedDataDisclosure />
           </div>
         )}
 
@@ -679,38 +680,13 @@ export function InvoiceFormSheet({
                 disabled={busy}
               />
             )}
-            <div className="rounded-xl border border-hairline bg-ivory p-3">
-              <label htmlFor={rememberId} className="flex items-start gap-3 text-sm">
-                <input
-                  id={rememberId}
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-terracotta"
-                />
-                <span>
-                  {operatorMode
-                    ? t("invRememberOp")
-                    : restaurantName
-                      ? t("invRemember", { restaurant: restaurantName })
-                      : t("invRememberGeneric")}
-                </span>
-              </label>
-              <p className="text-[11px] text-muted mt-1.5 pl-8">
-                {t.rich(operatorMode ? "invRememberPolicyOp" : "invRememberPolicy", {
-                  link: (chunks) => (
-                    <a
-                      href="/privacidad"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline underline-offset-2 hover:text-ink"
-                    >
-                      {chunks}
-                    </a>
-                  ),
-                })}
-              </p>
-            </div>
+            {/* Una sola fila: la casilla marcada y "¿Qué guardamos?" plegado. */}
+            <RememberConsent
+              checked={remember}
+              onCheckedChange={setRemember}
+              operatorMode={operatorMode}
+              restaurantName={restaurantName}
+            />
             {err && <div role="alert" className="text-sm text-danger">{err}</div>}
             <button
               type="button"
@@ -726,9 +702,6 @@ export function InvoiceFormSheet({
                   ? t("invRequestInvoice")
                   : t("invSendToRestaurant")}
             </button>
-            <p className="text-[11px] text-muted-2 text-center">
-              {t("invPrivacy")}
-            </p>
           </div>
         )}
       </div>

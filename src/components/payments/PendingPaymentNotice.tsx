@@ -9,7 +9,9 @@ import { usePaymentMethodLabel } from "@/lib/usePaymentMethodLabel";
 import { isCashMethod } from "@/lib/payments/methods";
 import { CashSettleModal } from "./CashSettleModal";
 import type { TerminalAttemptView } from "@/lib/payments/terminalAttempt";
+import type { BreBPendingView } from "@/lib/payments/breB/view";
 import { TerminalAttemptActions, useTerminalAttemptState } from "./TerminalAttemptActions";
+import { BreBPendingCard } from "./BreBPendingCard";
 
 /** Un pago `pending` de la cuenta, como lo necesita el aviso. */
 export type PendingPaymentView = {
@@ -40,6 +42,11 @@ export type PendingPaymentView = {
    * (`toTerminalAttemptView`, lib/payments/terminalAttempt.ts).
    */
   terminalAttempt?: TerminalAttemptView | null;
+  /**
+   * Bre-B: en qué va el QR (vigente con su vencimiento, o sin confirmar). Lo
+   * calcula el servidor (`breBPendingViews`, lib/payments/breB/service.ts).
+   */
+  breB?: BreBPendingView | null;
 };
 
 /**
@@ -61,6 +68,10 @@ export type PendingPaymentView = {
  *     datáfono» / «Cancelar y cobrar de otra forma» al instante; sin
  *     respuesta, el administrador puede resolver de inmediato (`canResolveTerminal`,
  *     nunca el mesero) tiene "Resolver cobro", con evidencia.
+ *   · Bre-B en curso (BreBPendingCard): hay un QR vivo que alguien puede
+ *     estar pagando. «Ver código» lo vuelve a mostrar, «Consultar estado»
+ *     trae el resultado real de Kushki y «Cancelar cobro» invalida el QR;
+ *     la cuenta se libera sólo cuando Kushki lo confirma.
  *
  * `chargeLocked`: "solo el administrador cobra" y quien mira es un mesero —
  * ve la solicitud pero no la acción (el servidor la rebotaría igual).
@@ -267,6 +278,18 @@ export function PendingPaymentNotice({
             disabled={disabled || busyId !== null}
             onChanged={() => (onCancelled ?? onRefresh)?.()}
             onRefresh={onRefresh}
+          />
+        ) : p.method === "kushki_bre_b" ? (
+          <BreBPendingCard
+            key={p.id}
+            pending={p}
+            amountLabel={money(p.amountCents)}
+            methodLabel={methodLabel(p.method)}
+            tenantSlug={tenantSlug}
+            chargeLocked={chargeLocked}
+            disabled={disabled || busyId !== null}
+            onApproved={(paid) => onConfirmed({ paid })}
+            onChanged={() => (onCancelled ?? onRefresh)?.()}
           />
         ) : (
           <div key={p.id} className="rounded-xl border border-op-border bg-op-bg p-3 space-y-1">

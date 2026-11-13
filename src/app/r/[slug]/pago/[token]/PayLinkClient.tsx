@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
+import { BreBSheet } from "@/components/payments/BreBSheet";
+import type { BreBChargeView } from "@/lib/payments/breB/view";
 
 /**
  * Cobro de un link de pago: selector de medio (según lo que el comercio
- * habilitó) + sub-flujo de Tarjeta (form), Apple Pay (sheet nativo) o
- * PSE (banco + redirect). Es el mismo flujo que el depósito de reserva
+ * habilitó) + sub-flujo de Tarjeta (form), Apple Pay (sheet nativo),
+ * PSE (banco + redirect) o Bre-B (QR en pantalla). Es el mismo flujo que el depósito de reserva
  * (ReservarClient) apuntando a /api/tenant/[slug]/pay-links/[token]; el
  * depósito sigue con su propia copia porque su formulario vive dentro de
  * la pantalla de reservar y moverlo es más riesgo que valor hoy.
@@ -35,6 +37,7 @@ const METHOD_NAMES: Record<string, string> = {
   kushki_card: "methodCard",
   kushki_pse: "methodPse",
   kushki_apple_pay: "methodApplePay",
+  kushki_bre_b: "methodBreB",
 };
 
 const inputCls =
@@ -117,6 +120,14 @@ export function PayLinkClient(props: Props) {
       </>
     );
   }
+  if (effective === "kushki_bre_b") {
+    return (
+      <>
+        <BreBPay {...props} onApproved={onApproved} />
+        {backBtn}
+      </>
+    );
+  }
   if (effective === "kushki_apple_pay") {
     return (
       <>
@@ -130,6 +141,85 @@ export function PayLinkClient(props: Props) {
       <CardForm {...props} onApproved={onApproved} />
       {backBtn}
     </>
+  );
+}
+
+/**
+ * Bre-B en un link de pago: genera el QR (o retoma el que ya está vigente:
+ * un solo código vivo por link) y lo muestra a pantalla completa. El link
+ * se cierra solo cuando Kushki confirma la transferencia.
+ */
+function BreBPay({ tenantSlug, token, amountLabel, onApproved }: Props & { onApproved: () => void }) {
+  const t = useTranslations("breB");
+  const [charge, setCharge] = useState<BreBChargeView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function start() {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay-links/${token}/bre-b`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { charge?: BreBChargeView; error?: string };
+      if (!res.ok || !j.charge) {
+        const key = typeof j.error === "string" ? `err_${j.error}` : "";
+        setMsg(key && t.has(key) ? t(key) : t("errStart"));
+        return;
+      }
+      setCharge(j.charge);
+    } catch {
+      setMsg(t("errNetwork"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-paper p-5 space-y-3 text-left">
+      <div className="text-sm font-medium text-ink">{t("titlePay")}</div>
+      <p className="text-xs text-muted">{t("linkIntro")}</p>
+      {msg && (
+        <div className="text-sm text-muted" role="status">
+          {msg}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={start}
+        disabled={busy}
+        className="w-full h-12 rounded-full bg-ink text-bone text-sm font-medium disabled:opacity-50"
+      >
+        {busy ? t("preparing") : t("linkCta", { amount: amountLabel })}
+      </button>
+      {charge && (
+        <BreBSheet
+          key={charge.chargeId}
+          source={{ kind: "link", tenantSlug, token, chargeId: charge.chargeId }}
+          initial={charge}
+          onApproved={() => {
+            setCharge(null);
+            onApproved();
+          }}
+          onClosed={(reason) => {
+            setCharge(null);
+            setMsg(
+              reason === "dismissed" || reason === "hidden"
+                ? t("notice.uncertain")
+                : t(`notice.${reason}`),
+            );
+          }}
+          onRetry={() => {
+            setCharge(null);
+            void start();
+          }}
+        />
+      )}
+    </div>
   );
 }
 

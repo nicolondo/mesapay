@@ -241,6 +241,7 @@ const PAY_METHOD_KEYS: Record<string, string> = {
   kushki_card_terminal: "mKushkiCardTerminal",
   kushki_card: "mKushkiCard",
   kushki_pse: "mKushkiPse",
+  kushki_bre_b: "mKushkiBreB",
   external_terminal: "mExternalTerminal",
   reservation_deposit: "mReservationDeposit",
   voucher: "mVoucher",

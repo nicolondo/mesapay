@@ -76,6 +76,7 @@ const PAYMENT_METHOD_KEY: Record<string, string> = {
   external_terminal: "methodExternalTerminal",
   wompi_pse: "methodPse",
   kushki_pse: "methodPse",
+  kushki_bre_b: "methodBreB",
   wompi_nequi: "methodNequi",
   reservation_deposit: "methodDeposit",
   voucher: "methodVoucher",

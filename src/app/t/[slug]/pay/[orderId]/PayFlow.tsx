@@ -6,7 +6,8 @@ import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { offerablePaymentMethods } from "@/lib/paymentMethods";
+import { breBPendingViews } from "@/lib/payments/breB/service";
 import { isModuleEnabled } from "@/lib/modules";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import {
@@ -156,8 +157,12 @@ export async function PayFlow({
   // curso, sin acción.
   // `replaceable`: el datáfono Kushki pedido que nadie envió al equipo es una
   // solicitud (se cancela o se reemplaza); ya enviado, es un cobro en curso.
+  const pendingRows = operatorMode ? order.payments.filter((p) => p.status === "pending") : [];
+  // Bre-B en curso: en qué va su QR (vigente, sin confirmar), para ofrecer
+  // «Ver código», «Consultar estado» y «Cancelar cobro».
+  const breBPending = await breBPendingViews(db, pendingRows);
   const pendingPayments = operatorMode
-    ? (await withReplaceable(db, order.payments.filter((p) => p.status === "pending"))).map((p) => ({
+    ? (await withReplaceable(db, pendingRows)).map((p) => ({
         id: p.id,
         method: p.method,
         amountCents: p.amountCents,
@@ -168,6 +173,7 @@ export async function PayFlow({
         reconciliationRequired: p.reconciliationRequired,
         pushedAt: p.pushedAt?.toISOString() ?? null,
         terminalAttempt: p.terminalAttempt,
+        breB: breBPending.get(p.id) ?? null,
       }))
     : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
@@ -195,9 +201,9 @@ export async function PayFlow({
   // todos — aunque casi nadie use PSE. El PseSheet del cliente pide la lista
   // solo cuando el diner abre PSE (GET /pay/pse-banks, ahora con caché),
   // así "Pagar" abre al instante.
-  const enabledMethods = resolveEnabledPaymentMethods(
-    tenant.enabledPaymentMethods,
-  );
+  // Habilitados Y ofrecibles: Bre-B sólo si además están cargadas las llaves
+  // de su comercio (otro comercio de Kushki que el de tarjeta/PSE).
+  const enabledMethods = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant);
   const pseBanks: Array<{ code: string; name: string }> = [];
 
   // Mesero usa su propia PWA con bottom nav (Salón/Cobros/Mesas) y

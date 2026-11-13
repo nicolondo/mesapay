@@ -76,7 +76,7 @@ export function MixPanel({
   const channelItems: BarItem[] = channels.map((c) => {
     const name = channelLabel(c.channel, t, counterMode);
     const pct = share(c.netCents, totalChannels);
-    const ticket = c.orders > 0 ? Math.round(c.netCents / c.orders) : null;
+    const ticket = c.orders > 0 ? Math.round(c.accountNetCents / c.orders) : null;
     return {
       key: c.channel,
       label: name,
@@ -113,7 +113,7 @@ export function MixPanel({
         rows: [
           { value: formatValue(x.netCents, money), label: t("kpi.net") },
           { value: formatValue(x.orders, count), label: t("kpi.orders") },
-          ...(x.orders > 0 ? [{ value: formatValue(Math.round(x.netCents / x.orders), money), label: t("kpi.avgTicket") }] : []),
+          ...(x.orders > 0 ? [{ value: formatValue(Math.round(x.accountNetCents / x.orders), money), label: t("kpi.avgTicket") }] : []),
         ],
         hint: t("clickToFilter"),
       },

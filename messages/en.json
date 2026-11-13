@@ -9585,6 +9585,7 @@
     "periodLabel": "Period",
     "compareLabel": "Compare with",
     "granularityLabel": "Group by",
+    "axisLabel": "Show sales by",
     "from": "From",
     "to": "To",
     "apply": "Apply",
@@ -9601,6 +9602,8 @@
     "tableNumber": "Table {number}",
     "comparedWith": "compared with {period}",
     "businessDayHint": "Business days: each day runs from {hour}:00 to {hour}:00 the next day, by payment time.",
+    "businessDayHintOrder": "Business days: each day runs from {hour}:00 to {hour}:00 the next day, by the time each order was placed.",
+    "axisNote": "That's why a day's totals can differ from the cash close-out and the accounting, which go by payment time.",
     "itemFilterNotice": "Product or category filter: money figures cover only those lines (with their share of discount and tax). Checks and diners are those of the checks that include them; tips, commissions, credit notes and refunds don't apply because they belong to the whole check.",
     "deltaNote": "Arrows compare with {period}. Green = better, red = worse (for discounts and returns, going up is worse).",
     "vsCompare": "versus {period}",
@@ -9644,6 +9647,10 @@
       "dia": "Day",
       "semana": "Week",
       "mes": "Month"
+    },
+    "axis": {
+      "pedido": "Order time",
+      "pago": "Payment time"
     },
     "channel": {
       "salon": "Dining room",
@@ -9827,7 +9834,9 @@
     "orders": {
       "title": "Checks of the day",
       "subtitle": "{count, plural, one {# check} other {# checks}}, newest first. Open any of them to see the detail.",
+      "subtitleOrder": "{count, plural, one {# check} other {# checks}} with orders in the period, by opening time (latest first). Open any of them to see the detail.",
       "itemFilterNote": "Checks that include the filtered product or category; net sales cover only those lines.",
+      "placedAt": "Ordered",
       "paidAt": "Paid",
       "account": "Check",
       "where": "Table or channel",
@@ -9850,13 +9859,19 @@
       "modifierGroup": "Group",
       "modifierOption": "Option",
       "productsCount": "Products",
-      "payments": "Payments"
+      "payments": "Payments",
+      "placedAtCol": "Order time",
+      "paidAtCol": "Payment time"
     },
     "def": {
       "title": "How is each figure calculated?",
       "sale": {
         "term": "Sale",
-        "body": "A paid check, counted on the business day of its payment. A fully comped check closes at $0: it is not a sale and goes to comps."
+        "body": "A paid check. It counts on the day and at the hour it was ordered or paid, depending on what you pick in “Show sales by”. A fully comped check closes at $0: it is not a sale and goes to comps."
+      },
+      "timeAxis": {
+        "term": "Order time or payment time",
+        "body": "With “Order time” (the default) each dish counts on the day and at the hour its round was placed: a table that ordered at 8 p.m. and ordered again at 10 p.m. splits its sales between those two hours. What belongs to the check (checks, diners, average check, tip, commission and payments) counts only once, at its first round. A check placed in the period and paid later counts in the period it was ordered as soon as it's paid; while it's still open, it doesn't count. With “Payment time” the whole check counts when it was paid, as in the cash close-out and the accounting. Credit notes and refunds always go by their own date."
       },
       "net": {
         "term": "Net sales",
@@ -9888,15 +9903,15 @@
       },
       "orders": {
         "term": "Checks and diners",
-        "body": "Paid checks in the period (excluding full comps) and the sum of diners recorded on each."
+        "body": "Paid checks in the period (excluding full comps) and the sum of diners recorded on each. Each check counts only once: with “Order time”, at its first round."
       },
       "ticket": {
         "term": "Average check",
-        "body": "Net sales divided by checks; per diner, divided by diners."
+        "body": "Net sales of those checks, each one in full, divided by checks; per diner, divided by diners."
       },
       "units": {
         "term": "Items per check",
-        "body": "Menu units (excluding free lines) divided by checks."
+        "body": "Menu units (excluding free lines) of those checks, divided by checks."
       },
       "tableTime": {
         "term": "Table time",
@@ -9916,7 +9931,7 @@
       },
       "businessDay": {
         "term": "Business day",
-        "body": "Each day runs from {hour}:00 to {hour}:00 the next day (Colombia time), by payment time: what is collected after midnight counts for the previous night."
+        "body": "Each day runs from {hour}:00 to {hour}:00 the next day (Colombia time), by order time or by payment time: what happens after midnight counts for the previous night."
       }
     }
   },

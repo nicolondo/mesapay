@@ -1546,6 +1546,18 @@ a.mp-viz-heat-cell:focus-visible {
   height: 40px;
   margin-left: auto;
 }
+/* Interruptor «Hora del pedido / Hora del pago»: en el celular ocupa el
+   ancho, mitad y mitad. Doble clase: .mp-seg se declara después (globals.css). */
+@media (max-width: 639px) {
+  .mp-seg.mp-sales-axis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-sales-axis .mp-seg__i {
+    justify-content: center;
+    padding: 0 10px;
+  }
+}
 .mp-sales-dims {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

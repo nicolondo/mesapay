@@ -132,6 +132,8 @@ describe("indicadores derivados", () => {
     expect(totals).toEqual({
       orders: 2, diners: 5, units: 3, grossCents: 10_000_000, discountCents: 400_000,
       taxCents: 0, netCents: 9_600_000, tipCents: 600_000, compsCents: 900_000,
+      // Con la cuenta entera en un solo instante (eje «pago»), lo contado es todo.
+      accountNetCents: 9_600_000, accountUnits: 3,
     });
   });
 
@@ -142,6 +144,18 @@ describe("indicadores derivados", () => {
     expect(k.unitsPerOrder).toBe(1.5);
     expect(k.discountsAndCompsCents).toBe(1_300_000);
     expect(k.returnsCents).toBeNull();
+  });
+
+  it("con «Hora del pedido» lo «por cuenta» usa las cuentas contadas enteras, no la venta del período", () => {
+    // Una cuenta abierta en el período (vendió 600, 200 de ellos pedidos el día
+    // siguiente) y la ronda de hoy de una abierta ayer (300).
+    const k = deriveKpis({
+      ...sumSaleFacts([]), orders: 1, diners: 2, units: 3, netCents: 700, accountNetCents: 600, accountUnits: 4,
+    }, null, null);
+    expect(k.netCents).toBe(700);
+    expect(k.avgTicketCents).toBe(600);
+    expect(k.avgPerDinerCents).toBe(300);
+    expect(k.unitsPerOrder).toBe(4);
   });
 
   it("sin cuentas los promedios quedan vacíos, no en cero", () => {

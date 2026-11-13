@@ -55,6 +55,7 @@ function scopeFor(input: SalesAnalysisInput, range: DayRange): SalesScope {
     cutoffHour: input.cutoffHour,
     tax: input.tax,
     dims: input.filters.dims,
+    axis: input.filters.axis,
   };
 }
 

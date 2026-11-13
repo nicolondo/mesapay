@@ -73,7 +73,9 @@ export type InvoiceSnapshot = {
    * comercio vigente al emitir. Es lo que declara el XML a la DIAN y lo que
    * suma la contabilidad: cambiar la tarifa del comercio después no toca
    * esta factura. `embeddedBaseCents` = Σ bruto de los platos − impuesto
-   * (mismo reparto por línea que el XML, ver `dian/emit.embeddedMenuTax`).
+   * (mismo reparto por línea que el XML, ver `dian/discountedLines.ts`).
+   * Con `discountInLines` los dos son NETOS del descuento del cliente
+   * (como el XML); sin la marca, los del precio de lista.
    *
    * Opcionales: los snapshots anteriores a esto no los tienen y se leen
    * como "sin impuesto embebido" — que es la verdad de cómo se emitieron
@@ -88,6 +90,31 @@ export type InvoiceSnapshot = {
   // antes de esta feature no lo tienen y el renderer lo trata como 0.
   discountCents?: number;
   discountPct?: number | null;
+  /**
+   * El descuento del cliente va DENTRO de las líneas de la factura
+   * electrónica (`cac:InvoiceLine/cac:AllowanceCharge`, ver
+   * `dian/discountedLines.ts`): cada línea declara su valor neto y el
+   * impuesto sobre ese neto. Con esta marca, `embeddedTaxCents` y
+   * `embeddedBaseCents` son NETOS del descuento — lo mismo que el XML — y
+   * el papel muestra el descuento antes de la base y el impuesto.
+   *
+   * Ausente con `discountCents` > 0 ⇒ factura anterior al arreglo: el XML
+   * que la DIAN aceptó declaró el precio de lista (base e impuesto de más) y
+   * el snapshot dice lo mismo. Esas no se reescriben: las lista la revisión
+   * «Facturas que declararon el valor sin el descuento del cliente» de
+   * Impuestos del período (`undeclaredDiscountOf`).
+   */
+  discountInLines?: {
+    /** Σ de los descuentos de línea declarados, sin impuesto. */
+    allowanceCents: number;
+    /**
+     * Sólo si alguna línea libre con impuesto ENCIMA absorbió descuento (un
+     * descuento mayor que todos los platos): lo que esas líneas declaran,
+     * por tarifa. Ausente en el caso normal, donde esas líneas quedan como
+     * se cobraron y su impuesto es `taxByKind`.
+     */
+    freeLineTax?: Array<{ kind: "inc" | "iva"; pct: number; baseCents: number; taxCents: number }>;
+  };
   tipCents: number;
   totalCents: number;
   // Datos del cliente cuando la factura es PERSONALIZADA (con razón social /
@@ -160,6 +187,13 @@ export function embeddedTaxOf(
   const taxCents = snapshot.embeddedTaxCents ?? 0;
   if (kind === "none" || taxCents <= 0) return null;
   return { kind, pct, taxCents, baseCents: snapshot.embeddedBaseCents ?? 0 };
+}
+
+/** ¿La factura declara el descuento del cliente dentro de sus líneas? */
+export function declaresDiscountInLines(
+  snapshot: Pick<InvoiceSnapshot, "discountInLines"> | null | undefined,
+): boolean {
+  return snapshot?.discountInLines != null;
 }
 
 /** Etiquetas ya traducidas para `taxRows` (ver ahí por qué no el translator). */
@@ -241,6 +275,55 @@ export function taxLabelsFrom(
     incIncluded: (pct) => t("taxIncIncluded", { pct }),
     ivaIncluded: (pct) => t("taxIvaIncluded", { pct }),
   };
+}
+
+/** `TaxRowLabels` + la fila del descuento, para `summaryRows`. */
+export type SummaryRowLabels = TaxRowLabels & {
+  discount: string;
+  discountPct: (pct: number) => string;
+};
+
+/** Etiquetas de `summaryRows` del catálogo `emailInvoice` (mismas claves en las cuatro superficies). */
+export function summaryLabelsFrom(
+  t: (key: string, values?: Record<string, string | number>) => string,
+): SummaryRowLabels {
+  return {
+    ...taxLabelsFrom(t),
+    discount: t("discountRow"),
+    discountPct: (pct) => t("discountRowPct", { pct }),
+  };
+}
+
+/** Una fila entre el subtotal y la propina. `negative` = se resta (el descuento). */
+export type SummaryRow = { label: string; cents: number; negative?: boolean };
+
+/**
+ * Las filas que la factura muestra entre el SUBTOTAL y la PROPINA, en
+ * orden: el descuento del cliente y las de impuesto (`taxRows`). Es la
+ * única definición para las cuatro superficies (tirilla térmica,
+ * `/factura/[id]`, datáfono y correo), así no pueden ordenarse distinto.
+ *
+ *   · Factura con el descuento EN LAS LÍNEAS (`declaresDiscountInLines`):
+ *     primero el descuento y después la base gravable y el impuesto, que
+ *     ya son NETOS — es el orden en que se calculan y lo que declara el
+ *     XML (Subtotal − Descuento = lo que se cobró; de eso sale la base).
+ *   · Factura anterior (o sin descuento): las filas de impuesto y después
+ *     el descuento, byte a byte como siempre se imprimieron: su base y su
+ *     impuesto son los del precio de lista, que es lo que declararon.
+ */
+export function summaryRows(
+  snapshot: InvoiceSnapshot,
+  labels: SummaryRowLabels,
+): SummaryRow[] {
+  const taxes: SummaryRow[] = taxRows(snapshot, labels);
+  const discountCents = snapshot.discountCents ?? 0;
+  if (discountCents <= 0) return taxes;
+  const discount: SummaryRow = {
+    label: snapshot.discountPct ? labels.discountPct(snapshot.discountPct) : labels.discount,
+    cents: discountCents,
+    negative: true,
+  };
+  return declaresDiscountInLines(snapshot) ? [discount, ...taxes] : [...taxes, discount];
 }
 
 /**
@@ -390,8 +473,10 @@ export async function renderInvoiceEmail(args: {
     ]),
     "",
     `${t("subtotal")}: ${fmtCOP(snapshot.subtotalCents)}`,
-    ...taxRows(snapshot, taxLabelsFrom(t)).map(
-      (r) => `${r.label}: ${fmtCOP(r.cents)}`,
+    // Descuento y filas de impuesto, en el orden de la factura (antes el
+    // correo no mostraba el descuento y el total no cuadraba a la vista).
+    ...summaryRows(snapshot, summaryLabelsFrom(t)).map(
+      (r) => `${r.label}: ${r.negative ? "-" : ""}${fmtCOP(r.cents)}`,
     ),
     snapshot.tipCents > 0
       ? `${t("tip")}: ${fmtCOP(snapshot.tipCents)}`
@@ -661,10 +746,10 @@ function renderHtml(args: {
                       <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("subtotal"))}</td>
                       <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.subtotalCents)}</td>
                     </tr>
-                    ${taxRows(snapshot, taxLabelsFrom(t))
+                    ${summaryRows(snapshot, summaryLabelsFrom(t))
                       .map(
                         (r) =>
-                          `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(r.cents)}</td></tr>`,
+                          `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${r.negative ? "-" : ""}${fmtCOP(r.cents)}</td></tr>`,
                       )
                       .join("")}
                     ${

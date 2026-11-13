@@ -66,22 +66,21 @@ export function OperatorCockpit({
     setDrawerOpen(false);
   }
 
-  const rail = (
-    <Rail
-      navItems={navItems}
-      boardActivity={boardActivity}
-      roleLabel={roleLabel}
-      tenantName={tenantName}
-      userEmail={userEmail}
-      isAdmin={isAdmin}
-      localeSwitcher={localeSwitcher}
-      signOut={signOut}
-      activeHref={activeHref}
-      locationKey={locationKey}
-      adminLabel={t("adminLink")}
-      liveLabel={t("liveSection")}
-    />
-  );
+  const railProps = {
+    navItems,
+    boardActivity,
+    roleLabel,
+    tenantName,
+    userEmail,
+    isAdmin,
+    localeSwitcher,
+    signOut,
+    activeHref,
+    locationKey,
+    adminLabel: t("adminLink"),
+    liveLabel: t("liveSection"),
+    accountLabel: t("accountSection"),
+  };
 
   return (
     <div className="op-app-shell md:grid md:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[264px_minmax(0,1fr)] bg-op-bg text-op-text overflow-hidden">
@@ -94,7 +93,7 @@ export function OperatorCockpit({
         className="hidden md:flex print:hidden sticky top-0 h-full min-h-0"
         style={WORKSPACE_RAIL_THEME}
       >
-        {rail}
+        <Rail {...railProps} />
       </aside>
 
       {/* Columna de contenido */}
@@ -175,7 +174,7 @@ export function OperatorCockpit({
           >
             <Icon name="close" />
           </button>
-          {rail}
+          <Rail {...railProps} inDrawer />
         </AppDialog>
       )}
     </div>
@@ -197,6 +196,8 @@ function Rail({
   locationKey,
   adminLabel,
   liveLabel,
+  accountLabel,
+  inDrawer = false,
 }: {
   navItems: NavEntry[];
   boardActivity?: BoardActivity;
@@ -212,6 +213,13 @@ function Rail({
   locationKey: string;
   adminLabel: string;
   liveLabel: string;
+  /** Nombre accesible del bloque de cuenta (usuario + idioma + salir). */
+  accountLabel: string;
+  /**
+   * `true` en el cajón del celular: el bloque de cuenta va ARRIBA, debajo de
+   * la marca, en vez de al pie. Ver `account` más abajo.
+   */
+  inDrawer?: boolean;
 }) {
   // Los tableros en vivo (con BoardDot) van arriba, separados del resto.
   const boards = navItems.filter(
@@ -226,9 +234,55 @@ function Rail({
       (it.href !== "/operator" && !(it.href in BOARD_BY_HREF)),
   );
 
+  // Cuenta: quién soy + idioma + cerrar sesión. Nunca dentro del área que
+  // hace scroll. En escritorio es el pie del riel. En el cajón del celular va
+  // arriba, pegado a la marca: el dueño reportó que en el celular no
+  // encontraba cómo cerrar sesión, y el pie del cajón es justo la franja que
+  // el navegador puede tapar (barra de Safari, indicador de inicio; WebKit a
+  // veces mide `100dvh` más alto que lo visible con la barra desplegada, y
+  // acá no hay scroll que rescate lo que quede debajo). Arriba se ve apenas
+  // se abre el menú y no depende de cómo mida el viewport cada navegador —
+  // igual que «Salir» en los demás shells, que vive en la cabecera.
+  // El selector de idioma comparte fila con «Cerrar sesión» (en su propia
+  // fila dejaba una franja vacía del ancho del cajón).
+  const account = (
+    <div
+      role="group"
+      aria-label={accountLabel}
+      className={
+        inDrawer
+          ? "mp-rail-footer mp-rail-account mp-rail-account--top"
+          : "mp-rail-footer mp-rail-account"
+      }
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="mp-user-avatar">
+          {(userEmail[0] || "?").toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{tenantName}</div>
+          <div
+            className="text-xs truncate"
+            style={{ color: "var(--rail-muted)" }}
+          >
+            {userEmail}
+          </div>
+        </div>
+      </div>
+      <div className="mp-rail-session">
+        {localeSwitcher}
+        {signOut}
+      </div>
+    </div>
+  );
+
   return (
     <div
-      className="mp-rail flex w-full min-h-0 flex-col"
+      className={
+        inDrawer
+          ? "mp-rail mp-rail--drawer flex w-full min-h-0 flex-col"
+          : "mp-rail flex w-full min-h-0 flex-col"
+      }
       style={{
         background: "var(--rail)",
         borderRight: "1px solid var(--rail-line)",
@@ -237,7 +291,7 @@ function Rail({
     >
       {/* Marca */}
       <div
-        className="px-5 pt-6 pb-5"
+        className="mp-rail-brand shrink-0 px-5 pt-6 pb-5"
         style={{ borderBottom: "1px solid var(--rail-line)" }}
       >
         <div
@@ -252,8 +306,10 @@ function Rail({
         </div>
       </div>
 
+      {inDrawer && account}
+
       {/* Scroll de nav */}
-      <div className="flex-1 overflow-y-auto px-3 pt-4 pb-3">
+      <div className="mp-rail-nav min-h-0 flex-1 overflow-y-auto px-3 pt-4 pb-3">
         {/* Pulso: tableros en vivo */}
         <div
           className="rounded-[14px] p-1.5 mb-1.5"
@@ -312,29 +368,7 @@ function Rail({
         </nav>
       </div>
 
-      {/* Pie: usuario + idioma + salir. El selector de idioma vivía en su
-          propia fila y dejaba una franja vacía del ancho del cajón para una
-          pastilla de dos palabras; va en la misma fila del usuario. */}
-      <div className="mp-rail-footer">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="mp-user-avatar">
-            {(userEmail[0] || "?").toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium truncate">{tenantName}</div>
-            <div
-              className="text-xs truncate"
-              style={{ color: "var(--rail-muted)" }}
-            >
-              {userEmail}
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          {localeSwitcher}
-          {signOut}
-        </div>
-      </div>
+      {!inDrawer && account}
     </div>
   );
 }

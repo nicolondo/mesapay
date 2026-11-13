@@ -77,7 +77,25 @@ const supplierSelect = { id: true, name: true, taxId: true, taxIdType: true, per
  */
 export function saleFromSnapshot(snap: InvoiceSnapshot, customer: Tercero | null): SaleInput {
   const frozen = frozenSalesTax(snap);
+  // Con el descuento en las líneas (`discountInLines`) el impuesto embebido
+  // ya es NETO: base = subtotal − descuento − impuesto, igual que antes y
+  // ahora sí lo que declaró el XML.
   const embedded = frozen.kind === "none" ? 0 : (snap.embeddedTaxCents ?? 0);
+  // Caso raro: el descuento alcanzó a líneas libres con impuesto encima. Lo
+  // que declaró la factura por ellas es `freeLineTax` (neto), no lo cobrado
+  // encima (`taxByKind`); la base sale de lo cobrado menos los impuestos.
+  const declaredFree = snap.discountInLines?.freeLineTax;
+  if (declaredFree) {
+    const freeIva = declaredFree.filter((s) => s.kind === "iva").reduce((a, s) => a + s.taxCents, 0);
+    const freeInc = declaredFree.filter((s) => s.kind === "inc").reduce((a, s) => a + s.taxCents, 0);
+    const charged = snap.subtotalCents - (snap.discountCents ?? 0) + (snap.taxCents ?? 0);
+    return {
+      customer,
+      baseCents: Math.max(0, charged - embedded - freeIva - freeInc),
+      ivaCents: (frozen.kind === "iva" ? embedded : 0) + freeIva,
+      incCents: (frozen.kind === "inc" ? embedded : 0) + freeInc,
+    };
+  }
   const free = snap.taxByKind ?? {
     inc: frozen.kind === "inc" ? (snap.taxCents ?? 0) : 0,
     iva: frozen.kind === "inc" ? 0 : (snap.taxCents ?? 0),

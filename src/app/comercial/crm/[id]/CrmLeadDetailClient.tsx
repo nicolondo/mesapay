@@ -177,13 +177,25 @@ function activityIcon(type: string): React.ReactNode {
 
 // ── Sheet primitives ───────────────────────────────────────────────────────
 
-function Overlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function Overlay({
+  onClose,
+  dismissOnBackdrop = true,
+  children,
+}: {
+  onClose: () => void;
+  /**
+   * `false` en los formularios: tocar afuera NO cierra (un clic perdido
+   * borraba lo digitado); se sale con ✕ o guardando.
+   */
+  dismissOnBackdrop?: boolean;
+  children: React.ReactNode;
+}) {
   // position: fixed en el body: `overflow: hidden` no frena el scroll
   // táctil en iOS y el dedo sobre el panel movía la página de atrás.
   useLockBodyScroll(true);
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={dismissOnBackdrop ? onClose : undefined} aria-hidden="true" />
       {children}
     </div>
   );
@@ -277,7 +289,7 @@ function StageSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("changeStageTitle")} onClose={onClose} />
@@ -336,7 +348,7 @@ function NextActionSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("nextActionTitle")} onClose={onClose} />
@@ -432,7 +444,7 @@ function ContactSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={isEdit ? t("editContactTitle") : t("addContactTitle")} onClose={onClose} />
@@ -545,7 +557,7 @@ function BizSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("editBizTitle")} onClose={onClose} />
@@ -667,7 +679,7 @@ function ActivitySheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("addActivityTitle")} onClose={onClose} />
@@ -737,7 +749,7 @@ function ReassignSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("reassignTitle")} onClose={onClose} />
@@ -817,7 +829,7 @@ function AppointmentSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("appointNewTitle")} onClose={onClose} />
@@ -1051,7 +1063,7 @@ function WhatsappSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("waSendTitle")} onClose={onClose} />
@@ -1240,7 +1252,7 @@ function EmailSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("sendEmailTitle")} onClose={onClose} />
@@ -1434,7 +1446,7 @@ function ConvertSheet({
   ];
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} dismissOnBackdrop={false}>
       <SheetContent>
         <SheetHandle />
         <SheetHeader title={t("convertTitle")} onClose={onClose} />

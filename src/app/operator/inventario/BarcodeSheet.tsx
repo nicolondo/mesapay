@@ -65,7 +65,7 @@ export function BarcodeSheet({ ingredient, onClose, onSaved }: {
   }
 
   return (
-    <AppDialog label={t("barcodeSheetTitle")} onClose={() => { if (!busy) onClose(); }} className="mp-sheet mp-sheet--md-center">
+    <AppDialog label={t("barcodeSheetTitle")} onClose={() => { if (!busy) onClose(); }} dismissOnBackdrop={false} className="mp-sheet mp-sheet--md-center">
       <div className="flex max-h-[85dvh] flex-col">
         <div className="flex items-start justify-between gap-3 border-b border-op-border py-4 pl-5 pr-3">
           <div className="min-w-0">

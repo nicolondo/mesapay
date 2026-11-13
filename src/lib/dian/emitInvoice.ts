@@ -37,8 +37,8 @@ import {
   claimDianDocument,
   customerPartyFor,
   invoicePaymentMeans,
-  orderToInvoiceLines,
 } from "@/lib/dian/emit";
+import { saleLines, withDiscountInLines } from "@/lib/dian/discountedLines";
 import { dianIssueDateTime, dianSigningTime } from "@/lib/dian/dianDateTime";
 import {
   BLOCKED_RETRY_MS,
@@ -181,6 +181,10 @@ export async function emitDianInvoice(opts: {
               cancelledAt: null,
               OR: [{ roundId: null }, { round: { status: { not: "cancelled" } } }],
             },
+            // El mismo orden que la tirilla (`issueSimpleInvoice`): el reparto
+            // del descuento por resto mayor desempata por posición, y el XML
+            // tiene que repartirlo igual que el snapshot.
+            orderBy: { id: "asc" },
             select: {
               id: true,
               nameSnapshot: true,
@@ -317,7 +321,13 @@ export async function emitDianInvoice(opts: {
       live: invoicedItems.length,
     });
   }
-  const lines = orderToInvoiceLines(invoicedItems, frozenSalesTax(snap));
+  // El descuento del cliente va DENTRO de las líneas (Anexo Técnico FBE01:
+  // el descuento que baja la base se informa a nivel de ítem; ver
+  // `discountedLines.ts`): cada línea declara su neto y el impuesto sobre el
+  // neto, y PayableAmount es lo que se cobró. Sale del snapshot (congelado al
+  // emitir la tirilla), no de la orden de hoy.
+  const sale = saleLines(invoicedItems, frozenSalesTax(snap), snap.discountCents ?? 0);
+  const lines = sale.lines;
   if (lines.length === 0) return blocked("no_lines");
 
   const input: DianInvoiceInput = {
@@ -414,6 +424,16 @@ export async function emitDianInvoice(opts: {
     }
   }
 
+  // Factura con descuento emitida ANTES del arreglo y que la DIAN no tiene
+  // aceptada (rechazada, con error o sin enviar; lo de arriba ya preguntó
+  // por el envío anterior): este envío declara el descuento en las líneas,
+  // así que el snapshot —que leen el papel, la contabilidad y los
+  // reportes— pasa a decir lo mismo. Se guarda ANTES de enviar (adentro del
+  // try: si falla, el documento queda en error con backoff como cualquier
+  // otro fallo): si la DIAN la acepta, la factura se imprime de una vez con
+  // esas cifras.
+  const upgraded = withDiscountInLines(snap, sale);
+
   // De acá en adelante se firma y se envía. Cualquier excepción (firma,
   // zip, red fuera del parser SOAP) deja el documento en `error` con
   // backoff, igual que un error de canal: reclamado para siempre no.
@@ -421,6 +441,12 @@ export async function emitDianInvoice(opts: {
   let zip: Buffer;
   let result: Awaited<ReturnType<typeof sendBillSync>>;
   try {
+    if (upgraded) {
+      await db.simpleInvoice.update({
+        where: { id: inv.id },
+        data: { snapshot: upgraded as unknown as object },
+      });
+    }
     built = buildDianInvoiceXml(input);
     // La firma declara el MISMO instante que el IssueDate: si el envío
     // cruzara la medianoche, firma y factura no pueden quedar en días
@@ -486,6 +512,14 @@ export async function emitDianInvoice(opts: {
         xmlZip: new Uint8Array(zip),
       },
     });
+    // La que quedó aceptada es la de un envío ANTERIOR (sin el descuento en
+    // las líneas): el snapshot vuelve a decir lo que declaró ese XML.
+    if (upgraded && r.outcome === "accepted" && r.cufe !== built.cufe) {
+      await db.simpleInvoice.update({
+        where: { id: inv.id },
+        data: { snapshot: inv.snapshot as unknown as object },
+      });
+    }
     return r.outcome === "accepted"
       ? {
           outcome: "accepted",

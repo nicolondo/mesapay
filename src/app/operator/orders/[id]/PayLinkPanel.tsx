@@ -198,7 +198,7 @@ export function PayLinkPanel({
       )}
 
       {open && (
-        <AppDialog label={t("payLinkButton")} onClose={() => setOpen(false)} placement="center" className="rounded-2xl">
+        <AppDialog label={t("payLinkButton")} onClose={() => setOpen(false)} dismissOnBackdrop={false} placement="center" className="rounded-2xl">
           <div className="p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>

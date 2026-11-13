@@ -419,7 +419,11 @@ function DetailSheet({
   return (
     <div
       className="fixed inset-0 z-40 bg-ink/70 flex items-end md:items-center justify-center"
-      onClick={onClose}
+      // El detalle es de consulta y cierra al tocar afuera; con el cobro en
+      // efectivo abierto NO, porque un clic perdido borraba lo digitado.
+      onClick={() => {
+        if (cashFormFor === null) onClose();
+      }}
     >
       <div
         className="w-full md:max-w-lg bg-bone text-ink rounded-t-3xl md:rounded-3xl max-h-[90dvh] overflow-y-auto"

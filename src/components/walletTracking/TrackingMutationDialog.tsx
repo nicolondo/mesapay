@@ -50,7 +50,7 @@ export function TrackingMutationDialog({ tracking, candidate, onClose, onSaved }
   }
   const canEdit = !busy && (!tracking.pending || ["invalid_payload", "tracking_source_ineligible", "tracking_source_not_found", "unsafe_money", "tracking_history_changed"].includes(error ?? ""));
   const title = t(candidate ? "incorporateTitle" : "adjustmentTitle");
-  return <AppDialog label={title} placement="center" onClose={() => { if (!busy) onClose(); }} className="rounded-2xl bg-op-surface text-op-text"><div className="p-5 md:p-6">
+  return <AppDialog label={title} placement="center" onClose={() => { if (!busy) onClose(); }} dismissOnBackdrop={false} className="rounded-2xl bg-op-surface text-op-text"><div className="p-5 md:p-6">
     <header className="flex items-start justify-between gap-4"><h2 className="font-display text-2xl">{title}</h2><button type="button" className="min-h-11 px-2 text-sm text-op-muted" disabled={busy} onClick={onClose}>{t("close")}</button></header>
     <p className="mt-3 text-sm leading-relaxed text-op-muted">{t(candidate ? "historyFormHint" : "adjustmentHint")}</p>
     {error && <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{t(t.has("errors." + error) ? "errors." + error : "errors.tracking_unavailable")}</p>}

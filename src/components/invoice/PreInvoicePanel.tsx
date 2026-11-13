@@ -245,8 +245,8 @@ export function PreInvoiceAction({
 
       {open && step === "confirm" && (
         <div
+          // Sin cierre al tocar afuera: emitir la factura se decide con los botones de la hoja.
           className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
-          onClick={() => !busy && close()}
         >
           <div
             role="dialog"

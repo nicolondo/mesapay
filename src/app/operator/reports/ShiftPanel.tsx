@@ -487,7 +487,7 @@ function OpenShiftSheet({
   }
 
   return (
-    <Backdrop onClose={onClose}>
+    <Backdrop>
       <SheetTitle title={t("openShift")} subtitle={t("openShiftSheetSubtitle")} />
       <label className="block">
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted">
@@ -596,7 +596,7 @@ function CloseShiftSheet({
         : t("differenceShort", { amount: fmtCOP(Math.abs(diff)) });
 
   return (
-    <Backdrop onClose={onClose}>
+    <Backdrop>
       <SheetTitle title={t("closeShift")} subtitle={t("closeShiftSheetSubtitle")} />
 
       <ShiftConsumptionTax {...state.metrics} className="mb-4" />
@@ -757,17 +757,11 @@ function CashInput({
   );
 }
 
-function Backdrop({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
+function Backdrop({ children }: { children: React.ReactNode }) {
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba el arqueo digitado.
       className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4"
-      onClick={onClose}
     >
       <div
         className="bg-bone rounded-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 shadow-xl"

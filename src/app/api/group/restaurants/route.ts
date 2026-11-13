@@ -51,6 +51,7 @@ const RESERVED = new Set([
   "operator",
   "signin",
   "signup",
+  "salir",
   "mesero",
   "terminal",
   "factura",

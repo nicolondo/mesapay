@@ -55,6 +55,13 @@ describe("canal", () => {
       userId: null,
     });
   });
+  it("el datáfono no aplica bonos ni los consulta: 403 y no se toca nada", async () => {
+    m.staff.mockResolvedValue({ user: { id: "pos-1", role: "terminal" } });
+    expect((await call(POST)).status).toBe(403);
+    expect(m.redeem).not.toHaveBeenCalled();
+    expect((await call(LOOKUP)).status).toBe(403);
+    expect(m.preview).not.toHaveBeenCalled();
+  });
   it("con sesión de staff del comercio redime como staff con su usuario", async () => {
     m.staff.mockResolvedValue({ user: { id: "user-9", role: "mesero" } });
     await call(POST);

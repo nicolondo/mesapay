@@ -24,9 +24,9 @@ const EMPTY = { subtotalCents: 0, taxCents: 0, tipCents: 0 };
 const maxIncluded = maxFreeLineCents(EMPTY, { taxKind: null, taxPct: null });
 
 describe("FreeLineLimitNotice — el máximo de la cuenta, a la vista", () => {
-  it("no muestra nada si el valor cabe (el cargo de $12.219.480 en una cuenta vacía)", () => {
+  it("no muestra nada si el valor cabe (el cargo de $12.345.678 en una cuenta vacía)", () => {
     const html = render(createElement(FreeLineLimitNotice, {
-      lineCents: 1_221_948_000, maxLineCents: maxIncluded, qty: 1,
+      lineCents: 1_234_567_800, maxLineCents: maxIncluded, qty: 1,
     }));
     expect(html).toBe("");
   });

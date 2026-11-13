@@ -139,22 +139,22 @@ describe("POST /api/operator/order-items — tope dinámico del cargo", () => {
   // Lo cobrable más alto que deja el techo ($20M) con la propina máxima (30 %).
   const MAX_CHARGEABLE = Math.floor((2_000_000_000 * 100) / 130);
 
-  it("acepta un cargo de $12.219.480 con impoconsumo incluido en una cuenta vacía", async () => {
+  it("acepta un cargo de $12.345.678 con impoconsumo incluido en una cuenta vacía", async () => {
     const res = await post({
       orderId: "order-1",
       name: "Evento empresarial",
       qty: 1,
-      unitPriceCents: 1_221_948_000,
+      unitPriceCents: 1_234_567_800,
       taxKind: "included",
       taxPct: 0,
     });
     expect(res.status).toBe(200);
     expect(m.tx.orderItem.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ priceCentsSnapshot: 1_221_948_000, qty: 1, taxKind: null }),
+        data: expect.objectContaining({ priceCentsSnapshot: 1_234_567_800, qty: 1, taxKind: null }),
       }),
     );
-    expect(await res.json()).toMatchObject({ ok: true, lineCents: 1_221_948_000, lineTaxCents: 0 });
+    expect(await res.json()).toMatchObject({ ok: true, lineCents: 1_234_567_800, lineTaxCents: 0 });
   });
 
   it("rechaza lo que pasaría el techo con `line_too_large` y el máximo que sí cabe en ESA cuenta", async () => {
@@ -191,7 +191,7 @@ describe("POST /api/operator/order-items — tope dinámico del cargo", () => {
   it("vuelve a medir con la cuenta bloqueada: si otro dispositivo la llenó, rechaza sin escribir", async () => {
     // Al leer estaba vacía; dentro de la transacción ya tiene $14M.
     m.requireMutable.mockResolvedValue({ subtotalCents: 1_400_000_000, taxCents: 0, tipCents: 0 });
-    const res = await post({ ...line, qty: 1, unitPriceCents: 1_221_948_000, taxKind: "included", taxPct: 0 });
+    const res = await post({ ...line, qty: 1, unitPriceCents: 1_234_567_800, taxKind: "included", taxPct: 0 });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       error: "line_too_large",

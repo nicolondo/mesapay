@@ -48,8 +48,8 @@ describe("freeLineLimit — tope dinámico de un cargo o servicio", () => {
     expect(maxFreeLineDisplayCents(MAX_CHARGEABLE)).toBe(pesos(15_384_615));
   });
 
-  it("cuenta vacía: el cargo de $12.219.480 con impoconsumo incluido cabe (antes el tope fijo de $10M lo bloqueaba)", () => {
-    const line = { amountCents: pesos(12_219_480), ...INCLUDED };
+  it("cuenta vacía: el cargo de $12.345.678 con impoconsumo incluido cabe (antes el tope fijo de $10M lo bloqueaba)", () => {
+    const line = { amountCents: pesos(12_345_678), ...INCLUDED };
     expect(freeLineFits(EMPTY, line)).toBe(true);
     expect(line.amountCents).toBeGreaterThan(1_000_000_000);
   });
@@ -90,12 +90,12 @@ describe("freeLineLimit — tope dinámico de un cargo o servicio", () => {
     expect(maxFreeLineDisplayCents(maxFreeLineCents(EMPTY, IVA19))).toBe(pesos(12_928_248));
   });
 
-  it("incluido vs. sumado: $12.219.480 cabe incluido y también con impoconsumo 8% encima", () => {
-    expect(freeLineFits(EMPTY, { amountCents: pesos(12_219_480), ...INCLUDED })).toBe(true);
-    expect(freeLineFits(EMPTY, { amountCents: pesos(12_219_480), ...INC8_ON_TOP })).toBe(true);
-    // Con IVA 19% encima son $14.541.181: también cabe. El borde con IVA es
+  it("incluido vs. sumado: $12.345.678 cabe incluido y también con impoconsumo 8% encima", () => {
+    expect(freeLineFits(EMPTY, { amountCents: pesos(12_345_678), ...INCLUDED })).toBe(true);
+    expect(freeLineFits(EMPTY, { amountCents: pesos(12_345_678), ...INC8_ON_TOP })).toBe(true);
+    // Con IVA 19% encima son $14.691.357: también cabe. El borde con IVA es
     // $12.928.248 (+19% = $15.384.615).
-    expect(freeLineFits(EMPTY, { amountCents: pesos(12_219_480), ...IVA19 })).toBe(true);
+    expect(freeLineFits(EMPTY, { amountCents: pesos(12_345_678), ...IVA19 })).toBe(true);
     expect(freeLineFits(EMPTY, { amountCents: pesos(12_928_248), ...IVA19 })).toBe(true);
     expect(freeLineFits(EMPTY, { amountCents: pesos(12_928_249), ...IVA19 })).toBe(false);
   });
@@ -188,9 +188,9 @@ describe("freeLineLimit — ningún total Int se revienta con cargos de $12–19
   }
 
   const cases: Array<[string, TaxedLine[], number]> = [
-    ["$12.219.480 con impoconsumo incluido", [{ amountCents: pesos(12_219_480), taxKind: null, taxPct: null }], 0],
-    ["$12.219.480 incluido + $800.000 de platos + 10% de descuento", [
-      { amountCents: pesos(12_219_480), taxKind: null, taxPct: null },
+    ["$12.345.678 con impoconsumo incluido", [{ amountCents: pesos(12_345_678), taxKind: null, taxPct: null }], 0],
+    ["$12.345.678 incluido + $800.000 de platos + 10% de descuento", [
+      { amountCents: pesos(12_345_678), taxKind: null, taxPct: null },
       { amountCents: pesos(800_000), taxKind: null, taxPct: null },
     ], 10],
     ["$12.900.000 + IVA 19% encima", [{ amountCents: pesos(12_900_000), taxKind: "iva", taxPct: 19 }], 0],

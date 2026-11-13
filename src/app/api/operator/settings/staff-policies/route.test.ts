@@ -73,14 +73,13 @@ describe("PUT /settings/staff-policies — compAllowedRoles", () => {
 
   it("guarda la lista deduplicada y en orden canónico", async () => {
     const res = await put({
-      compAllowedRoles: ["mesero", "operator", "mesero", "terminal"],
+      compAllowedRoles: ["mesero", "operator", "mesero"],
     });
     expect(res.status).toBe(200);
     expect(m.restaurantUpdate).toHaveBeenCalledOnce();
     expect(m.restaurantUpdate.mock.calls[0][0].data.compAllowedRoles).toEqual([
       "operator",
       "mesero",
-      "terminal",
     ]);
     // Queda en el audit log con el antes y el después.
     expect(m.recordAuditEvent).toHaveBeenCalledOnce();
@@ -88,9 +87,14 @@ describe("PUT /settings/staff-policies — compAllowedRoles", () => {
       kind: "restaurant.staff_policies.update",
       diff: {
         before: { compAllowedRoles: ["operator"] },
-        after: { compAllowedRoles: ["mesero", "operator", "mesero", "terminal"] },
+        after: { compAllowedRoles: ["mesero", "operator", "mesero"] },
       },
     });
+  });
+
+  it("el datáfono no se puede marcar para dar cortesías", async () => {
+    expect((await put({ compAllowedRoles: ["operator", "terminal"] })).status).toBe(400);
+    expect(m.restaurantUpdate).not.toHaveBeenCalled();
   });
 
   it("acepta la lista vacía (nadie del equipo puede no cobrar)", async () => {

@@ -12,6 +12,7 @@ import { sendPushToMeserosForTable } from "@/lib/push";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { collectorUserIdFor } from "@/lib/payments/staffCheckout";
 import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
 
@@ -113,12 +114,10 @@ async function POSTHandler(
   // Quién inicia el cobro vía datáfono. Si lo lanza un mesero/operator
   // desde su PWA, lo registramos para reportes de propinas/turno
   // personal — el webhook que luego aprueba el pago preserva esta
-  // referencia (sólo cambia status + settledAt).
-  const collectedByUserId =
-    session?.user &&
-    (role === "mesero" || role === "operator" || role === "platform_admin")
-      ? session.user.id
-      : null;
+  // referencia (sólo cambia status + settledAt). El usuario de datáfono
+  // también queda registrado (auditoría); qué reporte mira ese campo y por
+  // qué no le quita nada a los meseros: collectorUserIdFor.
+  const collectedByUserId = collectorUserIdFor(session?.user);
 
   const payment = await db.$transaction(async (tx) => {
     await lockOrder(tx, order.id);

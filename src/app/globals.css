@@ -1,35 +1,17 @@
 @import "tailwindcss";
 @import "./workspace.css";
+@import "./floor-plan.css";
 
 :root {
   /* Radio de TODOS los botones del equipo (operador, admin, mesero, CRM):
      esquinas suaves, no píldora. Pedido del dueño 2026-11-02. */
   --radius-btn: 10px;
-  --bone: #F5F1EA;
-  --paper: #FBF8F3;
-  --cream: #EFE8DC;
-  --ivory: #FFFDF9;
-  --ink: #1A1613;
-  --ink-2: #2B2521;
-  --ink-3: #423B35;
-  --muted: #6B6259;
-  --muted-2: #8F867C;
-  --hairline: #E5DED1;
-  --hairline-2: #D8CFBF;
 
-  --terracotta: #C9532E;
-  --terracotta-2: #A8401F;
-  --terracotta-soft: #F0D9CB;
   /* Naranja de marca del riel del cockpit. Vivía sólo como variable
      inline de OperatorCockpit, así que nada fuera del riel podía usarlo
      sin repetir el hex. Ahora es un token de :root — el riel lo hereda y
      el aviso de "pidieron la cuenta" lo reusa. */
   --rail-accent: #E8794F;
-  --olive: #5C6B3B;
-  --gold: #B8893B;
-  --ok: #2E6B4C;
-  --warn: #C98A2E;
-  --danger: #B23A2E;
 
   --op-bg: #f6f5f1;
   --op-surface: #FFFFFF;
@@ -47,6 +29,46 @@
   --shadow-1: 0 1px 2px rgba(26,22,19,0.05), 0 1px 1px rgba(26,22,19,0.04);
   --shadow-2: 0 2px 6px rgba(26,22,19,0.06), 0 8px 24px rgba(26,22,19,0.06);
   --shadow-3: 0 10px 40px rgba(26,22,19,0.12), 0 2px 8px rgba(26,22,19,0.06);
+}
+
+/* Paleta base. Vive en `@theme static` (y no en `:root`) para que Tailwind
+   CONOZCA el valor de cada color: las variables salen igual en `:root`, pero
+   además el respaldo de las opacidades (`bg-bone/10`, `border-ok/40`,
+   `color-mix(...)`) se calcula con el alfa de verdad.
+
+   Por qué importa: una opacidad sobre una variable compila a `color-mix()`
+   dentro de `@supports`, y lo que queda afuera es lo que pinta un navegador
+   SIN `color-mix()` (Chrome/WebView anteriores al 111 — el del datáfono
+   Sunmi — y Safari de iOS anterior al 16.2). Con la paleta en `:root`
+   Tailwind no podía resolver `var(--bone)` y ese respaldo era el color
+   SÓLIDO: un chip `bg-bone/10` con texto `bone` salía como un rectángulo
+   claro vacío, y un `bg-ok/10 text-ok` como verde sobre verde. Los
+   navegadores con `color-mix()` reciben exactamente lo mismo que antes.
+
+   Un color nuevo de la paleta va acá, no en `:root`. Los `--op-*` siguen en
+   `:root` porque cambian con el tema del operador (no hay valor fijo que
+   resolver). */
+@theme static {
+  --bone: #F5F1EA;
+  --paper: #FBF8F3;
+  --cream: #EFE8DC;
+  --ivory: #FFFDF9;
+  --ink: #1A1613;
+  --ink-2: #2B2521;
+  --ink-3: #423B35;
+  --muted: #6B6259;
+  --muted-2: #8F867C;
+  --hairline: #E5DED1;
+  --hairline-2: #D8CFBF;
+
+  --terracotta: #C9532E;
+  --terracotta-2: #A8401F;
+  --terracotta-soft: #F0D9CB;
+  --olive: #5C6B3B;
+  --gold: #B8893B;
+  --ok: #2E6B4C;
+  --warn: #C98A2E;
+  --danger: #B23A2E;
 }
 
 [data-op-theme="dark"] {

@@ -48,10 +48,75 @@ export function sameStockSnapshot(stored: unknown, live: unknown): boolean {
   if (!stored || !live || typeof stored !== "object" || typeof live !== "object") return false;
   const a = stored as Snapshot; const b = live as Snapshot;
   if (!Array.isArray(a.ingredients) || !Array.isArray(b.ingredients) || a.movementCount !== b.movementCount || a.ingredients.length !== b.ingredients.length) return false;
-  return a.ingredients.every((item, index) => {
-    const other = b.ingredients[index];
-    return item.id === other.id && item.trackInventory === other.trackInventory && item.measureKind === other.measureKind && item.qtyBase === other.qtyBase && item.totalValueCents === other.totalValueCents;
+  // By id, not by position: an item appended during the recount is stored at
+  // the end, while the live query returns ids in database order.
+  const live_ = new Map(b.ingredients.map((item) => [item.id, item]));
+  if (live_.size !== b.ingredients.length) return false;
+  return a.ingredients.every((item) => {
+    const other = live_.get(item.id);
+    return !!other && item.trackInventory === other.trackInventory && item.measureKind === other.measureKind && item.qtyBase === other.qtyBase && item.totalValueCents === other.totalValueCents;
   });
+}
+
+/**
+ * Suma un insumo a un conteo en BORRADOR (alta desde la pantalla del conteo:
+ * se creó, se restauró o quedó por fuera al abrirlo). Mismo lock de stock y
+ * la misma revisión optimista que el resto de escrituras.
+ *
+ * Solo en las etapas editables —conteo inicial o definitivo—, nunca sobre el
+ * informe preliminar ni con la revisión final pendiente. El teórico es la
+ * existencia de ESE momento (0 para un insumo recién creado). En el conteo
+ * definitivo también entra a `recountSnapshot`, con su saldo y sus
+ * movimientos de ahora, para que el cierre no lo confunda con un cambio de
+ * inventario y siga detectando los cambios de los demás.
+ */
+export async function appendStockCountItem(restaurantId: string, id: string, input: { revision: number; ingredientId: string }) {
+  return db.$transaction(async (tx) => {
+    await lockStock(tx, restaurantId);
+    const count = await tx.stockCount.findFirst({ where: { id, restaurantId }, include: stockCountInclude });
+    if (!count) throw new StockCountError("not_found", 404);
+    if (count.status === "closed") throw new StockCountError("already_closed");
+    if (count.revision !== input.revision) throw new StockCountError("count_changed");
+    if (count.preliminaryAt && !count.recountStartedAt) throw new StockCountError("recount_required");
+    if (count.finalReview) throw new StockCountError("count_not_editable");
+
+    const ingredient = await tx.ingredient.findFirst({
+      where: { id: input.ingredientId, restaurantId },
+      select: { id: true, active: true, trackInventory: true, measureKind: true, stockLevel: { select: { qtyBase: true, totalValueCents: true } } },
+    });
+    if (!ingredient) throw new StockCountError("ingredient_not_found", 404);
+    if (!ingredient.active) throw new StockCountError("ingredient_inactive");
+    if (!ingredient.trackInventory) throw new StockCountError("ingredient_not_tracked");
+
+    const existing = count.items.find((item) => item.ingredientId === ingredient.id);
+    if (existing) return { count, itemId: existing.id, added: false };
+
+    const qtyBase = ingredient.stockLevel?.qtyBase ?? 0;
+    const recount = !!count.recountStartedAt;
+    const item = await tx.stockCountItem.create({
+      data: { countId: id, ingredientId: ingredient.id, expectedQty: qtyBase, ...(recount ? { finalExpectedQty: qtyBase } : {}) },
+    });
+    let recountSnapshot: Snapshot | undefined;
+    if (recount) {
+      const stored = count.recountSnapshot as Snapshot | null;
+      if (stored && Array.isArray(stored.ingredients) && typeof stored.movementCount === "number") {
+        const movements = await tx.stockMovement.count({ where: { restaurantId, ingredientId: ingredient.id } });
+        recountSnapshot = {
+          movementCount: stored.movementCount + movements,
+          ingredients: [...stored.ingredients, {
+            id: ingredient.id, trackInventory: ingredient.trackInventory, measureKind: ingredient.measureKind,
+            qtyBase, totalValueCents: ingredient.stockLevel?.totalValueCents ?? 0,
+          }],
+        };
+      }
+    }
+    await tx.stockCount.update({
+      where: { id },
+      data: { revision: count.revision + 1, finalReview: Prisma.DbNull, ...(recountSnapshot ? { recountSnapshot } : {}) },
+    });
+    const updated = await tx.stockCount.findUniqueOrThrow({ where: { id }, include: stockCountInclude });
+    return { count: updated, itemId: item.id, added: true };
+  }, { timeout: 30_000 });
 }
 
 /** Every writer uses the same restaurant lock as stock movements. This makes

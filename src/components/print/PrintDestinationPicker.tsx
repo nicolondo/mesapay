@@ -88,6 +88,8 @@ function subscribe(listener: () => void): () => void {
 export type PrintPreferenceState = PrintPreference & {
   remembered: boolean;
   role: string | null;
+  /** El comercio de la sesión (la clave de lo recordado en el equipo). */
+  scope: string | null;
   /**
    * Ya se sabe quién mira (rol y comercio). Mientras la sesión carga no se
    * sabe qué recuerdo leer ni cuál es el valor por defecto: el selector no
@@ -143,7 +145,7 @@ export function usePrintPreference(viewer?: PrintViewer | null): PrintPreference
     },
     [key],
   );
-  return { ...resolved, role, ready, setDestination };
+  return { ...resolved, role, scope, ready, setDestination };
 }
 
 export type PrintDestinationVariant = "op" | "pay" | "receipt";

@@ -50,6 +50,7 @@ export function StockTab({
   onViewMovements,
   onBarcodes,
   onToggleArchive,
+  onDelete,
 }: {
   rows: StockRow[];
   currency: string;
@@ -58,6 +59,7 @@ export function StockTab({
   onViewMovements: (row: StockRow) => void;
   onBarcodes: (row: StockRow) => void;
   onToggleArchive: (row: StockRow) => void;
+  onDelete: (row: StockRow) => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -112,6 +114,12 @@ export function StockTab({
         disabled: archivingId !== null,
         onSelect: () => onToggleArchive(row),
       },
+      // Sin movimientos (nunca tuvo saldo): se puede intentar eliminar del
+      // todo. El diálogo le pregunta al server y, si está en una receta o
+      // en una compra, explica por qué no y ofrece archivar.
+      ...(row.stockLevel == null
+        ? [{ key: "delete", label: t("deleteIngredient"), icon: "trash" as const, tone: "danger" as const, onSelect: () => onDelete(row) }]
+        : []),
     ];
   }
 

@@ -36,6 +36,8 @@ import {
 } from "@/lib/erp/supplierTaxId";
 import { MoneyInput } from "@/components/MoneyInput";
 import { formatExpenseNumber } from "@/lib/erp/expenseNumberFormat";
+import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
+import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { AccountCombobox } from "@/components/accounts/AccountCombobox";
 
@@ -382,6 +384,8 @@ export function ExpenseSheet({
   const [busy, setBusy] = useState(false);
   const [deletingBusy, setDeletingBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Documento del proveedor repetido (409 del servidor, en compras o gastos).
+  const [dup, setDup] = useState<DuplicateConflict | null>(null);
   const [aiNote, setAiNote] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
   const [prefillName, setPrefillName] = useState<{ name: string; taxId: string | null } | null>(null);
 
@@ -546,8 +550,14 @@ export function ExpenseSheet({
     setAiNote({ tone: "ok", text: notes.join(" ") });
   }
 
-  async function save() {
+  /**
+   * `possibleDuplicate`: "check" pide al servidor la advertencia de un
+   * documento sin número igual a otro (mismo proveedor, día y total);
+   * "allow" guarda igual, después de que el operador la vio.
+   */
+  async function save(possibleDuplicate: "check" | "allow" = "check") {
     setErr(null);
+    setDup(null);
     // No guardar impuestos con IVA descontable/sugerencias aún desconocidos.
     if (taxMode && !taxCtx) {
       setErr(t(taxLoadError ? "expenseTaxLoadError" : "loading"));
@@ -625,6 +635,7 @@ export function ExpenseSheet({
       // Solo al CREAR: el abono de contado se hace en la misma transacción.
       // Editando, los pagos se registran por su propia ruta.
       ...(expense ? {} : { payFromAccountCode: !recurring && paidNow ? payAccountCode || null : null }),
+      possibleDuplicate,
     };
     setBusy(true);
     const r = await fetch(
@@ -638,6 +649,13 @@ export function ExpenseSheet({
     setBusy(false);
     if (!r || !r.ok) {
       const j = r ? await r.json().catch(() => ({})) : {};
+      // Factura del proveedor ya registrada (o un gasto sin número igual a
+      // otro): se dice cuál, con su enlace, en vez de «No se pudo guardar».
+      const conflict = r?.status === 409 ? parseDuplicateConflict(j) : null;
+      if (conflict) {
+        setDup(conflict);
+        return;
+      }
       const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
       setErr(key ? t(key) : t("errSaveFailed"));
       return;
@@ -669,6 +687,13 @@ export function ExpenseSheet({
   }
 
   const anyBusy = busy || deletingBusy || uploadBusy || aiBusy;
+  // Aviso temprano mientras se digita: esa factura de ese proveedor ya está
+  // registrada (como compra o como gasto). Sólo avisa; el servidor bloquea.
+  const earlyDup = useDuplicateDocumentCheck({
+    supplierId: !recurring && documentType !== "none" ? supplierId || null : null,
+    number: documentNumber,
+    excludeExpenseId: expense?.id ?? null,
+  });
   const expenseNumber = formatExpenseNumber(expense?.number);
   const title = expenseNumber
     ? t("expenseSheetTitleNumbered", { number: expenseNumber })
@@ -856,6 +881,9 @@ export function ExpenseSheet({
               </>
             )}
             </div>
+            {earlyDup && !dup && (
+              <DuplicateDocumentAlert code="early" existing={earlyDup} currency={currency} />
+            )}
             <input
               ref={fileRef}
               type="file"
@@ -1233,6 +1261,16 @@ export function ExpenseSheet({
             </div>
           )}
 
+          {dup && (
+            <DuplicateDocumentAlert
+              code={dup.code}
+              existing={dup.existing}
+              currency={currency}
+              busy={busy}
+              onConfirm={dup.code === "possible_duplicate" ? () => void save("allow") : undefined}
+            />
+          )}
+
           {err && (
             <div role="alert" className="text-xs text-danger">
               {err}
@@ -1287,7 +1325,7 @@ export function ExpenseSheet({
               </button>
               <button
                 type="button"
-                onClick={save}
+                onClick={() => void save()}
                 disabled={
                   anyBusy ||
                   (taxMode && !taxCtx) ||

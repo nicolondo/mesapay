@@ -16,6 +16,11 @@ import {
 import { loadAccountMap } from "@/lib/erp/ledger";
 import { loadExpenseList, parseExpenseListParams } from "@/lib/erp/expenseList";
 import { ensureExpenseNumbers, numberPendingExpenses } from "@/lib/erp/expenseNumber";
+import {
+  assertNotDuplicateDocument,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -152,9 +157,25 @@ async function POSTHandler(req: Request) {
         ...(taxes.retentions.length > 0 ? { retentions: { create: taxes.retentions } } : {}),
       },
     });
-    // Consecutivo interno (G-0001): en esta misma transacción, bajo el
-    // candado del comercio. Las plantillas no llevan número.
-    if (!b.recurring) await numberPendingExpenses(tx, ctx.restaurantId);
+    // ¿Ese documento del proveedor ya estaba registrado (como gasto o como
+    // compra)? Bajo candado y después de escribir: si choca, se deshace.
+    // Las plantillas recurrentes no son documentos: no se revisan.
+    if (!b.recurring) {
+      await assertNotDuplicateDocument(tx, {
+        restaurantId: ctx.restaurantId,
+        supplierId: b.supplierId ?? null,
+        number: b.documentNumber,
+        date,
+        totalCents: payable,
+        exclude: { kind: "expense", id: created.id },
+        possibleDuplicate: b.possibleDuplicate,
+      });
+      // Consecutivo interno (G-0001): en esta misma transacción, bajo el
+      // candado del comercio. Va DESPUÉS de la revisión de duplicados (mismo
+      // orden de candados en el alta y la edición) y un duplicado deshace
+      // todo sin consumir número. Las plantillas no llevan número.
+      await numberPendingExpenses(tx, ctx.restaurantId);
+    }
     if (payNow) {
       // Se paga el TOTAL A PAGAR (lo retenido no sale de caja: se le debe a la DIAN).
       await tx.expensePayment.create({
@@ -172,7 +193,11 @@ async function POSTHandler(req: Request) {
       where: { id: created.id },
       include: { ...EXPENSE_INCLUDE, payments: { orderBy: { paidAt: "desc" } } },
     });
+  }).catch((err: unknown) => {
+    if (err instanceof DuplicateDocumentError) return err;
+    throw err;
   });
+  if (expense instanceof DuplicateDocumentError) return duplicateDocumentResponse(expense);
   return NextResponse.json({ expense }, { status: 201 });
 }
 

@@ -17,6 +17,12 @@ import {
 import { expenseBaseCents, expensePayableCents } from "@/lib/erp/expenseTax";
 import { numberPendingExpenses } from "@/lib/erp/expenseNumber";
 import type { ModuleSlug } from "@/lib/modules";
+import { normalizeDocumentNumber } from "@/lib/erp/documentNumber";
+import {
+  assertNotDuplicateDocument,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -172,6 +178,15 @@ async function PATCHHandler(
       ? (existing.paidAt ?? new Date())
       : null;
 
+  // Revisión de documento repetido: el número o el proveedor cambian (editar
+  // otra cosa de un gasto viejo repetido no se bloquea), o el cliente pide
+  // la advertencia sin número. Las plantillas no son documentos.
+  const documentNumber = b.documentNumber !== undefined ? (b.documentNumber || null) : existing.documentNumber;
+  const documentChanged =
+    normalizeDocumentNumber(documentNumber) !== normalizeDocumentNumber(existing.documentNumber) ||
+    supplierId !== existing.supplierId;
+  const checkDocument = !recurring && (documentChanged || b.possibleDuplicate === "check");
+
   const expense = await db.$transaction(async (tx) => {
     if (amounts?.ok) {
       await tx.expenseRetention.deleteMany({ where: { expenseId: id } });
@@ -207,13 +222,29 @@ async function PATCHHandler(
       },
       include: EXPENSE_INCLUDE,
     });
-    // Una plantilla que pasa a ser gasto normal recibe su consecutivo.
+    if (checkDocument) {
+      await assertNotDuplicateDocument(tx, {
+        restaurantId: ctx.restaurantId,
+        supplierId,
+        number: documentNumber,
+        date,
+        totalCents: payable,
+        exclude: { kind: "expense", id },
+        possibleDuplicate: b.possibleDuplicate,
+      });
+    }
+    // Una plantilla que pasa a ser gasto normal recibe su consecutivo
+    // (después de la revisión de duplicados: mismo orden de candados que el alta).
     if (!recurring && updated.number == null) {
       const assigned = await numberPendingExpenses(tx, ctx.restaurantId);
       return { ...updated, number: assigned.get(id) ?? null };
     }
     return updated;
+  }).catch((err: unknown) => {
+    if (err instanceof DuplicateDocumentError) return err;
+    throw err;
   });
+  if (expense instanceof DuplicateDocumentError) return duplicateDocumentResponse(expense);
   return NextResponse.json({ expense });
 }
 

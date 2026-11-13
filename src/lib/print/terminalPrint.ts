@@ -198,6 +198,35 @@ export function chooseTerminalDevice(
   return { ok: false, error: "choose_device" };
 }
 
+/**
+ * Los datáfonos a los que se puede mandar una impresión AHORA (para mostrar
+ * «Datáfono» en «Imprimir en» y elegir cuál): activos y, con datáfono real,
+ * con serial; ninguno si falta el Business-Code o si es el mock en
+ * producción.
+ */
+export async function listTerminalPrintDevices(
+  restaurantId: string,
+  opts: { isProduction?: boolean } = {},
+): Promise<Array<{ id: string; label: string }>> {
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { id: true, kushkiMode: true, cloudTerminalBusinessCode: true },
+  });
+  if (!tenant) return [];
+  const { businessCode, useRealTerminal } = await kushkiTerminalSetup(tenant);
+  if (useRealTerminal && !businessCode) return [];
+  const isProduction = opts.isProduction ?? process.env.NODE_ENV === "production";
+  if (!useRealTerminal && isProduction) return [];
+  const rows = await db.terminalDevice.findMany({
+    where: { restaurantId: tenant.id, active: true },
+    orderBy: { createdAt: "asc" },
+    select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true },
+  });
+  return rows
+    .filter((d) => terminalDeviceUsable(d, useRealTerminal))
+    .map((d) => ({ id: d.kushkiDeviceId, label: d.label }));
+}
+
 export type TerminalPrintDeps = {
   send?: (args: Parameters<typeof printOnCloudTerminal>[0]) => Promise<PrintJobResult>;
   /** Para los tests: `process.env.NODE_ENV === "production"`. */

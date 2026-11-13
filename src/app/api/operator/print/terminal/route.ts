@@ -4,7 +4,7 @@ import { z } from "zod";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { STAFF_PRINT_ROLES } from "@/lib/print/staffPrint";
-import { printOnTerminalDevice } from "@/lib/print/terminalPrint";
+import { listTerminalPrintDevices, printOnTerminalDevice } from "@/lib/print/terminalPrint";
 
 export const dynamic = "force-dynamic";
 
@@ -85,4 +85,17 @@ async function POSTHandler(req: Request) {
   });
 }
 
+/**
+ * GET: los datáfonos a los que se puede imprimir (`{ devices }`). Con la
+ * lista vacía, «Imprimir en» no ofrece «Datáfono».
+ */
+async function GETHandler() {
+  const scope = await requireOperatorScope(STAFF_PRINT_ROLES);
+  if (isScopeError(scope)) {
+    return NextResponse.json({ error: scope.error }, { status: scope.error === "forbidden" ? 403 : 400 });
+  }
+  return NextResponse.json({ devices: await listTerminalPrintDevices(scope.restaurantId) });
+}
+
 export const POST = secureApi(POSTHandler);
+export const GET = secureApi(GETHandler);

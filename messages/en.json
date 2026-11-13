@@ -2291,7 +2291,8 @@
     "terminalNoDevices": "There are no active card readers with a serial number: add one in Settings → Card readers.",
     "terminalBusinessCode": "The business's Kushki Business-Code is missing, so it can't print on the card reader.",
     "terminalKushkiFailed": "Kushki didn't accept the print job ({reason}).",
-    "terminalClosed": "Nothing to print: the bill is already closed or has no items."
+    "terminalClosed": "Nothing to print: the bill is already closed or has no items.",
+    "destinationTerminal": "Card reader"
   },
   "opCartera": {
     "hubCategory": "Commercial",

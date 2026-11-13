@@ -20,6 +20,13 @@ import {
   usePrintPreference,
   type PrintViewer,
 } from "@/components/print/PrintDestinationPicker";
+import {
+  printOnTerminal,
+  readRememberedPrintTerminal,
+  rememberPrintTerminal,
+  terminalPrintMessage,
+  type TerminalPrintDevice,
+} from "@/lib/print/terminalPrintClient";
 
 /**
  * Botón "Imprimir" de las vistas imprimibles (la factura `/factura/[id]` y
@@ -73,7 +80,36 @@ export function PrintButton({
     text: string;
     /** La guía de «Este dispositivo», si quien mira puede abrirla. */
     help?: string | null;
+    /** «Datáfono»: hay varios y hay que decir cuál (una vez). */
+    chooseDevices?: TerminalPrintDevice[];
   } | null>(null);
+
+  /**
+   * «Datáfono» (y «Este dispositivo» del usuario Datáfono): la impresora del
+   * datáfono Kushki, por el servidor (`/api/operator/print/terminal`).
+   */
+  async function sendToTerminal(doc: StaffPrintDoc, deviceId?: string) {
+    setBusy(true);
+    setNote({ tone: "ok", text: ts("terminalSending") });
+    try {
+      const r = await printOnTerminal(doc, {
+        deviceId: deviceId ?? readRememberedPrintTerminal(pref.scope),
+      });
+      if (r.via === "terminal") {
+        rememberPrintTerminal(pref.scope, r.deviceId);
+        setNote({ tone: "ok", text: ts("terminalSent", { device: r.deviceLabel }) });
+      } else if (r.via === "choose_device") {
+        setNote({ tone: "warn", text: ts("terminalChoose"), chooseDevices: r.devices });
+      } else {
+        const m = terminalPrintMessage(r.code, r.reason);
+        setNote({ tone: "error", text: ts(m.key, m.values) });
+      }
+    } catch {
+      setNote({ tone: "error", text: ts("terminalFailed") });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     // Ctrl+P, el menú del navegador, o el print() del iframe oculto:
@@ -98,9 +134,13 @@ export function PrintButton({
       return;
     }
     if (busy || !pref.ready) return;
+    const destination = pref.destination;
+    if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
+      await sendToTerminal(agent);
+      return;
+    }
     setBusy(true);
     setNote(null);
-    const destination = pref.destination;
     const deps: StaffPrintDeps =
       destination === "device"
         ? {
@@ -176,6 +216,22 @@ export function PrintButton({
               </a>
             </>
           )}
+          {agent &&
+            note.chooseDevices?.map((d, i) => (
+              <a
+                key={d.id}
+                href="#"
+                className="print-help"
+                style={{ marginLeft: i === 0 ? "0.5em" : "0.75em" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  rememberPrintTerminal(pref.scope, d.id);
+                  void sendToTerminal(agent, d.id);
+                }}
+              >
+                {d.label}
+              </a>
+            ))}
         </span>
       )}
     </>

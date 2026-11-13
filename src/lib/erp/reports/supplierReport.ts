@@ -323,7 +323,7 @@ export type SupplierPurchaseDoc = {
 /** Estados de una OC que ya son compra (algo se recibió). */
 export const COUNTED_PURCHASE_STATUSES = ["received", "partially_received"] as const;
 
-export type SupplierPurchaseOrderInput = PurchaseOrderAmountsInput & {
+export type SupplierPurchaseOrderInput = Omit<PurchaseOrderAmountsInput, "items"> & {
   supplierId: string;
   status: string;
   receivedAt: Date | null;

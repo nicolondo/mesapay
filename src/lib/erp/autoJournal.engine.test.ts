@@ -24,6 +24,12 @@ const m = vi.hoisted(() => ({
   seq: 0,
 }));
 
+// Notas crédito de proveedores (bloque 9): este test no las ejercita.
+vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),
+  loadSupplierCreditFacts: async () => ({ notes: [], voids: [], applies: [], refunds: [] }),
+  firstSupplierCreditActivity: async () => null,
+}));
 vi.mock("@/lib/db", () => {
   const matches = (e: Entry, where: Record<string, unknown>): boolean => {
     for (const [k, v] of Object.entries(where)) {

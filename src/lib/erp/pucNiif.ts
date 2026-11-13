@@ -201,6 +201,7 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("42", "No operacionales", "ingreso", "credito"),
   P("4210", "Financieros", "ingreso", "credito"),
   P("421005", "Ingresos financieros", "ingreso", "credito"),
+  P("421040", "Descuentos comerciales condicionados", "ingreso", "credito"),
   P("4295", "Diversos", "ingreso", "credito"),
   P("429505", "Ingresos diversos", "ingreso", "credito"),
 
@@ -262,6 +263,9 @@ export const PUC_NIIF_G2: PucSeedRow[] = [
   P("61", "Costo de ventas", "costo", "debito"),
   P("6135", "Comercio al por mayor y al por menor", "costo", "debito"),
   P("613505", "Costo de alimentos y bebidas", "costo", "debito"),
+  // Contra-costo (naturaleza crédito): notas crédito de proveedores.
+  P("613570", "Descuentos y rebajas en compras", "costo", "credito"),
+  P("613575", "Acuerdos comerciales con proveedores", "costo", "credito"),
 ];
 
 /** Nivel jerárquico por longitud de código PUC (1/2/4/6/8). */

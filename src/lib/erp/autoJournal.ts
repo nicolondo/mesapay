@@ -25,6 +25,7 @@ import { getAccountingConfig, isMonthClosed } from "./cierre";
 import { isMonth, nextMonthOf } from "./cierrePeriodo";
 import { ENGINE_SOURCES } from "./engineCodes";
 import { type GenResult, generateJournalForMonth } from "./posting";
+import { firstSupplierCreditActivity } from "./supplierCreditNotePosting";
 
 /**
  * Fuentes de los asientos-resumen que arma `buildMonthEntries` (posting.ts).
@@ -180,6 +181,7 @@ export async function firstActivityMonth(restaurantId: string): Promise<string |
     payroll,
     assets,
     deferred,
+    supplierCredit,
   ] = await Promise.all([
     db.order.aggregate({ where: { ...where, paidAt: { not: null } }, _min: { paidAt: true } }),
     db.purchaseOrder.aggregate({
@@ -198,6 +200,8 @@ export async function firstActivityMonth(restaurantId: string): Promise<string |
     db.payrollRun.aggregate({ where, _min: { month: true } }),
     db.fixedAsset.aggregate({ where, _min: { purchaseDate: true } }),
     db.deferredItem.aggregate({ where, _min: { startDate: true } }),
+    // Notas crédito de proveedores y sus reintegros (los cruces son abonos).
+    firstSupplierCreditActivity(restaurantId),
   ]);
   const dates: Array<Date | null | undefined> = [
     orders._min.paidAt,
@@ -208,6 +212,7 @@ export async function firstActivityMonth(restaurantId: string): Promise<string |
     customerPays._min.paidAt,
     stock._min.createdAt,
     deferred._min.startDate,
+    supplierCredit,
   ];
   const months = dates.filter((d): d is Date => d instanceof Date).map(monthOfDate);
   if (isMonth(payroll._min.month)) months.push(payroll._min.month);

@@ -20,6 +20,18 @@ export const ENGINE = {
   BONOS_POR_REDIMIR: "280510",
   /** Clientes nacionales: ventas a crédito (customer_credit) y sus abonos. */
   CLIENTES: "130505",
+  /**
+   * Saldo a favor del proveedor: lo que una nota crédito (o, después, un
+   * pago de más) deja a nuestro favor sin factura que cancelar. 1330
+   * «Anticipos y avances» › 133005 «A proveedores»: es un derecho a cobrar o
+   * a descontar de compras futuras, no una deuda negativa escondida en 2205.
+   * La nota lo debita entera; cada cruce con una factura lo pasa a
+   * Proveedores/Costos y gastos por pagar y un reintegro en dinero lo
+   * cancela contra caja/banco. El contador puede abrir auxiliares debajo
+   * (p. ej. 13300510 «Saldos a favor por notas crédito»): el motor asienta
+   * en la auxiliar (`resolvePostableCode`).
+   */
+  SALDO_A_FAVOR_PROVEEDORES: "133005",
   INVENTARIO: "143505",
   PROVEEDORES: "220505",
   /** Costos y gastos por pagar: el gasto nace acá y se cancela al pagarse. */
@@ -48,8 +60,27 @@ export const ENGINE = {
   ICA_POR_PAGAR: "241605",
   INGRESOS: "413505",
   DEVOLUCIONES: "417505",
+  /**
+   * Notas crédito de proveedores por DESCUENTO CONDICIONADO (pronto pago):
+   * ingreso financiero, PUC 421040 «Descuentos comerciales condicionados».
+   */
+  DESCUENTOS_CONDICIONADOS: "421040",
   GASTOS_DIVERSOS: "519505",
   COSTO_VENTAS: "613505",
+  /**
+   * Notas crédito de proveedores que bajan el COSTO (NIIF PYMES 13.6: los
+   * descuentos comerciales y rebajas se restan del costo de adquisición).
+   * Subcuentas propias de naturaleza crédito dentro de 6135, para verlas
+   * como renglón aparte en el balance de prueba y los libros:
+   *  · 613570 descuentos comerciales y rebajas puntuales;
+   *  · 613575 acuerdos comerciales (bonificaciones por volumen, metas o
+   *    convenios) — además, renglón propio en el estado de resultado.
+   * Van al costo de ventas y no al inventario (1435): en un restaurante la
+   * mercancía de la factura ya se consumió casi siempre y el kardex no se
+   * revaloriza; acreditar 1435 lo descuadraría contra el kardex.
+   */
+  DESCUENTOS_COMPRAS: "613570",
+  ACUERDOS_COMERCIALES: "613575",
   DEPRECIACION_GASTO: "516005",
   DEPRECIACION_ACUMULADA: "159205",
   // Nómina
@@ -109,4 +140,10 @@ export const ENGINE_SOURCES = [
   "payroll",
   "refund",
   "credit_note",
+  // Notas crédito de proveedores (erp/supplierCreditNotePosting.ts): la
+  // nota, su anulación, los cruces con facturas y los reintegros en dinero.
+  "supplier_credit_note",
+  "supplier_credit_note_void",
+  "supplier_credit_apply",
+  "supplier_credit_refund",
 ] as const;

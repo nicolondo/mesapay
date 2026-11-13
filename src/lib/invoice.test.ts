@@ -5,8 +5,10 @@ import {
   formatInvoiceNumber,
   frozenSalesTax,
   renderInvoiceEmail,
+  summaryRows,
   taxRows,
   type InvoiceSnapshot,
+  type SummaryRowLabels,
   type TaxRowLabels,
 } from "./invoice";
 import { getEmailTranslator } from "./emailIntl";
@@ -332,6 +334,77 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
     const labels = buildInvoiceCommands(snap({ ...INC_8, tipCents: 10_000 }), 1, invoiceUrl)
       .flatMap((c) => (c.type === "columns" ? [c.columns[0].text] : []));
     expect(labels).toEqual(["Subtotal", "Base gravable", "Incl. impoconsumo 8%", "Propina", "TOTAL"]);
+  });
+});
+
+// Factura con el descuento del cliente DENTRO de las líneas: el XML declara
+// cada línea neta, así que el snapshot congela base e impuesto netos y TODAS
+// las superficies ponen el descuento antes de ellos. Cifras: subtotal
+// $113.400 con INC 8 %, descuento 20 % = $22.680, propina $9.072.
+const DISCOUNTED: Partial<InvoiceSnapshot> = {
+  salesTaxKind: "inc",
+  salesTaxPct: 8,
+  subtotalCents: 11_340_000,
+  discountCents: 2_268_000,
+  discountPct: 20,
+  embeddedTaxCents: 672_000,
+  embeddedBaseCents: 8_400_000,
+  discountInLines: { allowanceCents: 2_100_000 },
+  tipCents: 907_200,
+  totalCents: 9_979_200,
+};
+const SUMMARY_LABELS: SummaryRowLabels = {
+  ...LABELS,
+  discount: "Descuento",
+  discountPct: (pct) => `Descuento ${pct}%`,
+};
+
+describe("summaryRows — el descuento del cliente y el impuesto, en el orden de la factura", () => {
+  it("con el descuento en las líneas: primero el descuento, después la base y el impuesto netos", () => {
+    expect(summaryRows(snap(DISCOUNTED), SUMMARY_LABELS)).toEqual([
+      { label: "Descuento 20%", cents: 2_268_000, negative: true },
+      { label: "Base gravable", cents: 8_400_000 },
+      { label: "Incl. impoconsumo 8%", cents: 672_000 },
+    ]);
+  });
+
+  it("una factura vieja (sin la marca) conserva su orden: impuesto de lista y después el descuento", () => {
+    const old = { ...DISCOUNTED, discountInLines: undefined, embeddedTaxCents: 840_000, embeddedBaseCents: 10_500_000 };
+    expect(summaryRows(snap(old), SUMMARY_LABELS).map((r) => r.label)).toEqual([
+      "Base gravable",
+      "Incl. impoconsumo 8%",
+      "Descuento 20%",
+    ]);
+  });
+
+  it("sin descuento son las filas de impuesto de siempre", () => {
+    expect(summaryRows(snap(INC_8), SUMMARY_LABELS)).toEqual(taxRows(snap(INC_8), LABELS));
+  });
+
+  it("correo: el descuento ahora aparece (antes el total no cuadraba a la vista) y la base es la neta", async () => {
+    const email = await renderInvoiceEmail({ snapshot: snap(DISCOUNTED), invoiceNumber: 1, invoiceUrl, locale: "es" });
+    const lines = email.text.split("\n");
+    const at = (prefix: string) => lines.findIndex((l) => l.startsWith(prefix));
+    expect(lines[at("Descuento 20%")]).toBe("Descuento 20%: -$22.680");
+    expect(lines[at("Base gravable")]).toBe("Base gravable: $84.000");
+    expect(at("Descuento 20%")).toBeLessThan(at("Base gravable"));
+    expect(email.html).toContain("Descuento 20%");
+    expect(email.html).toContain("-$22.680");
+  });
+
+  it("datáfono: subtotal, descuento, base e impuesto netos, propina y total", async () => {
+    const { t } = await getEmailTranslator("es", "emailInvoice");
+    const rows = buildInvoiceCommands(snap(DISCOUNTED), 1, invoiceUrl, t).flatMap((c) =>
+      c.type === "columns" ? [`${c.columns[0].text} ${c.columns[1].text}`] : [],
+    );
+    expect(rows.map((r) => r.split(" $")[0]!.split(" -$")[0])).toEqual([
+      "Subtotal",
+      "Descuento 20%",
+      "Base gravable",
+      "Incl. impoconsumo 8%",
+      "Propina",
+      "TOTAL",
+    ]);
   });
 });
 

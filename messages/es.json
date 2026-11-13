@@ -3246,6 +3246,7 @@
     "colNonDeductible": "No descontable",
     "colDelta": "Efecto en el cruce",
     "colEstimatedTax": "Impuesto estimado",
+    "colOverstatedTax": "Impuesto de más",
     "colExpectedRet": "Retención esperada",
     "colDeductible": "IVA descontable",
     "othersTitle": "Otras cuentas tributarias del libro",
@@ -3318,6 +3319,10 @@
     "check_sinImpuesto_body": "Tu comercio cobra {current}, pero estas facturas no llevan impuesto (base {amount}). Pasa con facturas emitidas antes de configurar el impuesto o por un error de configuración.",
     "check_sinImpuesto_action": "Revisa la configuración en Configuración › Impuestos y, con tu contador, si hay que corregir esas facturas.",
     "check_sinImpuesto_ok": "Ninguna factura quedó sin impuesto",
+    "check_descuentoSinDeclarar_title": "{count, plural, one {# factura declaró el valor sin el descuento del cliente} other {# facturas declararon el valor sin el descuento del cliente}}",
+    "check_descuentoSinDeclarar_body": "La DIAN aceptó estas facturas con el precio de lista, sin el descuento que le diste al cliente ({discount} en total): declaran {base} de base y {amount} de impuesto de más. Lo que cobraste está bien; lo que quedó de más es lo que dice la factura ante la DIAN y, con ella, el impuesto de este reporte y del libro. Las facturas nuevas ya salen con el descuento dentro de cada producto.",
+    "check_descuentoSinDeclarar_action": "Revísalas con tu contador antes de declarar. Se corrigen con una nota crédito parcial por factura, motivo «3 · Rebaja o descuento parcial o total», por el valor del descuento (la tabla de abajo trae la base y el impuesto de cada una). Antes de emitirlas, escríbenos a soporte: hoy MESAPAY contabiliza toda nota crédito como plata que le debes devolver al cliente, y en estas el cliente ya pagó con el descuento.",
+    "check_descuentoSinDeclarar_ok": "Todas las facturas declararon el descuento del cliente",
     "check_retencionOmitida_title": "{count, plural, one {# compra sin la retención que aplica} other {# compras sin la retención que aplica}}",
     "check_retencionOmitida_body": "Tienes conceptos de retención activos y estas compras superan su umbral, pero no tienen retención registrada (lo esperado suma {amount}).",
     "check_retencionOmitida_action": "Si el proveedor no es autorretenedor ni gran contribuyente, registra la retención en la compra. Si no aplica, no hay nada que hacer.",
@@ -3357,7 +3362,8 @@
     "check_facturadaPendiente_body": "Se emitieron en el período y la DIAN ya las tiene ({amount} de impuesto), pero la cuenta todavía no se cobró: no están en los documentos ni en el libro de este reporte. No es un error: la venta entra el día en que se cobre.",
     "check_facturadaPendiente_action": "Cóbralas en Mesas. Si el cliente se fue sin pagar, anula la factura con una nota crédito y cierra la cuenta sin cobro.",
     "check_facturadaPendiente_ok": "Ninguna factura emitida antes de cobrar quedó sin cobrar",
-    "linkTables": "Ir a Mesas"
+    "linkTables": "Ir a Mesas",
+    "linkCreditNotes": "Ir a Notas crédito"
   },
   "opBackups": {
     "cardTitle": "Copias de seguridad",

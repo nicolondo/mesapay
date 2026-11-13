@@ -36,7 +36,10 @@ export type DashboardSale = { paidAt: Date; netCents: number };
  * Issued invoices keep their frozen tax (legacy/missing tax means zero).
  * Uninvoiced sales use the current merchant tax, split per live menu line
  * with exactly the same rounding as the invoice. Frozen tax is intentionally
- * not recalculated after discounts: doing so would contradict the document.
+ * not recalculated here: doing so would contradict the document. Invoices
+ * that declare the customer discount inside their lines (`discountInLines`)
+ * already froze the tax net of it; older ones keep the list-price tax they
+ * declared.
  */
 export function dashboardOrderNetSalesCents(
   order: DashboardSalesOrder,

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { requestTime } from "@/lib/requestTime";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
@@ -6,6 +7,13 @@ import { computeOrderTotals } from "@/lib/orderTotals";
 import { isCashMethod } from "@/lib/payments/methods";
 import { TerminalGrid } from "./TerminalGrid";
 import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
+import {
+  resolvePhonePaidHighlightMinutes,
+  wasPaidFromPhone,
+} from "@/lib/tables/phonePaid";
+import { salonVisualStateOf } from "@/lib/tables/salonVisualState";
+import { withReplaceable } from "@/lib/payments/pendingRequests";
+import { terminalChargeState } from "@/lib/tables/terminalCharge";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +26,15 @@ export default async function TerminalPage() {
 
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { id: true, slug: true, name: true, serviceMode: true },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      serviceMode: true,
+      // Para ordenar las mesas con la regla del salón (ver más abajo).
+      walkoutDangerMinutes: true,
+      phonePaidHighlightMinutes: true,
+    },
   });
   if (!tenant) return <div className="p-6">{tr("restaurantNotFound")}</div>;
 
@@ -60,6 +76,33 @@ export default async function TerminalPage() {
   // Antes se usaba siempre el primero; con varios, quien cobra elige.
   const { devices } = await usableTerminalDevices(tenant);
 
+  // ORDEN: el mismo del salón del admin (/operator/tables) — primero la mesa
+  // que acaba de pagar desde el celular, después las cuentas abiertas por
+  // urgencia y al final las pagadas y las libres. La grilla ordena con
+  // `sortTablesForTerminal` (src/lib/tables/terminalOrder.ts); acá sólo se
+  // calcula, con los datos que ya trae la consulta, lo que esa regla mira de
+  // cada mesa: el estado visual del salón de la cuenta abierta, si llamaron
+  // al mesero y, de la pagada, cuándo se cerró y si fue desde el celular.
+  const nowMs = await requestTime();
+  const now = new Date(nowMs);
+  const dangerMinutes = tenant.walkoutDangerMinutes;
+  const phonePaidHighlightMinutes = resolvePhonePaidHighlightMinutes(
+    tenant.phonePaidHighlightMinutes,
+  );
+
+  // «Cobrar» desde la ficha: qué pagos pendientes son sólo una solicitud
+  // (se reemplazan al cobrar) y cuáles tienen plata en vuelo (un cobro ya
+  // enviado al datáfono, un pago en línea del comensal). Una sola consulta
+  // para todas las mesas.
+  const replaceableById = new Map(
+    (
+      await withReplaceable(
+        db,
+        tables.flatMap((t) => (t.orders[0]?.payments ?? []).filter((p) => p.status === "pending")),
+      )
+    ).map((p) => [p.id, p.replaceable]),
+  );
+
   const cards = tables.map((t) => {
     const order = t.orders[0] ?? null;
     if (!order) {
@@ -81,6 +124,11 @@ export default async function TerminalPage() {
         items: [],
         guestGroups: [],
         approvedSummaries: [],
+        visualState: null,
+        needsWaiter: false,
+        paidAt: null,
+        paidFromPhone: false,
+        charge: { canCharge: false, block: null, inFlight: null },
       };
     }
     const approved = order.payments.filter((p) => p.status === "approved");
@@ -102,9 +150,9 @@ export default async function TerminalPage() {
       order.discountCents,
     );
 
-    // Sort priority: terminal request > cash request > generic charging.
-    // Both terminal and cash requests promote the table to the top of the
-    // grid so the cashier sees them immediately.
+    // Estado de la tarjeta (color + rótulo): datáfono pedido > efectivo
+    // pedido > otro pago pendiente. El ORDEN de la grilla no sale de acá
+    // sino de la regla del salón (ver arriba).
     const state:
       | "paid"
       | "terminal_requested"
@@ -123,6 +171,23 @@ export default async function TerminalPage() {
               : totals.foodPaidCents > 0
                 ? "partial"
                 : "occupied";
+
+    // Lo que mira el orden del salón. Cuenta abierta: su estado visual (mismo
+    // cálculo que /operator/tables). Cuenta pagada: cuándo se cerró y si la
+    // cerró el comensal desde su celular (esa va de primera unos minutos).
+    const isPaid = order.status === "paid";
+    const visualState = isPaid
+      ? null
+      : salonVisualStateOf(
+          {
+            outstandingCents: totals.outstandingCents,
+            items: order.items,
+            payments: order.payments,
+            needsWaiter: order.needsWaiter,
+            waiterCalledAt: order.waiterCalledAt,
+          },
+          { dangerMinutes, now },
+        ).visualState;
 
     // Per-guest aggregation so the cashier can see who ordered what when
     // the diners are splitting the bill. Items without a guestName are
@@ -169,6 +234,9 @@ export default async function TerminalPage() {
         tipCents: p.tipCents,
         cashTenderCents: p.cashTenderCents,
         createdAt: p.createdAt.toISOString(),
+        // Ya enviado al datáfono (o pago en línea en curso): no se vuelve
+        // a ofrecer "Cobrar con datáfono" para este pago.
+        inFlight: !(replaceableById.get(p.id) ?? false),
       })),
       // amountCents YA es el TOTAL (food + tip). Sumarlo de nuevo
       // duplica la propina en la pantalla del datáfono.
@@ -199,6 +267,22 @@ export default async function TerminalPage() {
         tipCents: p.tipCents,
         settledAt: p.settledAt?.toISOString() ?? null,
       })),
+      visualState,
+      charge: terminalChargeState({
+        paid: isPaid,
+        outstandingCents: totals.outstandingCents,
+        pending: pendingPayments.map((p) => ({
+          method: p.method,
+          amountCents: p.amountCents,
+          tipCents: p.tipCents,
+          // Si no está clasificado (no debería pasar), se trata como en vuelo:
+          // mejor no ofrecer un cobro que el servidor puede rechazar.
+          replaceable: replaceableById.get(p.id) ?? false,
+        })),
+      }),
+      needsWaiter: !isPaid && order.needsWaiter,
+      paidAt: isPaid ? (order.paidAt?.toISOString() ?? null) : null,
+      paidFromPhone: isPaid && wasPaidFromPhone(approved),
     };
   });
 
@@ -208,6 +292,8 @@ export default async function TerminalPage() {
       tenantName={tenant.name}
       tables={cards}
       devices={devices}
+      initialTime={nowMs}
+      phonePaidHighlightMinutes={phonePaidHighlightMinutes}
     />
   );
 }

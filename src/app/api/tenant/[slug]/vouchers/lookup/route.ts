@@ -34,6 +34,10 @@ async function POSTHandler(
   // Canal como en la redención: al staff las solicitudes del comensal
   // pendientes no le restan (el bono las reemplaza al aplicarse).
   const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+  // El datáfono no aplica bonos (ver redeem): tampoco los consulta.
+  if (staff?.user.role === "terminal") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const result = await previewVoucher({
     restaurantId: tenant.id,
     code: parsed.data.code,

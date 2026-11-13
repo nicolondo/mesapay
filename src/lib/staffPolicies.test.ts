@@ -10,7 +10,9 @@ import {
 
 describe("COMP_ROLES", () => {
   it("son los roles que operan mesas; cocina y bar no cobran", () => {
-    expect([...COMP_ROLES]).toEqual(["operator", "mesero", "terminal"]);
+    expect([...COMP_ROLES]).toEqual(["operator", "mesero"]);
+    // El datáfono nunca da cortesías: no es un rol que se pueda marcar.
+    expect(isCompRole("terminal")).toBe(false);
     expect(isCompRole("kitchen")).toBe(false);
     expect(isCompRole("bar")).toBe(false);
     expect(isCompRole("platform_admin")).toBe(false);
@@ -42,7 +44,8 @@ describe("resolveCompAllowedRoles", () => {
         "lo_que_sea",
         "terminal",
       ]),
-    ).toEqual(["operator", "mesero", "terminal"]);
+      // Un "terminal" guardado de antes se descarta al leer la política.
+    ).toEqual(["operator", "mesero"]);
   });
 });
 
@@ -60,7 +63,9 @@ describe("canCompOrders", () => {
     expect(canCompOrders("operator", policy)).toBe(true);
     expect(canCompOrders("mesero", policy)).toBe(true);
     expect(canCompOrders("terminal", policy)).toBe(false);
-    expect(canCompOrders("terminal", ["terminal"])).toBe(true);
+    // Aunque el comercio lo hubiera marcado antes, el datáfono no puede.
+    expect(canCompOrders("terminal", ["terminal"])).toBe(false);
+    expect(canCompOrders("terminal", ["operator", "mesero", "terminal"])).toBe(false);
     expect(canCompOrders("operator", ["mesero"])).toBe(false);
   });
 

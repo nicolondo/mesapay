@@ -122,6 +122,12 @@ beforeEach(() => {
 });
 
 describe("guardias", () => {
+  it("el datáfono no cobra a crédito", async () => {
+    m.auth.mockResolvedValue({ user: { id: "pos", role: "terminal" } });
+    expect((await call()).status).toBe(401);
+    expect(m.tx.payment.create).not.toHaveBeenCalled();
+  });
+
   it("rechaza roles sin permiso de cobro", async () => {
     m.auth.mockResolvedValue({ user: { id: "k", role: "kitchen" } });
     expect((await call()).status).toBe(401);

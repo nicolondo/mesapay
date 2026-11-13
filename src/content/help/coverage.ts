@@ -180,7 +180,8 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "conteo-de-inventario",
     "archivar-o-eliminar-un-insumo",
   ],
-  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra"],
+  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra", "notas-credito-de-proveedores"],
+  "/operator/compras/notas-credito": ["notas-credito-de-proveedores"],
 
   /* ── Facturación ── */
   "/operator/settings/impuestos": ["impuesto-de-ventas"],
@@ -224,6 +225,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/reportes/impuestos": ["impuestos-y-retenciones"],
   "/operator/reportes/impuestos-detallados": ["impuestos-y-retenciones"],
   "/operator/reportes/exogena": ["informacion-exogena"],
+  "/operator/reportes/notas-credito-proveedores": ["notas-credito-de-proveedores"],
   "/operator/reportes/cartera": ["cartera"],
   "/operator/reportes/cartera/[kind]/[partnerId]": ["cartera"],
   "/operator/reportes/comisiones": ["reporte-de-comisiones"],

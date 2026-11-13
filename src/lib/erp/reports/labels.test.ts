@@ -28,6 +28,10 @@ const SOURCES = [
   "taxpay",
   "closing",
   "deferred_item",
+  "supplier_credit_note",
+  "supplier_credit_note_void",
+  "supplier_credit_apply",
+  "supplier_credit_refund",
 ];
 
 describe("etiquetas de origen del asiento", () => {

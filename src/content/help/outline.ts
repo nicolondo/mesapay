@@ -422,6 +422,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos, una línea por insumo con lo último contado arriba (\"Contados recientemente\") y varias cantidades por insumo (chip \"N cantidades\", \"+\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias y de cada fila del conteo (principal, editar, pasar a otro insumo, \"Quitar\", \"Pasárselo a este insumo\"), qué hacer con un código que no es de ningún insumo o es de uno que no está en el conteo (\"Vincular a un insumo\", \"Crear insumo con este código\", restaurar, \"Deshacer\" / \"Corregir\"), \"Nuevo insumo\" desde el conteo, lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\" (cierra y avisa), \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
+      slug: "notas-credito-de-proveedores",
+      title: "Registra las notas crédito de tus proveedores",
+      covers:
+        "Compras › \"Notas crédito\": tipos (\"Acuerdo comercial\" con \"Concepto o acuerdo\", \"Descuento comercial\", \"Pronto pago\", \"Devolución\" con sus insumos), \"Leer nota con IA\" y el aviso de \"Cargar factura\" cuando el documento es una nota, CUDE, IVA discriminado o no, \"Cuenta contable\", \"Cómo se aplica\" (Automático, Elegir, Saldo a favor), el saldo a favor (al recibir, en el detalle de la compra, \"Aplicar saldo a facturas\", \"Registrar reintegro\"), \"Anular nota\", y su efecto en contabilidad, impuestos, cartera y el reporte.",
+    },
+    {
       slug: "ordenes-de-compra",
       title: "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       covers:

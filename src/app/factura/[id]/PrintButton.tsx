@@ -82,26 +82,38 @@ export function PrintButton({
     help?: string | null;
     /** «Datáfono»: hay varios y hay que decir cuál (una vez). */
     chooseDevices?: TerminalPrintDevice[];
+    /** «Datáfono»: quedó encolada sin imprimir; reintentar con el mismo trabajo. */
+    retryJob?: { deviceId: string; printJobId: string };
   } | null>(null);
 
   /**
    * «Datáfono» (y «Este dispositivo» del usuario Datáfono): la impresora del
    * datáfono Kushki, por el servidor (`/api/operator/print/terminal`).
    */
-  async function sendToTerminal(doc: StaffPrintDoc, deviceId?: string) {
+  async function sendToTerminal(doc: StaffPrintDoc, deviceId?: string, printJobId?: string) {
     setBusy(true);
     setNote({ tone: "ok", text: ts("terminalSending") });
     try {
       const r = await printOnTerminal(doc, {
         deviceId: deviceId ?? readRememberedPrintTerminal(pref.scope),
+        printJobId,
       });
       if (r.via === "terminal") {
         rememberPrintTerminal(pref.scope, r.deviceId);
-        setNote({ tone: "ok", text: ts("terminalSent", { device: r.deviceLabel }) });
+        // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
+        setNote(
+          r.state === "printed"
+            ? { tone: "ok", text: ts("terminalSent", { device: r.deviceLabel }) }
+            : {
+                tone: "warn",
+                text: ts("terminalQueued", { device: r.deviceLabel }),
+                retryJob: { deviceId: r.deviceId, printJobId: r.printJobId },
+              },
+        );
       } else if (r.via === "choose_device") {
         setNote({ tone: "warn", text: ts("terminalChoose"), chooseDevices: r.devices });
       } else {
-        const m = terminalPrintMessage(r.code, r.reason);
+        const m = terminalPrintMessage(r.code, r.reason, r.errorCode);
         setNote({ tone: "error", text: ts(m.key, m.values) });
       }
     } catch {
@@ -213,6 +225,21 @@ export function PrintButton({
               {" "}
               <a href={note.help} className="print-help">
                 {ts("deviceHelpLink")}
+              </a>
+            </>
+          )}
+          {agent && note.retryJob && (
+            <>
+              {" "}
+              <a
+                href="#"
+                className="print-help"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void sendToTerminal(agent, note.retryJob!.deviceId, note.retryJob!.printJobId);
+                }}
+              >
+                {ts("retry")}
               </a>
             </>
           )}

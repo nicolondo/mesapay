@@ -17,8 +17,11 @@ import type { ThermalInvoice } from "@/lib/escpos/invoice";
 import type { ThermalPrebill } from "@/lib/escpos/prebill";
 import type { ThermalReport } from "@/lib/escpos/report";
 
-/** Tamaños de letra del Print API (los mismos de la factura del datáfono). */
-const SIZE = { body: 24, small: 20, title: 28, business: 30 } as const;
+/**
+ * Tamaños de letra del Print API, los del contrato: 24 (normal), 32
+ * (subtítulo), 48 (título). Lo "chico" va a 24, el mínimo documentado.
+ */
+const SIZE = { body: 24, small: 24, title: 32, business: 32 } as const;
 
 const center = (text: string, size: number = SIZE.body, bold = false): PrintCommand => ({
   type: "text",

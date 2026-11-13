@@ -52,6 +52,8 @@ type Notice = {
   destination?: PrintDestination;
   /** Datáfono: hay varios y hay que decir cuál es éste (una vez). */
   chooseDevices?: TerminalPrintDevice[];
+  /** Datáfono: quedó encolada sin imprimir; reintentar con el MISMO trabajo. */
+  retryJob?: { deviceId: string; printJobId: string };
 };
 
 /**
@@ -145,6 +147,8 @@ export type StaffPrintState = {
   switchTo: (destination: PrintDestination) => Promise<void>;
   /** Datáfono: elige cuál es este equipo e imprime ahí. */
   chooseTerminal: (deviceId: string) => Promise<void>;
+  /** Datáfono: reintenta un trabajo encolado (el mismo `printJobId`). */
+  retryTerminal: (job: { deviceId: string; printJobId: string }) => Promise<void>;
   busy: boolean;
   notice: Notice | null;
   browser: BrowserPrintState | null;
@@ -186,7 +190,7 @@ export function useStaffPrint(
    * Smart POS por el Print API cloud de Kushki (su app instalada en Firefox
    * no abre la impresión del sistema). Ver `lib/print/terminalPrint.ts`.
    */
-  async function runOnTerminal(deviceId?: string) {
+  async function runOnTerminal(deviceId?: string, printJobId?: string) {
     if (busy) return;
     if (timer.current) clearTimeout(timer.current);
     setBusy(true);
@@ -199,14 +203,21 @@ export function useStaffPrint(
     try {
       const result = await printOnTerminal(doc, {
         deviceId: deviceId ?? readRememberedPrintTerminal(scope),
+        printJobId,
       });
       if (result.via === "terminal") {
         rememberPrintTerminal(scope, result.deviceId);
-        setNotice({
-          tone: "ok",
-          text: t("terminalSent", { device: result.deviceLabel }),
-          destination: dest,
-        });
+        // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
+        setNotice(
+          result.state === "printed"
+            ? { tone: "ok", text: t("terminalSent", { device: result.deviceLabel }), destination: dest }
+            : {
+                tone: "warn",
+                text: t("terminalQueued", { device: result.deviceLabel }),
+                destination: dest,
+                retryJob: { deviceId: result.deviceId, printJobId: result.printJobId },
+              },
+        );
       } else if (result.via === "choose_device") {
         setNotice({
           tone: "warn",
@@ -215,7 +226,7 @@ export function useStaffPrint(
           chooseDevices: result.devices,
         });
       } else {
-        const m = terminalPrintMessage(result.code, result.reason);
+        const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
         setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
       }
     } catch {
@@ -314,7 +325,17 @@ export function useStaffPrint(
     await runOnTerminal(deviceId);
   }
 
-  return { run, runAt, switchTo, chooseTerminal, busy, notice, browser, pref };
+  return {
+    run,
+    runAt,
+    switchTo,
+    chooseTerminal,
+    retryTerminal: (job: { deviceId: string; printJobId: string }) => runOnTerminal(job.deviceId, job.printJobId),
+    busy,
+    notice,
+    browser,
+    pref,
+  };
 }
 
 /**
@@ -329,7 +350,7 @@ export function StaffPrintNotice({
 }: {
   print: Pick<
     StaffPrintState,
-    "notice" | "browser" | "busy" | "runAt" | "switchTo" | "chooseTerminal" | "pref"
+    "notice" | "browser" | "busy" | "runAt" | "switchTo" | "chooseTerminal" | "retryTerminal" | "pref"
   >;
   className?: string;
   sameTab?: boolean;
@@ -405,6 +426,28 @@ export function StaffPrintNotice({
             onClick={() => void print.switchTo(otherDestination(notice.destination!))}
           >
             {otherDestination(notice.destination) === "caja" ? t("useCaja") : t("useDevice")}
+          </button>
+        </>
+      )}
+      {notice.retryJob && (
+        <>
+          {" "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.retryTerminal(notice.retryJob!)}
+          >
+            {t("retry")}
+          </button>
+          {" · "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.switchTo("caja")}
+          >
+            {t("useCaja")}
           </button>
         </>
       )}

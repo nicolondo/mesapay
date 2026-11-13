@@ -18,16 +18,23 @@ export const dynamic = "force-dynamic";
  * `{ kind: "shift", shiftId, deviceId? }`. `deviceId` es el datáfono que el
  * equipo recuerda («este datáfono es: X»).
  *
- * Respuestas: `{ ok: true, deviceId, deviceLabel, status, simulated }`, o
+ * Tras encolar (202) espera el estado REAL del trabajo (`/sync/print_job`,
+ * hasta ~30 s): `state: "printed"` sólo con COMPLETED; `"queued"` si sigue
+ * pendiente (se reintenta con el mismo `printJobId`); FAILED es 502
+ * `print_failed` con `errorCode` (OUT_OF_PAPER…).
+ *
+ * Respuestas: `{ ok: true, state, printJobId, deviceId, deviceLabel, simulated }`, o
  * 409 `choose_device` (con `devices`), `no_devices`,
  * `cloud_business_code_missing`, `mock_print_disabled`, `order_closed`,
  * `no_items`; 404 `not_found`/`no_invoice`; 502 `print_failed` (con
  * `reason`). El cierre de turno sólo desde el panel del operador.
  */
+// Reintento de un trabajo encolado: el MISMO id (el datáfono deduplica).
+const printJobId = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/).optional();
 const schema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("invoice"), orderId: z.string().min(1).max(64), deviceId: z.string().max(128).optional() }),
-  z.object({ kind: z.literal("prebill"), orderId: z.string().min(1).max(64), deviceId: z.string().max(128).optional() }),
-  z.object({ kind: z.literal("shift"), shiftId: z.string().min(1).max(64), deviceId: z.string().max(128).optional() }),
+  z.object({ kind: z.literal("invoice"), orderId: z.string().min(1).max(64), deviceId: z.string().max(128).optional(), printJobId }),
+  z.object({ kind: z.literal("prebill"), orderId: z.string().min(1).max(64), deviceId: z.string().max(128).optional(), printJobId }),
+  z.object({ kind: z.literal("shift"), shiftId: z.string().min(1).max(64), deviceId: z.string().max(128).optional(), printJobId }),
 ]);
 
 const SHIFT_ROLES = new Set(["operator", "platform_admin", "group_admin"]);
@@ -55,17 +62,27 @@ async function POSTHandler(req: Request) {
     userId: scope.userId,
     target: body.kind === "shift" ? { kind: "shift", shiftId: body.shiftId } : { kind: body.kind, orderId: body.orderId },
     deviceId: body.deviceId ?? null,
+    printJobId: body.printJobId ?? null,
   });
   if (!result.ok) {
     if (result.error === "print_failed") {
-      console.error("[print/terminal] Kushki no aceptó la impresión", {
+      console.error("[print/terminal] el datáfono no imprimió", {
         restaurantId: scope.restaurantId,
         kind: body.kind,
         reason: result.reason,
+        errorCode: result.errorCode,
+        printJobId: result.printJobId,
       });
     }
     return NextResponse.json(
-      { error: result.error, ...(result.devices && { devices: result.devices }), ...(result.reason && { reason: result.reason }) },
+      {
+        error: result.error,
+        ...(result.devices && { devices: result.devices }),
+        ...(result.reason && { reason: result.reason }),
+        ...(result.errorCode && { errorCode: result.errorCode }),
+        ...(result.errorMessage && { errorMessage: result.errorMessage }),
+        ...(result.printJobId && { printJobId: result.printJobId }),
+      },
       { status: STATUS[result.error] ?? 409 },
     );
   }
@@ -74,13 +91,14 @@ async function POSTHandler(req: Request) {
     kind: body.kind === "shift" ? "shift.close.print" : body.kind === "prebill" ? "order.prebill.print" : "invoice.reprint",
     restaurantId: scope.restaurantId,
     target: body.kind === "shift" ? { type: "shift", id: body.shiftId } : { type: "order", id: body.orderId },
-    summary: `Imprimió ${result.reference} en el datáfono ${result.deviceLabel}${result.simulated ? " (simulado)" : ""}`,
+    summary: `${result.state === "printed" ? "Imprimió" : "Encoló (sin confirmar)"} ${result.reference} en el datáfono ${result.deviceLabel}${result.simulated ? " (simulado)" : ""}`,
   });
   return NextResponse.json({
     ok: true,
+    state: result.state,
+    printJobId: result.printJobId,
     deviceId: result.deviceId,
     deviceLabel: result.deviceLabel,
-    status: result.status,
     simulated: result.simulated,
   });
 }

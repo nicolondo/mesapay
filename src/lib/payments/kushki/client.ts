@@ -55,7 +55,7 @@ export class KushkiSchemaError extends Error {
 }
 
 type FetchOpts = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   // Auth schemes que Kushki acepta:
   //   - partner: header Private-Merchant-Id con la master key del partner

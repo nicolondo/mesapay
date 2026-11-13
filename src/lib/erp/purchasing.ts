@@ -34,7 +34,10 @@ export class PurchasingError extends Error {
       | "retention_exceeds_base"
       | "retention_exceeds_total"
       // El impuesto de una línea ya se fijó con su primera entrega.
-      | "line_tax_locked",
+      | "line_tax_locked"
+      // Factura importada: lo que queda por pagar no es el Total impreso y
+      // el operador no confirmó la diferencia.
+      | "totals_unconfirmed",
   ) {
     super(code);
   }

@@ -126,7 +126,18 @@ describe("confirming against the printed invoice total", () => {
     const response = await post(body(lines, totals));
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "totals_unconfirmed" });
-    expect(m.transaction).not.toHaveBeenCalled();
+    // Checked inside the (rolled back) transaction, before any purchase is created.
+    expect(m.createPurchaseOrder).not.toHaveBeenCalled();
+    expect(m.receivePurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it("never hides a tenant validation error behind the totals check", async () => {
+    const supplier = vi.spyOn(tx.supplier, "findUnique").mockResolvedValueOnce({ restaurantId: "other-restaurant" });
+    try {
+      const response = await post(body(lines, totals));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "supplier_not_found" });
+    } finally { supplier.mockRestore(); }
   });
 
   it("saves the reviewed amounts when the operator explicitly accepts the difference", async () => {

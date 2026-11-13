@@ -120,15 +120,15 @@ async function POSTHandler(
   }
   // Lo que queda por pagar debe ser el Total impreso de la factura. Si no lo
   // es, solo se guarda con la confirmación explícita del operador (la
-  // revisión le mostró la diferencia renglón por renglón).
+  // revisión le mostró la diferencia renglón por renglón). Se exige DENTRO de
+  // la transacción, después de validar proveedor e insumos: un error de
+  // validación o de otro comercio (400) nunca queda tapado por este 409.
   const printedTotal = printedTotalCents(upload.extraction);
   const payableCents = b.lines.reduce((sum, line) => sum + line.expectedCostCents
     + (line.expectedTaxCents ?? lineTaxCents(line.expectedCostCents, line.taxPct ?? 0)), 0)
     + invoiceIncCents - (b.retefuenteCents ?? 0) - (b.reteIvaCents ?? 0) - (b.reteIcaCents ?? 0)
     + (b.roundingCents ?? 0);
-  if (printedTotal != null && payableCents !== printedTotal && b.acknowledgedDifferences !== true) {
-    return NextResponse.json({ error: "totals_unconfirmed" }, { status: 409 });
-  }
+  const totalsUnconfirmed = printedTotal != null && payableCents !== printedTotal && b.acknowledgedDifferences !== true;
   const session = await auth();
   const createdById = session?.user?.id ?? null;
   // Ajuste del comercio para valorar el inventario al recibir (neto/bruto).
@@ -214,6 +214,10 @@ async function POSTHandler(
         });
       }
 
+      // 2b. Con todo validado: el total a pagar ≠ Total impreso exige la
+      // confirmación explícita. Revierte también lo creado arriba.
+      if (totalsUnconfirmed) throw new PurchasingError("totals_unconfirmed");
+
       // 3. La OC (reusa A2).
       const po = await createPurchaseOrder(tx, {
         restaurantId: ctx.restaurantId,
@@ -294,7 +298,8 @@ async function POSTHandler(
       return NextResponse.json({ error: err.code }, { status: 400 });
     }
     if (err instanceof PurchasingError) {
-      return NextResponse.json({ error: err.code }, { status: err.code === "not_pending" ? 409 : 400 });
+      const conflict = err.code === "not_pending" || err.code === "totals_unconfirmed";
+      return NextResponse.json({ error: err.code }, { status: conflict ? 409 : 400 });
     }
     throw err;
   }

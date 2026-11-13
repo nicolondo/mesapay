@@ -512,7 +512,7 @@ export async function receivePurchaseOrder(
   );
   const now = new Date();
   const balanceReopened = po.paidAt != null
-    && purchaseOrderTotals({ ...header, items: freshItems }, "received").totalCents > po.paidCents;
+    && purchaseOrderTotals({ ...header, roundingCents: po.roundingCents, items: freshItems }, "received").totalCents > po.paidCents;
   const updated = await tx.purchaseOrder.update({
     where: { id: purchaseOrderId },
     data: {

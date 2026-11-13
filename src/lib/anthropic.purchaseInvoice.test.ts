@@ -456,8 +456,8 @@ describe("liquor invoice with a per-unit consumption tax (ICO)", () => {
   });
 
   it("also corrects an older-style reading that marked every line as line total", async () => {
-    const reading = liquorReading("line", { taxColumns: undefined });
-    reading.lines = reading.lines.map((l: Record<string, unknown>) => ({ ...l, lineIncAmountKind: "line" }));
+    const reading = liquorReading("line", { taxColumns: undefined,
+      lines: liquorReading("line").lines.map(l => ({ ...l, lineIncAmountKind: "line" })) });
     mock.create.mockResolvedValue(reply(JSON.stringify(reading)));
     const result = await extractPurchaseInvoice(source);
     expect(result.lines.map(l => l.lineIncCents)).toEqual([9_375_000, 4_420_000, 5_184_000, 1_998_000]);
@@ -470,8 +470,8 @@ describe("liquor invoice with a per-unit consumption tax (ICO)", () => {
   });
 
   it("reports a line whose quantity × unit does not add up", async () => {
-    const reading = liquorReading("unit");
-    reading.lines[1] = { ...reading.lines[1], lineTotal: "86,241.00" };
+    const reading = liquorReading("unit", {
+      lines: liquorReading("unit").lines.map((l, index) => index === 1 ? { ...l, lineTotal: "86,241.00" } : l) });
     mock.create.mockResolvedValue(reply(JSON.stringify(reading)));
     const result = await extractPurchaseInvoice(source);
     expect(result.lines[1]?.arithmeticDiffCents).toBe(1_000_000);

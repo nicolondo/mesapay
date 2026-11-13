@@ -365,8 +365,14 @@ async function buildMonthEntries(
     const deductibleVat = t.ivaCents - t.nonInventoryNonDeductibleTaxCents - inventoryVat;
     if (purchaseCost <= 0 && t.ivaCents <= 0) continue;
     const lines: Line[] = [];
+    // Ajuste al peso de las facturas (con signo): el proveedor se acredita por
+    // el Total impreso y la diferencia de redondeo va a gastos diversos —
+    // débito si se paga de más, crédito si se paga de menos—. No toca el
+    // inventario: el libro sigue igual al kardex.
+    const diversos = expenseDebit + t.roundingCents;
     if (invDebit > 0) lines.push({ code: ENGINE.INVENTARIO, debit: invDebit });
-    if (expenseDebit > 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, debit: expenseDebit });
+    if (diversos > 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, debit: diversos });
+    else if (diversos < 0) lines.push({ code: ENGINE.GASTOS_DIVERSOS, credit: -diversos });
     // IVA de compras al DESCONTABLE (240810), no al generado de ventas —
     // debitarlo a 240805 mezclaba las dos direcciones del impuesto.
     if (deductibleVat > 0) lines.push({ code: ENGINE.IVA_DESCONTABLE, debit: deductibleVat });
@@ -374,7 +380,7 @@ async function buildMonthEntries(
     if (t.reteIvaCents > 0) lines.push({ code: ENGINE.RETEIVA, credit: t.reteIvaCents });
     if (t.reteIcaCents > 0) lines.push({ code: ENGINE.RETEICA, credit: t.reteIcaCents });
     const ret = t.retefuenteCents + t.reteIvaCents + t.reteIcaCents;
-    const proveedores = purchaseCost + t.ivaCents - ret;
+    const proveedores = purchaseCost + t.ivaCents - ret + t.roundingCents;
     if (proveedores >= 0) {
       lines.push({ code: ENGINE.PROVEEDORES, credit: proveedores });
       entries.push({ source: "purchase", memo: "Compras del día", date: dateOf(day), day, lines });

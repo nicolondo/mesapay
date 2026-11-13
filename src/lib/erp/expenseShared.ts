@@ -20,6 +20,7 @@ import {
 } from "./expenseTax";
 import { computeRetentions } from "./retencionesCore";
 import { loadAccountIndex, type AccountIndexEntry } from "./ledger";
+import { POSSIBLE_DUPLICATE_MODES } from "./documentNumber";
 
 const cents = z.number().int().min(0).max(EXPENSE_MAX_CENTS);
 
@@ -77,6 +78,13 @@ export const expenseBodySchema = z.object({
    * saldado en un solo paso.
    */
   payFromAccountCode: z.string().trim().min(4).max(10).nullable().optional(),
+  /**
+   * Gasto sin número de documento parecido a otro del mismo proveedor (mismo
+   * día y total): "check" pide la advertencia (409 `possible_duplicate`),
+   * "allow" = el operador la vio y guarda igual. Ausente = no se revisa. El
+   * documento repetido CON número se bloquea siempre (`duplicate_document`).
+   */
+  possibleDuplicate: z.enum(POSSIBLE_DUPLICATE_MODES).optional(),
 });
 
 export type ExpenseBody = z.infer<typeof expenseBodySchema>;

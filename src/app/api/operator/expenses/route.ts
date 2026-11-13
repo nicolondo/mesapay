@@ -14,6 +14,11 @@ import {
   taxPayloadFromBody,
 } from "@/lib/erp/expenseShared";
 import { loadAccountMap } from "@/lib/erp/ledger";
+import {
+  assertNotDuplicateDocument,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -149,6 +154,20 @@ async function POSTHandler(req: Request) {
         ...(taxes.retentions.length > 0 ? { retentions: { create: taxes.retentions } } : {}),
       },
     });
+    // ¿Ese documento del proveedor ya estaba registrado (como gasto o como
+    // compra)? Bajo candado y después de escribir: si choca, se deshace.
+    // Las plantillas recurrentes no son documentos: no se revisan.
+    if (!b.recurring) {
+      await assertNotDuplicateDocument(tx, {
+        restaurantId: ctx.restaurantId,
+        supplierId: b.supplierId ?? null,
+        number: b.documentNumber,
+        date,
+        totalCents: payable,
+        exclude: { kind: "expense", id: created.id },
+        possibleDuplicate: b.possibleDuplicate,
+      });
+    }
     if (payNow) {
       // Se paga el TOTAL A PAGAR (lo retenido no sale de caja: se le debe a la DIAN).
       await tx.expensePayment.create({
@@ -166,7 +185,11 @@ async function POSTHandler(req: Request) {
       where: { id: created.id },
       include: { ...EXPENSE_INCLUDE, payments: { orderBy: { paidAt: "desc" } } },
     });
+  }).catch((err: unknown) => {
+    if (err instanceof DuplicateDocumentError) return err;
+    throw err;
   });
+  if (expense instanceof DuplicateDocumentError) return duplicateDocumentResponse(expense);
   return NextResponse.json({ expense }, { status: 201 });
 }
 

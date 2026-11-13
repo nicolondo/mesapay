@@ -5,17 +5,23 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
 import { ComprasClient } from "./ComprasClient";
-import { PURCHASE_LINE_AMOUNTS_SELECT } from "@/lib/erp/purchaseTax";
+import { parsePurchaseListParams } from "@/lib/erp/purchaseList";
+import { loadPurchaseFilterSuppliers, loadPurchaseListPage } from "@/lib/erp/purchaseListQueries";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Compras del comercio — ERP Fase A2: órdenes de compra a proveedores
- * (lista con filtro por estado, creación con líneas desde la lista de
- * precios y detalle con acciones). Superficie propia en la nav (operación
- * diaria, no configuración). Gate estricto: SOLO con el módulo
- * `purchasing` activado — mismo gate que la API de purchase-orders;
- * apagado, la página no existe (notFound) y el item de nav tampoco.
+ * (lista, creación con líneas desde la lista de precios y detalle con
+ * acciones). Superficie propia en la nav (operación diaria, no
+ * configuración). Gate estricto: SOLO con el módulo `purchasing` activado
+ * — mismo gate que la API de purchase-orders; apagado, la página no existe
+ * (notFound) y el item de nav tampoco.
+ *
+ * La lista (pestañas «Órdenes» y «Por pagar») se busca, filtra —proveedor,
+ * estado, fechas— y pagina EN EL SERVIDOR sobre todas las compras del
+ * comercio, y el resumen (total a pagar, vencido, total de las compras) es
+ * de todo lo que cumple los filtros. Los filtros viven en la URL.
  */
 export default async function ComprasPage({
   searchParams,
@@ -37,35 +43,23 @@ export default async function ComprasPage({
     notFound();
   }
 
-  // Primera página de órdenes (todos los estados) con la MISMA forma que
-  // GET /api/operator/purchase-orders — el client filtra y pagina contra
-  // esa API con el mismo cursor.
-  const orders = await db.purchaseOrder.findMany({
-    where: { restaurantId },
-    take: 20,
-    orderBy: [{ createdAt: "desc" }],
-    include: {
-      supplier: { select: { id: true, name: true } },
-      items: {
-        select: PURCHASE_LINE_AMOUNTS_SELECT,
-      },
-      _count: { select: { items: true } },
-    },
-  });
-  const nextCursor =
-    orders.length === 20 ? orders[orders.length - 1].id : null;
+  const sp = await searchParams;
+  // Proveedores del comercio (también inactivos: tienen compras viejas) para
+  // el filtro; los activos van al autocompletado de "Nueva orden" y de la
+  // revisión de facturas. Un proveedor de la URL que no es de este comercio
+  // se ignora.
+  const allSuppliers = await loadPurchaseFilterSuppliers(restaurantId);
+  const suppliers = allSuppliers
+    .filter((s) => s.active)
+    .map(({ id, name, taxId }) => ({ id, name, taxId }));
+  const parsed = parsePurchaseListParams(sp);
+  const params = allSuppliers.some((s) => s.id === parsed.supplier) ? parsed : { ...parsed, supplier: "" };
+  const list = await loadPurchaseListPage(restaurantId, params);
 
-  // Proveedores activos para el campo con autocompletado (nombre o NIT) de
-  // "Nueva orden" y de la revisión de facturas.
-  const suppliers = await db.supplier.findMany({
-    where: { restaurantId, active: true },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, taxId: true },
-  });
-
-  // `?oc=<id>` (enlace desde Reportes › Impuestos): abre el detalle de esa
-  // orden si es de este comercio; si no, se ignora.
-  const ocParam = (await searchParams).oc;
+  // `?oc=<id>` (enlace desde Reportes, Cartera o el aviso de factura
+  // repetida): abre el detalle de esa orden si es de este comercio; si no,
+  // se ignora.
+  const ocParam = sp.oc;
   const oc = Array.isArray(ocParam) ? ocParam[0] : ocParam;
   const initialDetailId =
     oc && /^[a-z0-9]{10,40}$/i.test(oc)
@@ -77,14 +71,17 @@ export default async function ComprasPage({
   const currency = await getCurrencyForCountry(tenant.country);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full">
-      <div className="font-display text-3xl mb-1">{t("comprasTitle")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("comprasIntro")}</p>
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto w-full">
+      <h1 className="font-display text-2xl lg:text-3xl tracking-[-0.015em]">{t("comprasTitle")}</h1>
+      {/* En el celular la bajada se omite: la lista sube. */}
+      <p className="hidden sm:block text-sm text-op-muted mt-1 mb-5 max-w-2xl">{t("comprasIntro")}</p>
+      <div className="h-4 sm:hidden" />
 
       <ComprasClient
-        initialOrders={orders}
-        initialCursor={nextCursor}
+        list={list}
+        params={{ ...params, page: list.page }}
         suppliers={suppliers}
+        filterSuppliers={allSuppliers.map(({ id, name, taxId }) => ({ id, name, taxId }))}
         currency={currency}
         initialDetailId={initialDetailId}
       />

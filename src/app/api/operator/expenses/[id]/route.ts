@@ -16,6 +16,12 @@ import {
 } from "@/lib/erp/expenseShared";
 import { expenseBaseCents, expensePayableCents } from "@/lib/erp/expenseTax";
 import type { ModuleSlug } from "@/lib/modules";
+import { normalizeDocumentNumber } from "@/lib/erp/documentNumber";
+import {
+  assertNotDuplicateDocument,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +156,15 @@ async function PATCHHandler(
       ? (existing.paidAt ?? new Date())
       : null;
 
+  // Revisión de documento repetido: el número o el proveedor cambian (editar
+  // otra cosa de un gasto viejo repetido no se bloquea), o el cliente pide
+  // la advertencia sin número. Las plantillas no son documentos.
+  const documentNumber = b.documentNumber !== undefined ? (b.documentNumber || null) : existing.documentNumber;
+  const documentChanged =
+    normalizeDocumentNumber(documentNumber) !== normalizeDocumentNumber(existing.documentNumber) ||
+    supplierId !== existing.supplierId;
+  const checkDocument = !recurring && (documentChanged || b.possibleDuplicate === "check");
+
   const expense = await db.$transaction(async (tx) => {
     if (amounts?.ok) {
       await tx.expenseRetention.deleteMany({ where: { expenseId: id } });
@@ -159,7 +174,7 @@ async function PATCHHandler(
         });
       }
     }
-    return tx.expense.update({
+    const updated = await tx.expense.update({
       where: { id },
       data: {
         ...(b.category !== undefined ? { category: b.category } : {}),
@@ -185,7 +200,23 @@ async function PATCHHandler(
       },
       include: EXPENSE_INCLUDE,
     });
+    if (checkDocument) {
+      await assertNotDuplicateDocument(tx, {
+        restaurantId: ctx.restaurantId,
+        supplierId,
+        number: documentNumber,
+        date,
+        totalCents: payable,
+        exclude: { kind: "expense", id },
+        possibleDuplicate: b.possibleDuplicate,
+      });
+    }
+    return updated;
+  }).catch((err: unknown) => {
+    if (err instanceof DuplicateDocumentError) return err;
+    throw err;
   });
+  if (expense instanceof DuplicateDocumentError) return duplicateDocumentResponse(expense);
   return NextResponse.json({ expense });
 }
 

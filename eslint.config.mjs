@@ -37,6 +37,10 @@ const MIGRATED = [
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
+  "src/components/suppliers/DuplicateDocumentAlert.tsx",
+  "src/app/operator/compras/ComprasList.tsx",
+  "src/app/operator/compras/chips.tsx",
+  "src/app/operator/compras/page.tsx",
   // Clientes (facturación + comensales registrados, y la ficha del
   // comensal): migrados enteros con el rediseño de la lista, quedan blindados.
   "src/app/operator/clientes/**/*.{ts,tsx}",

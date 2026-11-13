@@ -8307,7 +8307,8 @@
     "ingredientPurchaseMovementAt": "Movimiento de recepción: {date}",
     "ingredientPurchaseRecordedAt": "Compra registrada el {date}",
     "rdSourcePurchase": "Compra recibida",
-    "rdFixZeroOther": "{name} tiene un costo en cero. Revisa la compra o escribe un precio de referencia."
+    "rdFixZeroOther": "{name} tiene un costo en cero. Revisa la compra o escribe un precio de referencia.",
+    "countUnsavedConfirm": "Tienes cantidades sin guardar. Si sales ahora se pierden. ¿Salir sin guardar?"
   },
   "opDian": {
     "title": "Facturación electrónica DIAN",

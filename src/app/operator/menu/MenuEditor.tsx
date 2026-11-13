@@ -19,7 +19,6 @@ import {
   type MenuItemOrder,
 } from "@/lib/menuOrder";
 import { defaultLocale } from "@/i18n/config";
-import { useBackdropClose } from "@/lib/useBackdropClose";
 import type { MenuTag } from "@/lib/menuTags";
 import { BulkActionBar } from "./BulkActions";
 import type {
@@ -1862,8 +1861,8 @@ function ConvertCategorySheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={busy ? undefined : onClose}
     >
       <div
         className="bg-op-surface text-op-text w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[88vh] flex flex-col"
@@ -2452,8 +2451,8 @@ function ItemSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba los cambios del plato.
       className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4"
-      {...useBackdropClose(onClose)}
     >
       {/* Tarjeta centrada en todos los tamaños. (Antes era hoja inferior con
           items-end, pero en iOS `fixed inset-0` usa el viewport "grande", así

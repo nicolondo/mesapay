@@ -69,6 +69,9 @@ export type AuditKind =
   // Carta: un plato sale o vuelve a la carta (Agotado / Disponible). Lo
   // graban el editor de carta, Archivar y el aviso de agotados al abrir turno.
   | "menu_item.availability.update"
+  // Insumos: eliminar del todo uno que nunca tuvo movimientos (el diff
+  // guarda nombre, categoría y códigos de barras: la fila ya no existe).
+  | "ingredient.delete"
   // Configuración → Impresoras → Facturas (impresora elegida / automático)
   | "printer.invoice_settings.update"
   // Grupos
@@ -144,6 +147,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "dian.invoice.status_check": "Consultó una factura en la DIAN",
   "dian.invoice.recovery_batch": "Recuperó facturas DIAN en lote",
   "menu_item.availability.update": "Cambió disponibilidad de un plato",
+  "ingredient.delete": "Eliminó un insumo",
   "printer.invoice_settings.update": "Cambió la impresión de facturas",
   "restaurant.create": "Creó restaurante",
   "restaurant.group.update": "Cambió grupo del comercio",

@@ -9,8 +9,8 @@ import type { BillingCustomerRecord } from "./types";
  * Alta / edición de un cliente en una hoja: abajo en el celular, centrada
  * en el escritorio. Antes el formulario se abría arriba de la lista, lejos
  * de la fila que se estaba editando; con la lista paginada la hoja aparece
- * donde uno está. Escape o tocar afuera cierra; al cerrar el foco vuelve al
- * botón que la abrió.
+ * donde uno está. Escape, ✕ o Cancelar cierran (tocar afuera no); al cerrar
+ * el foco vuelve al botón que la abrió.
  */
 export function CustomerFormSheet({
   initial,
@@ -40,7 +40,8 @@ export function CustomerFormSheet({
     };
   }, []);
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6" onClick={onClose}>
+    // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
+    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6">
       <div
         ref={panel}
         role="dialog"

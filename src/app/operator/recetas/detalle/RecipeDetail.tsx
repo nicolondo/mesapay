@@ -579,6 +579,7 @@ export function RecipeDetail({
       <AppDialog
         label={dish.name}
         onClose={requestClose}
+        dismissOnBackdrop={false}
         className="m-0! inset-0! w-screen! max-w-none! h-dvh! max-h-none! overflow-hidden! rounded-none! border-0! lg:m-auto! lg:w-[min(1320px,calc(100vw-48px))]! lg:h-fit! lg:max-h-[calc(100dvh-48px)]! lg:rounded-[18px]! lg:border!"
       >
         <div

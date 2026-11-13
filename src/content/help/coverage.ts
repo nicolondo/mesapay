@@ -170,11 +170,15 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/menu/import": ["importar-la-carta"],
   "/operator/menus": ["organizar-la-carta"],
   "/operator/settings/traducciones": ["traducir-la-carta"],
-  "/operator/settings/insumos": ["insumos-y-proveedores"],
+  "/operator/settings/insumos": ["insumos-y-proveedores", "archivar-o-eliminar-un-insumo"],
   "/operator/settings/proveedores": ["insumos-y-proveedores"],
   "/operator/recetas": ["recetas-y-food-cost", "sub-recetas-y-produccion"],
   "/operator/produccion": ["sub-recetas-y-produccion"],
-  "/operator/inventario": ["inventario-del-dia-a-dia", "conteo-de-inventario"],
+  "/operator/inventario": [
+    "inventario-del-dia-a-dia",
+    "conteo-de-inventario",
+    "archivar-o-eliminar-un-insumo",
+  ],
   "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra"],
 
   /* ── Facturación ── */

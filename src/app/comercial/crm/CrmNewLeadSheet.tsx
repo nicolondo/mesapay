@@ -193,7 +193,7 @@ export function CrmNewLeadSheet({
 
   if (showDupeConfirm) {
     return (
-      <Overlay onClose={onClose}>
+      <Overlay>
         <SheetContent innerRef={sheetRef}>
           <SheetHandle />
           <div className="px-4 pb-6 pt-2 space-y-4">
@@ -237,7 +237,7 @@ export function CrmNewLeadSheet({
   }
 
   return (
-    <Overlay onClose={onClose}>
+    <Overlay>
       <SheetContent innerRef={sheetRef}>
         <SheetHandle />
         <div className="flex items-center justify-between px-4 py-3 border-b border-op-border">
@@ -445,23 +445,17 @@ export function CrmNewLeadSheet({
 
 // ── Sheet primitives ───────────────────────────────────────────────────────
 
-function Overlay({
-  onClose,
-  children,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function Overlay({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center"
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
+      {/* Backdrop. Sin cierre al tocar afuera: es un formulario, y un clic
+          perdido borraba lo digitado. */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
         aria-hidden="true"
       />
       {children}

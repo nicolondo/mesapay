@@ -30,7 +30,7 @@ async function GETHandler(
     return NextResponse.json({ error: "unknown_tenant" }, { status: 404 });
   }
 
-  const { slots, floorTables, floorPlan } = await getAvailability({
+  const { slots, floor, floorTables, floorPlan } = await getAvailability({
     restaurantId: tenant.id,
     dateLocal: date,
     partySize,
@@ -50,10 +50,14 @@ async function GETHandler(
         reservationDepositCents: t.reservationDepositCents,
       })),
     })),
-    // Mapa del salón (mesas con coords). Vacío si el operador no
-    // diseñó el plano — el front cae al picker de lista.
+    // Plano del salón (formato libre): escena + mesas reservables con su
+    // colocación. `floor.tables` vacío si el operador no dibujó el plano:
+    // el front cae al selector de lista.
+    floor,
+    // El mismo plano en el formato viejo (celdas). Solo lo lee una página
+    // de reservas que quedó abierta con la versión anterior durante un
+    // deploy; se puede retirar cuando ya no haya clientes viejos.
     floorTables,
-    // Grilla + zonas + markers (entrada, etc.) para dibujar contexto.
     floorPlan,
   });
 }

@@ -11028,6 +11028,8 @@
     "rowResend": "Reenviar link",
     "chipReceivable": "Por cobrar",
     "chipOverdue": "Vencida",
-    "chipPaidByLink": "Cobrada"
+    "chipPaidByLink": "Cobrada",
+    "introPaid": "Factura emitida y pagada.",
+    "introCancelled": "Factura anulada: no hay nada por cobrar."
   }
 }

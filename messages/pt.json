@@ -11028,6 +11028,8 @@
     "rowResend": "Reenviar link",
     "chipReceivable": "A receber",
     "chipOverdue": "Vencida",
-    "chipPaidByLink": "Recebida"
+    "chipPaidByLink": "Recebida",
+    "introPaid": "Fatura emitida e paga.",
+    "introCancelled": "Fatura anulada: não há nada a receber."
   }
 }

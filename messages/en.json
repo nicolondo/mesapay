@@ -11028,6 +11028,8 @@
     "rowResend": "Resend link",
     "chipReceivable": "Receivable",
     "chipOverdue": "Overdue",
-    "chipPaidByLink": "Collected"
+    "chipPaidByLink": "Collected",
+    "introPaid": "Invoice issued and paid.",
+    "introCancelled": "Invoice voided: nothing left to collect."
   }
 }

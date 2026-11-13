@@ -280,7 +280,15 @@ export function ManualInvoiceSendCard({
       }
     >
       <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">{t("sectionTitle")}</div>
-      <p className="text-xs text-op-muted">{receivable ? t("introReceivable") : t("introOpen")}</p>
+      <p className="text-xs text-op-muted">
+        {link?.state === "paid"
+          ? t("introPaid")
+          : link?.state === "cancelled"
+            ? t("introCancelled")
+            : receivable
+              ? t("introReceivable")
+              : t("introOpen")}
+      </p>
       <PayLinkStatusLines info={{ ...info, link }} />
 
       {info.methods.length > 0 && !settled && (

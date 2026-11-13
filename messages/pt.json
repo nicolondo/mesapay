@@ -866,7 +866,7 @@
     "invEmailHint": "A nota chega aqui",
     "invSending": "Enviando…",
     "invSendToRestaurant": "Enviar ao restaurante",
-    "invPrivacy": "Seus dados só são compartilhados com o restaurante para emitir sua nota.",
+    "invPrivacy": "Seus dados só são compartilhados com o restaurante para emitir suas notas.",
     "invErrAlreadyGenerated": "Já foi gerada uma nota para este pedido. Fale com o restaurante para correções.",
     "invErrNotFound": "Não encontramos este pedido.",
     "invErrInvalid": "Confira os dados: algum está incompleto.",
@@ -876,7 +876,35 @@
     "discountRow": "Desconto",
     "discountRowPct": "Desconto de {pct}%",
     "discountedTotal": "Total com desconto",
-    "methodCustomerCredit": "Crédito"
+    "methodCustomerCredit": "Crédito",
+    "invDocFirstIntro": "Comece pelo seu documento. Se você já pediu nota aqui, trazemos seus dados.",
+    "invDocFirstIntroOp": "Digite o documento do cliente. Se já estiver salvo, carregamos os dados dele.",
+    "invContinue": "Continuar",
+    "invSearching": "Buscando…",
+    "invFoundTitle": "Estes são seus dados?",
+    "invFoundBody": "Você já tem dados salvos neste estabelecimento. Para sua segurança, mostramos só uma parte.",
+    "invUseTheseData": "Usar estes dados",
+    "invChangeMyData": "Alterar meus dados",
+    "invSavedCustomerLoaded": "Cliente salvo: confira os dados e corrija se precisar.",
+    "invEmailHintOp": "E-mail principal: a nota chega aqui.",
+    "invRemember": "Lembrar meus dados para as próximas notas em {restaurant}",
+    "invRememberGeneric": "Lembrar meus dados para as próximas notas neste estabelecimento",
+    "invRememberOp": "Salvar os dados do cliente para as próximas notas dele",
+    "invRememberPolicy": "Se deixar marcado, da próxima vez você só digita o documento. Se desmarcar, a nota sai do mesmo jeito. <link>Política de privacidade</link>",
+    "invRememberPolicyOp": "Peça autorização ao cliente. Se desmarcar, a nota sai do mesmo jeito, mas os dados não são salvos. <link>Política de privacidade</link>",
+    "invErrLookupLimited": "Você fez muitas buscas seguidas. Digite seus dados completos.",
+    "invErrSavedExpired": "Por segurança, digite seu documento de novo.",
+    "invErrSavedInvalid": "Faltam dados para esta nota. Complete-os.",
+    "invErrExtraEmail": "Confira o e-mail adicional {n}.",
+    "invErrTooManyEmails": "No máximo {max} e-mails por nota."
+  },
+  "invoiceEmails": {
+    "label": "Outros e-mails (opcional)",
+    "itemLabel": "E-mail adicional {n}",
+    "placeholder": "outro@email.com",
+    "remove": "Remover o e-mail adicional {n}",
+    "add": "+ Adicionar e-mail",
+    "hint": "A nota também chega a estes e-mails. No máximo {max} no total, contando o principal."
   },
   "wait": {
     "totalToPay": "Total a pagar",
@@ -8877,7 +8905,10 @@
     "creditTerms": "{days, plural, =0 {À vista} one {Prazo de # dia} other {Prazo de # dias}}",
     "overdueValue": "Vencido {amount}",
     "pickerMore": "Ver mais",
-    "pickerShowing": "Mostrando {shown} de {total}. Digite mais para refinar a busca."
+    "pickerShowing": "Mostrando {shown} de {total}. Digite mais para refinar a busca.",
+    "emailMainHint": "E-mail principal: é o que vai na nota fiscal eletrônica.",
+    "ccEmailsInvalid": "Confira os e-mails adicionais: algum não é válido ou há mais de 4.",
+    "moreEmails": "{count, plural, one {+# e-mail} other {+# e-mails}}"
   },
   "inventoryTracking": {
     "label": "Controlar estoque",

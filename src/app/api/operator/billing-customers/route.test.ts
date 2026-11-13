@@ -1,11 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
-const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), rate: vi.fn(), queryRaw: vi.fn() }));
+const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), rate: vi.fn(), queryRaw: vi.fn(), audit: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.active }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: m.rate }));
+vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
 vi.mock("@/lib/db", () => ({ db: { $queryRaw: m.queryRaw, billingCustomer: { findMany: m.findMany, create: m.create, update: m.update } } }));
 import { GET, POST } from "./route";
 import { PATCH } from "./[id]/route";
@@ -116,4 +117,21 @@ it("rate limits reading contacts", async () => {
   m.rate.mockResolvedValue(false);
   expect((await GET(req("GET"))).status).toBe(429);
   expect(m.findMany).not.toHaveBeenCalled();
+});
+
+it("editado por el personal deja de ser de autoservicio y queda auditado (sin valores)", async () => {
+  expect((await PATCH(req("PATCH", { ...minimal, ccEmails: ["Conta@Empresa.test", "cliente@example.test"] }), params)).status).toBe(200);
+  expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ selfService: false, ccEmails: ["conta@empresa.test"] }) }));
+  expect(m.audit).toHaveBeenCalledWith(expect.objectContaining({ kind: "billing_customer.update", target: { type: "billing_customer", id: "customer-1" } }));
+  expect(JSON.stringify(m.audit.mock.calls)).not.toContain("901944469");
+});
+it("un formulario viejo sin ccEmails no borra los correos adicionales", async () => {
+  await PATCH(req("PATCH", minimal), params);
+  expect(m.update.mock.calls[0][0].data.ccEmails).toBeUndefined();
+});
+it("rechaza un correo adicional inválido", async () => {
+  const response = await POST(req("POST", { ...minimal, ccEmails: ["no-es-correo"] }));
+  expect(response.status).toBe(400);
+  expect((await response.json()).fieldErrors.ccEmails).toEqual(["invalid_email"]);
+  expect(m.create).not.toHaveBeenCalled();
 });

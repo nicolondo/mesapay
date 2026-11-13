@@ -91,6 +91,7 @@ export const CLIENT_NAMESPACES = {
     "common",
     "customerAuth",
     "done",
+    "invoiceEmails",
     "legal",
     "me",
     "menu",

@@ -218,6 +218,7 @@ export async function loadBillingCustomerPage(
       docNumber: record.docNumber,
       verificationDigit: record.verificationDigit,
       email: record.email,
+      ccEmails: record.ccEmails ?? [],
       phone: record.phone,
       address: record.address,
       municipalityCode: record.municipalityCode,

@@ -866,7 +866,7 @@
     "invEmailHint": "Your invoice arrives here",
     "invSending": "Sending…",
     "invSendToRestaurant": "Send to the restaurant",
-    "invPrivacy": "Your details are only shared with the restaurant to issue your invoice.",
+    "invPrivacy": "Your details are only shared with the restaurant to issue your invoices.",
     "invErrAlreadyGenerated": "An invoice was already generated for this order. Contact the restaurant for corrections.",
     "invErrNotFound": "We couldn't find this order.",
     "invErrInvalid": "Check the details: something is incomplete.",
@@ -876,7 +876,35 @@
     "discountRow": "Discount",
     "discountRowPct": "{pct}% discount",
     "discountedTotal": "Total after discount",
-    "methodCustomerCredit": "Credit"
+    "methodCustomerCredit": "Credit",
+    "invDocFirstIntro": "Start with your ID. If you've asked for an invoice here before, we'll bring up your details.",
+    "invDocFirstIntroOp": "Enter the customer's ID. If it's saved, we'll load their details.",
+    "invContinue": "Continue",
+    "invSearching": "Searching…",
+    "invFoundTitle": "Are these your details?",
+    "invFoundBody": "You already have details saved at this restaurant. For your security we only show part of them.",
+    "invUseTheseData": "Use these details",
+    "invChangeMyData": "Change my details",
+    "invSavedCustomerLoaded": "Saved customer: review the details and correct them if needed.",
+    "invEmailHintOp": "Main email: the invoice is sent here.",
+    "invRemember": "Remember my details for my next invoices at {restaurant}",
+    "invRememberGeneric": "Remember my details for my next invoices at this restaurant",
+    "invRememberOp": "Save the customer's details for their next invoices",
+    "invRememberPolicy": "If you leave it checked, next time you only enter your ID. If you uncheck it, the invoice is still issued. <link>Privacy policy</link>",
+    "invRememberPolicyOp": "Ask the customer for permission. If you uncheck it, the invoice is still issued but their details aren't saved. <link>Privacy policy</link>",
+    "invErrLookupLimited": "Too many searches in a row. Enter your full details.",
+    "invErrSavedExpired": "For your security, enter your ID again.",
+    "invErrSavedInvalid": "Some details are missing for this invoice. Please complete them.",
+    "invErrExtraEmail": "Check additional email {n}.",
+    "invErrTooManyEmails": "Up to {max} emails per invoice."
+  },
+  "invoiceEmails": {
+    "label": "Other emails (optional)",
+    "itemLabel": "Additional email {n}",
+    "placeholder": "another@email.com",
+    "remove": "Remove additional email {n}",
+    "add": "+ Add email",
+    "hint": "The invoice is also sent to these emails. Up to {max} in total, including the main one."
   },
   "wait": {
     "totalToPay": "Total to pay",
@@ -8877,7 +8905,10 @@
     "creditTerms": "{days, plural, =0 {Due on receipt} one {Terms: # day} other {Terms: # days}}",
     "overdueValue": "Overdue {amount}",
     "pickerMore": "Show more",
-    "pickerShowing": "Showing {shown} of {total}. Type more to narrow the search."
+    "pickerShowing": "Showing {shown} of {total}. Type more to narrow the search.",
+    "emailMainHint": "Main email: the one on the electronic invoice.",
+    "ccEmailsInvalid": "Check the additional emails: one isn't valid or there are more than 4.",
+    "moreEmails": "{count, plural, one {+# email} other {+# emails}}"
   },
   "inventoryTracking": {
     "label": "Track inventory",

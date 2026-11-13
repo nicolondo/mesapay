@@ -866,7 +866,7 @@
     "invEmailHint": "Aquí te llega la factura",
     "invSending": "Enviando…",
     "invSendToRestaurant": "Enviar al restaurante",
-    "invPrivacy": "Tus datos solo se comparten con el restaurante para emitir tu factura.",
+    "invPrivacy": "Tus datos solo se comparten con el restaurante para emitir tus facturas.",
     "invErrAlreadyGenerated": "Ya se generó una factura para este pedido. Contacta al restaurante para correcciones.",
     "invErrNotFound": "No encontramos este pedido.",
     "invErrInvalid": "Revisa los datos: alguno está incompleto.",
@@ -876,7 +876,35 @@
     "discountRow": "Descuento",
     "discountRowPct": "Descuento {pct}%",
     "discountedTotal": "Total con descuento",
-    "methodCustomerCredit": "Crédito"
+    "methodCustomerCredit": "Crédito",
+    "invDocFirstIntro": "Empieza por tu documento. Si ya pediste factura aquí, traemos tus datos.",
+    "invDocFirstIntroOp": "Escribe el documento del cliente. Si ya está guardado, cargamos sus datos.",
+    "invContinue": "Continuar",
+    "invSearching": "Buscando…",
+    "invFoundTitle": "¿Son estos tus datos?",
+    "invFoundBody": "Ya tienes datos guardados en este comercio. Por tu seguridad solo te mostramos una parte.",
+    "invUseTheseData": "Usar estos datos",
+    "invChangeMyData": "Cambiar mis datos",
+    "invSavedCustomerLoaded": "Cliente guardado: revisa los datos y corrígelos si hace falta.",
+    "invEmailHintOp": "Correo principal: aquí le llega la factura.",
+    "invRemember": "Recordar mis datos para mis próximas facturas en {restaurant}",
+    "invRememberGeneric": "Recordar mis datos para mis próximas facturas en este comercio",
+    "invRememberOp": "Guardar los datos del cliente para sus próximas facturas",
+    "invRememberPolicy": "Si la dejas marcada, la próxima vez solo escribes tu documento. Si la desmarcas, la factura sale igual. <link>Política de privacidad</link>",
+    "invRememberPolicyOp": "Pídele autorización al cliente. Si la desmarcas, la factura sale igual pero sus datos no se guardan. <link>Política de privacidad</link>",
+    "invErrLookupLimited": "Hiciste muchas búsquedas seguidas. Escribe tus datos completos.",
+    "invErrSavedExpired": "Por seguridad, vuelve a escribir tu documento.",
+    "invErrSavedInvalid": "Faltan datos para esta factura. Complétalos.",
+    "invErrExtraEmail": "Revisa el correo adicional {n}.",
+    "invErrTooManyEmails": "Máximo {max} correos por factura."
+  },
+  "invoiceEmails": {
+    "label": "Otros correos (opcional)",
+    "itemLabel": "Correo adicional {n}",
+    "placeholder": "otro@correo.com",
+    "remove": "Quitar el correo adicional {n}",
+    "add": "+ Agregar correo",
+    "hint": "La factura también llega a estos correos. Máximo {max} en total, contando el principal."
   },
   "wait": {
     "totalToPay": "Total a pagar",
@@ -8877,7 +8905,10 @@
     "creditTerms": "{days, plural, =0 {De contado} one {Plazo # día} other {Plazo # días}}",
     "overdueValue": "Vencido {amount}",
     "pickerMore": "Ver más",
-    "pickerShowing": "Mostrando {shown} de {total}. Escribe más para afinar la búsqueda."
+    "pickerShowing": "Mostrando {shown} de {total}. Escribe más para afinar la búsqueda.",
+    "emailMainHint": "Correo principal: es el que va en la factura electrónica.",
+    "ccEmailsInvalid": "Revisa los correos adicionales: alguno no es válido o hay más de 4.",
+    "moreEmails": "{count, plural, one {+# correo} other {+# correos}}"
   },
   "inventoryTracking": {
     "label": "Llevar inventario",

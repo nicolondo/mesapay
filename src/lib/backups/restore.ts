@@ -185,7 +185,14 @@ export async function restoreSnapshot(args: {
   }
 
   // Fiscal credit reservations and their global sequence cannot be rolled back.
-  if (data.tables.CreditNote?.length || await db.creditNote.count({ where: { restaurantId: args.restaurantId } })) {
+  // Lo mismo con los documentos soporte y sus notas de ajuste: un número ya
+  // transmitido a la DIAN no puede desaparecer ni repetirse.
+  if (
+    data.tables.CreditNote?.length ||
+    data.tables.SupportDocument?.length ||
+    await db.creditNote.count({ where: { restaurantId: args.restaurantId } }) ||
+    await db.supportDocument.count({ where: { restaurantId: args.restaurantId } })
+  ) {
     throw new BackupError("backup_fiscal_history_protected");
   }
 
@@ -196,6 +203,7 @@ export async function restoreSnapshot(args: {
     tables: {
       ...data.tables,
       ...(!("CreditNote" in data.tables) ? { CreditNote: [] } : {}),
+      ...(!("SupportDocument" in data.tables) ? { SupportDocument: [] } : {}),
       ...(!("SupplierInvoiceAlias" in data.tables) ? { SupplierInvoiceAlias: [] } : {}),
       IngredientBarcode: completeIngredientBarcodes(data, args.restaurantId),
     },
@@ -229,6 +237,7 @@ async function restoreInTransaction(
   // Recheck under the same lock used by credit-note creation, closing the
   // gap between pre-restore backup and destructive writes.
   if (await tx.creditNote.count({ where: { restaurantId } })) throw new BackupError("backup_fiscal_history_protected");
+  if (await tx.supportDocument.count({ where: { restaurantId } })) throw new BackupError("backup_fiscal_history_protected");
 
   // Bypass de los triggers de negocio sólo dentro de esta transacción.
   await tx.$executeRaw`SET LOCAL app.restoring = '1'`;

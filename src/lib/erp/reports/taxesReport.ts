@@ -21,6 +21,7 @@ import {
   loadRefundsCents,
   loadRetentionConceptRows,
   loadSaleTaxDocs,
+  loadSupplierCreditNoteTaxDocs,
   loadTaxAccounts,
   loadTaxLedgerLines,
   type RetentionConceptRow,
@@ -55,17 +56,27 @@ export async function loadTaxesReport(
   const { from, to } = periodToUtcRange(period);
   const concepts = await loadRetentionConceptRows(restaurantId);
   const { conceptKindByCode, codes } = conceptMaps(concepts);
-  const [sales, purchases, expenses, creditNotes, refundsCents, currentTax, accounts, lines] = await Promise.all([
-    loadSaleTaxDocs(restaurantId, from, to),
-    loadPurchaseTaxDocs(restaurantId, from, to),
-    loadExpenseTaxDocs(restaurantId, from, to),
-    loadCreditNoteTaxDocs(restaurantId, period.desde, period.hasta),
-    loadRefundsCents(restaurantId, from, to),
-    loadCurrentSalesTax(restaurantId),
-    loadTaxAccounts(restaurantId, TAX_ACCOUNT_PREFIXES, codes),
-    loadTaxLedgerLines(restaurantId, from, to, TAX_ACCOUNT_PREFIXES, codes),
-  ]);
-  const documental = aggregateDocumentTaxes({ sales, purchases, expenses, refundsCents, currentTax, creditNotes });
+  const [sales, purchases, expenses, creditNotes, refundsCents, currentTax, accounts, lines, supplierCreditNotes] =
+    await Promise.all([
+      loadSaleTaxDocs(restaurantId, from, to),
+      loadPurchaseTaxDocs(restaurantId, from, to),
+      loadExpenseTaxDocs(restaurantId, from, to),
+      loadCreditNoteTaxDocs(restaurantId, period.desde, period.hasta),
+      loadRefundsCents(restaurantId, from, to),
+      loadCurrentSalesTax(restaurantId),
+      loadTaxAccounts(restaurantId, TAX_ACCOUNT_PREFIXES, codes),
+      loadTaxLedgerLines(restaurantId, from, to, TAX_ACCOUNT_PREFIXES, codes),
+      loadSupplierCreditNoteTaxDocs(restaurantId, from, to),
+    ]);
+  const documental = aggregateDocumentTaxes({
+    sales,
+    purchases,
+    expenses,
+    refundsCents,
+    currentTax,
+    creditNotes,
+    supplierCreditNotes,
+  });
   const book = buildTaxAccountReport(lines, accounts, { conceptKindByCode });
   const cross = buildTaxCross(documental, book);
   return {

@@ -12,6 +12,8 @@ import {
   type StatementEntry,
 } from "@/lib/erp/reports/cartera";
 import { loadPartnerMovements } from "@/lib/erp/reports/carteraQueries";
+import { loadCreditCrossNotes, loadSupplierCreditBalances } from "@/lib/erp/reports/supplierCreditCartera";
+import { creditNoteListHref } from "@/lib/erp/supplierCreditNoteList";
 import { carteraStatementQuery } from "@/lib/erp/reports/params";
 import { todayIso } from "@/lib/erp/reports/period";
 import { firstParam, reportGate } from "../../../_components/gate";
@@ -108,7 +110,24 @@ export default async function CarteraExtractoPage({
 
   const data = await loadPartnerMovements(gate.restaurantId, kind, partnerId, asOf);
   if (!data) notFound();
-  const st = buildStatement(data.docs, data.payments, asOf);
+  const statement = buildStatement(data.docs, data.payments, asOf);
+  // Proveedor: los cruces con notas crédito se rotulan como tales y su saldo
+  // a favor (lo no cruzado) se muestra aparte — no es deuda negativa.
+  const [crossNotes, credit] =
+    kind === "cxp" && partnerId !== NO_SUPPLIER_ID
+      ? await Promise.all([
+          loadCreditCrossNotes(gate.restaurantId, data.payments.map((p) => p.id)),
+          loadSupplierCreditBalances(gate.restaurantId, asOf, partnerId).then((r) => r[0] ?? null),
+        ])
+      : [new Map<string, string>(), null];
+  const tCredit = await getTranslations("opSupplierCredit");
+  const st = {
+    ...statement,
+    entries: statement.entries.map((e) => {
+      const number = e.kind === "abono" ? crossNotes.get(e.key.slice(4)) : undefined;
+      return number ? { ...e, note: tCredit("crossLabel", { number }) } : e;
+    }),
+  };
 
   const loc = locale as Locale;
   const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc });
@@ -184,6 +203,22 @@ export default async function CarteraExtractoPage({
           {data.partner.email && <span className="break-all">{t("email", { email: data.partner.email })}</span>}
         </div>
       </div>
+
+      {credit && (
+        <div className="min-w-0 rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-op-muted">{tCredit("balanceLabel")}</div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums">{money(credit.availableCents)}</div>
+            <div className="text-xs text-op-muted">{tCredit("balanceHintCartera", { n: credit.notes })}</div>
+          </div>
+          <Link
+            href={creditNoteListHref({ supplier: partnerId, status: "with_balance" })}
+            className="mp-btn mp-btn--secondary mp-btn--sm no-print"
+          >
+            {tCredit("seeNotes")}
+          </Link>
+        </div>
+      )}
 
       {st.entries.length === 0 ? (
         <EmptyNote>{t("stEmpty")}</EmptyNote>

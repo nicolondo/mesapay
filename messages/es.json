@@ -4355,6 +4355,7 @@
     "badgePending": "Pendiente",
     "badgeGenerated": "✓ Generada",
     "fieldEmail": "Correo",
+    "fieldCcEmails": "Otros correos",
     "fieldAddress": "Dirección",
     "fieldCityDept": "Ciudad / Depto",
     "markGenerated": "✓ Marcar como generada",

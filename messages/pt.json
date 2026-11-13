@@ -4355,6 +4355,7 @@
     "badgePending": "Pendente",
     "badgeGenerated": "✓ Emitida",
     "fieldEmail": "E-mail",
+    "fieldCcEmails": "Outros e-mails",
     "fieldAddress": "Endereço",
     "fieldCityDept": "Cidade / Estado",
     "markGenerated": "✓ Marcar como emitida",

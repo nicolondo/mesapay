@@ -4355,6 +4355,7 @@
     "badgePending": "Pending",
     "badgeGenerated": "✓ Generated",
     "fieldEmail": "Email",
+    "fieldCcEmails": "Other emails",
     "fieldAddress": "Address",
     "fieldCityDept": "City / State",
     "markGenerated": "✓ Mark as generated",

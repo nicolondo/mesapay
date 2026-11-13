@@ -27,6 +27,8 @@ type Req = {
   city: string | null;
   department: string | null;
   email: string;
+  /** Correos adicionales: la factura también va a ellos (ver invoiceEmails.ts). */
+  ccEmails: string[];
   notes: string | null;
   createdAt: string;
   order: {
@@ -184,7 +186,7 @@ function RequestCard({
       `${req.customerName}`,
       `${req.docType}: ${req.docNumber}`,
       ...(where ? [where] : []),
-      `${t("copyEmail")}: ${req.email}`,
+      `${t("copyEmail")}: ${[req.email, ...req.ccEmails].join(", ")}`,
       `${t("copyOrder")}: ${displayOrderCode(req.order.shortCode)} · ${fmtCOP(req.order.totalCents)}`,
     ].join("\n");
     navigator.clipboard.writeText(text).catch(() => {});
@@ -217,6 +219,11 @@ function RequestCard({
             {req.email}
           </a>
         </Row>
+        {req.ccEmails.length > 0 && (
+          <Row label={t("fieldCcEmails")}>
+            <span className="break-all">{req.ccEmails.join(", ")}</span>
+          </Row>
+        )}
         {req.address && <Row label={t("fieldAddress")}>{req.address}</Row>}
         {cityDept(req) && <Row label={t("fieldCityDept")}>{cityDept(req)}</Row>}
       </div>

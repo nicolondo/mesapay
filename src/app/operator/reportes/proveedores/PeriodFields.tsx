@@ -68,10 +68,10 @@ export function PeriodFields({
         </select>
       </label>
       {value === "rango" && (
-        <>
+        <div className="grid grid-cols-2 gap-3 md:contents">
           {month("desde", t("filterFrom"), fromMonth)}
           {month("hasta", t("filterTo"), toMonth)}
-        </>
+        </div>
       )}
     </>
   );

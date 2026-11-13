@@ -169,13 +169,6 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
               className={CONTROL}
             />
           </FilterField>
-          <FilterField label={t("filterCondition")}>
-            <select name="condicion" defaultValue={query.condition} className={CONTROL}>
-              <option value="todas">{t("condAll")}</option>
-              <option value="contado">{t("condCash")}</option>
-              <option value="credito">{t("condCredit")}</option>
-            </select>
-          </FilterField>
           <PeriodFields
             preset={query.period.preset}
             fromMonth={query.period.fromMonth}
@@ -188,14 +181,24 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
               <option value="total">{t("basisTotal")}</option>
             </select>
           </FilterField>
-          <FilterField label={t("filterInclude")}>
-            <select name="gastos" defaultValue={query.includeExpenses ? "si" : "no"} className={CONTROL}>
-              <option value="si">{t("includeAll")}</option>
-              <option value="no">{t("includePurchases")}</option>
-            </select>
-          </FilterField>
+          {/* En el celular, de a dos por fila; en pantallas anchas, sueltos en la barra. */}
+          <div className="grid grid-cols-2 gap-3 md:contents">
+            <FilterField label={t("filterCondition")}>
+              <select name="condicion" defaultValue={query.condition} className={CONTROL}>
+                <option value="todas">{t("condAll")}</option>
+                <option value="contado">{t("condCash")}</option>
+                <option value="credito">{t("condCredit")}</option>
+              </select>
+            </FilterField>
+            <FilterField label={t("filterInclude")}>
+              <select name="gastos" defaultValue={query.includeExpenses ? "si" : "no"} className={CONTROL}>
+                <option value="si">{t("includeAll")}</option>
+                <option value="no">{t("includePurchases")}</option>
+              </select>
+            </FilterField>
+          </div>
           {/* En el celular no hay encabezados que tocar: el orden se elige acá. */}
-          <div className="contents md:hidden">
+          <div className="grid grid-cols-2 gap-3 md:hidden">
             <FilterField label={t("filterSort")}>
               <select name="orden" defaultValue={query.sort} className={CONTROL}>
                 {SUPPLIER_SORT_KEYS.map((k) => (

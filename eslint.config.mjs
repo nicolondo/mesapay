@@ -29,6 +29,11 @@ const MIGRATED = [
   "src/app/operator/reports/ventas/**/*.{ts,tsx}",
   "src/components/charts/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
+  // Eliminar insumos (diálogo, pie de la ficha y eliminación masiva):
+  // nacieron trilingües, quedan blindados.
+  "src/components/IngredientDeleteDialog.tsx",
+  "src/app/operator/settings/insumos/IngredientDeletePanel.tsx",
+  "src/app/operator/settings/insumos/BulkDeleteIngredientsDialog.tsx",
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",

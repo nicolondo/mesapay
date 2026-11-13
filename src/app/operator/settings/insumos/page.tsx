@@ -6,6 +6,7 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled, type ModuleSlug } from "@/lib/modules";
 import { loadIngredientCostViews } from "@/lib/erp/recipeData";
+import { deletableIngredientIds } from "@/lib/erp/ingredientDeletion";
 import { InsumosClient } from "./InsumosClient";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,9 @@ export default async function InsumosSettingsPage({
     ...ingredient,
     ...(costs.get(ingredient.id) ?? { costPerBase: null, costSource: null, purchaseCost: null }),
   }));
+  // Cuáles se pueden eliminar del todo (sin movimientos ni usos): pinta
+  // «Eliminar» y el filtro «Sin movimientos». La API vuelve a revisar.
+  const deletableIds = await deletableIngredientIds(db, restaurantId, ingredients);
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
@@ -94,6 +98,7 @@ export default async function InsumosSettingsPage({
         canImport={canImport}
         // «Editar insumo» desde el menú ⋯ de Inventario abre su ficha.
         initialEditId={typeof editar === "string" ? editar : null}
+        deletableIds={deletableIds}
       />
     </div>
   );

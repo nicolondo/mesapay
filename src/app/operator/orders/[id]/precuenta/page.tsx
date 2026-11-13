@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { loadPrebill } from "@/lib/print/prebillData";
 import { buildPrebillDocument } from "@/lib/print/prebillQueue";
+import { isDevicePrintView } from "@/lib/print/devicePrint";
 import { PrintButton } from "@/app/factura/[id]/PrintButton";
 import { itemDetailText } from "@/lib/invoice";
 import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
@@ -52,10 +53,10 @@ export default async function PrecuentaPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string; w?: string }>;
+  searchParams: Promise<{ print?: string; w?: string; imprimir?: string }>;
 }) {
   const { id } = await params;
-  const { print, w } = await searchParams;
+  const { print, w, imprimir } = await searchParams;
   const tr = await getTranslations("opTables");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
@@ -104,7 +105,7 @@ export default async function PrecuentaPage({
           <PrintButton
             autoPrint={print === "1"}
             agent={{ kind: "prebill", orderId: id, href: selfHref }}
-            paperMm={paperMm}
+            deviceView={isDevicePrintView(imprimir)}
             viewer={{ role: role ?? null, scope: session?.user?.restaurantId ?? null }}
           />
           <Link href={backHref} className="secondary">

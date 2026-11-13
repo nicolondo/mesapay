@@ -1,20 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DEVICE_PAPER_MM,
-  DEVICE_PAPER_PRESETS,
-  TERMINAL_DEVICE_PAPER_MM,
-  defaultDevicePaperMm,
+  DEVICE_PAPER_MM,
   defaultPrintDestination,
   devicePaperFromParam,
   devicePrintHelpHref,
   devicePrintHref,
   otherDestination,
-  parseDevicePaperMm,
   parseStoredPrintPreference,
   printPreferenceStorageKey,
   receiptSidePaddingMm,
   readPrintPreference,
   resolvePrintPreference,
+  staleStoredPrintPreference,
   withQueryParam,
   writePrintPreference,
 } from "./printDestination";
@@ -56,27 +53,10 @@ describe("el valor por defecto (la primera vez en el equipo)", () => {
     }
   });
 
-  it("el papel arranca en 55 mm para el datáfono (Sunmi P3 de Kushki) y en 58 para los demás", () => {
-    expect(TERMINAL_DEVICE_PAPER_MM).toBe(55);
-    expect(DEFAULT_DEVICE_PAPER_MM).toBe(58);
-    expect(defaultDevicePaperMm("terminal")).toBe(55);
-    for (const role of ["operator", "mesero", "platform_admin", null]) {
-      expect(defaultDevicePaperMm(role)).toBe(58);
-    }
-    expect(resolvePrintPreference(null, "terminal")).toEqual({
-      destination: "device",
-      paperMm: 55,
-      remembered: false,
-    });
-    expect(resolvePrintPreference(null, "mesero")).toEqual({
-      destination: "caja",
-      paperMm: 58,
-      remembered: false,
-    });
-  });
-
-  it("los atajos del selector son 55, 58 y 80", () => {
-    expect(DEVICE_PAPER_PRESETS).toEqual([55, 58, 80]);
+  it("el papel de «Este dispositivo» no se elige: 55 mm para todos", () => {
+    expect(DEVICE_PAPER_MM).toBe(55);
+    expect(resolvePrintPreference(null, "terminal")).toEqual({ destination: "device", remembered: false });
+    expect(resolvePrintPreference(null, "mesero")).toEqual({ destination: "caja", remembered: false });
   });
 });
 
@@ -88,18 +68,15 @@ describe("recordado por equipo y por comercio", () => {
     expect(printPreferenceStorageKey("  ")).toBe("mesapay.imprimir.general");
   });
 
-  it("guarda y vuelve a leer la última elección", () => {
+  it("guarda y vuelve a leer la última elección (sólo el destino)", () => {
     const storage = fakeStorage();
     const key = printPreferenceStorageKey("rest-1");
-    expect(writePrintPreference(storage, key, { destination: "device", paperMm: 80 })).toBe(true);
+    expect(writePrintPreference(storage, key, { destination: "device" })).toBe(true);
+    expect(storage.data.get(key)).toBe('{"destination":"device"}');
     const stored = readPrintPreference(storage, key);
-    expect(stored).toEqual({ destination: "device", paperMm: 80 });
+    expect(stored).toEqual({ destination: "device" });
     // Lo recordado gana sobre el valor por defecto del rol.
-    expect(resolvePrintPreference(stored, "operator")).toEqual({
-      destination: "device",
-      paperMm: 80,
-      remembered: true,
-    });
+    expect(resolvePrintPreference(stored, "operator")).toEqual({ destination: "device", remembered: true });
     expect(
       resolvePrintPreference(parseStoredPrintPreference('{"destination":"caja"}'), "terminal"),
     ).toMatchObject({ destination: "caja", remembered: true });
@@ -118,44 +95,32 @@ describe("recordado por equipo y por comercio", () => {
 
   it("si tira al guardar, devuelve false y no rompe (se imprime igual)", () => {
     const key = printPreferenceStorageKey("rest-1");
-    expect(writePrintPreference(fakeStorage({ throwOnSet: true }), key, { destination: "caja", paperMm: 58 })).toBe(false);
-    expect(writePrintPreference(null, key, { destination: "caja", paperMm: 58 })).toBe(false);
+    expect(writePrintPreference(fakeStorage({ throwOnSet: true }), key, { destination: "caja" })).toBe(false);
+    expect(writePrintPreference(null, key, { destination: "caja" })).toBe(false);
   });
 
   it("basura guardada (JSON roto, otra versión, valores raros) se ignora", () => {
-    for (const raw of [
-      "",
-      "no-json",
-      "null",
-      "42",
-      '"device"',
-      "[]",
-      '{"destination":"impresora"}',
-      '{"paperMm":39}',
-      '{"paperMm":121}',
-      '{"paperMm":57.5}',
-    ]) {
+    for (const raw of ["", "no-json", "null", "42", '"device"', "[]", '{"destination":"impresora"}', '{"paperMm":58}']) {
       expect(parseStoredPrintPreference(raw)).toBeNull();
     }
-    // Un ancho fuera de los atajos, pero del rango, vale (se escribió en «Otro»).
-    expect(parseStoredPrintPreference('{"destination":"device","paperMm":52}')).toEqual({
-      destination: "device",
-      paperMm: 52,
-    });
-    // Lo que sirve se rescata y lo demás vuelve al valor por defecto.
-    expect(parseStoredPrintPreference('{"destination":"device","paperMm":"80"}')).toEqual({
-      destination: "device",
-    });
-    expect(resolvePrintPreference({ paperMm: 80 }, "terminal")).toEqual({
-      destination: "device",
-      paperMm: 80,
-      remembered: false,
-    });
+    // El ancho que guardaba la versión con selector se ignora; el destino vale.
+    expect(parseStoredPrintPreference('{"destination":"device","paperMm":52}')).toEqual({ destination: "device" });
+  });
+
+  it("lo guardado de la versión con selector de papel se limpia (el destino se conserva)", () => {
+    expect(staleStoredPrintPreference('{"destination":"device","paperMm":58}')).toBe('{"destination":"device"}');
+    expect(staleStoredPrintPreference('{"paperMm":80}')).toBeNull();
+    expect(staleStoredPrintPreference("no-json")).toBeNull();
+    // Limpio (o nada guardado): no se toca.
+    expect(staleStoredPrintPreference('{"destination":"caja"}')).toBeUndefined();
+    expect(staleStoredPrintPreference(null)).toBeUndefined();
+    expect(staleStoredPrintPreference("")).toBeUndefined();
   });
 });
 
 describe("la vista imprimible al papel del equipo", () => {
   it("agrega ?w= sin tocar el resto de la consulta ni el ancla", () => {
+    expect(devicePrintHref("/factura/inv-1")).toBe("/factura/inv-1?w=55");
     expect(devicePrintHref("/factura/inv-1", 58)).toBe("/factura/inv-1?w=58");
     expect(devicePrintHref("/factura/inv-1?print=1", 80)).toBe("/factura/inv-1?print=1&w=80");
     expect(devicePrintHref("/factura/inv-1?w=80", 58)).toBe("/factura/inv-1?w=58");
@@ -171,16 +136,6 @@ describe("la vista imprimible al papel del equipo", () => {
     expect(devicePaperFromParam(["55", "80"])).toBe(55);
     for (const raw of [undefined, null, "", "39", "121", "999", "55mm", "5e1", "55.5", " 55", "abc"]) {
       expect(devicePaperFromParam(raw)).toBeNull();
-    }
-  });
-
-  it("«Otro»: lo que se escribe se lleva a mm enteros del rango, o no se guarda", () => {
-    expect(parseDevicePaperMm("55")).toBe(55);
-    expect(parseDevicePaperMm(" 52 ")).toBe(52);
-    expect(parseDevicePaperMm("57,5")).toBe(58);
-    expect(parseDevicePaperMm(56.4)).toBe(56);
-    for (const raw of ["", "abc", "39", "121", "-55", "55mm", null, undefined, Number.NaN]) {
-      expect(parseDevicePaperMm(raw)).toBeNull();
     }
   });
 

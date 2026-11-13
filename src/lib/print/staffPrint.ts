@@ -21,13 +21,12 @@
  *   4. Cualquier otra respuesta ⇒ `{ via: "error" }`: no se imprime nada
  *      por el navegador a ciegas (una cuenta cerrada, una sesión vencida).
  *
- * «ESTE DISPOSITIVO» (`options.destination = "device"`, ver
- * `printDestination.ts`): ni se intenta el agente. La vista HTML se
- * imprime desde este navegador a `DEVICE_PAPER_MM` (55 mm, `?w=55`), con
- * el diálogo de impresión del sistema —en el datáfono Sunmi, su impresora
- * integrada—, y vuelve `{ via: "device" }`. La precuenta igual avisa a su
- * ruta (`{ destination: "device" }`) para que quede el rastro de quién la
- * imprimió; la factura no (su respaldo del navegador tampoco lo deja).
+ * «ESTE DISPOSITIVO» (`options.destination = "device"`): ni se intenta el
+ * agente. Desde acá NO se imprime: se NAVEGA a la vista imprimible lista
+ * para el equipo (`?w=55&imprimir=dispositivo`, ver `devicePrint.ts`), donde
+ * el botón «Imprimir» llama `window.print()` dentro del toque. Imprimir un
+ * iframe oculto después de un `await` no funcionaba en los móviles. El
+ * usuario Datáfono no pasa por acá: imprime por Kushki (`terminalPrint.ts`).
  *
  * Y el COMENSAL: nunca pasa por acá. Su pantalla sólo abre la vista para
  * imprimir en su propio dispositivo, y las dos rutas exigen sesión de
@@ -43,12 +42,8 @@ import {
   type BrowserPrintOutcome,
   type PrintInBrowserOrTabOptions,
 } from "@/lib/printInBrowser";
-import {
-  DEVICE_PAPER_MM,
-  devicePrintHref,
-  withQueryParam,
-  type PrintDestination,
-} from "./printDestination";
+import type { PrintDestination } from "./printDestination";
+import { devicePrintViewHref } from "./devicePrint";
 
 /**
  * Quién imprime desde su dispositivo y por el agente: el staff que cobra
@@ -135,13 +130,9 @@ export type StaffPrintResult =
       tabUrl: string;
     }
   | {
-      /** «Este dispositivo»: el diálogo de impresión de este navegador. */
-      via: "device";
-      outcome: BrowserPrintOutcome;
-      /** La pestaña de respaldo (`?w=55&print=1`), para "abrir a mano". */
-      tabUrl: string;
-      /** El ancho al que salió (`DEVICE_PAPER_MM`). */
-      paperMm: number;
+      /** «Este dispositivo»: se navegó a la vista imprimible del equipo. */
+      via: "device_view";
+      href: string;
     }
   | { via: "error"; code: string | null };
 
@@ -167,10 +158,10 @@ export type StaffPrintDeps = {
    */
   onBrowserFallback?: (reason: StaffPrintFallbackReason) => void;
   /**
-   * «Este dispositivo»: se llama apenas arranca, ANTES de que el iframe
-   * cargue, para mostrar "abriendo la impresión de este dispositivo…".
+   * «Este dispositivo»: cómo ir a la vista imprimible (en la PWA del mesero,
+   * navegación in-app). Por defecto, `window.location.assign`.
    */
-  onDevicePrint?: () => void;
+  navigate?: (url: string) => void;
 };
 
 /** A dónde imprimir (por defecto, la caja: lo de siempre). */
@@ -221,10 +212,12 @@ export async function printAsStaff(
   deps: StaffPrintDeps = {},
   options: StaffPrintOptions = {},
 ): Promise<StaffPrintResult> {
-  const doFetch = deps.fetch ?? ((url, init) => fetch(url, init));
   if (options.destination === "device") {
-    return printOnThisDevice(doc, deps, DEVICE_PAPER_MM, doFetch);
+    const href = devicePrintViewHref(browserPrintUrl(doc));
+    (deps.navigate ?? ((url: string) => window.location.assign(url)))(href);
+    return { via: "device_view", href };
   }
+  const doFetch = deps.fetch ?? ((url, init) => fetch(url, init));
   let body: RouteBody | null = null;
   let ok = false;
   try {
@@ -262,53 +255,6 @@ export async function printAsStaff(
     ...(deps.openTab && { openTab: deps.openTab }),
   });
   return { via: "browser", reason, outcome, tabUrl };
-}
-
-/**
- * «Este dispositivo»: la vista HTML al ancho del papel del equipo, en el
- * diálogo de impresión de este navegador. Sin agente de por medio.
- *
- * Si el documento avisa a su ruta (precuenta, cierre) y la ruta dice que
- * no (cuenta ya cerrada, sesión vencida), no se imprime nada a ciegas. Si
- * la ruta respondiera que lo ENCOLÓ (un servidor viejo que no conoce el
- * aviso, durante un rollback), ya salió por la caja: se informa eso y no se
- * imprime dos veces.
- */
-async function printOnThisDevice(
-  doc: StaffPrintDoc,
-  deps: StaffPrintDeps,
-  paperMm: number,
-  doFetch: NonNullable<StaffPrintDeps["fetch"]>,
-): Promise<StaffPrintResult> {
-  if (notifiesDevicePrint(doc)) {
-    let body: RouteBody | null = null;
-    let ok = false;
-    try {
-      const res = await doFetch(staffPrintEndpoint(doc), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: DEVICE_PRINT_BODY,
-      });
-      ok = res.ok;
-      body = ((await res.json().catch(() => null)) as RouteBody | null) ?? null;
-    } catch {
-      return { via: "error", code: null };
-    }
-    if (!ok || !body) return { via: "error", code: body?.error ?? null };
-    if (body.queued) {
-      return { via: "agent", printerName: body.printerName ?? "" };
-    }
-  }
-
-  deps.onDevicePrint?.();
-  const href = devicePrintHref(browserPrintUrl(doc), paperMm);
-  const tabUrl = withQueryParam(href, "print", "1");
-  const print = deps.printInBrowser ?? printInBrowserOrOpenTab;
-  const outcome = await print(href, {
-    tabUrl,
-    ...(deps.openTab && { openTab: deps.openTab }),
-  });
-  return { via: "device", outcome, tabUrl, paperMm };
 }
 
 /**

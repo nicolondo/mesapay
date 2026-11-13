@@ -1818,7 +1818,7 @@
     "noPayments": "Sin pagos registrados.",
     "splitOf": "1 de {count}",
     "payApproved": "Aprobado",
-    "payFailed": "Fallido",
+    "payDeclined": "Rechazado",
     "payRefunded": "Reembolsado",
     "payPending": "Pendiente",
     "mDemoCard": "Tarjeta (demo)",
@@ -8511,6 +8511,16 @@
     "failed": "El pago fue rechazado. Puedes elegir otro método.",
     "back": "Volver a la cuenta"
   },
+  "chargeDecline": {
+    "security_rejected": "El banco o el sistema de seguridad rechazó el pago. Intenta con otra tarjeta u otro medio de pago.",
+    "card_cvv": "El código de seguridad (CVV) de la tarjeta no es válido. Revísalo o intenta con otra tarjeta.",
+    "card_funds": "La tarjeta no tiene fondos suficientes. Intenta con otra tarjeta u otro medio de pago.",
+    "card_invalid": "La tarjeta no es válida. Revisa los datos o intenta con otra tarjeta.",
+    "card_blocked": "La tarjeta está bloqueada. Intenta con otra tarjeta u otro medio de pago.",
+    "merchant_config": "El comercio tiene un problema con la configuración de cobros en línea. Avísale al personal y paga con otro medio.",
+    "charge_failed": "El pago fue rechazado. Intenta con otra tarjeta u otro medio de pago.",
+    "uncertain": "No pudimos confirmar si el cobro se hizo. Antes de intentar de nuevo, revisa los movimientos de tu tarjeta o consulta con el comercio."
+  },
   "apiErrors": {
     "internal_error": "No se pudo completar la operación. Intenta de nuevo más tarde.",
     "operation_conflict": "La cuenta cambió o ya existe una operación pendiente. Actualiza antes de continuar.",
@@ -8551,6 +8561,10 @@
     "confirmError": "No se pudo confirmar el pago. Actualiza e intenta de nuevo.",
     "inFlightKicker": "Pago en línea en curso",
     "inFlightBody": "Espera a que el proveedor lo apruebe o lo rechace antes de cobrar de otra forma. Lo ves en Salón o en Cobros.",
+    "inFlightReviewKicker": "Pago en línea sin confirmar",
+    "inFlightReviewBody": "El proveedor no le confirmó a MESAPAY el resultado de este pago y por eso la cuenta sigue bloqueada. Si ya se sabe qué pasó (al cliente se lo rechazaron o sí se lo cobraron), se resuelve conciliando el pago: guardado como rechazado, la cuenta queda libre para cobrar de otra forma; guardado como aprobado, queda pagada.",
+    "reconcile": "Conciliar pago",
+    "reconcileAskAdmin": "Para conciliar este pago y liberar la cuenta, pídele al administrador.",
     "methods": {
       "cash": "Efectivo",
       "demo_cash": "Efectivo",

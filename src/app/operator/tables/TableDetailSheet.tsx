@@ -848,6 +848,7 @@ export function TableDetailSheet({
                 <PendingPaymentNotice
                   pendings={pendingPayments}
                   order={{ shortCode, tableNumber }}
+                  orderId={orderId}
                   serviceMode={counterMode ? "counter" : "table"}
                   chargeLocked={chargeLocked}
                   onConfirmed={onPendingConfirmed}

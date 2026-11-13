@@ -12,6 +12,9 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { ensureMockBridge } from "@/lib/payments/mockBridge";
+import { KushkiHttpError } from "@/lib/payments/kushki/client";
+import { chargeFailureLogFields, classifyKushkiChargeError } from "@/lib/payments/kushki/chargeError";
+import { settleRejectedCharge } from "@/lib/payments/rejectedCharge";
 import { getRestaurantKushkiMode, type KushkiMode } from "@/lib/platformConfig";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { chargeBlockedResponse } from "@/lib/chargeGuard";
@@ -95,7 +98,9 @@ async function chargeTransferInit(args: {
     `[pse-init] /transfer/v1/init response status=${res.status} en ${Date.now() - t0}ms`,
   );
   if (!res.ok) {
-    throw new Error(`kushki ${res.status} on /transfer/v1/init: ${text.slice(0, 300)}`);
+    // Mismo error que `kushkiFetch`: lleva `status` y `body` para que el
+    // catch de abajo distinga un rechazo definitivo de un resultado incierto.
+    throw new KushkiHttpError(res.status, text, `${baseUrl}/transfer/v1/init`);
   }
   return text ? JSON.parse(text) : {};
 }
@@ -255,7 +260,22 @@ async function POSTHandler(
         paymentId: payment.id,
         redirectUrl,
       });
-    } catch {
+    } catch (err) {
+      // Kushki rechazó el inicio de la transferencia con un 4xx reconocible:
+      // no hay URL del banco, así que el comensal nunca pudo autorizarla. Se
+      // declina por el camino de `pse.declined` en vez de dejar la cuenta
+      // bloqueada «en verificación». Red, timeout, 5xx, token ya usado y una
+      // respuesta sin URL siguen inciertos. Tabla: kushki/chargeError.ts.
+      const failure = classifyKushkiChargeError(err);
+      console.error(failure.outcome === "declined" ? "pse_init_declined" : "pse_init_uncertain", { paymentId: payment.id, ...chargeFailureLogFields(failure) });
+      if (failure.outcome === "declined") {
+        const rejected = await settleRejectedCharge({
+          restaurantId: tenant.id, paymentId: payment.id, amountCents: parsed.data.amountCents,
+          currency: "COP", failure, source: "pse", kind: "pse.declined",
+        });
+        // Sin `reason`: los motivos de `declineReason.ts` son de tarjeta.
+        if (rejected.status !== "error") return NextResponse.json({ paymentId: payment.id, approved: false, error: "payment_declined" });
+      }
       await markPaymentUncertain(payment.id);
       return NextResponse.json({ error: "payment_pending", paymentId: payment.id, pending: true }, { status: 202 });
     }

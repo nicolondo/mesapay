@@ -787,6 +787,21 @@
 .mp-table-grid :is(.text-\[9px\], .text-\[10px\]) {
   font-size: 11px;
 }
+/* Texto secundario de las fichas (zona, minutos, ítems, «libre»): sobre los
+   tintes de estado el gris --op-muted quedaba en 4.5:1 justo y en pantallas
+   pobres (datáfono, celulares baratos) se lavaba. Dentro de la ficha va un
+   gris más oscuro (≥ 7:1 en todos los estados). */
+.mp-table-grid > :is(button, a) .text-op-muted {
+  color: var(--ink-3);
+}
+/* Estado de la ficha en texto («En cocina», «Pidió la cuenta»…): el color y
+   el punto dejan de ser la única señal. El color lo pone textAccent. */
+.mp-tile-state {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
 .mp-table-filters {
   display: flex;
   flex-wrap: wrap;
@@ -795,6 +810,11 @@
 }
 .mp-table-filters button {
   min-height: 42px;
+}
+/* Chip sin elegir: el borde --op-border (1.2:1 contra el fondo) desaparecía
+   en el datáfono y el chip parecía texto suelto. */
+.mp-table-filters button[aria-pressed="false"] {
+  border-color: var(--op-border-2);
 }
 /* Fila de filtros de Mesas en dos grupos: chips (izquierda) y acciones
    (derecha). En escritorio comparten la fila; en móvil cada grupo ocupa la

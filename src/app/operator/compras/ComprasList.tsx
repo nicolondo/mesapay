@@ -59,6 +59,7 @@ export function ComprasList({
 }) {
   const t = useTranslations("opErp");
   const tc = useTranslations("opSupplierCredit");
+  const tp = useTranslations("opSupplierPayment");
   const locale = useLocale() as Locale;
   const money = (cents: number) => formatMoney(cents, { currency, locale });
   const filtered = hasPurchaseFilters(params);
@@ -115,6 +116,9 @@ export function ComprasList({
           {/* Notas crédito de proveedores: su propia página (filtros aparte). */}
           <Link href={CREDIT_NOTES_PATH} prefetch={false} className="mp-seg__i flex-1 sm:flex-none justify-center">
             {tc("tabCreditNotes")}
+          </Link>
+          <Link href="/operator/compras/pagos" prefetch={false} className="mp-seg__i flex-1 sm:flex-none justify-center">
+            {tp("tabPayments")}
           </Link>
         </div>
       </nav>

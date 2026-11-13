@@ -138,12 +138,88 @@ export async function loadSupplierPayables(
 }
 
 /**
- * Aplica `amountCents` de una nota a un documento, dentro de `tx`: crea el
- * cruce (abono ligado a la nota) y mueve `paidCents`/`paidAt`. El caller ya
- * validó que el monto no pasa el saldo (con el candado del proveedor).
- * La cuenta del cruce es el saldo a favor (133005): en un gasto, el asiento
- * de pagos de gastos lo descarta y el bloque de notas crédito lo asienta.
+ * Baja el saldo de UN documento dentro de `tx`: crea el abono y mueve
+ * `paidCents`/`paidAt`. Sirve para los tres orígenes:
+ *  · cruce de una nota crédito (`creditNoteId`, cuenta 133005),
+ *  · consumo de un anticipo (`supplierAdvanceId`, cuenta 133005),
+ *  · dinero de un comprobante de egreso (`accountCode` = caja/banco).
+ * `supplierPaymentId` liga la fila al comprobante que la creó (anularlo la
+ * borra). El caller ya validó el saldo con el candado del proveedor.
  */
+export async function applyToDoc(
+  tx: Prisma.TransactionClient,
+  args: {
+    restaurantId: string;
+    kind: PayableDocKind;
+    id: string;
+    amountCents: number;
+    at: Date;
+    createdById: string | null;
+    accountCode?: string;
+    creditNoteId?: string | null;
+    supplierPaymentId?: string | null;
+    supplierAdvanceId?: string | null;
+    method?: string | null;
+    note?: string | null;
+  },
+): Promise<{ rowId: string }> {
+  const { restaurantId, kind, id, amountCents, at, createdById } = args;
+  const links = {
+    supplierCreditNoteId: args.creditNoteId ?? null,
+    supplierPaymentId: args.supplierPaymentId ?? null,
+    supplierAdvanceId: args.supplierAdvanceId ?? null,
+  };
+  const accountCode = args.accountCode ?? ENGINE.SALDO_A_FAVOR_PROVEEDORES;
+  if (kind === "purchase") {
+    const row = await tx.purchasePayment.create({
+      data: {
+        restaurantId,
+        purchaseOrderId: id,
+        amountCents,
+        paidAt: at,
+        method: args.method ?? null,
+        note: args.note ?? null,
+        accountCode,
+        ...links,
+        createdById,
+      },
+      select: { id: true },
+    });
+    const po = await tx.purchaseOrder.update({
+      where: { id },
+      data: { paidCents: { increment: amountCents } },
+      select: { paidCents: true, ...PURCHASE_ORDER_TAX_SELECT, items: { select: PURCHASE_LINE_AMOUNTS_SELECT } },
+    });
+    if (po.paidCents >= purchaseOrderTotals(po, "received").totalCents) {
+      await tx.purchaseOrder.update({ where: { id }, data: { paidAt: at } });
+    }
+    return { rowId: row.id };
+  }
+  const row = await tx.expensePayment.create({
+    data: {
+      restaurantId,
+      expenseId: id,
+      amountCents,
+      paidAt: at,
+      accountCode,
+      note: args.note ?? null,
+      ...links,
+      createdById,
+    },
+    select: { id: true },
+  });
+  const e = await tx.expense.update({
+    where: { id },
+    data: { paidCents: { increment: amountCents } },
+    select: { paidCents: true, amountCents: true, payableCents: true },
+  });
+  if (e.paidCents >= expensePayableCents(e)) {
+    await tx.expense.update({ where: { id }, data: { paidAt: at } });
+  }
+  return { rowId: row.id };
+}
+
+/** Cruce de una nota crédito con un documento (ver `applyToDoc`). */
 export async function applyCreditToDoc(
   tx: Prisma.TransactionClient,
   args: {
@@ -154,51 +230,10 @@ export async function applyCreditToDoc(
     amountCents: number;
     at: Date;
     createdById: string | null;
+    supplierPaymentId?: string | null;
   },
 ): Promise<void> {
-  const { restaurantId, creditNoteId, kind, id, amountCents, at, createdById } = args;
-  if (kind === "purchase") {
-    await tx.purchasePayment.create({
-      data: {
-        restaurantId,
-        purchaseOrderId: id,
-        amountCents,
-        paidAt: at,
-        method: null,
-        accountCode: ENGINE.SALDO_A_FAVOR_PROVEEDORES,
-        supplierCreditNoteId: creditNoteId,
-        createdById,
-      },
-    });
-    const po = await tx.purchaseOrder.update({
-      where: { id },
-      data: { paidCents: { increment: amountCents } },
-      select: { paidCents: true, ...PURCHASE_ORDER_TAX_SELECT, items: { select: PURCHASE_LINE_AMOUNTS_SELECT } },
-    });
-    if (po.paidCents >= purchaseOrderTotals(po, "received").totalCents) {
-      await tx.purchaseOrder.update({ where: { id }, data: { paidAt: at } });
-    }
-    return;
-  }
-  await tx.expensePayment.create({
-    data: {
-      restaurantId,
-      expenseId: id,
-      amountCents,
-      paidAt: at,
-      accountCode: ENGINE.SALDO_A_FAVOR_PROVEEDORES,
-      supplierCreditNoteId: creditNoteId,
-      createdById,
-    },
-  });
-  const e = await tx.expense.update({
-    where: { id },
-    data: { paidCents: { increment: amountCents } },
-    select: { paidCents: true, amountCents: true, payableCents: true },
-  });
-  if (e.paidCents >= expensePayableCents(e)) {
-    await tx.expense.update({ where: { id }, data: { paidAt: at } });
-  }
+  await applyToDoc(tx, args);
 }
 
 /**
@@ -211,13 +246,26 @@ export async function removeCreditApplications(
   restaurantId: string,
   creditNoteId: string,
 ): Promise<Array<{ kind: PayableDocKind; id: string; amountCents: number }>> {
+  return removeDocRows(tx, restaurantId, { supplierCreditNoteId: creditNoteId });
+}
+
+/**
+ * Borra los abonos que cumplen `link` (los de una nota, o los que creó un
+ * comprobante de egreso) y devuelve el saldo a cada documento: quita la
+ * marca de pagado si vuelve a deber.
+ */
+export async function removeDocRows(
+  tx: Prisma.TransactionClient,
+  restaurantId: string,
+  link: { supplierCreditNoteId: string } | { supplierPaymentId: string },
+): Promise<Array<{ kind: PayableDocKind; id: string; amountCents: number }>> {
   const [pp, ep] = await Promise.all([
     tx.purchasePayment.findMany({
-      where: { restaurantId, supplierCreditNoteId: creditNoteId },
+      where: { restaurantId, ...link },
       select: { id: true, purchaseOrderId: true, amountCents: true },
     }),
     tx.expensePayment.findMany({
-      where: { restaurantId, supplierCreditNoteId: creditNoteId },
+      where: { restaurantId, ...link },
       select: { id: true, expenseId: true, amountCents: true },
     }),
   ]);

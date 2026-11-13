@@ -28,6 +28,12 @@ const m = vi.hoisted(() => ({
   log: [] as Array<{ op: "delete" | "create" | "notes"; args: Record<string, unknown> }>,
   txCount: 0,
 }));
+// Pagos con comprobante (bloque 10): este test no los ejercita.
+vi.mock("./supplierPaymentPosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierPaymentPosting")>()),
+  loadSupplierPaymentFacts: async () => ({ payments: [], voids: [] }),
+  firstSupplierPaymentActivity: async () => null,
+}));
 // Notas crédito de proveedores (bloque 9): este test no las ejercita.
 vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),

@@ -6,21 +6,16 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { loadAccountMap } from "@/lib/erp/ledger";
 import { isMoneyAccountCode } from "@/lib/erp/paymentAccounts";
-import { PURCHASE_LINE_AMOUNTS_SELECT, PURCHASE_ORDER_TAX_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { SupplierCreditError } from "@/lib/erp/supplierCreditNoteService";
+import { createSupplierPayment } from "@/lib/erp/supplierPaymentService";
+import { bogotaBusinessDateIso } from "@/lib/bogota";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["purchasing"];
 
-class PayError extends Error {
-  constructor(
-    public code: string,
-    public status: number,
-  ) {
-    super(code);
-  }
-}
 
 const schema = z.object({
   amountCents: z.number().int().min(1).max(2_000_000_000),
@@ -68,66 +63,62 @@ async function POSTHandler(
     return NextResponse.json({ error: "account_invalid" }, { status: 400 });
   }
 
+  // Un abono desde la compra es un comprobante de egreso de UNA factura
+  // (misma lógica, consecutivo y asiento que «Pagar a proveedor»), sin
+  // anticipo: no puede pasar el saldo.
+  const po = await db.purchaseOrder.findUnique({
+    where: { id },
+    select: { restaurantId: true, status: true, supplierId: true },
+  });
+  if (!po || po.restaurantId !== ctx.restaurantId) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (po.status !== "received" && po.status !== "partially_received") {
+    return NextResponse.json({ error: "wrong_status" }, { status: 409 });
+  }
+  const paidAt = b.paidAt ? new Date(b.paidAt) : new Date();
   try {
-    const result = await db.$transaction(async (tx) => {
-      const po = await tx.purchaseOrder.findUnique({
-        where: { id },
-        select: {
-          restaurantId: true,
-          status: true,
-          paidCents: true,
-          ...PURCHASE_ORDER_TAX_SELECT,
-          items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
-        },
-      });
-      if (!po || po.restaurantId !== ctx.restaurantId) {
-        throw new PayError("not_found", 404);
-      }
-      // Solo las OCs con mercancía recibida tienen CxP.
-      if (po.status !== "received" && po.status !== "partially_received") {
-        throw new PayError("wrong_status", 409);
-      }
-      const grossTotal = purchaseOrderTotals(po, "received").totalCents;
-      const outstanding = grossTotal - po.paidCents;
-      if (b.amountCents > outstanding) {
-        throw new PayError("exceeds_balance", 400);
-      }
-
-      const paidAt = b.paidAt ? new Date(b.paidAt) : new Date();
-      const payment = await tx.purchasePayment.create({
-        data: {
-          restaurantId: ctx.restaurantId,
-          purchaseOrderId: id,
-          amountCents: b.amountCents,
-          paidAt,
-          method: b.method || null,
-          accountCode: b.accountCode,
-          note: b.note || null,
-          createdById: session?.user?.id ?? null,
-        },
+    const voucher = await createSupplierPayment(
+      ctx.restaurantId,
+      {
+        supplierId: po.supplierId,
+        date: bogotaBusinessDateIso(paidAt),
+        accountCode: b.accountCode,
+        method: b.method || null,
+        note: b.note || null,
+        amountCents: b.amountCents,
+        docs: [{ kind: "purchase", id }],
+        credits: [],
+      },
+      session?.user?.id ?? null,
+    );
+    const [payment, order] = await Promise.all([
+      db.purchasePayment.findFirstOrThrow({
+        where: { supplierPaymentId: voucher.id, purchaseOrderId: id },
         include: { createdBy: { select: { id: true, name: true } } },
-      });
-      const newPaid = po.paidCents + b.amountCents;
-      const order = await tx.purchaseOrder.update({
+      }),
+      db.purchaseOrder.findUniqueOrThrow({
         where: { id },
-        data: {
-          paidCents: newPaid,
-          // Pagada por completo cuando el saldo llega a 0.
-          paidAt: newPaid >= grossTotal ? paidAt : null,
-        },
-      });
-      return {
+        include: { items: { select: PURCHASE_LINE_AMOUNTS_SELECT } },
+      }),
+    ]);
+    const grossTotal = purchaseOrderTotals(order, "received").totalCents;
+    return NextResponse.json(
+      {
         payment,
         order,
+        voucher: { id: voucher.id, number: voucher.number },
         totalCents: grossTotal,
-        paidCents: newPaid,
-        outstandingCents: grossTotal - newPaid,
-      };
-    });
-    return NextResponse.json(result, { status: 201 });
+        paidCents: order.paidCents,
+        outstandingCents: grossTotal - order.paidCents,
+      },
+      { status: 201 },
+    );
   } catch (err) {
-    if (err instanceof PayError) {
-      return NextResponse.json({ error: err.code }, { status: err.status });
+    if (err instanceof SupplierCreditError) {
+      // Compatibilidad con la hoja de la compra: los mismos códigos de antes.
+      const code = err.code === "plan_changed" ? "exceeds_balance" : err.code;
+      return NextResponse.json({ error: code }, { status: code === "exceeds_balance" ? 400 : err.status });
     }
     throw err;
   }

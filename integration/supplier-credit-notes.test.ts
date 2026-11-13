@@ -5,9 +5,9 @@ import { POST as createOrder } from "../src/app/api/operator/purchase-orders/rou
 import { POST as createNote, GET as listNotes } from "../src/app/api/operator/supplier-credit-notes/route";
 import { POST as voidNoteRoute } from "../src/app/api/operator/supplier-credit-notes/[id]/void/route";
 import { DELETE as deletePaymentRoute } from "../src/app/api/operator/purchase-orders/[id]/payments/[paymentId]/route";
+import { applySupplierCreditToDoc } from "../src/lib/erp/supplierPaymentService";
 import {
   applyCreditNote,
-  applySupplierCreditToDoc,
   createCreditRefund,
   loadSupplierCredits,
   voidSupplierCreditNote,

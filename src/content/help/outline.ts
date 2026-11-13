@@ -428,6 +428,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "Compras › \"Notas crédito\": tipos (\"Acuerdo comercial\" con \"Concepto o acuerdo\", \"Descuento comercial\", \"Pronto pago\", \"Devolución\" con sus insumos), \"Leer nota con IA\" y el aviso de \"Cargar factura\" cuando el documento es una nota, CUDE, IVA discriminado o no, \"Cuenta contable\", \"Cómo se aplica\" (Automático, Elegir, Saldo a favor), el saldo a favor (al recibir, en el detalle de la compra, \"Aplicar saldo a facturas\", \"Registrar reintegro\"), \"Anular nota\", y su efecto en contabilidad, impuestos, cartera y el reporte.",
     },
     {
+      slug: "pagar-a-proveedores",
+      title: "Paga a tus proveedores con comprobante de egreso",
+      covers:
+        "Compras › \"Pagos\" y \"Pagar a proveedor\" (también desde Cartera): lo pendiente FIFO por vencimiento, notas crédito y anticipos que se cruzan primero, vista previa (\"Total pendiente\", \"Notas crédito aplicadas\", \"Neto a pagar\", \"Estás pagando\"), desmarcar y reordenar, pago parcial, excedente como anticipo, comprobante CE imprimible, \"Registrar pago\" de la compra como comprobante, \"Anular comprobante\" y la contabilidad.",
+    },
+    {
       slug: "ordenes-de-compra",
       title: "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       covers:

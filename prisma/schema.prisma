@@ -490,6 +490,7 @@ model Restaurant {
   purchasePayments       PurchasePayment[]
   supplierCreditNotes    SupplierCreditNote[]
   supplierCreditRefunds  SupplierCreditNoteRefund[]
+  supplierPayments       SupplierPayment[]
   voucherSettings        VoucherSettings?
   voucherBatches         VoucherBatch[]
   vouchers               Voucher[]
@@ -2186,6 +2187,7 @@ model Supplier {
   purchaseOrders PurchaseOrder[]
   expenses       Expense[]
   creditNotes    SupplierCreditNote[]
+  payments       SupplierPayment[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -2525,6 +2527,13 @@ model PurchasePayment {
   /// desde la compra: se deshace anulando la nota.
   supplierCreditNoteId String?
   supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
+  /// Comprobante de egreso que creó esta fila (pago en dinero, o cruce de una
+  /// nota o de un anticipo hecho al pagar). Anular el comprobante la borra.
+  supplierPaymentId    String?
+  supplierPayment      SupplierPayment?    @relation("SupplierPaymentRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
+  /// Anticipo (excedente de un pago anterior) que esta fila consume.
+  supplierAdvanceId    String?
+  supplierAdvance      SupplierPayment?    @relation("SupplierAdvanceUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
   createdById          String?
   createdBy            User?               @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt            DateTime            @default(now())
@@ -2532,6 +2541,56 @@ model PurchasePayment {
   @@index([purchaseOrderId])
   @@index([restaurantId, paidAt])
   @@index([supplierCreditNoteId])
+}
+
+/// Comprobante de egreso: un pago a un proveedor («Pagar a proveedor»). Primero
+/// se cruzan sus notas crédito y anticipos, después el dinero se aplica FIFO a
+/// sus facturas; lo que sobra es un ANTICIPO (133005) que consumen las facturas
+/// siguientes. Las filas que mueven saldos son PurchasePayment/ExpensePayment
+/// con `supplierPaymentId`. Nunca se borra: se anula (reverso el día que se
+/// anula). Asiento: supplierPaymentPosting.ts.
+model SupplierPayment {
+  id                 String     @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplierId         String
+  supplier           Supplier   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  /// Consecutivo del comercio (CE-0001), asignado bajo candado al crear.
+  number             Int
+  /// Fecha del pago (mediodía de Colombia).
+  date               DateTime
+  /// Cuenta de dinero de donde SALE (caja, banco, pasarela).
+  accountCode        String
+  /// Medio (transferencia, efectivo, cheque…) y referencia: texto libre.
+  method             String?
+  reference          String?
+  note               String?
+  attachmentUrl      String?
+  /// Dinero que salió.
+  amountCents        Int
+  /// Reparto del dinero, congelado al pagar (el asiento sale de aquí).
+  purchaseCents      Int        @default(0)
+  expenseCents       Int        @default(0)
+  /// Excedente: anticipo a favor del comercio.
+  advanceCents       Int        @default(0)
+  /// Notas crédito y anticipos cruzados en el comprobante (informativo).
+  creditAppliedCents Int        @default(0)
+  /// active | voided
+  status             String     @default("active")
+  voidedAt           DateTime?
+  voidReason         String?
+  voidedById         String?
+  createdById        String?
+  createdAt          DateTime   @default(now())
+
+  purchaseRows        PurchasePayment[] @relation("SupplierPaymentRows")
+  expenseRows         ExpensePayment[]  @relation("SupplierPaymentExpenseRows")
+  advancePurchaseUses PurchasePayment[] @relation("SupplierAdvanceUses")
+  advanceExpenseUses  ExpensePayment[]  @relation("SupplierAdvanceExpenseUses")
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId, date])
+  @@index([restaurantId, supplierId])
 }
 
 // === Notas crédito de proveedores ==========================================
@@ -4239,6 +4298,13 @@ model ExpensePayment {
   /// reclasificación del cruce.
   supplierCreditNoteId String?
   supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
+  /// Comprobante de egreso que creó esta fila (pago en dinero, o cruce de una
+  /// nota o de un anticipo hecho al pagar). Anular el comprobante la borra.
+  supplierPaymentId    String?
+  supplierPayment      SupplierPayment?    @relation("SupplierPaymentExpenseRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
+  /// Anticipo (excedente de un pago anterior) que esta fila consume.
+  supplierAdvanceId    String?
+  supplierAdvance      SupplierPayment?    @relation("SupplierAdvanceExpenseUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
 
   createdById String?
   createdBy   User?    @relation("ExpensePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)

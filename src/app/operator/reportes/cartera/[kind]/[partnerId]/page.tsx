@@ -12,7 +12,7 @@ import {
   type StatementEntry,
 } from "@/lib/erp/reports/cartera";
 import { loadPartnerMovements } from "@/lib/erp/reports/carteraQueries";
-import { loadCreditCrossNotes, loadSupplierCreditBalances } from "@/lib/erp/reports/supplierCreditCartera";
+import { loadCreditCrossNotes, loadSupplierCreditBalances, type CrossLabel } from "@/lib/erp/reports/supplierCreditCartera";
 import { creditNoteListHref } from "@/lib/erp/supplierCreditNoteList";
 import { carteraStatementQuery } from "@/lib/erp/reports/params";
 import { todayIso } from "@/lib/erp/reports/period";
@@ -119,13 +119,21 @@ export default async function CarteraExtractoPage({
           loadCreditCrossNotes(gate.restaurantId, data.payments.map((p) => p.id)),
           loadSupplierCreditBalances(gate.restaurantId, asOf, partnerId).then((r) => r[0] ?? null),
         ])
-      : [new Map<string, string>(), null];
+      : [new Map<string, CrossLabel>(), null];
   const tCredit = await getTranslations("opSupplierCredit");
+  const tPay = await getTranslations("opSupplierPayment");
   const st = {
     ...statement,
     entries: statement.entries.map((e) => {
-      const number = e.kind === "abono" ? crossNotes.get(e.key.slice(4)) : undefined;
-      return number ? { ...e, note: tCredit("crossLabel", { number }) } : e;
+      const label = e.kind === "abono" ? crossNotes.get(e.key.slice(4)) : undefined;
+      if (!label) return e;
+      const note =
+        label.kind === "note"
+          ? tCredit("crossLabel", { number: label.number })
+          : label.kind === "advance"
+            ? tPay("creditAdvance", { number: label.number })
+            : tPay("voucherLabel", { number: label.number });
+      return { ...e, note };
     }),
   };
 
@@ -167,7 +175,16 @@ export default async function CarteraExtractoPage({
           </FilterField>
         </ReportFilterForm>
       }
-      actions={<PrintButton />}
+      actions={
+        <>
+          {kind === "cxp" && partnerId !== NO_SUPPLIER_ID && (
+            <Link href={`/operator/compras/pagos?pagar=${encodeURIComponent(partnerId)}`} className="mp-btn mp-btn--primary mp-btn--sm no-print">
+              {tPay("payThisSupplier")}
+            </Link>
+          )}
+          <PrintButton />
+        </>
+      }
       statCols={3}
       stats={
         <>

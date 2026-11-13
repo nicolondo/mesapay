@@ -4,7 +4,7 @@
 // reparto es pura (supplierCreditNotes.ts, supplierCreditAllocation.ts).
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getAccountingConfig, isMonthClosed } from "./cierre";
+import { isMonthClosed } from "./cierre";
 import { lockSupplierDocument, sameSupplierIds } from "./duplicateDocuments";
 import { normalizeDocumentNumber } from "./documentNumber";
 import { loadAccountIndex } from "./ledger";
@@ -20,11 +20,9 @@ import {
 } from "./supplierCreditNotes";
 import {
   allocationError,
-  drawFromCredits,
   payableKey,
   planCreditAllocation,
   type CreditAllocation,
-  type PayableDocKind,
 } from "./supplierCreditAllocation";
 import {
   applyCreditToDoc,
@@ -54,8 +52,19 @@ export function noonBogota(day: string): Date {
 
 const TX_OPTS = { maxWait: 10_000, timeout: 30_000 } as const;
 
+/**
+ * Último mes cerrado del comercio, SIN crear la configuración (el upsert
+ * perezoso de la configuración contable choca consigo mismo con dos
+ * operaciones simultáneas del mismo comercio). Sin configuración, nada está
+ * cerrado.
+ */
+export async function readClosedThrough(restaurantId: string): Promise<string | null> {
+  const row = await db.accountingConfig.findUnique({ where: { restaurantId }, select: { closedThrough: true } });
+  return row?.closedThrough ?? null;
+}
+
 async function assertMonthOpen(restaurantId: string, at: Date, code = "month_closed") {
-  const cfg = await getAccountingConfig(restaurantId);
+  const cfg = { closedThrough: await readClosedThrough(restaurantId) };
   const month = at.toISOString().slice(0, 7);
   if (isMonthClosed(cfg.closedThrough, month)) {
     throw new SupplierCreditError(code, 409, { closedThrough: cfg.closedThrough });
@@ -448,48 +457,6 @@ export async function applyCreditNote(
   }, TX_OPTS);
 }
 
-/**
- * Uso automático del saldo a favor: aplica a UN documento (una compra
- * recibida o un gasto del proveedor) el saldo de sus notas, de la más
- * vieja a la más nueva, hasta `amountCents` o el saldo del documento.
- */
-export async function applySupplierCreditToDoc(
-  restaurantId: string,
-  target: { kind: PayableDocKind; id: string; amountCents?: number | null },
-  userId: string | null,
-  at: Date = new Date(),
-): Promise<{ appliedCents: number }> {
-  await assertMonthOpen(restaurantId, at);
-  const owner =
-    target.kind === "purchase"
-      ? await db.purchaseOrder.findFirst({ where: { id: target.id, restaurantId }, select: { supplierId: true } })
-      : await db.expense.findFirst({ where: { id: target.id, restaurantId }, select: { supplierId: true } });
-  if (!owner?.supplierId) throw new SupplierCreditError("not_found", 404);
-  const supplierId = owner.supplierId;
-  return db.$transaction(async (tx) => {
-    await lockSupplierPayables(tx, restaurantId, supplierId);
-    const pending = await loadSupplierPayables(tx, restaurantId, supplierId, { forUpdate: true });
-    const doc = pending.find((d) => d.kind === target.kind && d.id === target.id);
-    if (!doc) throw new SupplierCreditError("nothing_pending", 409);
-    const want = Math.min(doc.outstandingCents, target.amountCents ?? doc.outstandingCents);
-    if (!(want > 0)) throw new SupplierCreditError("amount_invalid");
-    const credits = await loadSupplierCredits(tx, restaurantId, supplierId);
-    const draws = drawFromCredits(credits, want);
-    for (const d of draws) {
-      await applyCreditToDoc(tx, {
-        restaurantId,
-        creditNoteId: d.credit.id,
-        kind: doc.kind,
-        id: doc.id,
-        amountCents: d.amountCents,
-        at,
-        createdById: userId,
-      });
-    }
-    return { appliedCents: draws.reduce((s, d) => s + d.amountCents, 0) };
-  }, TX_OPTS);
-}
-
 // ─── Reintegro en dinero ─────────────────────────────────────────────────
 
 export async function createCreditRefund(
@@ -560,7 +527,7 @@ export async function voidSupplierCreditNote(
   now: Date = new Date(),
 ): Promise<void> {
   await assertMonthOpen(restaurantId, now);
-  const cfg = await getAccountingConfig(restaurantId);
+  const cfg = { closedThrough: await readClosedThrough(restaurantId) };
   await db.$transaction(async (tx) => {
     const note = await tx.supplierCreditNote.findFirst({
       where: { id: noteId, restaurantId },

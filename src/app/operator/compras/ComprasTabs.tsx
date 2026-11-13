@@ -3,17 +3,19 @@ import { getTranslations } from "next-intl/server";
 import { CREDIT_NOTES_PATH } from "@/lib/erp/supplierCreditNoteList";
 
 /**
- * Pestañas de la página de Notas crédito (Órdenes · Por pagar · Notas
- * crédito). La lista de compras pinta las suyas (con sus filtros); éstas
+ * Pestañas de las páginas de Notas crédito y Pagos (Órdenes · Por pagar ·
+ * Notas crédito · Pagos). La lista de compras pinta las suyas (con sus filtros); éstas
  * enlazan a sus URLs limpias.
  */
-export async function ComprasTabs({ active }: { active: "credit_notes" }) {
+export async function ComprasTabs({ active }: { active: "credit_notes" | "payments" }) {
   const t = await getTranslations("opErp");
   const tc = await getTranslations("opSupplierCredit");
+  const tp = await getTranslations("opSupplierPayment");
   const items = [
     { key: "orders", href: "/operator/compras", label: t("tabOrders") },
     { key: "unpaid", href: "/operator/compras?tab=unpaid", label: t("tabUnpaid") },
     { key: "credit_notes", href: CREDIT_NOTES_PATH, label: tc("tabCreditNotes") },
+    { key: "payments", href: "/operator/compras/pagos", label: tp("tabPayments") },
   ];
   return (
     <nav aria-label={t("plTabsLabel")} className="mb-4">

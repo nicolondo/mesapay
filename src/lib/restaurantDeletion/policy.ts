@@ -196,6 +196,8 @@ export const UPLOAD_COLUMNS: readonly { model: string; field: string; archive: f
   { model: "Expense", field: "attachmentUrl", archive: "expense-documents" },
   // Notas crédito de proveedores: soporte contable de la compra → con las facturas.
   { model: "SupplierCreditNote", field: "attachmentUrl", archive: "purchase-invoices" },
+  // Soporte de un comprobante de egreso (transferencia, recibo del proveedor).
+  { model: "SupplierPayment", field: "attachmentUrl", archive: "expense-documents" },
   // Documentos del alta (RUT, cámara de comercio, certificación bancaria…).
   { model: "KushkiDocument", field: "fileUrl", archive: "onboarding" },
 ];

@@ -531,6 +531,41 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "pagar-a-proveedores",
+      "title": "Pay your suppliers with a disbursement voucher",
+      "summary": "Pick the supplier, see everything you owe them and pay: their credit notes and advances are offset first, then the money, from the oldest invoice to the newest, with a CE voucher to send them.",
+      "keywords": [
+        "pay supplier",
+        "supplier payment",
+        "disbursement voucher",
+        "CE",
+        "payment",
+        "FIFO",
+        "oldest invoice",
+        "credit note",
+        "advance",
+        "overpayment",
+        "partial payment",
+        "void payment",
+        "accounts payable"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "In **Purchases › Payments** you record what you pay a supplier, even if it covers several invoices, and you get a **disbursement voucher** (CE-0001, CE-0002…) to send them.\n\n## Pay\n\n1. Go to [Purchases › Payments](/operator/compras/pagos) and tap **Pay supplier** (also from [Receivables & payables](/operator/reportes/cartera) or the supplier's statement: **Pay this supplier**).\n2. Pick the **Supplier**. **Everything you owe** shows up: received purchases with a balance and expenses payable, from the one due first to the last.\n3. Below are their **credit notes and advances in your favor**. They're offset **before** the money: a note that references invoices goes to those first; the rest (trade agreements, rebates, advances) go to the oldest invoices.\n4. Check the preview: for each invoice you see the **Balance**, what the **Credit note** lowers, the **Payment** and what's **Left**, and at the top **Total pending**, **Credit notes applied**, **Net to pay** and **You're paying**.\n5. If you want, untick invoices or notes, or change the order with the arrows.\n6. Enter the **Amount to pay** (the net is suggested), the **Date**, the account it's **Paid from** (cash or bank), the **Method**, the **Reference** and, if you have it, the **Supporting file**.\n7. Tap **Pay**. The voucher opens.\n\nYou can pay less than the net (partial payment: the money covers invoices in the list's order). If you pay **too much**, we warn you: the excess becomes an **advance** in your favor with that supplier and is deducted from their next invoices (it shows up ticked when you receive the purchase and listed when you pay them again).\n\n## The voucher\n\nIt shows the business, the supplier, the date, the account and the method, each invoice with what was offset and paid, the credit notes and advances used, the total and the advance if any. Tap **Print** to print it or save it as a PDF and send it.\n\n**Record payment** in a purchase's detail (and a payment on an expense with a supplier) also creates a voucher, for a single invoice and without an advance.\n\n## Void a payment\n\nVouchers aren't deleted: in the voucher tap **Void voucher**. Invoices owe again what was paid, offset credit notes and advances get their balance back and the books record the reversal that day. It can't be voided if its advance was already deducted from another invoice (void that payment first) or if it belongs to a closed month.\n\n## In the books\n\nThe payment debits Suppliers (2205) —or costs and expenses payable for an expense— and credits cash or bank. Offsetting credit notes doesn't move cash (the note was already recorded). The advance goes to 133005 Advances to suppliers. Receivables & payables, the supplier report and **Unpaid** update instantly.",
+      "links": [
+        {
+          "label": "Go to Payments",
+          "href": "/operator/compras/pagos"
+        },
+        {
+          "label": "Go to Receivables & payables",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Create purchase orders, receive goods and pay your suppliers",
       "summary": "Order goods from your suppliers with a purchase order or record one you already received, with its VAT or consumption tax and your withholdings, receive it in full or in parts and pay until the balance is zero.",

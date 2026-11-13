@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { findDuplicateCreditNote, loadSupplierCredits } from "@/lib/erp/supplierCreditNoteService";
+import { loadSupplierAdvances } from "@/lib/erp/supplierPaymentService";
 import { CREDIT_NOTE_GATE } from "@/lib/erp/supplierCreditNoteApi";
 import { loadSupplierInvoicesForNote } from "@/lib/erp/supplierCreditNoteQueries";
 import { loadSupplierPayables } from "@/lib/erp/supplierPayables";
@@ -30,7 +31,7 @@ async function GETHandler(req: Request) {
   if (!supplier) return NextResponse.json({ error: "supplier_not_found" }, { status: 404 });
   const number = sp.get("number")?.trim() ?? "";
   const cude = sp.get("cude")?.trim() ?? "";
-  const [payables, credits, invoices, duplicate, chart, agreements] = await Promise.all([
+  const [payables, credits, invoices, duplicate, chart, agreements, advances] = await Promise.all([
     loadSupplierPayables(db, ctx.restaurantId, supplier.id),
     loadSupplierCredits(db, ctx.restaurantId, supplier.id),
     sp.get("invoices") === "0" ? Promise.resolve([]) : loadSupplierInvoicesForNote(ctx.restaurantId, supplier.id),
@@ -53,11 +54,13 @@ async function GETHandler(req: Request) {
       orderBy: { date: "desc" },
       take: 30,
     }),
+    loadSupplierAdvances(db, ctx.restaurantId, supplier.id),
   ]);
   return NextResponse.json({
     payables,
     credits,
-    availableCents: credits.reduce((s, c) => s + c.availableCents, 0),
+    // Saldo a favor total: notas crédito sin aplicar + anticipos (pagos de más).
+    availableCents: [...credits, ...advances].reduce((s, c) => s + c.availableCents, 0),
     invoices,
     duplicate,
     agreements: agreements.map((a) => a.agreement).filter((a): a is string => !!a),

@@ -184,6 +184,8 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   ],
   "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra", "notas-credito-de-proveedores"],
   "/operator/compras/notas-credito": ["notas-credito-de-proveedores"],
+  "/operator/compras/pagos": ["pagar-a-proveedores"],
+  "/operator/compras/pagos/[id]": ["pagar-a-proveedores"],
 
   /* ── Facturación ── */
   "/operator/settings/impuestos": ["impuesto-de-ventas"],

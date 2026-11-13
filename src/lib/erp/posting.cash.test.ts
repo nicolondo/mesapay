@@ -4,6 +4,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({ orders: vi.fn(), createEntry: vi.fn() }));
+// Pagos con comprobante (bloque 10): este test no los ejercita.
+vi.mock("./supplierPaymentPosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierPaymentPosting")>()),
+  loadSupplierPaymentFacts: async () => ({ payments: [], voids: [] }),
+  firstSupplierPaymentActivity: async () => null,
+}));
 // Notas crédito de proveedores (bloque 9): este test no las ejercita.
 vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),

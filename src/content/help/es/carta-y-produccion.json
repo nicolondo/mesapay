@@ -529,6 +529,42 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "pagar-a-proveedores",
+      "title": "Paga a tus proveedores con comprobante de egreso",
+      "summary": "Elige el proveedor, mira todo lo que le debes y paga: primero se cruzan sus notas crédito y anticipos y luego el dinero, de la factura más antigua a la más nueva, con su comprobante CE para enviarle.",
+      "keywords": [
+        "pagar proveedor",
+        "pago a proveedor",
+        "comprobante de egreso",
+        "CE",
+        "abono",
+        "FIFO",
+        "factura mas antigua",
+        "nota credito",
+        "anticipo",
+        "pago de mas",
+        "pago parcial",
+        "anular pago",
+        "cuentas por pagar",
+        "egreso"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En **Compras › Pagos** registras lo que le pagas a un proveedor, aunque cubra varias facturas, y queda un **comprobante de egreso** (CE-0001, CE-0002…) para enviarle.\n\n## Paga\n\n1. Entra a [Compras › Pagos](/operator/compras/pagos) y toca **Pagar a proveedor** (también desde la [Cartera](/operator/reportes/cartera) o el extracto del proveedor: **Pagar a este proveedor**).\n2. Elige el **Proveedor**. Aparece **todo lo que le debes**: compras recibidas con saldo y gastos por pagar, de la que vence primero a la última.\n3. Abajo están sus **notas crédito y anticipos a favor**. Se cruzan **antes** del dinero: una nota que relaciona facturas baja primero esas; las demás (acuerdos comerciales, rebajas, anticipos) van a las facturas más antiguas.\n4. Revisa la vista previa: por factura ves **Saldo**, lo que baja la **Nota crédito**, el **Pago** y lo que **Queda**, y arriba **Total pendiente**, **Notas crédito aplicadas**, **Neto a pagar** y **Estás pagando**.\n5. Si quieres, desmarca facturas o notas, o cambia el orden con las flechas.\n6. Escribe el **Valor a pagar** (se propone el neto), la **Fecha**, de qué cuenta **Sale** (caja o banco), el **Medio**, la **Referencia** y, si tienes, el **Soporte**.\n7. Toca **Pagar**. Se abre el comprobante.\n\nPuedes pagar menos que el neto (pago parcial: el dinero cubre las facturas en el orden de la lista). Si pagas **de más**, te avisamos: el excedente queda como **anticipo** a tu favor con ese proveedor y se descuenta de sus próximas facturas (al recibir la compra aparece marcado y al volver a pagarle aparece en la lista).\n\n## El comprobante\n\nMuestra el comercio, el proveedor, la fecha, la cuenta y el medio, cada factura con lo cruzado y lo pagado, las notas crédito y anticipos usados, el total y el anticipo si lo hubo. Toca **Imprimir** para imprimirlo o guardarlo como PDF y enviárselo.\n\nEl **Registrar pago** del detalle de una compra (y el abono de un gasto con proveedor) también crea un comprobante, de una sola factura y sin anticipo.\n\n## Anular un pago\n\nLos comprobantes no se borran: en el comprobante toca **Anular comprobante**. Las facturas vuelven a deber lo pagado, las notas crédito y anticipos cruzados recuperan su saldo y la contabilidad registra el reverso ese día. No se puede si su anticipo ya se descontó de otra factura (anula primero ese pago) ni si es de un mes cerrado.\n\n## En la contabilidad\n\nEl pago debita Proveedores (2205) —o costos y gastos por pagar si es un gasto— y acredita la caja o el banco. El cruce de notas crédito no mueve caja (la nota ya se registró). El anticipo va a 133005 Anticipos a proveedores. La cartera, el informe de proveedores y **Por pagar** se actualizan al instante.",
+      "links": [
+        {
+          "label": "Ir a Pagos",
+          "href": "/operator/compras/pagos"
+        },
+        {
+          "label": "Ir a Cartera",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       "summary": "Pide mercancía a tus proveedores con una orden de compra o registra la que ya recibiste, con su IVA o impuesto al consumo y tus retenciones, recíbela completa o por partes y paga hasta dejar la cuenta en cero.",

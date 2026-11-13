@@ -159,6 +159,8 @@ async function POSTHandler(
       // Notas crédito de proveedores: cascadean líneas, facturas relacionadas,
       // cruces y reintegros; antes que compras, insumos y proveedores (RESTRICT).
       n += (await tx.supplierCreditNote.deleteMany({ where: { restaurantId: id } })).count;
+      // Comprobantes de egreso (cascadean sus abonos); antes que proveedores (RESTRICT).
+      n += (await tx.supplierPayment.deleteMany({ where: { restaurantId: id } })).count;
       n += (await tx.purchaseOrder.deleteMany({ where: { restaurantId: id } })).count; // cascadea PurchaseOrderItem
       n += (await tx.recipe.deleteMany({ where: { restaurantId: id } })).count; // cascadea RecipeItem
       n += (await tx.productionBatch.deleteMany({ where: { restaurantId: id } })).count;

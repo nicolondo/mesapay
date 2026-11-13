@@ -527,6 +527,41 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "pagar-a-proveedores",
+      "title": "Pague seus fornecedores com comprovante de saída",
+      "summary": "Escolha o fornecedor, veja tudo o que você deve e pague: primeiro são compensadas as notas de crédito e os adiantamentos e depois o dinheiro, da fatura mais antiga para a mais nova, com o comprovante CE para enviar.",
+      "keywords": [
+        "pagar fornecedor",
+        "pagamento a fornecedor",
+        "comprovante de saida",
+        "CE",
+        "abono",
+        "FIFO",
+        "fatura mais antiga",
+        "nota de credito",
+        "adiantamento",
+        "pagamento a mais",
+        "pagamento parcial",
+        "anular pagamento",
+        "contas a pagar"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em **Compras › Pagamentos** você registra o que paga a um fornecedor, mesmo que cubra várias faturas, e fica um **comprovante de saída** (CE-0001, CE-0002…) para enviar a ele.\n\n## Pague\n\n1. Entre em [Compras › Pagamentos](/operator/compras/pagos) e toque em **Pagar fornecedor** (também na [Carteira](/operator/reportes/cartera) ou no extrato do fornecedor: **Pagar este fornecedor**).\n2. Escolha o **Fornecedor**. Aparece **tudo o que você deve**: compras recebidas com saldo e despesas a pagar, da que vence primeiro à última.\n3. Abaixo estão as **notas de crédito e adiantamentos a favor**. Eles são compensados **antes** do dinheiro: uma nota que relaciona faturas vai primeiro a essas; as demais (acordos comerciais, abatimentos, adiantamentos) vão às faturas mais antigas.\n4. Confira a prévia: por fatura você vê o **Saldo**, o que a **Nota de crédito** reduz, o **Pagamento** e o que **Fica**, e no topo **Total pendente**, **Notas de crédito aplicadas**, **Líquido a pagar** e **Você está pagando**.\n5. Se quiser, desmarque faturas ou notas, ou mude a ordem com as setas.\n6. Informe o **Valor a pagar** (o líquido é sugerido), a **Data**, de que conta **Sai** (caixa ou banco), o **Meio**, a **Referência** e, se tiver, o **Comprovante anexo**.\n7. Toque em **Pagar**. O comprovante abre.\n\nVocê pode pagar menos que o líquido (pagamento parcial: o dinheiro cobre as faturas na ordem da lista). Se pagar **a mais**, avisamos: o excedente fica como **adiantamento** a seu favor com esse fornecedor e é descontado das próximas faturas (aparece marcado ao receber a compra e na lista ao pagar de novo).\n\n## O comprovante\n\nMostra o estabelecimento, o fornecedor, a data, a conta e o meio, cada fatura com o compensado e o pago, as notas de crédito e adiantamentos usados, o total e o adiantamento, se houver. Toque em **Imprimir** para imprimir ou salvar como PDF e enviar.\n\nO **Registrar pagamento** do detalhe de uma compra (e o abono de uma despesa com fornecedor) também cria um comprovante, de uma só fatura e sem adiantamento.\n\n## Anular um pagamento\n\nOs comprovantes não são apagados: no comprovante toque em **Anular comprovante**. As faturas voltam a dever o que foi pago, as notas de crédito e adiantamentos compensados recuperam o saldo e a contabilidade registra o estorno nesse dia. Não é possível se o adiantamento já foi descontado de outra fatura (anule primeiro esse pagamento) nem se for de um mês fechado.\n\n## Na contabilidade\n\nO pagamento debita Fornecedores (2205) —ou custos e despesas a pagar, se for uma despesa— e credita o caixa ou o banco. A compensação de notas de crédito não movimenta caixa (a nota já foi registrada). O adiantamento vai para 133005 Adiantamentos a fornecedores. A carteira, o relatório de fornecedores e **A pagar** se atualizam na hora.",
+      "links": [
+        {
+          "label": "Ir para Pagamentos",
+          "href": "/operator/compras/pagos"
+        },
+        {
+          "label": "Ir para Carteira",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Faça ordens de compra, receba a mercadoria e pague seus fornecedores",
       "summary": "Peça mercadoria aos seus fornecedores com uma ordem de compra ou registre a que você já recebeu, com IVA ou imposto sobre consumo e suas retenções, receba tudo ou em partes e pague até zerar o saldo.",

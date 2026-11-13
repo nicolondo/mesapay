@@ -146,4 +146,7 @@ export const ENGINE_SOURCES = [
   "supplier_credit_note_void",
   "supplier_credit_apply",
   "supplier_credit_refund",
+  // Pagos a proveedores con comprobante de egreso (supplierPaymentPosting.ts).
+  "supplier_payment",
+  "supplier_payment_void",
 ] as const;

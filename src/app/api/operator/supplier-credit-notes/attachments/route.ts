@@ -25,7 +25,7 @@ const MIME_EXT: Record<string, string> = {
 };
 const EXT_MIME: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
 /** Sólo archivos que subió esta ruta (nada de rutas arbitrarias del disco). */
-const OWN_FILE = /^\/uploads\/(nc-[a-f0-9]{16}\.(pdf|jpg|png|webp))$/;
+const OWN_FILE = /^\/uploads\/((?:nc|ce)-[a-f0-9]{16}\.(pdf|jpg|png|webp))$/;
 
 function uploadDir() {
   return process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
@@ -64,7 +64,9 @@ async function POSTHandler(req: Request) {
     ext = e;
     const dir = uploadDir();
     await mkdir(dir, { recursive: true });
-    const name = `nc-${randomBytes(8).toString("hex")}.${ext}`;
+    // `kind=ce`: soporte de un comprobante de egreso («Pagar a proveedor»).
+    const prefix = form.get("kind") === "ce" ? "ce" : "nc";
+    const name = `${prefix}-${randomBytes(8).toString("hex")}.${ext}`;
     await writeFile(path.join(dir, name), buf);
     fileUrl = `/uploads/${name}`;
   } else if (typeof existing === "string" && OWN_FILE.test(existing)) {

@@ -152,12 +152,13 @@ export async function loadSupplierCreditFacts(
   const [notes, voids, pp, ep, refunds] = await Promise.all([
     db.supplierCreditNote.findMany({ where: { restaurantId, date: cal }, select: NOTE_SELECT }),
     db.supplierCreditNote.findMany({ where: { restaurantId, status: "voided", voidedAt: biz }, select: NOTE_SELECT }),
+    // Cruces: de una nota crédito o de un anticipo (excedente de un pago).
     db.purchasePayment.findMany({
-      where: { restaurantId, supplierCreditNoteId: { not: null }, paidAt: biz },
+      where: { restaurantId, paidAt: biz, OR: [{ supplierCreditNoteId: { not: null } }, { supplierAdvanceId: { not: null } }] },
       select: { amountCents: true, paidAt: true },
     }),
     db.expensePayment.findMany({
-      where: { restaurantId, supplierCreditNoteId: { not: null }, paidAt: biz },
+      where: { restaurantId, paidAt: biz, OR: [{ supplierCreditNoteId: { not: null } }, { supplierAdvanceId: { not: null } }] },
       select: { amountCents: true, paidAt: true },
     }),
     db.supplierCreditNoteRefund.findMany({

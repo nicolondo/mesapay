@@ -2,7 +2,7 @@ import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { applySupplierCreditToDoc } from "@/lib/erp/supplierCreditNoteService";
+import { applySupplierCreditToDoc } from "@/lib/erp/supplierPaymentService";
 import { CREDIT_NOTE_GATE, creditErrorResponse } from "@/lib/erp/supplierCreditNoteApi";
 
 export const dynamic = "force-dynamic";

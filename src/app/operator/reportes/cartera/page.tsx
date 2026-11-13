@@ -64,6 +64,7 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
     getTranslations("opSettings"),
     getLocale(),
   ]);
+  const tPay = await getTranslations("opSupplierPayment");
   const gate = await reportGate();
   if (!gate) return <div className="p-6">{tSettings("noRestaurant")}</div>;
 
@@ -132,6 +133,9 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
       }
       actions={
         <>
+          <Link href="/operator/compras/pagos?pagar=" className="mp-btn mp-btn--primary mp-btn--sm no-print">
+            {tPay("payButton")}
+          </Link>
           <CsvButton
             href={csvHref("/api/operator/reports/cartera", {
               vista: vista === "todas" ? undefined : vista,

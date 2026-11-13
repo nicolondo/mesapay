@@ -47,6 +47,8 @@ import {
   type OrderRoomInput,
 } from "@/lib/freeLineLimit";
 import { FreeLineLimitNotice } from "./FreeLineLimitNotice";
+import { ManualInvoiceSendCard } from "@/components/manualInvoice/ManualInvoiceSend";
+import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 
 /**
  * Impuesto de una línea libre tal como lo elige quien la carga:
@@ -162,6 +164,7 @@ export function TableDetailSheet({
   invoice = null,
   pendingPayments = [],
   counterMode = false,
+  sendInfo = null,
 }: {
   orderId: string;
   shortCode: string;
@@ -259,6 +262,10 @@ export function TableDetailSheet({
   // cuenta queda CERRADA a cambios (el servidor también lo exige — ver
   // src/lib/orders/invoicedOrder.ts). Se cobra con cualquier medio.
   invoice?: InvoicedOrderView | null;
+  // FACTURA MANUAL: "Emitir y enviar factura" (por correo, con link de
+  // pago, y la cuenta sale de Mesas a Cartera). Lo arma el server
+  // (src/lib/manualInvoiceSendInfo.ts). null en una mesa.
+  sendInfo?: ManualInvoiceSendInfo | null;
 }) {
   const tr = useTranslations("opTables");
   // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
@@ -1006,6 +1013,24 @@ export function TableDetailSheet({
                     </div>
                   )}
                 </div>
+              )}
+
+            {/* FACTURA MANUAL: la acción principal. Las manuales casi
+                siempre se mandan por correo: "Emitir y enviar factura" la
+                emite a nombre del cliente de arriba, la envía con el link
+                de pago y la saca de Mesas (queda por cobrar en Cartera).
+                Imprimirla sigue abajo, como acción secundaria. */}
+            {manual &&
+              sendInfo &&
+              orderStatus !== "paid" &&
+              orderStatus !== "cancelled" && (
+                <ManualInvoiceSendCard
+                  info={sendInfo}
+                  variant="sheet"
+                  customerName={invoiceCustomer?.customerName ?? null}
+                  customerEmail={invoiceCustomer?.email ?? null}
+                  afterIssue="open-order"
+                />
               )}
 
             {/* Comensal identificado + su descuento. Identificarlo es lo

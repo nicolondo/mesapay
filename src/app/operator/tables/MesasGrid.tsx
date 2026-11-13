@@ -23,6 +23,7 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
+import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
 import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
@@ -151,6 +152,8 @@ export type ManualTile = {
   number: number;
   qrToken: string;
   order: ActiveOrder;
+  /** "Emitir y enviar factura" (src/lib/manualInvoiceSendInfo.ts). */
+  sendInfo: ManualInvoiceSendInfo;
 };
 
 type FreeTable = { id: string; number: number; label: string | null };
@@ -976,6 +979,7 @@ function ManualInvoiceTile({
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
+          sendInfo={tile.sendInfo}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}
           isMeseroView={false}

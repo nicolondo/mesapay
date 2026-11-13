@@ -1,6 +1,8 @@
 import { requestTime } from "@/lib/requestTime";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
+import { buildManualInvoiceSendInfo, SEND_INFO_LINK_SELECT } from "@/lib/manualInvoiceSendInfo";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { appOrigin } from "@/lib/http/publicOrigin";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -186,6 +188,8 @@ export default async function TablesPage({
           // Factura emitida ANTES de cobrar: la ficha muestra "Facturada ·
           // pendiente de pago" y deja la cuenta cerrada a cambios.
           simpleInvoice: { select: ORDER_INVOICE_VIEW_SELECT },
+          // Link de pago de una factura manual (enviado, abierto, vencido).
+          payLink: { select: SEND_INFO_LINK_SELECT },
         },
       },
       _count: { select: { orders: true } },
@@ -500,17 +504,33 @@ export default async function TablesPage({
 
   // Facturas manuales: sin walkout-risk ni estado de cocina (nada se
   // prepara ni se entrega) — sólo la cuenta.
-  const manualTiles: ManualTile[] = manualTables.map((t) => ({
-    id: t.id,
-    number: t.number,
-    qrToken: t.qrToken,
-    order: summarizeOrder(t.orders[0]).activeOrder,
-  }));
-
   // APP_PUBLIC_BASE_URL manda; si falta, el origen público del request
   // (headers del proxy). Antes caía a http://localhost:3300 y el QR/link
   // impreso quedaba apuntando a localhost.
   const base = appOrigin(await headers());
+  const currency = manualTables.length > 0 && tenant ? await getCurrencyForCountry(tenant.country) : "COP";
+  const manualTiles: ManualTile[] = tenant
+    ? manualTables.map((t) => {
+        const order = t.orders[0];
+        return {
+          id: t.id,
+          number: t.number,
+          qrToken: t.qrToken,
+          order: summarizeOrder(order).activeOrder,
+          // "Emitir y enviar factura": la acción principal de la ficha.
+          sendInfo: buildManualInvoiceSendInfo({
+            order: { ...order, approvedPayments: order.payments.filter((p) => p.status === "approved") },
+            tenant,
+            currency,
+            origin: base,
+            link: order.payLink,
+            invoiceNumber: invoiceViews.get(order.id)?.documentNumber ?? null,
+            customerEmail: order.invoiceRequests[0]?.email ?? null,
+            customerName: order.invoiceRequests[0]?.customerName ?? null,
+          }),
+        };
+      })
+    : [];
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
   // Mismo sistema de botón que "+ Añadir mesa" (mp-btn--sm) para que los

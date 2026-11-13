@@ -13,6 +13,11 @@ import { OrderInvoiceMenu } from "./OrderInvoiceMenu";
 import { OrdersPeriodNav } from "./OrdersPeriodNav";
 import { OrdersSearchForm } from "./OrdersSearchForm";
 import { OrdersSourceFilters } from "./OrdersSourceFilters";
+import { headers } from "next/headers";
+import { appOrigin } from "@/lib/http/publicOrigin";
+import { loadManualInvoiceSendInfo } from "@/lib/manualInvoiceSendInfo";
+import { ManualInvoiceSendButton } from "@/components/manualInvoice/ManualInvoiceSend";
+import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
@@ -104,6 +109,34 @@ export default async function OrdersPage({
     return { day, time };
   };
 
+  // Facturas manuales abiertas o emitidas por cobrar: la fila ofrece
+  // "Emitir y enviar" / "Reenviar link" y dice si sigue por cobrar. Pocas
+  // por página (sólo las manuales), una lectura cada una.
+  const origin = appOrigin(await headers());
+  const sendInfos = new Map<string, ManualInvoiceSendInfo>();
+  await Promise.all(
+    list.rows
+      .filter(
+        (o) =>
+          o.table.kind === "manual" &&
+          ((o.status !== "paid" && o.status !== "cancelled") || !!o.payLink?.creditPaymentId),
+      )
+      .map(async (o) => {
+        const info = await loadManualInvoiceSendInfo({ restaurantId, orderId: o.id, origin });
+        if (info) sendInfos.set(o.id, info);
+      }),
+  );
+  const tSend = await getTranslations("manualInvoiceSend");
+  const receivableChip = (info: ManualInvoiceSendInfo | undefined) => {
+    const r = info?.receivable;
+    if (!r || r.totalCents <= 0) return null;
+    const paid = r.outstandingCents <= 0;
+    return {
+      label: paid ? tSend("chipPaidByLink") : r.overdue ? tSend("chipOverdue") : tSend("chipReceivable"),
+      tint: paid ? "bg-[#2E6B4C]/15 text-[#1E5339]" : r.overdue ? "bg-terracotta/15 text-terracotta" : "bg-[#C9A227]/15 text-[#7A5E0A]",
+    };
+  };
+
   // Derivados una sola vez: la fila (escritorio) y la tarjeta (celular)
   // leen lo mismo.
   const rows = list.rows.map((o) => {
@@ -139,6 +172,8 @@ export default async function OrdersPage({
           : counterMode
             ? t("channelCounter")
             : t("tableNumber", { number: o.table.number }),
+      send: sendInfos.get(o.id) ?? null,
+      receivable: receivableChip(sendInfos.get(o.id)),
     };
   });
 
@@ -330,15 +365,16 @@ export default async function OrdersPage({
                     <span>{open}</span>
                     <span className="hidden text-right tabular xl:block">{r.items}</span>
                     <span>
-                      <StatusPill status={r.status} />
+                      {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
                     </span>
                     <span className="text-right font-mono tabular">{fmtCOP(r.totalCents)}</span>
-                    <span className="min-w-0">
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                       {r.invoice ? (
                         <InvoiceChip number={r.invoice.number} dian={r.invoice.dian} />
                       ) : (
                         <span className="text-op-muted">{"—"}</span>
                       )}
+                      {r.send && <ManualInvoiceSendButton info={r.send} />}
                     </span>
                     <span className="flex justify-end">{menu}</span>
                   </div>
@@ -360,13 +396,18 @@ export default async function OrdersPage({
                         {t("itemsCount", { count: r.items })}
                       </span>
                       <span className="shrink-0">
-                        <StatusPill status={r.status} />
+                        {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
                       </span>
                     </div>
                     {r.invoice && (
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <InvoiceChip number={r.invoice.number} dian={r.invoice.dian} />
                         {menu}
+                      </div>
+                    )}
+                    {r.send && (
+                      <div className="mt-2 flex justify-end">
+                        <ManualInvoiceSendButton info={r.send} />
                       </div>
                     )}
                   </div>
@@ -497,6 +538,15 @@ async function InvoiceChip({ number, dian }: { number: string; dian: string | nu
           <span className="truncate text-op-muted">{state.label}</span>
         </>
       )}
+    </span>
+  );
+}
+
+/** Factura manual emitida por cobrar: por cobrar / vencida / cobrada (en vez de "Pagada"). */
+function ReceivablePill({ label, tint }: { label: string; tint: string }) {
+  return (
+    <span className={"px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium whitespace-nowrap " + tint}>
+      {label}
     </span>
   );
 }

@@ -18,10 +18,15 @@ function todayIso(): string {
  * "Abonar": registra un pago del cliente a su deuda de crédito. Monto
  * prellenado con la deuda, fecha, cuenta de dinero donde entró la plata
  * (caja, banco, pasarela — del plan del comercio) y nota.
+ *
+ * Con `creditChargeId` el abono va dirigido a UN cargo (la factura manual
+ * emitida por cobrar, desde su ficha): `customer.debtCents` es entonces el
+ * saldo de ese cargo, que es el tope.
  */
-export function CreditPaymentSheet({ customer, currency, onClose, onSaved }: {
-  customer: BillingCustomerRecord;
+export function CreditPaymentSheet({ customer, currency, creditChargeId, onClose, onSaved }: {
+  customer: Pick<BillingCustomerRecord, "id" | "customerName" | "debtCents">;
   currency: string;
+  creditChargeId?: string;
   onClose: () => void;
   onSaved: (debtAfterCents: number) => void;
 }) {
@@ -65,7 +70,7 @@ export function CreditPaymentSheet({ customer, currency, onClose, onSaved }: {
     try {
       const response = await fetch(`/api/operator/billing-customers/${customer.id}/credit-payments`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ amountCents, paidAt, accountCode, note: note.trim() || null }),
+        body: JSON.stringify({ amountCents, paidAt, accountCode, note: note.trim() || null, ...(creditChargeId ? { creditChargeId } : {}) }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {

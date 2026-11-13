@@ -6,6 +6,8 @@ import { findDuplicateCreditNote, loadSupplierCredits } from "@/lib/erp/supplier
 import { CREDIT_NOTE_GATE } from "@/lib/erp/supplierCreditNoteApi";
 import { loadSupplierInvoicesForNote } from "@/lib/erp/supplierCreditNoteQueries";
 import { loadSupplierPayables } from "@/lib/erp/supplierPayables";
+import { loadChartOfAccounts } from "@/lib/erp/ledger";
+import { isValidContraAccountCode } from "@/lib/erp/supplierCreditNotes";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ async function GETHandler(req: Request) {
   if (!supplier) return NextResponse.json({ error: "supplier_not_found" }, { status: 404 });
   const number = sp.get("number")?.trim() ?? "";
   const cude = sp.get("cude")?.trim() ?? "";
-  const [payables, credits, invoices, duplicate] = await Promise.all([
+  const [payables, credits, invoices, duplicate, chart, agreements] = await Promise.all([
     loadSupplierPayables(db, ctx.restaurantId, supplier.id),
     loadSupplierCredits(db, ctx.restaurantId, supplier.id),
     sp.get("invoices") === "0" ? Promise.resolve([]) : loadSupplierInvoicesForNote(ctx.restaurantId, supplier.id),
@@ -42,6 +44,15 @@ async function GETHandler(req: Request) {
           }),
         )
       : Promise.resolve(null),
+    sp.get("accounts") === "1" ? loadChartOfAccounts(ctx.restaurantId) : Promise.resolve([]),
+    // Conceptos de acuerdos ya usados con el proveedor (sugerencias).
+    db.supplierCreditNote.findMany({
+      where: { restaurantId: ctx.restaurantId, supplierId: supplier.id, kind: "agreement", agreement: { not: null } },
+      select: { agreement: true },
+      distinct: ["agreement"],
+      orderBy: { date: "desc" },
+      take: 30,
+    }),
   ]);
   return NextResponse.json({
     payables,
@@ -49,6 +60,11 @@ async function GETHandler(req: Request) {
     availableCents: credits.reduce((s, c) => s + c.availableCents, 0),
     invoices,
     duplicate,
+    agreements: agreements.map((a) => a.agreement).filter((a): a is string => !!a),
+    // Contrapartidas posibles (cuentas imputables de ingreso, gasto o costo).
+    accounts: chart
+      .filter((a) => a.postable && a.active !== false && isValidContraAccountCode(a.code))
+      .map((a) => ({ code: a.code, name: a.name })),
   });
 }
 

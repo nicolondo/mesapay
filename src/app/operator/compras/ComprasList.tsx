@@ -26,6 +26,7 @@ import {
 } from "@/lib/erp/purchaseList";
 import type { PurchaseListPage, PurchaseListRow } from "@/lib/erp/purchaseList";
 import { PayStatusChip, STATUS_KEYS, StatusChip, padNumber } from "./chips";
+import { CREDIT_NOTES_PATH } from "@/lib/erp/supplierCreditNoteList";
 
 export type FilterSupplier = { id: string; name: string; taxId: string | null };
 
@@ -57,6 +58,7 @@ export function ComprasList({
   onEditInvoice: (row: PurchaseListRow) => void;
 }) {
   const t = useTranslations("opErp");
+  const tc = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
   const money = (cents: number) => formatMoney(cents, { currency, locale });
   const filtered = hasPurchaseFilters(params);
@@ -110,6 +112,10 @@ export function ComprasList({
               {label}
             </Link>
           ))}
+          {/* Notas crédito de proveedores: su propia página (filtros aparte). */}
+          <Link href={CREDIT_NOTES_PATH} prefetch={false} className="mp-seg__i flex-1 sm:flex-none justify-center">
+            {tc("tabCreditNotes")}
+          </Link>
         </div>
       </nav>
 

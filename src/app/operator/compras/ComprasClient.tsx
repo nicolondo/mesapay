@@ -42,6 +42,7 @@ import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/
 import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
 import type { PoStatus, PurchaseListPage, PurchaseListParams } from "@/lib/erp/purchaseList";
 import { waLink } from "@/lib/crm/phone";
+import { applySupplierCredit, SupplierCreditOffer, useSupplierCredit } from "@/components/suppliers/SupplierCreditOffer";
 import {
   BASE_UNIT_SYMBOL,
   DISPLAY_UNITS,
@@ -3183,6 +3184,19 @@ function OrderDetailSheet({
                       </div>
                     </div>
 
+                    {/* Saldo a favor del proveedor (notas crédito): se ofrece aplicarlo. */}
+                    {balance > 0 && (
+                      <SupplierCreditOffer
+                        supplierId={order.supplier.id}
+                        doc={{ kind: "purchase", id: order.id, outstandingCents: balance }}
+                        currency={currency}
+                        onApplied={() => {
+                          setReloadKey((k) => k + 1);
+                          onChanged();
+                        }}
+                      />
+                    )}
+
                     {/* Historial de abonos */}
                     {order.payments.length > 0 && (
                       <div className="border border-op-border rounded-2xl overflow-hidden mt-2">
@@ -3493,7 +3507,11 @@ function ReceiveSheet({
   onDone: (updated: Partial<OrderDetail>, complete: boolean) => void;
 }) {
   const t = useTranslations("opErp");
+  const tCredit = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
+  // Saldo a favor del proveedor (notas crédito): se aplica al recibir, marcado por defecto.
+  const supplierCredit = useSupplierCredit(order.supplier.id);
+  const [applyCredit, setApplyCredit] = useState(true);
 
   // Solo líneas con pendiente (pedido − recibido); las completas se saltan.
   const pending = useMemo(
@@ -3655,6 +3673,9 @@ function ReceiveSheet({
       return;
     }
     const j = await r.json();
+    if (applyCredit && supplierCredit && supplierCredit > 0) {
+      await applySupplierCredit({ kind: "purchase", id: order.id });
+    }
     onDone(j.order as Partial<OrderDetail>, Boolean(j.complete));
   }
 
@@ -3855,6 +3876,21 @@ function ReceiveSheet({
               </>
             )}
           </div>
+        )}
+
+        {supplierCredit != null && supplierCredit > 0 && (
+          <label className="mt-3 flex items-start gap-2 rounded-2xl border border-[#2F6B4F]/30 bg-[#2F6B4F]/8 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={applyCredit}
+              onChange={(e) => setApplyCredit(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0"
+            />
+            <span>
+              {tCredit("receiveApplyCredit", { amount: formatMoney(supplierCredit, { currency, locale }) })}
+              <span className="block text-[11px] text-op-muted">{tCredit("receiveApplyCreditHint")}</span>
+            </span>
+          </label>
         )}
 
         {err && <div className="text-xs text-danger mt-3">{err}</div>}

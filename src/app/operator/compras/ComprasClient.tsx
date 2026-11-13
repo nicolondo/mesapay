@@ -164,6 +164,8 @@ type PurchasePaymentRef = {
   accountCode: string | null;
   accountName: string | null;
   note: string | null;
+  /** Cruce con una nota crédito del proveedor (no es plata: no se borra acá). */
+  supplierCreditNote?: { id: string; number: string } | null;
   createdBy: { id: string; name: string | null } | null;
   createdAt: string;
 };
@@ -1031,6 +1033,8 @@ function InvoiceUploadButton({
   const t = useTranslations("opErp");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // La IA reconoció una NOTA CRÉDITO: se registra en Compras › Notas crédito.
+  const [creditNoteUploadId, setCreditNoteUploadId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
@@ -1043,6 +1047,7 @@ function InvoiceUploadButton({
     requestInFlight.current = true;
     setSelectedFile(file);
     setErr(null);
+    setCreditNoteUploadId(null);
     setBusy(true);
     try {
       const body = new FormData();
@@ -1052,6 +1057,11 @@ function InvoiceUploadButton({
         body,
       });
       const j = await r.json().catch(() => null) as (InvoiceUploadResult & { error?: unknown }) | null;
+      if (j?.error === "credit_note_detected" && typeof (j as { uploadId?: unknown }).uploadId === "string") {
+        setSelectedFile(null);
+        setCreditNoteUploadId((j as { uploadId: string }).uploadId);
+        return;
+      }
       if (!r.ok || j?.error) {
         const key = typeof j?.error === "string" ? API_UPLOAD_ERROR_KEYS[j.error] : undefined;
         setErr(key ? t(key) : t("invUploadErrFailed"));
@@ -1104,6 +1114,18 @@ function InvoiceUploadButton({
           if (file) void handleFile(file);
         }}
       />
+      {creditNoteUploadId && (
+        <div role="status" className="col-span-2 lg:col-span-4 rounded-2xl border border-op-border bg-op-surface p-4">
+          <p className="text-sm font-medium">{t("invUploadCreditNoteTitle")}</p>
+          <p className="mt-1 text-xs text-op-muted">{t("invUploadCreditNoteBody")}</p>
+          <a
+            href={`/operator/compras/notas-credito?desdeFactura=${encodeURIComponent(creditNoteUploadId)}`}
+            className="mp-btn mp-btn--primary mp-btn--sm mt-3"
+          >
+            {t("invUploadCreditNoteOpen")}
+          </a>
+        </div>
+      )}
       {err && (
         <div className="col-span-2 rounded-2xl border border-danger/20 bg-danger/5 p-4">
           <p id={errorId} role="alert" className="text-sm leading-relaxed text-danger">{err}</p>
@@ -3179,7 +3201,9 @@ function OrderDetailSheet({
                               <div className="text-[11px] text-op-muted mt-0.5 truncate">
                                 {[
                                   formatDate(p.paidAt, { locale }),
-                                  p.accountName ?? p.method,
+                                  p.supplierCreditNote
+                                    ? t("paymentCreditNote", { number: p.supplierCreditNote.number })
+                                    : (p.accountName ?? p.method),
                                   p.createdBy?.name ?? null,
                                 ]
                                   .filter(Boolean)
@@ -3191,14 +3215,23 @@ function OrderDetailSheet({
                                 </div>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => void deletePayment(p.id)}
-                              disabled={busy}
-                              className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0 disabled:opacity-40"
-                            >
-                              {t("deletePayment")}
-                            </button>
+                            {p.supplierCreditNote ? (
+                              <a
+                                href={`/operator/compras/notas-credito?nota=${encodeURIComponent(p.supplierCreditNote.id)}`}
+                                className="min-h-[36px] px-2 inline-flex items-center rounded-full text-[11px] font-medium text-op-muted hover:text-ink shrink-0"
+                              >
+                                {t("paymentCreditNoteOpen")}
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void deletePayment(p.id)}
+                                disabled={busy}
+                                className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0 disabled:opacity-40"
+                              >
+                                {t("deletePayment")}
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>

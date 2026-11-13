@@ -74,6 +74,27 @@ async function POSTHandler(req: Request) {
   if (raw.documentType === "otro") {
     return NextResponse.json({ error: "not_a_document" }, { status: 422 });
   }
+  // Una NOTA CRÉDITO del proveedor no es una compra: se guarda la lectura
+  // (sin volver a llamar a la IA) para registrarla en Compras › Notas
+  // crédito, que la abre prellenada con `?desdeFactura=<uploadId>`.
+  if (raw.documentType === "nota_credito") {
+    const session = await auth();
+    const dir = uploadDir();
+    await mkdir(dir, { recursive: true });
+    const name = `factura-${randomBytes(8).toString("hex")}.${ext}`;
+    await writeFile(path.join(dir, name), buf);
+    const upload = await db.purchaseInvoiceUpload.create({
+      data: {
+        restaurantId: ctx.restaurantId,
+        fileUrl: `/uploads/${name}`,
+        status: "pending",
+        extraction: raw,
+        createdById: session?.user?.id ?? null,
+      },
+      select: { id: true },
+    });
+    return NextResponse.json({ error: "credit_note_detected", uploadId: upload.id }, { status: 422 });
+  }
   const extraction = normalizeExtraction(raw);
   if (!extraction.lines.length) {
     return NextResponse.json({ error: "no_lines" }, { status: 422 });

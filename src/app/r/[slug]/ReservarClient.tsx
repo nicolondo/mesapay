@@ -3,18 +3,25 @@ import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApplePayButton } from "@/app/t/[slug]/pay/[orderId]/ApplePayButton";
 import {
-  type FloorPlan,
-  DEFAULT_FLOOR_PLAN,
-  ZONE_KINDS,
-  MARKER_KINDS,
-  markerLabel,
-  cellKey,
-  zoneLabelAnchor,
+  EMPTY_SCENE,
+  legacyCellToPlacement,
+  legacyToScene,
+  resolveLegacyFloorPlan,
+  sanitizePlacement,
+  sanitizeScene,
+  type FloorScene,
+  type TablePlacement,
 } from "@/lib/floorPlan";
+import {
+  FloorPlanView,
+  type CanvasTable,
+  type TableState,
+  type TableTone,
+} from "@/components/floorplan/FloorPlanCanvas";
 
 type AvailTable = {
   id: string;
@@ -35,11 +42,52 @@ type FloorTable = {
   number: number;
   label: string | null;
   capacity: number;
-  minConsumptionCents: number | null;
   shape: "square" | "round" | "bar";
-  x: number;
-  y: number;
+  placement: TablePlacement;
 };
+
+const SHAPES = new Set(["square", "round", "bar"]);
+
+/**
+ * Plano que manda la API de disponibilidad. Lee `floor` (formato libre);
+ * si no viene (servidor anterior, durante un deploy), arma lo mismo con
+ * los campos viejos `floorPlan` + `floorTables` (celdas). Todo validado:
+ * es JSON de la red.
+ */
+function readFloor(j: Record<string, unknown>): { scene: FloorScene; tables: FloorTable[] } {
+  const tables: FloorTable[] = [];
+  const pushTable = (raw: unknown, placement: TablePlacement | null) => {
+    if (!raw || typeof raw !== "object" || !placement) return;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.id !== "string" || typeof r.number !== "number") return;
+    tables.push({
+      id: r.id,
+      number: r.number,
+      label: typeof r.label === "string" ? r.label : null,
+      capacity: typeof r.capacity === "number" ? r.capacity : 0,
+      shape: SHAPES.has(r.shape as string) ? (r.shape as FloorTable["shape"]) : "square",
+      placement,
+    });
+  };
+  const floor = j.floor as { scene?: unknown; tables?: unknown } | undefined;
+  if (floor && typeof floor === "object") {
+    if (Array.isArray(floor.tables)) {
+      for (const raw of floor.tables) {
+        pushTable(raw, sanitizePlacement((raw as { placement?: unknown })?.placement));
+      }
+    }
+    return { scene: sanitizeScene(floor.scene), tables };
+  }
+  if (Array.isArray(j.floorTables)) {
+    for (const raw of j.floorTables) {
+      const r = raw as { x?: unknown; y?: unknown; shape?: unknown };
+      if (typeof r?.x !== "number" || typeof r?.y !== "number") continue;
+      const shape = SHAPES.has(r.shape as string) ? (r.shape as FloorTable["shape"]) : "square";
+      pushTable(raw, legacyCellToPlacement(shape, r.x, r.y));
+    }
+  }
+  return { scene: legacyToScene(resolveLegacyFloorPlan(j.floorPlan)), tables };
+}
 
 const fmtCOP = (cents: number) =>
   "$" + (cents / 100).toLocaleString("es-CO");
@@ -99,7 +147,7 @@ export function ReservarClient({
   const [partySize, setPartySize] = useState(2);
   const [slots, setSlots] = useState<AvailSlot[]>([]);
   const [floorTables, setFloorTables] = useState<FloorTable[]>([]);
-  const [floorPlan, setFloorPlan] = useState<FloorPlan>(DEFAULT_FLOOR_PLAN);
+  const [floorScene, setFloorScene] = useState<FloorScene>(EMPTY_SCENE);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<AvailSlot | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -140,10 +188,9 @@ export function ReservarClient({
         if (alive && res.ok && Array.isArray(j.slots)) {
           // Sólo slots con al menos una mesa libre.
           setSlots(j.slots.filter((s: AvailSlot) => s.tables.length > 0));
-          setFloorTables(Array.isArray(j.floorTables) ? j.floorTables : []);
-          if (j.floorPlan && typeof j.floorPlan === "object") {
-            setFloorPlan(j.floorPlan as FloorPlan);
-          }
+          const floor = readFloor(j);
+          setFloorTables(floor.tables);
+          setFloorScene(floor.scene);
         } else if (alive) {
           setSlots([]);
           setFloorTables([]);
@@ -409,19 +456,35 @@ export function ReservarClient({
               </div>
               <FloorPlanPicker
                 floorTables={floorTables}
-                floorPlan={floorPlan}
-                freeIds={new Set(selectedSlot.tables.map((t) => t.id))}
+                scene={floorScene}
+                freeTables={selectedSlot.tables}
                 selectedTableId={selectedTableId}
                 onPick={setSelectedTableId}
               />
-              <div className="flex items-center gap-4 mt-2 text-[11px] text-muted">
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-3 h-3 rounded bg-[#2E6B4C]/20 border border-[#2E6B4C]/40 inline-block" />
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="w-3.5 h-3.5 rounded inline-block border"
+                    style={{ background: TONE_FREE.fill, borderColor: TONE_FREE.stroke }}
+                  />
                   {tr("available")}
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-3 h-3 rounded bg-hairline inline-block" />
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="w-3.5 h-3.5 rounded inline-block border border-dashed"
+                    style={{ background: TONE_TAKEN.fill, borderColor: TONE_TAKEN.stroke }}
+                  />
                   {tr("occupied")}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className="w-3.5 h-3.5 rounded inline-block"
+                    style={{ background: TONE_PICKED.fill }}
+                  />
+                  {tr("selectedLegend")}
                 </span>
               </div>
             </div>
@@ -590,238 +653,88 @@ export function ReservarClient({
   );
 }
 
+// Colores de las mesas en el plano del comensal. Constantes: el dibujo de
+// cada mesa solo se rehace si cambia su estado.
+const TONE_FREE: TableTone = {
+  fill: "color-mix(in srgb, var(--ok) 15%, var(--ivory))",
+  stroke: "var(--ok)",
+  text: "#1E5339",
+};
+const TONE_PICKED: TableTone = {
+  fill: "var(--ink)",
+  stroke: "var(--ink)",
+  text: "var(--bone)",
+};
+const TONE_TAKEN: TableTone = {
+  fill: "var(--hairline)",
+  stroke: "var(--muted-2)",
+  text: "var(--muted)",
+  dashed: true,
+};
+
 /**
- * Mapa del salón read-only para que el diner elija mesa visualmente y
- * se ubique en el local. Dibuja: zonas (jardín, terraza…), íconos
- * (entrada, baños…) y las mesas en sus coords. Las mesas libres que
- * entran al grupo (id en freeIds) van en verde y son tappables; el
- * resto en gris. La seleccionada se resalta en ink.
- *
- * El tamaño de celda (cellPx) se calcula del ancho real del contenedor
- * para que el plano llene la pantalla del diner sin scroll horizontal.
+ * Plano del salón para que el comensal elija su mesa y se ubique en el
+ * local. Es el MISMO dibujo que ve el dueño en el editor (zonas, entrada,
+ * baños, mesas con su forma, tamaño y giro). Las mesas libres que le
+ * sirven al grupo (en `freeTables`) van en verde y se pueden tocar; las
+ * demás, grises y punteadas (no solo por color). La elegida, en tinta.
  */
 function FloorPlanPicker({
   floorTables,
-  floorPlan,
-  freeIds,
+  scene,
+  freeTables,
   selectedTableId,
   onPick,
 }: {
   floorTables: FloorTable[];
-  floorPlan: FloorPlan;
-  freeIds: Set<string>;
+  scene: FloorScene;
+  freeTables: AvailTable[];
   selectedTableId: string | null;
   onPick: (id: string) => void;
 }) {
   const tr = useTranslations("reservar");
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [boxW, setBoxW] = useState(0);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    // clientWidth incluye el padding p-2 (≈16px) → lo descontamos.
-    const update = () => setBoxW(Math.max(0, el.clientWidth - 16));
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Ampliar la grilla si hay datos viejos por fuera de cols/rows guardados.
-  const zoneMaxX = Math.max(
-    -1,
-    ...floorPlan.zones.flatMap((z) => z.cells.map((c) => c.x)),
+  const freeIds = useMemo(() => new Set(freeTables.map((t) => t.id)), [freeTables]);
+  const tables = useMemo<CanvasTable[]>(
+    () =>
+      floorTables.map((t) => ({
+        id: t.id,
+        number: t.number,
+        label: t.label,
+        capacity: t.capacity,
+        shape: t.shape,
+        placement: t.placement,
+      })),
+    [floorTables],
   );
-  const zoneMaxY = Math.max(
-    -1,
-    ...floorPlan.zones.flatMap((z) => z.cells.map((c) => c.y)),
+  const tableState = useCallback(
+    (t: CanvasTable): TableState => {
+      const free = freeIds.has(t.id);
+      const picked = selectedTableId === t.id;
+      const name = t.label ?? tr("tableN", { number: t.number });
+      return {
+        tone: picked ? TONE_PICKED : free ? TONE_FREE : TONE_TAKEN,
+        ariaLabel: free
+          ? tr("tableTitleFree", { name, capacity: t.capacity })
+          : tr("tableUnavailableAria", { name }),
+        disabled: !free,
+        pressed: picked,
+        sub: tr("capacityShort", { count: t.capacity }),
+      };
+    },
+    [freeIds, selectedTableId, tr],
   );
-  const cols = Math.max(
-    floorPlan.cols,
-    floorTables.reduce((m, t) => Math.max(m, t.x + 1), 0),
-    zoneMaxX + 1,
-    ...floorPlan.markers.map((m) => m.x + 1),
-  );
-  const rows = Math.max(
-    floorPlan.rows,
-    floorTables.reduce((m, t) => Math.max(m, t.y + 1), 0),
-    zoneMaxY + 1,
-    ...floorPlan.markers.map((m) => m.y + 1),
-  );
-
-  const cellPx =
-    boxW > 0 ? Math.min(64, Math.max(22, Math.floor(boxW / cols))) : 40;
-  const gridW = cols * cellPx;
-  const gridH = rows * cellPx;
-
   return (
-    <div
-      ref={wrapRef}
-      className="rounded-2xl border border-hairline bg-paper px-2 pb-2 pt-6 overflow-auto"
-    >
-      <div className="relative mx-auto" style={{ width: gridW, height: gridH }}>
-        {/* Zonas (fondo) — celdas con borde sólo en los bordes externos.
-            El nombre va en una capa aparte (arriba de todo). */}
-        {floorPlan.zones.map((z) => {
-          const c = ZONE_KINDS[z.kind];
-          const cellSet = new Set(z.cells.map((cc) => cellKey(cc.x, cc.y)));
-          const has = (x: number, y: number) => cellSet.has(cellKey(x, y));
-          return (
-            <div key={z.id} className="absolute inset-0 pointer-events-none">
-              {z.cells.map((cell) => {
-                return (
-                  <div
-                    key={cellKey(cell.x, cell.y)}
-                    className="absolute"
-                    style={{
-                      left: cell.x * cellPx,
-                      top: cell.y * cellPx,
-                      width: cellPx,
-                      height: cellPx,
-                      background: c.fill,
-                      borderTop: !has(cell.x, cell.y - 1)
-                        ? `1.5px dashed ${c.stroke}`
-                        : undefined,
-                      borderBottom: !has(cell.x, cell.y + 1)
-                        ? `1.5px dashed ${c.stroke}`
-                        : undefined,
-                      borderLeft: !has(cell.x - 1, cell.y)
-                        ? `1.5px dashed ${c.stroke}`
-                        : undefined,
-                      borderRight: !has(cell.x + 1, cell.y)
-                        ? `1.5px dashed ${c.stroke}`
-                        : undefined,
-                    }}
-                  />
-                );
-              })}
-            </div>
-          );
-        })}
-
-        {/* Íconos (entrada, baños…) */}
-        {floorPlan.markers.map((m) => {
-          const k = MARKER_KINDS[m.kind];
-          const isEntrance = m.kind === "entrada";
-          return (
-            <div
-              key={m.id}
-              className="absolute flex flex-col items-center justify-center rounded-lg"
-              style={{
-                left: m.x * cellPx + 2,
-                top: m.y * cellPx + 2,
-                width: cellPx - 4,
-                height: cellPx - 4,
-                background: isEntrance
-                  ? "rgba(193,73,46,0.14)"
-                  : "rgba(0,0,0,0.05)",
-                border: isEntrance
-                  ? "1.5px solid rgba(193,73,46,0.55)"
-                  : "1px solid rgba(0,0,0,0.12)",
-              }}
-              title={markerLabel(m)}
-            >
-              <span style={{ fontSize: Math.min(20, cellPx * 0.5) }}>
-                {k.icon}
-              </span>
-              {/* Nombre siempre visible debajo del ícono (la entrada, sobre
-                  todo, para que el cliente se ubique). */}
-              <span
-                className="absolute left-1/2 -translate-x-1/2 text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap z-10"
-                style={{
-                  top: "100%",
-                  marginTop: 1,
-                  color: isEntrance ? "#8f3420" : "#5b5446",
-                  background: isEntrance
-                    ? "rgba(193,73,46,0.16)"
-                    : "rgba(255,255,255,0.92)",
-                }}
-              >
-                {markerLabel(m)}
-              </span>
-            </div>
-          );
-        })}
-
-        {/* Mesas (frente) */}
-        {floorTables.map((t) => {
-          const free = freeIds.has(t.id);
-          const selected = selectedTableId === t.id;
-          const radius = t.shape === "round" ? "rounded-full" : "rounded-md";
-          return (
-            <button
-              key={t.id}
-              type="button"
-              disabled={!free}
-              onClick={() => free && onPick(t.id)}
-              title={
-                free
-                  ? tr("tableTitleFree", {
-                      name: t.label ?? tr("tableN", { number: t.number }),
-                      capacity: t.capacity,
-                    })
-                  : tr("unavailable")
-              }
-              className={
-                "absolute flex flex-col items-center justify-center text-[10px] font-medium leading-none p-0.5 border transition-colors " +
-                radius +
-                " " +
-                (selected
-                  ? "bg-ink text-bone border-ink z-10"
-                  : free
-                    ? "bg-[#2E6B4C]/15 text-[#1E5339] border-[#2E6B4C]/40 hover:bg-[#2E6B4C]/25"
-                    : "bg-hairline text-muted border-transparent cursor-not-allowed")
-              }
-              style={{
-                left: t.x * cellPx + 3,
-                top: t.y * cellPx + 3,
-                width: cellPx - 6,
-                height: cellPx - 6,
-              }}
-            >
-              <span className="font-display text-xs">
-                {t.label && t.label.length <= 4 ? t.label : `M-${t.number}`}
-              </span>
-              <span className="opacity-60 text-[9px]">
-                {tr("capacityShort", { count: t.capacity })}
-              </span>
-            </button>
-          );
-        })}
-
-        {/* Nombres de zona — capa superior. Se apoyan sobre una celda
-            libre del borde superior (sin mesa); si todas están ocupadas,
-            arriba de la raya (en el margen reservado). */}
-        {floorPlan.zones.map((z) => {
-          if (!z.label.trim()) return null; // zona sin nombre → sin label
-          const c = ZONE_KINDS[z.kind];
-          const occupied = new Set(
-            floorTables.map((t) => cellKey(t.x, t.y)),
-          );
-          const a = zoneLabelAnchor(z.cells, occupied);
-          const transform = a.onFree
-            ? "translate(2px, 2px)"
-            : "translate(2px, calc(-100% - 1px))";
-          return (
-            <div
-              key={z.id + ":label"}
-              className="absolute z-30 pointer-events-none text-[9px] font-semibold leading-none px-1 py-0.5 rounded whitespace-nowrap"
-              style={{
-                left: a.x * cellPx,
-                top: a.y * cellPx,
-                transform,
-                color: c.text,
-                background: "rgba(255,255,255,0.92)",
-                border: `1px solid ${c.stroke}`,
-              }}
-            >
-              {z.label}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <FloorPlanView
+      scene={scene}
+      tables={tables}
+      tableState={tableState}
+      onTableActivate={onPick}
+      ariaLabel={tr("mapAria")}
+      minPxPerUnit={24}
+      maxPxPerUnit={72}
+      maxHeight={560}
+      className="fp-view--diner rounded-2xl border border-hairline"
+    />
   );
 }
 

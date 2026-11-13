@@ -1,0 +1,801 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLANO DEL SALÓN
+   Estilos del dibujo del plano (src/components/floorplan) y de su editor
+   (src/app/operator/settings/salon). Un mismo SVG se muestra en el panel del
+   equipo, en la página de reservas del comensal y en el mapa del Salón; los
+   colores salen de tokens para seguir el tema de cada superficie.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fp-canvas {
+  /* Papel, tinta y superficie del plano. Por defecto, los del panel. */
+  --fp-paper: var(--op-bg);
+  --fp-ink: var(--op-text);
+  --fp-surface: var(--op-surface);
+  --fp-accent: var(--terracotta);
+  display: block;
+  max-width: none;
+  background: var(--fp-paper);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Página del comensal: papel cálido de la marca. */
+.fp-view--diner .fp-canvas {
+  --fp-paper: var(--paper);
+  --fp-ink: var(--ink);
+  --fp-surface: var(--ivory);
+}
+
+.fp-canvas text {
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+.fp-canvas .fp-num {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+.fp-canvas .fp-sub {
+  font-family: var(--font-mono);
+  opacity: 0.68;
+}
+/* Rótulos con halo del color del papel: se leen encima de cualquier zona. */
+.fp-halo {
+  paint-order: stroke;
+  stroke: var(--fp-paper);
+  stroke-linejoin: round;
+}
+.fp-zone-label {
+  font-weight: 600;
+}
+.fp-marker-label {
+  font-weight: 600;
+  fill: color-mix(in srgb, var(--fp-ink) 72%, transparent);
+}
+.fp-marker-label--entrance {
+  fill: var(--terracotta-2);
+}
+[data-op-theme="dark"] .fp-marker-label--entrance {
+  fill: var(--op-accent);
+}
+
+.fp-lattice {
+  fill: color-mix(in srgb, var(--fp-ink) 22%, transparent);
+}
+.fp-grid-minor {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fp-ink) 9%, transparent);
+}
+.fp-grid-major {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fp-ink) 20%, transparent);
+}
+
+.fp-wall {
+  fill: color-mix(in srgb, var(--fp-ink) 82%, var(--fp-paper));
+}
+.fp-plant {
+  fill: color-mix(in srgb, var(--ok) 20%, var(--fp-paper));
+  stroke: color-mix(in srgb, var(--ok) 60%, transparent);
+}
+.fp-marker {
+  fill: color-mix(in srgb, var(--fp-ink) 6%, var(--fp-surface));
+  stroke: color-mix(in srgb, var(--fp-ink) 28%, transparent);
+}
+.fp-marker--entrance {
+  fill: color-mix(in srgb, var(--terracotta) 15%, var(--fp-surface));
+  stroke: color-mix(in srgb, var(--terracotta) 60%, transparent);
+}
+.fp-glyph {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fp-ink) 75%, transparent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.fp-glyph--entrance {
+  stroke: var(--terracotta-2);
+}
+[data-op-theme="dark"] .fp-glyph--entrance {
+  stroke: var(--op-accent);
+}
+.fp-glyph--plant {
+  stroke: color-mix(in srgb, var(--ok) 85%, var(--fp-ink));
+}
+
+/* Mesas */
+.fp-table {
+  outline: none;
+}
+.fp-table--button {
+  cursor: pointer;
+}
+.fp-table--disabled {
+  cursor: not-allowed;
+}
+.fp-focus {
+  fill: none;
+  stroke: var(--fp-accent);
+  opacity: 0;
+}
+.fp-table:focus-visible .fp-focus {
+  opacity: 1;
+}
+.fp-warn {
+  fill: color-mix(in srgb, var(--warn) 22%, transparent);
+  stroke: var(--warn);
+  stroke-dasharray: 4 3;
+}
+.fp-dot {
+  stroke: var(--fp-surface);
+}
+@keyframes fp-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.fp-pulse {
+  animation: fp-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-pulse {
+    animation: none;
+  }
+}
+
+/* Vista de solo lectura: se desliza si el plano no entra a escala legible. */
+.fp-view {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.fp-view > .fp-canvas {
+  margin-inline: auto;
+}
+
+/* ───────────────────────────── EDITOR ───────────────────────────── */
+
+.fp-editor {
+  /* Guías inteligentes: azul de plano técnico, distinto del terracota de
+     la selección para que «alineado» y «seleccionado» no se confundan. */
+  --fp-guide: #2f6fdb;
+}
+[data-op-theme="dark"] .fp-editor {
+  --fp-guide: #6aa1ff;
+}
+
+.fp-layout {
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 1024px) {
+  .fp-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+  .fp-side {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 8px;
+  }
+}
+.fp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Barra superior. Angosta: arriba el estado y «Guardar mapa», abajo las
+   herramientas. Ancha (container query): todo en una fila. */
+.fp-barwrap {
+  container-type: inline-size;
+  margin-bottom: 10px;
+}
+.fp-bar {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 8px;
+}
+.fp-bar > .fp-toolbar {
+  align-self: flex-start;
+}
+@container (min-width: 900px) {
+  .fp-bar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .fp-bar > .fp-toolbar {
+    align-self: auto;
+  }
+}
+.fp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: calc(var(--radius-btn) + 4px);
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  box-shadow: var(--shadow-1);
+}
+.fp-toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 4px;
+  background: var(--op-border);
+}
+.fp-tool {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--op-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.fp-tool:hover {
+  background: color-mix(in srgb, var(--op-text) 6%, transparent);
+  color: var(--op-text);
+}
+.fp-tool[data-active] {
+  background: var(--ink);
+  color: var(--bone);
+}
+[data-op-theme="dark"] .fp-tool[data-active] {
+  background: var(--bone);
+  color: var(--ink);
+}
+.fp-tool:focus-visible,
+.fp-iconbtn:focus-visible,
+.fp-chip:focus-visible,
+.fp-zoom__btn:focus-visible,
+.fp-quick__btn:focus-visible,
+.fp-quick__more:focus-visible,
+.fp-menu__item:focus-visible,
+.fp-stepper__btn:focus-visible,
+.fp-hint__cancel:focus-visible {
+  outline: 2px solid var(--terracotta);
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  .fp-tool {
+    padding: 0;
+    width: 44px;
+  }
+  .fp-tool__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+.fp-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 224px;
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  box-shadow: var(--shadow-3);
+}
+.fp-menu__item {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--op-text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.fp-menu__item:hover {
+  background: var(--op-bg);
+}
+
+.fp-savebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fp-savebar .fp-status {
+  margin-right: auto;
+}
+@container (min-width: 900px) {
+  .fp-savebar .fp-status {
+    margin-right: 0;
+  }
+}
+.fp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  color: var(--op-muted);
+  white-space: nowrap;
+}
+.fp-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ok);
+}
+.fp-status--dirty .fp-status__dot {
+  background: var(--warn);
+}
+.fp-status--dirty {
+  color: var(--op-text);
+}
+.fp-status--error {
+  color: var(--danger);
+  white-space: normal;
+  max-width: 280px;
+}
+.fp-status--error .fp-status__dot {
+  background: var(--danger);
+}
+
+/* Lienzo: papel de dibujo con retícula de puntos. */
+.fp-stage {
+  position: relative;
+  height: clamp(380px, calc(100dvh - 250px), 860px);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--op-border);
+  overflow: hidden;
+  background: var(--op-surface);
+  box-shadow: inset 0 1px 2px rgba(26, 22, 19, 0.04);
+}
+@media (max-width: 1023px) {
+  .fp-stage {
+    height: clamp(360px, 62dvh, 720px);
+  }
+}
+.fp-stage > .fp-canvas {
+  --fp-paper: color-mix(in srgb, var(--op-surface) 55%, var(--op-bg));
+  position: absolute;
+  inset: 0;
+}
+.fp-stage > .fp-canvas:focus-visible {
+  outline: 2px solid var(--terracotta);
+  outline-offset: -2px;
+}
+
+/* Overlay del editor (dentro del SVG) */
+.fp-sel {
+  fill: none;
+  stroke: var(--fp-accent);
+  stroke-width: 1.5;
+}
+.fp-sel--group {
+  stroke-dasharray: 5 4;
+}
+.fp-knob {
+  fill: var(--fp-surface);
+  stroke: var(--fp-accent);
+  stroke-width: 1.5;
+}
+.fp-knob--active,
+.fp-knob--rot {
+  fill: var(--fp-accent);
+}
+.fp-knob--edge {
+  fill: var(--fp-accent);
+  stroke: var(--fp-surface);
+}
+.fp-guide {
+  fill: none;
+  stroke: var(--fp-guide);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.fp-guide--gap {
+  stroke-width: 1.25;
+}
+.fp-draft {
+  fill: color-mix(in srgb, var(--fp-accent) 10%, transparent);
+  stroke: var(--fp-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+.fp-draft--cut {
+  fill: color-mix(in srgb, var(--danger) 12%, transparent);
+  stroke: var(--danger);
+}
+.fp-draft--marquee {
+  fill: color-mix(in srgb, var(--fp-guide) 8%, transparent);
+  stroke: var(--fp-guide);
+}
+
+/* Avisos flotantes sobre el lienzo */
+.fp-hint,
+.fp-quick {
+  position: absolute;
+  z-index: 10;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 20px);
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--bone);
+  box-shadow: var(--shadow-2);
+}
+.fp-hint {
+  gap: 10px;
+  padding: 4px 4px 4px 14px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.fp-hint > span {
+  padding: 8px 0;
+}
+.fp-hint__cancel {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.fp-quick {
+  gap: 2px;
+  padding: 3px;
+}
+.fp-quick__btn,
+.fp-quick__more {
+  min-width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fp-quick__btn:hover,
+.fp-quick__more:hover,
+.fp-hint__cancel:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.fp-quick__more {
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+@media (min-width: 1024px) {
+  /* En escritorio el panel de propiedades ya está a la vista. */
+  .fp-quick {
+    display: none;
+  }
+}
+[data-op-theme="dark"] .fp-hint,
+[data-op-theme="dark"] .fp-quick {
+  background: var(--bone);
+  color: var(--ink);
+}
+
+.fp-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: none;
+}
+.fp-empty__card {
+  pointer-events: auto;
+  max-width: 360px;
+  padding: 20px;
+  text-align: center;
+  border-radius: var(--r-lg);
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  box-shadow: var(--shadow-2);
+}
+
+.fp-readout {
+  position: absolute;
+  z-index: 12;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.fp-scale {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--op-muted);
+  pointer-events: none;
+}
+.fp-scale__bar {
+  height: 6px;
+  border: 1.5px solid currentColor;
+  border-top: 0;
+}
+
+.fp-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: calc(var(--radius-btn) + 3px);
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  box-shadow: var(--shadow-1);
+}
+.fp-zoom__btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--op-text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fp-zoom__btn:hover {
+  background: var(--op-bg);
+}
+.fp-zoom__level {
+  min-width: 46px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--op-muted);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 479px) {
+  .fp-zoom__level {
+    display: none;
+  }
+}
+
+/* Panel lateral */
+.fp-panel {
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+}
+.fp-shortcuts summary {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+.fp-note {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.fp-note--warn {
+  background: color-mix(in srgb, var(--warn) 14%, var(--op-surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--op-text);
+}
+.fp-note--info {
+  background: color-mix(in srgb, var(--terracotta) 8%, var(--op-surface));
+  border: 1px solid color-mix(in srgb, var(--terracotta) 30%, transparent);
+  color: var(--op-text);
+}
+
+.fp-iconbtn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-surface);
+  color: var(--op-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.fp-iconbtn:hover:not(:disabled) {
+  background: var(--op-bg);
+  border-color: color-mix(in srgb, var(--op-text) 28%, transparent);
+}
+.fp-iconbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.fp-iconbtn--text {
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.fp-panel .mp-btn[data-active="true"] {
+  background: var(--ink);
+  color: var(--bone);
+  border-color: var(--ink);
+}
+
+.fp-input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--op-border-2);
+  background: var(--op-surface);
+  color: var(--op-text);
+  font-size: 14px;
+}
+.fp-input:focus {
+  outline: 2px solid var(--terracotta);
+  outline-offset: 1px;
+}
+@media (max-width: 640px) {
+  .fp-input,
+  .fp-stepper__input {
+    font-size: 16px;
+  }
+}
+
+.fp-stepper {
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--op-border-2);
+  background: var(--op-surface);
+  overflow: hidden;
+}
+.fp-stepper__btn {
+  width: 44px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--op-text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fp-stepper__btn:hover:not(:disabled) {
+  background: var(--op-bg);
+}
+.fp-stepper__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.fp-stepper__input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  border-inline: 1px solid var(--op-border);
+  background: transparent;
+  color: var(--op-text);
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.fp-stepper__input::-webkit-inner-spin-button,
+.fp-stepper__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.fp-stepper__input:focus {
+  outline: 2px solid var(--terracotta);
+  outline-offset: -2px;
+}
+
+/* Segmentado del panel: opciones de 40 px de alto (toque cómodo). */
+.mp-seg.fp-seg .mp-seg__i {
+  height: 40px;
+  padding: 0 10px;
+}
+
+.fp-chip {
+  min-height: 44px;
+  min-width: 52px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-btn);
+  border: 1px dashed var(--op-border-2);
+  background: var(--op-bg);
+  color: var(--op-text);
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+.fp-chip:hover {
+  border-color: color-mix(in srgb, var(--op-text) 35%, transparent);
+}
+.fp-chip--list {
+  border-style: solid;
+  background: var(--op-surface);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fp-chip--list[aria-pressed="true"] {
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 1px var(--terracotta);
+}
+
+.fp-ghost {
+  position: fixed;
+  z-index: 60;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: 20px;
+  box-shadow: var(--shadow-3);
+  pointer-events: none;
+}

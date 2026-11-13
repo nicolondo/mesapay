@@ -343,6 +343,11 @@ function ConceptSheet({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Cambia el borrador y borra el error anterior (ya no aplica). */
+  const edit = (fn: (d: Draft) => Draft) => {
+    setError(null);
+    setDraft(fn);
+  };
 
   const catalogName = (e: RetentionCatalogEntry) => t(`retCat_${e.key}`);
   const haveKeys = new Set(concepts.map((c) => c.catalogKey).filter(Boolean));
@@ -461,15 +466,20 @@ function ConceptSheet({
   }
 
   // Catálogo filtrado por lo que se escribe (nombre, tipo o tarifa).
+  // «1 %», «1,5» o «4,14 ‰» buscan por TARIFA exacta (no «11 %» ni «15 %»);
+  // lo demás, por palabras del nombre o del tipo.
   const q = normalizeConceptName(query);
-  const filtered = q
-    ? RETENTION_CATALOG.filter((e) => {
-        const hay = normalizeConceptName(
-          [t(`retCat_${e.key}`), t(KIND_KEYS[e.kind]), e.ratePpm != null ? rateText(e.kind, e.ratePpm) : ""].join(" "),
-        );
-        return q.split(" ").every((w) => hay.includes(w));
-      })
-    : RETENTION_CATALOG;
+  const rateQuery = /^(\d+(?:[.,]\d+)?)\s*(%|‰)?$/.exec(q);
+  const filtered = !q
+    ? RETENTION_CATALOG
+    : rateQuery
+      ? RETENTION_CATALOG.filter(
+          (e) => e.ratePpm != null && ppmToRate(e.ratePpm, rateUnitFor(e.kind)) === Number(rateQuery[1]!.replace(",", ".")),
+        )
+      : RETENTION_CATALOG.filter((e) => {
+          const hay = normalizeConceptName([t(`retCat_${e.key}`), t(KIND_KEYS[e.kind])].join(" "));
+          return q.split(" ").every((w) => hay.includes(w));
+        });
 
   const title = editing ? t("retSheetEditTitle") : t("retSheetNewTitle");
 
@@ -617,7 +627,7 @@ function ConceptSheet({
                 disabled={editing || draft.catalogKey !== null}
                 onChange={(e) => {
                   const kind = e.target.value as RetentionKind;
-                  setDraft((d) => ({ ...d, kind, accountCode: accountFor(kind, null) }));
+                  edit((d) => ({ ...d, kind, accountCode: accountFor(kind, null) }));
                 }}
                 className={inputCls}
               >
@@ -634,7 +644,7 @@ function ConceptSheet({
               <input
                 type="text"
                 value={draft.name}
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                onChange={(e) => edit((d) => ({ ...d, name: e.target.value }))}
                 maxLength={120}
                 placeholder={t("retFieldNamePlaceholder")}
                 className={inputCls}
@@ -649,8 +659,8 @@ function ConceptSheet({
                     type="text"
                     inputMode="decimal"
                     value={draft.rateRaw}
-                    onChange={(e) => setDraft((d) => ({ ...d, rateRaw: e.target.value }))}
-                    placeholder={unit === "permil" ? "4,14" : "1"}
+                    onChange={(e) => edit((d) => ({ ...d, rateRaw: e.target.value }))}
+                    placeholder={formatNumber(unit === "permil" ? 4.14 : 1, { locale })}
                     aria-describedby="ret-rate-hint"
                     className={inputCls + " pr-10 text-right tabular"}
                   />
@@ -668,7 +678,7 @@ function ConceptSheet({
                   type="text"
                   inputMode="numeric"
                   value={draft.thresholdRaw}
-                  onChange={(e) => setDraft((d) => ({ ...d, thresholdRaw: e.target.value.replace(/\D/g, "") }))}
+                  onChange={(e) => edit((d) => ({ ...d, thresholdRaw: e.target.value.replace(/\D/g, "") }))}
                   className={inputCls + " text-right tabular"}
                 />
                 <span className="mt-1 block text-[11px] text-op-muted">
@@ -688,7 +698,7 @@ function ConceptSheet({
               <span className={labelCls}>{t("retFieldAccount")}</span>
               <select
                 value={draft.accountCode}
-                onChange={(e) => setDraft((d) => ({ ...d, accountCode: e.target.value }))}
+                onChange={(e) => edit((d) => ({ ...d, accountCode: e.target.value }))}
                 className={inputCls}
               >
                 {accountOptions.map((a) => (
@@ -710,7 +720,7 @@ function ConceptSheet({
               <input
                 type="checkbox"
                 checked={draft.active}
-                onChange={(e) => setDraft((d) => ({ ...d, active: e.target.checked }))}
+                onChange={(e) => edit((d) => ({ ...d, active: e.target.checked }))}
                 className="mt-1 h-5 w-5 shrink-0"
               />
               <span className="text-sm">{t("retFieldActive")}</span>

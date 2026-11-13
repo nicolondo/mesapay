@@ -129,3 +129,81 @@ describe("POST /api/operator/order-items — impuesto incluido en el precio", ()
     expect(m.tx.orderItem.create).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Tope DINÁMICO del valor (ver `src/lib/freeLineLimit.ts`). Antes era $10M
+ * fijo por línea: un cargo de ~$12 millones con impoconsumo incluido en una
+ * cuenta vacía se rechazaba (y el diálogo apagaba el botón sin decir nada).
+ */
+describe("POST /api/operator/order-items — tope dinámico del cargo", () => {
+  // Lo cobrable más alto que deja el techo ($20M) con la propina máxima (30 %).
+  const MAX_CHARGEABLE = Math.floor((2_000_000_000 * 100) / 130);
+
+  it("acepta un cargo de $12.345.678 con impoconsumo incluido en una cuenta vacía", async () => {
+    const res = await post({
+      orderId: "order-1",
+      name: "Evento empresarial",
+      qty: 1,
+      unitPriceCents: 1_234_567_800,
+      taxKind: "included",
+      taxPct: 0,
+    });
+    expect(res.status).toBe(200);
+    expect(m.tx.orderItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ priceCentsSnapshot: 1_234_567_800, qty: 1, taxKind: null }),
+      }),
+    );
+    expect(await res.json()).toMatchObject({ ok: true, lineCents: 1_234_567_800, lineTaxCents: 0 });
+  });
+
+  it("rechaza lo que pasaría el techo con `line_too_large` y el máximo que sí cabe en ESA cuenta", async () => {
+    // La cuenta ya tiene $10M: con otro cargo de $8M pasaría el techo.
+    m.orderFindUnique.mockResolvedValue({
+      id: "order-1",
+      restaurantId: "rest-1",
+      status: "served",
+      subtotalCents: 1_000_000_000,
+      taxCents: 0,
+      tipCents: 0,
+      table: { number: 4 },
+    });
+    const res = await post({ ...line, qty: 1, unitPriceCents: 800_000_000, taxKind: "included", taxPct: 0 });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "line_too_large",
+      maxLineCents: MAX_CHARGEABLE - 1_000_000_000,
+    });
+    expect(m.transaction).not.toHaveBeenCalled();
+    expect(m.tx.orderItem.create).not.toHaveBeenCalled();
+  });
+
+  it("con IVA encima el máximo descuenta el impuesto que se suma", async () => {
+    const res = await post({ ...line, qty: 1, unitPriceCents: 1_400_000_000, taxKind: "iva", taxPct: 19 });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("line_too_large");
+    // max + 19% ≤ espacio libre
+    expect(body.maxLineCents + Math.round((body.maxLineCents * 19) / 100)).toBeLessThanOrEqual(MAX_CHARGEABLE);
+    expect(body.maxLineCents).toBeLessThan(MAX_CHARGEABLE);
+  });
+
+  it("vuelve a medir con la cuenta bloqueada: si otro dispositivo la llenó, rechaza sin escribir", async () => {
+    // Al leer estaba vacía; dentro de la transacción ya tiene $14M.
+    m.requireMutable.mockResolvedValue({ subtotalCents: 1_400_000_000, taxCents: 0, tipCents: 0 });
+    const res = await post({ ...line, qty: 1, unitPriceCents: 1_234_567_800, taxKind: "included", taxPct: 0 });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "line_too_large",
+      maxLineCents: MAX_CHARGEABLE - 1_400_000_000,
+    });
+    expect(m.tx.orderItem.create).not.toHaveBeenCalled();
+    expect(m.recompute).not.toHaveBeenCalled();
+  });
+
+  it("la cantidad multiplica: 2 × $8M no cabe aunque cada uno sí", async () => {
+    const res = await post({ ...line, qty: 2, unitPriceCents: 800_000_000, taxKind: "included", taxPct: 0 });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("line_too_large");
+  });
+});

@@ -2225,10 +2225,6 @@
     "billRequested": "Cash desk notified",
     "prebillPrint": "Print pre-bill",
     "prebillPrinting": "Sending pre-bill…",
-    "prebillSent": "Pre-bill sent to {printer}",
-    "prebillNoPrinter": "No receipt printer: printing from the browser instead.",
-    "prebillPrinterOffline": "The print agent is not responding: printing from the browser instead.",
-    "prebillFailed": "The pre-bill could not be printed.",
     "prebillView": "View pre-bill",
     "prebillBack": "Back to Tables",
     "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items.",
@@ -4271,7 +4267,9 @@
     "consumptionTaxPending": "{count, plural, one {# payment does not yet have a confirmed tax breakdown.} other {# payments do not yet have a confirmed tax breakdown.}}",
     "consumptionTaxPendingShort": "{count, plural, one {# payment without a tax breakdown} other {# payments without a tax breakdown}}",
     "consumptionTaxShort": "INC",
-    "consumptionTaxAmount": "INC: {amount}"
+    "consumptionTaxAmount": "INC: {amount}",
+    "printTicket": "Print closing slip",
+    "printFullReport": "Print full report"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Sales excluding taxes and tips",

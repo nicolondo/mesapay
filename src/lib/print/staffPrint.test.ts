@@ -235,7 +235,7 @@ describe("«Este dispositivo»: ni se intenta el agente", () => {
       { fetch, printInBrowser },
       device,
     );
-    expect(fetch.mock.calls[0][0]).toBe("/api/operator/shifts/shift-1/print");
+    expect(fetch).toHaveBeenCalledWith("/api/operator/shifts/shift-1/print", expect.anything());
     expect(printInBrowser).toHaveBeenCalledWith("/operator/shifts/shift-1/tirilla?w=58", {
       tabUrl: "/operator/shifts/shift-1/tirilla?w=58&print=1",
     });

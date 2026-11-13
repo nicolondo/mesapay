@@ -149,6 +149,44 @@
       "updated": "2026-10-31"
     },
     {
+      "slug": "imprimir-en-este-dispositivo",
+      "title": "Print on the register printer or on this device",
+      "summary": "Choose whether the invoice, the pre-bill or the shift close-out comes out of the register printer or the built-in printer of the device in your hand. Each device remembers the last choice.",
+      "keywords": [
+        "print on card reader",
+        "built-in printer",
+        "sunmi",
+        "p3",
+        "phone with printer",
+        "print on this device",
+        "register printer",
+        "receipt",
+        "58 mm",
+        "print service",
+        "save as pdf"
+      ],
+      "audience": [
+        "operator",
+        "mesero"
+      ],
+      "body": "When you print an invoice, a pre-bill or the shift close-out, you choose where it comes out: on the **Register printer** (the print agent's thermal printer, like kitchen tickets) or on **This device**: the phone, tablet or card reader with a built-in printer in your hand. Each device remembers the last choice, so you don't have to change it every time.\n\n## Choose where to print\n\n1. Above the print button you'll see **Print on** with two options: **Register printer** and **This device**.\n2. Tap the one you want. With **This device**, also choose the device's **Paper**: **58 mm** (most card readers and phones with a printer, like the Sunmi P3) or **80 mm**.\n3. Tap the print button: **Print invoice**, **Print pre-bill**, **Print closing slip**…\n\nThe choice is saved on that device and for that business: next time it's already selected. If the browser is in private mode or blocks site data, it still prints, but after reloading it goes back to the usual option.\n\nThe first time, the **Card reader** user starts on **This device** and everyone else on **Register printer**.\n\n## Where it shows\n\n- The invoice: when checkout is done, on the table sheet, in Orders (**Reprint invoice**) and on the invoice itself (**Print**).\n- The pre-bill: on the table sheet and in **View pre-bill**.\n- The shift close-out: on the shift detail, with **Print closing slip**.\n- On the card reader, in **Live tables**: tap a table for **Print pre-bill** or, if it already has an invoice, **Print invoice**.\n\nKitchen and bar tickets don't change: they keep printing on their own printers.\n\n## What each option does\n\n- **Register printer**: it goes through the print agent and you'll see **Sent to** with the printer's name. If the business has no invoice printer or the agent isn't responding, it prints from this device's browser, as always.\n- **This device**: it doesn't go through the print agent. The device's print window opens with the slip at the chosen paper width and you'll see **This device's print dialog opened**. Pick the device's printer there and tap print.\n\nIf something fails you'll see **Couldn't print.** with **Try again** and the option to print the other way.\n\n## Turn on the device's printer (once)\n\nOn Android card readers and phones, the browser prints through Android's print service. If the print window only offers **Save as PDF**, the device has no print service turned on for its printer:\n\n1. Open **Settings** on the device and look for **Printing** (usually under **Connected devices › Connection preferences › Printing**).\n2. Turn on the service for the device's built-in printer.\n3. Go back to MESAPAY and print again. In the print window pick that printer and, if asked, 58 mm paper.\n\nIf **Printing** shows no service for the device's printer, ask the device's provider for it (for the card reader, your card reader provider). Meanwhile, use **Register printer**.\n\n## Common cases\n\n- **I'm on the card reader and it prints at the register**: **Register printer** is selected. Tap **This device**: it's remembered.\n- **Only Save as PDF shows**: the device has no print service turned on for its printer. See the section above.\n- **The slip comes out too small or cut off**: check the **Paper** (58 or 80 mm) and that the paper size in the print window matches the roll.\n- **Another tablet still prints at the register**: the choice is saved per device. Change it on that tablet too.",
+      "links": [
+        {
+          "label": "Go to Tables",
+          "href": "/operator/tables"
+        },
+        {
+          "label": "Go to Tables (waiter app)",
+          "href": "/mesero/mesas"
+        },
+        {
+          "label": "Go to Closed shifts",
+          "href": "/operator/shifts"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "datafonos",
       "title": "Set up the business's card readers",
       "summary": "Register your Kushki card readers with their serial number and Card Present Private Key. They belong to the business: when charging, whoever charges picks which one to send it to. Plus, the Card reader user's screen.",

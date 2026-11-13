@@ -88,7 +88,7 @@ beforeEach(() => {
 });
 
 describe("la puerta", () => {
-  it.each(["kitchen", "bar", "terminal", "diner"])(
+  it.each(["kitchen", "bar", "diner", "comercial"])(
     "el rol %s no imprime (401) y no toca la cola",
     async (role) => {
       m.auth.mockResolvedValue({ user: { id: "u", role } });
@@ -99,8 +99,8 @@ describe("la puerta", () => {
     },
   );
 
-  it.each(["operator", "platform_admin", "group_admin", "mesero"])(
-    "el rol %s sí puede (el mesero cobra y entrega la factura)",
+  it.each(["operator", "platform_admin", "group_admin", "mesero", "terminal"])(
+    "el rol %s sí puede (el mesero y el datáfono cobran y entregan la factura)",
     async (role) => {
       m.auth.mockResolvedValue({ user: { id: "u", role } });
       const res = await call();

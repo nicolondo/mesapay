@@ -2225,10 +2225,6 @@
     "billRequested": "Caja avisada",
     "prebillPrint": "Imprimir precuenta",
     "prebillPrinting": "Enviando precuenta…",
-    "prebillSent": "Precuenta enviada a {printer}",
-    "prebillNoPrinter": "Sin impresora de facturas: se imprime desde el navegador.",
-    "prebillPrinterOffline": "El agente de impresión no responde: se imprime desde el navegador.",
-    "prebillFailed": "No se pudo imprimir la precuenta.",
     "prebillView": "Ver precuenta",
     "prebillBack": "Volver a Mesas",
     "prebillUnavailable": "La precuenta no está disponible: la cuenta ya se cerró o no tiene consumo.",
@@ -4271,7 +4267,9 @@
     "consumptionTaxPending": "{count, plural, one {# cobro aún no tiene un desglose de impuestos confirmado.} other {# cobros aún no tienen un desglose de impuestos confirmado.}}",
     "consumptionTaxPendingShort": "{count, plural, one {# cobro sin desglose fiscal} other {# cobros sin desglose fiscal}}",
     "consumptionTaxShort": "INC",
-    "consumptionTaxAmount": "INC: {amount}"
+    "consumptionTaxAmount": "INC: {amount}",
+    "printTicket": "Imprimir cierre",
+    "printFullReport": "Imprimir reporte completo"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Ventas sin impuestos ni propina",

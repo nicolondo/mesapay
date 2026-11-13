@@ -2225,10 +2225,6 @@
     "billRequested": "Caixa avisado",
     "prebillPrint": "Imprimir pré-conta",
     "prebillPrinting": "Enviando pré-conta…",
-    "prebillSent": "Pré-conta enviada para {printer}",
-    "prebillNoPrinter": "Sem impressora de recibos: imprime-se pelo navegador.",
-    "prebillPrinterOffline": "O agente de impressão não responde: imprime-se pelo navegador.",
-    "prebillFailed": "Não foi possível imprimir a pré-conta.",
     "prebillView": "Ver pré-conta",
     "prebillBack": "Voltar para Mesas",
     "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.",
@@ -4271,7 +4267,9 @@
     "consumptionTaxPending": "{count, plural, one {# pagamento ainda não tem uma discriminação de impostos confirmada.} other {# pagamentos ainda não têm uma discriminação de impostos confirmada.}}",
     "consumptionTaxPendingShort": "{count, plural, one {# pagamento sem discriminação fiscal} other {# pagamentos sem discriminação fiscal}}",
     "consumptionTaxShort": "INC",
-    "consumptionTaxAmount": "INC: {amount}"
+    "consumptionTaxAmount": "INC: {amount}",
+    "printTicket": "Imprimir fechamento",
+    "printFullReport": "Imprimir relatório completo"
   },
   "opDashboard": {
     "salesBeforeTaxAndTip": "Vendas sem impostos nem gorjeta",

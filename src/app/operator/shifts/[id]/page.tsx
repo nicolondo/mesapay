@@ -43,7 +43,9 @@ const METHOD_KEY: Record<string, string> = {
  *
  * Optimizado para imprimir: el CSS inline esconde nav/header al
  * `@media print` y deja sólo el reporte en B/N con tipografía
- * compacta. Botón "Imprimir" dispara window.print() (cliente).
+ * compacta. "Imprimir reporte completo" dispara window.print() (hoja);
+ * "Imprimir cierre" saca la TIRILLA del turno por la impresora de caja o
+ * en este dispositivo (ver PrintButton).
  */
 export default async function ShiftDetailPage({
   params,
@@ -109,7 +111,7 @@ export default async function ShiftDetailPage({
           >
             {t("detailBack")}
           </Link>
-          <PrintButton />
+          <PrintButton shiftId={id} />
         </div>
 
         {/* Header */}

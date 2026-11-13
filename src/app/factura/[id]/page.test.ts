@@ -52,8 +52,8 @@ beforeEach(() => {
   });
 });
 
-async function render() {
-  const page = await FacturaPage({ params: Promise.resolve({ id: "inv-1" }), searchParams: Promise.resolve({}) });
+async function render(searchParams: { print?: string; w?: string } = {}) {
+  const page = await FacturaPage({ params: Promise.resolve({ id: "inv-1" }), searchParams: Promise.resolve(searchParams) });
   return renderToStaticMarkup(page);
 }
 
@@ -177,3 +177,31 @@ describe("factura web — formato compacto", () => {
     expect(text).toContain("Representación impresa de la factura electrónica de venta");
   });
 });
+
+describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
+  /** El recibo, sin los controles ni los estilos de la página. */
+  const receipt = (html: string) => /<article[\s\S]*<\/article>/.exec(html)?.[0] ?? "";
+
+  it("?w=58 en un comercio de 80: el recibo y la página que se pide miden 58 mm", async () => {
+    const html = await render({ w: "58" });
+    expect(html).toContain('data-print-width-mm="58"');
+    expect(html).toContain("width:58mm");
+    // El botón sabe a qué ancho está dibujada la página (para imprimirse ella).
+    expect(mocks.printButtonProps).toMatchObject({ paperMm: 58 });
+  });
+
+  it("un ?w= que no es 58 ni 80 se ignora: el papel del comercio", async () => {
+    expect(await render({ w: "120" })).toContain('data-print-width-mm="80"');
+    expect(await render({ w: "abc" })).toContain('data-print-width-mm="80"');
+  });
+
+  it("es la MISMA tirilla que la del comercio, sólo cambia el ancho (snapshot a 58 mm)", async () => {
+    const at80 = receipt(await render());
+    const at58 = receipt(await render({ w: "58" }));
+    expect(at58.replace(/58mm|="58"|padding-inline:5mm/g, "")).toBe(
+      at80.replace(/80mm|="80"|padding-inline:4mm/g, ""),
+    );
+    expect(at58).toMatchSnapshot();
+  });
+});
+

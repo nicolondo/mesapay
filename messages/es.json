@@ -204,7 +204,7 @@
         "inventory": "Inventario y recetas",
         "payroll": "Nómina",
         "accounting": "Contabilidad",
-        "pulso": "Pulso con IA"
+        "pulso": "Pulso agente IA"
       }
     },
     "pains": {
@@ -315,16 +315,16 @@
         "shot1": "Estado de resultado del mes con ingresos, costos, gastos y resultado del período"
       },
       "pulso": {
-        "kicker": "Reportes y Pulso",
+        "kicker": "Reportes y Pulso agente IA",
         "pain": "«Decido a ciegas, por intuición.»",
         "title": "Pregúntale a tu restaurante. Te responde con datos.",
-        "f1t": "Pulso, tu asistente con IA",
+        "f1t": "Pulso agente IA, tu asistente",
         "f1d": "«¿Cuáles son mis platos más vendidos este mes?» Responde con tus datos reales y no inventa cifras.",
         "f2t": "Análisis de ventas",
         "f2d": "Cuánto, cuándo y qué vendiste frente a otro período: día y hora, productos y margen, equipo y medios de pago.",
         "f3t": "Resumen del día",
         "f3d": "Ventas de hoy, ticket promedio, mesas abiertas y la caja que debería haber, apenas entras al panel.",
-        "shot1": "Pulso respondiendo cuáles fueron los platos más vendidos del mes",
+        "shot1": "Pulso agente IA respondiendo cuáles fueron los platos más vendidos del mes",
         "shot2": "Resumen del día con ventas, órdenes pagadas, ticket promedio y caja"
       },
       "more": {
@@ -1442,7 +1442,7 @@
     "navSettings": "Configuración",
     "navHelp": "Ayuda",
     "liveSection": "En vivo",
-    "navInsights": "Pulso",
+    "navInsights": "Pulso agente IA",
     "navVouchers": "Bonos",
     "roleLabel": "Operador · {name}",
     "noRestaurant": "Sin restaurante",
@@ -5587,7 +5587,7 @@
     "methodNequi": "Nequi"
   },
   "opAdminAi": {
-    "title": "Asistente Pulso",
+    "title": "Pulso agente IA",
     "enabledLabel": "Estado del asistente",
     "optInherit": "Heredar plan",
     "optOn": "Forzar habilitado",
@@ -5600,14 +5600,14 @@
     "saveFailed": "No se pudo guardar."
   },
   "insights": {
-    "title": "Pulso",
+    "title": "Pulso agente IA",
     "subtitle": "Pregúntale a tus datos sobre tu negocio.",
     "placeholder": "Escribe tu pregunta…",
     "send": "Enviar",
     "thinking": "Analizando tus datos…",
     "error": "Algo salió mal. Prueba de nuevo.",
     "limitReached": "Alcanzaste el límite de preguntas de hoy.",
-    "disabled": "El asistente Pulso no está habilitado para este comercio.",
+    "disabled": "Pulso agente IA no está habilitado para este comercio.",
     "sug1": "¿Cuáles son mis platos más vendidos este mes?",
     "sug2": "¿Qué platos casi no se venden?",
     "sug3": "Muéstrame mis platos top por ingreso",

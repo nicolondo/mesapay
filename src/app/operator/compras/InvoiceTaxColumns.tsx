@@ -39,7 +39,7 @@ export function InvoiceTaxColumns({ columns, scopes, manual, onChange }: {
   const t = useTranslations("opErp");
   if (!columns.length) return null;
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
         {t("invRecColumnsSection")}
       </div>
@@ -50,28 +50,27 @@ export function InvoiceTaxColumns({ columns, scopes, manual, onChange }: {
         const name = column.header?.trim() || t(key === "iva" ? "invRecColumnIva" : "invRecColumnConsumo");
         const titleId = `inv-tax-column-${key}`;
         return (
-          <div key={key} className={`rounded-xl border p-3 space-y-2 ${doubtful ? "border-terracotta/40 bg-terracotta/5" : "border-op-border bg-op-surface"}`}>
-            <div id={titleId} className="text-sm font-medium break-words">
+          <div key={key} className={`rounded-xl border px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 ${doubtful ? "border-terracotta/40 bg-terracotta/5" : "border-op-border bg-op-surface"}`}>
+            <span id={titleId} className="text-xs font-medium break-words">
               {t("invRecColumnTitle", { name })}
-            </div>
-            <div role="radiogroup" aria-labelledby={titleId}
-              className={`grid gap-2 ${column.options.length > 2 ? "grid-cols-3" : "grid-cols-2"}`}>
+            </span>
+            <span role="radiogroup" aria-labelledby={titleId} className="inline-flex rounded-lg border border-op-border overflow-hidden">
               {column.options.map(scope => (
                 <button key={scope} type="button" role="radio" aria-checked={chosen === scope}
                   onClick={() => onChange(key, scope)}
-                  className={"min-h-[44px] px-2 rounded-xl border text-xs font-medium transition-colors " +
-                    (chosen === scope ? "border-ink bg-ink text-bone" : "border-op-border bg-op-bg hover:bg-op-surface")}>
+                  className={"min-h-[32px] px-3 text-xs font-medium transition-colors border-r border-op-border last:border-r-0 " +
+                    (chosen === scope ? "bg-ink text-bone" : "bg-op-bg hover:bg-op-surface")}>
                   {t(SCOPE_LABEL[scope])}
                 </button>
               ))}
-            </div>
-            <p className={`text-[11px] leading-relaxed ${doubtful ? "font-medium text-terracotta" : "text-op-muted"}`}>
+            </span>
+            <span className={`text-[11px] leading-snug ${doubtful ? "font-medium text-terracotta" : "text-op-muted"}`}>
               {isManual ? t("invRecStatusManual") : t(STATUS_TEXT[column.status])}
-            </p>
-            {column.aiEvidence?.trim() && column.aiScope !== "unknown" && (
-              <p className="text-[10px] text-op-muted break-words">
+            </span>
+            {doubtful && column.aiEvidence?.trim() && column.aiScope !== "unknown" && (
+              <span className="basis-full text-[10px] text-op-muted break-words">
                 {t("invRecAiHypothesis", { scope: t(SCOPE_LABEL[column.aiScope]), evidence: column.aiEvidence.trim() })}
-              </p>
+              </span>
             )}
           </div>
         );

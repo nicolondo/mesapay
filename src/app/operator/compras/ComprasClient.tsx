@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineAmounts, reviewLineDiscountDetail, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineQtyBase, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { prefillInvoiceDiscounts } from "@/lib/erp/invoiceDiscount";
-import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
+import { applyInvoiceSupplierMatch, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { inferPurchaseInvoiceTaxBases } from "@/lib/erp/invoiceTaxBasis";
-import { InvoiceLineTaxToggle } from "./InvoiceLineTaxToggle";
 import { InvoiceTaxColumns, reviewableTaxColumns } from "./InvoiceTaxColumns";
 import { InvoiceReconcileSummary } from "./InvoiceReconcileSummary";
+import { InvoiceReviewLines, MatchStatusChip } from "./InvoiceReviewLines";
 import {
   columnLineAmounts,
   invoiceReconcileRows,
@@ -60,7 +60,6 @@ import {
   type InvoiceTaxExtras,
   invoiceGrandTotalCents,
   expectedReceiptCostCents,
-  normalizeTaxPct,
   poTotals,
   purchaseLineAmounts,
   purchaseOrderTotals,
@@ -193,19 +192,6 @@ type OrderItem = OrderDetail["items"][number];
 type PaymentAccountRef = { code: string; name: string };
 
 /* ─────────────────────────── Helpers ───────────────────────────────── */
-
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
-/** "g/kg", "ml/L", "un" — símbolos de unidad, iguales en es/en/pt. */
-function unitSymbols(kind: MeasureKind): string {
-  return DISPLAY_UNITS[kind].map((u) => u.symbol).join("/");
-}
 
 /** Consecutivo legible "0007" — el prefijo (OC/PO) vive en i18n. */
 function padNumber(n: number): string {
@@ -1367,6 +1353,17 @@ function matchReadUnit(kind: MeasureKind, unit: string | null): string | null {
   return DISPLAY_UNITS[kind].find((d) => d.symbol.toLowerCase() === u)?.symbol ?? null;
 }
 
+/**
+ * Consumo del pie que no está en ninguna línea (facturas que solo lo imprimen
+ * abajo). Si las líneas traen su columna de consumo, todo el consumo está en
+ * ellas: una diferencia con el pie es una diferencia, no un saldo por repartir.
+ */
+function unallocatedFooterConsumption(extraction: InvoiceUploadResult["extraction"]): number {
+  if (extraction.lines.some((l) => l.lineIncCell != null)) return 0;
+  return Math.max(0, (extraction.invoiceIncCents ?? 0)
+    - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0));
+}
+
 function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
   const ing = m.ingredient;
   const q = m.line.quantity;
@@ -1412,23 +1409,6 @@ function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
 }
 
 const INV_MODE_STORAGE_KEY = "mesapay:invReviewMode";
-
-/** Chip emparejado/nuevo: verde "Ya existe" vs azul "Se creará" (F4). */
-function MatchStatusChip({ existing }: { existing: boolean }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        (existing
-          ? "bg-[#2E7D32]/15 text-[#2E7D32]"
-          : "bg-[#2563EB]/12 text-[#2563EB]")
-      }
-    >
-      {t(existing ? "invReviewStatusExisting" : "invReviewStatusNew")}
-    </span>
-  );
-}
 
 function InvoiceReviewSheet({
   result,
@@ -1493,8 +1473,7 @@ function InvoiceReviewSheet({
     // Only what the printed numbers prove is prefilled; a net price that
     // already contains the discount is never discounted again.
     return prefillInvoiceDiscounts(inferred, built, {
-      incCents: Math.max(0, (extraction.invoiceIncCents ?? 0)
-        - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0)),
+      incCents: unallocatedFooterConsumption(extraction),
       retentionsCents: (extraction.retefuenteCents ?? 0) + (extraction.reteIvaCents ?? 0) + (extraction.reteIcaCents ?? 0),
     });
   });
@@ -1595,10 +1574,6 @@ function InvoiceReviewSheet({
     () => resolveReviewInvoice(lines, parseDiscountInput(orderDiscRaw, orderDiscIsPct)),
     [lines, orderDiscRaw, orderDiscIsPct],
   );
-  const breakdownLines = useMemo(
-    () => resolved.lines.map((l) => ({ costCents: l?.netCents ?? 0, taxCents: l?.taxCents ?? 0, taxPct: 0 })),
-    [resolved],
-  );
   const totals = useMemo(
     () => ({ subtotalCents: resolved.netCents, taxCents: resolved.taxCents }),
     [resolved],
@@ -1607,8 +1582,7 @@ function InvoiceReviewSheet({
   // Otros impuestos del documento (ERP A3): INC (impoconsumo) + retenciones,
   // que la IA leyó y el operador verifica. En pesos enteros (MoneyInput).
   const [incPesos, setIncPesos] = useState(() =>
-    centsToPesosDigits(Math.max(0, (extraction.invoiceIncCents ?? 0)
-      - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0))),
+    centsToPesosDigits(unallocatedFooterConsumption(extraction)),
   );
   const [retefuentePesos, setRetefuentePesos] = useState(() =>
     centsToPesosDigits(extraction.retefuenteCents),
@@ -1657,6 +1631,11 @@ function InvoiceReviewSheet({
     consumo: extraction.taxColumns?.consumo?.scope ?? null,
   }));
   const [manualColumns, setManualColumns] = useState<Record<TaxColumnKey, boolean>>({ iva: false, consumo: false });
+  // Encabezado impreso y lectura aplicada de cada columna, para la tabla.
+  const reviewLineColumns = useMemo(() => ({
+    iva: extraction.taxColumns?.iva ? { header: extraction.taxColumns.iva.header, scope: columnScopes.iva } : null,
+    consumo: extraction.taxColumns?.consumo ? { header: extraction.taxColumns.consumo.header, scope: columnScopes.consumo } : null,
+  }), [extraction.taxColumns, columnScopes]);
 
   function changeColumnScope(key: TaxColumnKey, scope: TaxCellScope) {
     const amounts = columnLineAmounts(extraction, key, scope);
@@ -1679,10 +1658,6 @@ function InvoiceReviewSheet({
       return { ...line, ...changes, ...basis };
     });
     setLines(nextLines);
-    if (key === "consumo") {
-      setIncPesos(centsToPesosDigits(Math.max(0, (extraction.invoiceIncCents ?? 0)
-        - nextLines.reduce((sum, l) => sum + pesosDigitsToCents(l.incAmount), 0))));
-    }
     setColumnScopes((previous) => ({ ...previous, [key]: scope }));
     setManualColumns((previous) => ({ ...previous, [key]: true }));
   }
@@ -2022,7 +1997,7 @@ function InvoiceReviewSheet({
         role="dialog"
         aria-modal="true"
         aria-label={t("invReviewTitle")}
-        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        className="w-full md:max-w-3xl xl:max-w-[1360px] bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border px-5 pt-5 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <fieldset disabled={busy} className="min-w-0">
@@ -2047,7 +2022,7 @@ function InvoiceReviewSheet({
                 <iframe
                   src={fileUrl}
                   title={t("invReviewImageAlt")}
-                  className="w-full h-64 md:h-[70dvh]"
+                  className="w-full h-56 md:h-[min(56dvh,440px)]"
                 />
                 <a
                   href={fileUrl}
@@ -2201,41 +2176,45 @@ function InvoiceReviewSheet({
             <InvoiceTaxColumns columns={reviewColumns} scopes={columnScopes} manual={manualColumns}
               onChange={changeColumnScope} />
 
-            {/* Líneas */}
-            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
-              {t("invReviewLinesSection")}
-            </div>
+          </div>
+        </div>
 
-            {lines.map((l) => (
-              <InvoiceReviewLineCard
-                key={l.key}
-                line={l}
-                incScope={columnScopes.consumo}
-                incHeader={extraction.taxColumns?.consumo?.header ?? null}
-                currency={currency}
-                taxRates={taxRates}
-                ingredients={ingredients}
-                ingredientsError={ingredientsError}
-                onRetryIngredients={retryIngredients}
-                onChange={(changes) => updateLine(l.key, changes)}
-                onRemove={() => removeLine(l.key)}
-              />
-            ))}
+        {/* Líneas: una fila por ítem (escritorio) o dos líneas (celular), con
+            la cabecera fija; lo secundario en «Detalles» de cada fila. */}
+        <div className="mt-4 space-y-2">
+          {/* Líneas */}
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
+            {t("invReviewLinesSection")}
+          </div>
 
-            <button
-              type="button"
-              onClick={addManualLine}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {t("invReviewAddLine")}
-            </button>
+          <InvoiceReviewLines
+            lines={lines}
+            currency={currency}
+            taxRates={taxRates}
+            ingredients={ingredients}
+            ingredientsError={ingredientsError}
+            onRetryIngredients={retryIngredients}
+            onChange={updateLine}
+            onRemove={removeLine}
+            columns={reviewLineColumns}
+          />
 
-            {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
+          <button
+            type="button"
+            onClick={addManualLine}
+            className="mp-btn mp-btn--secondary mp-btn--block"
+          >
+            {t("invReviewAddLine")}
+          </button>
 
-            {/* Desglose recomputado en vivo, como el pie de la factura:
-                Subtotal / Descuento / IVA / INC / Retenciones / Total. El
-                descuento del total se prorratea entre las líneas igual que
-                en el servidor, así el IVA mostrado es el que se guarda. */}
+          {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
+
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3 mt-4 items-start">
+          <div className="space-y-3 min-w-0">
+            {/* Descuento del total: se prorratea entre las líneas igual que en
+                el servidor; los totales están en el pie fijo «Factura vs MESAPAY». */}
             <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
               <DiscountControl
                 id="inv-order-discount"
@@ -2250,16 +2229,6 @@ function InvoiceReviewSheet({
                 }}
                 hint={orderDiscFromInvoice ? t("invDiscOrderFromInvoice") : undefined}
                 className="px-3 py-2 border-b border-op-border"
-              />
-              <TaxBreakdown
-                lines={breakdownLines}
-                currency={currency}
-                totalLabel={t("invReviewTotalNote")}
-                incCents={extras.incCents}
-                retainedCents={retentionsCents(extras)}
-                roundingCents={adjustmentCents}
-                discountCents={resolved.discountCents}
-                listSubtotalCents={resolved.subtotalCents}
               />
             </div>
 
@@ -2282,6 +2251,19 @@ function InvoiceReviewSheet({
               </div>
             )}
 
+            {extraction.notes?.trim() && (
+              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
+                  {t("invReviewNotesLabel")}
+                </div>
+                <div className="text-[11px] text-[#7F5A1F]">
+                  {extraction.notes}
+                </div>
+              </div>
+            )}
+
+          </div>
+          <div className="space-y-3 min-w-0">
             {/* Otros impuestos del documento (ERP A3): INC + retenciones. La IA
                 los prellena; el operador los verifica/corrige. INC suma,
                 retenciones restan al total a pagar. */}
@@ -2350,32 +2332,6 @@ function InvoiceReviewSheet({
               </div>
             </div>
 
-            {/* «Factura vs MESAPAY»: renglón por renglón contra el pie impreso.
-                Con diferencias, guardar exige confirmarlo explícitamente. */}
-            <InvoiceReconcileSummary
-              rows={reconcile.rows}
-              currency={currency}
-              reasons={reviewReasons}
-              needsAck={needsAck}
-              acked={acked}
-              onAck={(value) => setAckedKey(value ? ackKey : null)}
-              roundingSuggestion={roundingSuggestion}
-              onUseRounding={() => { if (roundingSuggestion != null) setAdjustmentCents(roundingSuggestion); }}
-              adjustmentCents={adjustmentCents}
-              onClearRounding={() => setAdjustmentCents(0)}
-            />
-
-            {extraction.notes?.trim() && (
-              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
-                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
-                  {t("invReviewNotesLabel")}
-                </div>
-                <div className="text-[11px] text-[#7F5A1F]">
-                  {extraction.notes}
-                </div>
-              </div>
-            )}
-
             {/* Switch borrador / recibir (D5) */}
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
               {t("invReviewModeSection")}
@@ -2416,436 +2372,54 @@ function InvoiceReviewSheet({
           </div>
         </div>
 
-        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {/* Pie fijo: «Factura vs MESAPAY» siempre a la vista mientras se
+            recorren las líneas, con la confirmación y los botones. Con
+            diferencias, guardar exige confirmarlo explícitamente. */}
+        <div className="sticky bottom-0 z-20 -mx-5 mt-4 px-5 pt-3 pb-4 bg-op-surface border-t border-op-border shadow-[0_-10px_18px_-14px_rgba(0,0,0,0.35)] space-y-2">
+          <InvoiceReconcileSummary
+            rows={reconcile.rows}
+            currency={currency}
+            reasons={reviewReasons}
+            needsAck={needsAck}
+            acked={acked}
+            onAck={(value) => setAckedKey(value ? ackKey : null)}
+            roundingSuggestion={roundingSuggestion}
+            onUseRounding={() => { if (roundingSuggestion != null) setAdjustmentCents(roundingSuggestion); }}
+            adjustmentCents={adjustmentCents}
+            onClearRounding={() => setAdjustmentCents(0)}
+          />
 
-        <div className="flex items-center justify-between gap-3 mt-4">
-          <button
-            type="button"
-            onClick={discard}
-            disabled={busy}
-            className="min-h-[44px] px-4 rounded-full text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
-          >
-            {t("invReviewDiscard")}
-          </button>
-          <div className="flex items-center gap-3">
+          {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+
+          <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={closeReview}
-              className="mp-btn mp-btn--secondary"
+              onClick={discard}
+              disabled={busy}
+              className="min-h-[44px] px-4 rounded-full text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
             >
-              {t("cancel")}
+              {t("invReviewDiscard")}
             </button>
-            <button
-              type="button"
-              onClick={confirm}
-              disabled={busy || supplierMatchBusy || supplierMatchError}
-              className="mp-btn mp-btn--primary"
-            >
-              {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={closeReview}
+                className="mp-btn mp-btn--secondary"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={busy || supplierMatchBusy || supplierMatchError}
+                className="mp-btn mp-btn--primary"
+              >
+                {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
+              </button>
+            </div>
           </div>
         </div>
         </fieldset>
-      </div>
-    </div>
-  );
-}
-
-/** Tarjeta editable de una línea de la factura en revisión. */
-function InvoiceReviewLineCard({
-  line: l,
-  incScope,
-  incHeader,
-  currency,
-  taxRates,
-  ingredients,
-  ingredientsError,
-  onRetryIngredients,
-  onChange,
-  onRemove,
-}: {
-  line: InvoiceReviewLine;
-  /** Lectura aplicada a la columna de consumo de la factura (para mostrar la cuenta). */
-  incScope?: TaxCellScope | null;
-  incHeader?: string | null;
-  currency: string;
-  taxRates: number[];
-  ingredients: IngredientRef[] | null;
-  ingredientsError: boolean;
-  onRetryIngredients: () => void;
-  onChange: (changes: Partial<InvoiceReviewLine>) => void;
-  onRemove: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-  const [ingQ, setIngQ] = useState("");
-  const [picking, setPicking] = useState(false);
-
-  const ingMatches = useMemo(() => {
-    const needle = fold(ingQ.trim());
-    return (ingredients ?? [])
-      .filter((i) => !needle || fold(i.name).includes(needle))
-      .slice(0, 8);
-  }, [ingredients, ingQ]);
-
-  const qtyBase = reviewLineQtyBase(l);
-  const amounts = reviewLineAmounts(l);
-  const discountDetail = reviewLineDiscountDetail(l, amounts);
-  const priceQuantity = reviewPriceQuantity(l);
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
-  const readQtyStr = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 3,
-  }).format(l.readQty);
-
-  return (
-    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
-          {/* Insumo: existente o crear nuevo */}
-          {l.ingredientId ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium truncate">
-                {l.ingredientName}
-              </span>
-              <span className="font-mono text-[10px] text-op-muted">
-                {unitSymbols(l.measureKind)}
-              </span>
-            </div>
-          ) : (
-            <div className="text-[11px] font-medium text-op-muted">
-              {l.ingredientName
-                ? t("invReviewCreateIngredient", { name: l.ingredientName })
-                : t("invReviewNewIngredientName")}
-            </div>
-          )}
-        </div>
-        <MatchStatusChip existing={l.ingredientId != null} />
-        {l.lowConfidence && (
-          <span className="px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 bg-[#C98A2E]/15 text-[#7F5A1F]">
-            {t("invReviewLowConfidence")}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={onRemove}
-          className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0"
-        >
-          {t("invReviewRemoveLine")}
-        </button>
-      </div>
-
-      {l.sourceDescription && (
-        <p className="text-xs text-op-muted break-words">{t("invAliasSource", { name: l.sourceDescription })}</p>
-      )}
-      {l.matchSource === "alias" && (
-        <p className="text-xs text-[#2E7D32]" role="status">{t("invAliasSaved")}</p>
-      )}
-      {l.aliasUnavailable && (
-        <p className="text-xs text-danger" role="alert">{t("invAliasUnavailable")}</p>
-      )}
-
-      {/* Selector de insumo existente / nombre + measureKind del nuevo */}
-      {picking ? (
-        <div>
-          <input
-            type="search"
-            value={ingQ}
-            onChange={(e) => setIngQ(e.target.value)}
-            placeholder={t("ingredientSearchPlaceholder")}
-            aria-label={t("ingredientSearchPlaceholder")}
-            disabled={ingredients === null}
-            className={inputCls}
-          />
-          <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-40 overflow-y-auto">
-            {ingredientsError ? (
-              <div role="alert" className="px-3 py-2 text-xs text-danger">
-                {t("invAliasIngredientsError")}
-                <button type="button" className="mp-btn mp-btn--secondary mp-btn--sm mt-2" onClick={onRetryIngredients}>{t("invAliasRetry")}</button>
-              </div>
-            ) : ingredients === null ? (
-              <p role="status" className="px-3 py-2 text-xs text-op-muted">{t("loading")}</p>
-            ) : ingMatches.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-op-muted">
-                {t("noIngredientMatches")}
-              </div>
-            ) : (
-              ingMatches.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(chooseInvoiceIngredient(l, i));
-                    setPicking(false);
-                    setIngQ("");
-                  }}
-                  className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                >
-                  <span>{i.name}</span>
-                  <span className="font-mono text-[10px] text-op-muted ml-2">
-                    {unitSymbols(i.measureKind)}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPicking(false);
-              setIngQ("");
-            }}
-            className="text-[11px] font-medium text-op-muted hover:text-ink mt-1"
-          >
-            {t("cancel")}
-          </button>
-        </div>
-      ) : l.ingredientId ? (
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="text-[11px] font-medium text-op-muted hover:text-ink"
-          >
-            {t("invReviewChangeIngredient")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange(chooseInvoiceIngredient(l, { id: null, name: "", measureKind: l.measureKind }))}
-            className="text-[11px] font-medium text-op-muted hover:text-ink"
-          >
-            {t("invReviewCreateNewIngredient")}
-          </button>
-        </div>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="mp-btn mp-btn--secondary mp-btn--block"
-          >
-            {t("invReviewUseExistingIngredient")}
-          </button>
-          <Field label={t("invReviewNewIngredientName")} required>
-            <input
-              type="text"
-              value={l.ingredientName}
-              onChange={(e) => onChange({ ingredientName: e.target.value, manuallySelected: true, aliasUnavailable: false })}
-              maxLength={120}
-              className={inputCls}
-            />
-          </Field>
-          <Field label={t("invReviewMeasureKind")}>
-            <select
-              value={l.measureKind}
-              onChange={(e) => {
-                const kind = e.target.value as MeasureKind;
-                onChange(chooseInvoiceIngredient(l, { id: null, name: l.ingredientName, measureKind: kind }));
-              }}
-              className={inputCls}
-            >
-              <option value="mass">{t("invReviewMeasureMass")}</option>
-              <option value="volume">{t("invReviewMeasureVolume")}</option>
-              <option value="count">{t("invReviewMeasureCount")}</option>
-            </select>
-          </Field>
-        </>
-      )}
-
-      {l.ingredientId && l.sourceLineIndex != null && l.matchSource !== "alias" && (
-        <label className="flex items-start gap-2 rounded-xl border border-op-border bg-op-surface p-3 text-xs leading-relaxed">
-          <input type="checkbox" aria-label={t("invAliasRemember")} className="mt-0.5 h-4 w-4 shrink-0 accent-ink" checked={l.rememberMatch === true}
-            onChange={e => onChange({ rememberMatch: e.target.checked, ...(e.target.checked ? { manuallySelected: true } : {}) })} />
-          <span>{t("invAliasRemember")}<span className="block text-op-muted mt-1">{t("invAliasRememberHint")}</span></span>
-        </label>
-      )}
-
-      {/* Cantidad: por presentación (si hay sugerencia) o directa */}
-      {l.suggestedPresentation && (
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ["presentation", t("invReviewQtyModePresentation")],
-              ["direct", t("invReviewQtyModeDirect")],
-            ] as ["presentation" | "direct", string][]
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onChange({ qtyMode: value })}
-              className={
-                "min-h-[40px] px-2 rounded-xl border text-xs font-medium transition-colors " +
-                (l.qtyMode === value
-                  ? "border-ink bg-ink text-bone"
-                  : "border-op-border bg-op-bg hover:bg-op-surface")
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {l.qtyMode === "presentation" && l.suggestedPresentation ? (
-        <Field
-          label={t("invReviewPresentationLabel", {
-            label: l.suggestedPresentation.presentationLabel,
-            qty: formatBaseQty(
-              l.suggestedPresentation.contentQty,
-              l.measureKind,
-              locale,
-            ),
-          })}
-          required
-        >
-          <input
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={l.presentations}
-            onChange={(e) => onChange({ presentations: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-      ) : (
-        <Field label={t("fieldQty")} required>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={l.qty}
-              onChange={(e) => onChange({ qty: sanitizeDecimalInput(e.target.value) })}
-              className={inputCls + " flex-1 min-w-0"}
-            />
-            <select
-              value={l.unit}
-              onChange={(e) => onChange({ unit: e.target.value })}
-              disabled={DISPLAY_UNITS[l.measureKind].length < 2}
-              className="min-h-[44px] w-16 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
-            >
-              {DISPLAY_UNITS[l.measureKind].map((u) => (
-                <option key={u.symbol} value={u.symbol}>
-                  {u.symbol}
-                </option>
-              ))}
-            </select>
-          </div>
-        </Field>
-      )}
-
-      <div className="grid grid-cols-1 gap-2">
-        <Field label={t("invLineAmountKind")}>
-          <select className={inputCls} value={l.amountKind} aria-label={t("invLineAmountKind")}
-            onChange={e => onChange({ amountKind: e.target.value as InvoiceReviewLine["amountKind"] })}>
-            <option value="line">{t("invLineAmount")}</option>
-            <option value="unit">{t("invUnitAmount")}</option>
-          </select>
-        </Field>
-      </div>
-      <div className="flex gap-2">
-        <div className="flex-1 min-w-0">
-          <Field label={`${t(l.amountKind === "line" ? "invLineAmount" : "invUnitAmount")} (${currency})`} required>
-            <MoneyInput
-              value={l.cost}
-              fractionDigits={2}
-              onChange={(d) => onChange({ cost: d })}
-              className={inputCls}
-            />
-          </Field>
-        </div>
-        <div className="shrink-0">
-          <Field label={t("fieldTaxPct")}>
-            <select className={`${inputCls} w-24`} value={l.taxPct ?? ""} aria-label={t("fieldTaxPct")}
-              onChange={e => onChange({ taxPct: e.target.value === "" ? null : normalizeTaxPct(e.target.value) })}>
-              <option value="">{t("invLineChooseRate")}</option>
-              {[...new Set([...taxRates, ...(l.taxPct == null ? [] : [l.taxPct])])].sort((a, b) => a - b).map(pct =>
-                <option key={pct} value={pct}>{t("taxPctOption", { pct })}</option>)}
-            </select>
-          </Field>
-        </div>
-      </div>
-
-      <p className="text-[11px] text-op-muted">{t(l.amountKind === "line" ? "invLineTotalHint" : "invLineUnitHint")}</p>
-      {/* Descuento de la línea: mismo control que en la orden de compra. Se
-          aplica sobre el importe de arriba; el IVA automático va sobre la
-          base ya descontada. */}
-      <div className="rounded-xl border border-op-border bg-op-surface px-3 py-2">
-        <DiscountControl
-          id={`inv-line-discount-${l.key}`}
-          label={t("invDiscLineLabel")}
-          raw={l.discRaw ?? ""}
-          isPct={l.discIsPct ?? true}
-          currency={currency}
-          onChange={(discRaw, discIsPct) => onChange({ discRaw, discIsPct })}
-        />
-        <p className="mt-1 text-[10px] text-op-muted">
-          {t(l.taxBasis === "gross" ? "invDiscLineHintGross" : "invDiscLineHint")}
-        </p>
-        {l.discountFromInvoice && (
-          <p className="mt-1 text-[11px] text-[#2E7D32]" role="status">{t("invDiscLineFromInvoice")}</p>
-        )}
-        {l.discountUnmatched && (
-          <p className="mt-1 text-[11px] text-terracotta" role="status">{t("invDiscLineUnmatched")}</p>
-        )}
-      </div>
-      <InvoiceLineTaxToggle basis={l.taxBasis} manual={l.taxBasisManual}
-        onChange={included => onChange(setReviewTaxIncluded(l, included))} />
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t("invLineIncAmount")}>
-          <MoneyInput value={l.incAmount} fractionDigits={2} placeholder="0"
-            onChange={incAmount => onChange({ incAmount })} className={inputCls} />
-        </Field>
-        <Field label={t("invLineVatAmount")}>
-          <MoneyInput value={l.taxAmount} fractionDigits={2} placeholder={t("invLineAutomatic")}
-            onChange={taxAmount => onChange({ taxAmount })} className={inputCls} />
-        </Field>
-      </div>
-      {incScope === "unit" && l.incCellCents != null && l.incCellCents > 0 && l.readQty > 0 && (
-        <p className="text-[11px] text-op-muted">
-          {t("invRecIncPerUnit", {
-            name: incHeader?.trim() || t("invRecColumnConsumo"),
-            unit: money(l.incCellCents), qty: readQtyStr, total: money(Math.round(l.incCellCents * l.readQty)),
-          })}
-        </p>
-      )}
-      {l.arithmeticDiffCents != null && l.arithmeticDiffCents !== 0 && (
-        <p className="text-[11px] text-terracotta" role="status">
-          {t("invRecLineArithmetic", { amount: money(Math.abs(l.arithmeticDiffCents)) })}
-        </p>
-      )}
-      {(l.taxBasis === "unknown" || l.taxPct == null || (l.incNeedsReview && !l.incAmount.trim())) &&
-        <p className="text-[11px] text-terracotta">{t("invLineUnknownHint")}</p>}
-      {l.taxBeforeDiscount && <p className="text-[11px] text-[#7F5A1F]" role="status">{t("invDiscLineTaxBeforeDiscount")}</p>}
-      {amounts && <div className="border-t border-op-border pt-2 space-y-1 text-[11px] tabular-nums" data-testid="invoice-line-amounts">
-        {discountDetail && discountDetail.shownDiscountCents > 0 && <>
-          <div className="flex justify-between gap-2 text-op-muted"><span>{t("invDiscLineList")}</span><span>{money(discountDetail.shownListCents)}</span></div>
-          <div className="flex justify-between gap-2 text-op-muted"><span>{t("discountLabel")}</span><span className="text-ok">{`− ${money(discountDetail.shownDiscountCents)}`}</span></div>
-        </>}
-        <div className="flex justify-between gap-2 text-op-muted"><span>{t("invLineNetAmount")}</span><span>{money(amounts.netCents)}</span></div>
-        <div className="flex justify-between gap-2 text-op-muted"><span>{t("taxLabel")}</span><span>{money(amounts.taxCents)}</span></div>
-        {amounts.incCents > 0 && <div className="flex justify-between gap-2 text-op-muted"><span>{t("invTaxInc")}</span><span>{money(amounts.incCents)}</span></div>}
-        <div className="flex justify-between gap-2 text-sm font-medium"><span>{t("invLineFinalAmount")}</span><span>{money(amounts.totalCents)}</span></div>
-        {priceQuantity > 0 && <p className="text-op-muted">{t("invLineUnitFinal", { amount: money(Math.round(amounts.totalCents / priceQuantity)), unit: l.qtyMode === "presentation" && l.suggestedPresentation ? l.suggestedPresentation.presentationLabel : l.unit })}</p>}
-      </div>}
-      {l.amountLabel && <p className="text-[10px] text-op-muted">{t("invLineSourceLabel", { label: l.amountLabel })}</p>}
-
-      {/* Pista de lo leído + cantidad base resultante */}
-      <div className="text-[10px] text-op-muted">
-        {[
-          l.readQty > 0
-            ? l.readUnit
-              ? t("invReviewReadUnitHint", {
-                  qty: readQtyStr,
-                  unit: l.readUnit,
-                })
-              : t("invReviewReadUnitHintNoUnit", { qty: readQtyStr })
-            : null,
-          qtyBase != null
-            ? formatBaseQty(qtyBase, l.measureKind, locale)
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
       </div>
     </div>
   );

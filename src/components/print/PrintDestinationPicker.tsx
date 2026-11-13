@@ -78,22 +78,31 @@ function subscribe(listener: () => void): () => void {
 export type PrintPreferenceState = PrintPreference & {
   remembered: boolean;
   role: string | null;
+  /**
+   * Ya se sabe quién mira (rol y comercio). Mientras la sesión carga no se
+   * sabe qué recuerdo leer ni cuál es el valor por defecto: el selector no
+   * marca nada y el botón espera, para no imprimir en el destino equivocado.
+   */
+  ready: boolean;
   setDestination: (destination: PrintDestination) => void;
   setPaperMm: (paperMm: DevicePaperMm) => void;
 };
 
+/** Quién mira, cuando la pantalla ya lo sabe (lo decide el servidor). */
+export type PrintViewer = { role: string | null; scope: string | null };
+
 /**
- * La preferencia de impresión de este equipo. El rol y el comercio salen de
- * la sesión (o de `override`, si la pantalla ya los sabe). En el servidor y
- * en el primer pintado no hay recuerdo (no se desarma la hidratación): se
- * muestra el valor por defecto del rol y enseguida el guardado.
+ * La preferencia de impresión de este equipo. El rol y el comercio
+ * (`session.user.restaurantId`) salen de `viewer` si la pantalla ya los
+ * sabe —las vistas imprimibles los pasan desde el servidor— o de la sesión
+ * del cliente, que llega con un pequeño retraso (`ready`). En el servidor y
+ * en el primer pintado no hay recuerdo (no se desarma la hidratación).
  */
-export function usePrintPreference(
-  override: { role?: string | null; scope?: string | null } = {},
-): PrintPreferenceState {
-  const { data } = useSession();
-  const role = override.role !== undefined ? override.role : (data?.user?.role ?? null);
-  const scope = override.scope !== undefined ? override.scope : (data?.user?.restaurantId ?? null);
+export function usePrintPreference(viewer?: PrintViewer | null): PrintPreferenceState {
+  const { data, status } = useSession();
+  const role = viewer ? viewer.role : (data?.user?.role ?? null);
+  const scope = viewer ? viewer.scope : (data?.user?.restaurantId ?? null);
+  const ready = !!viewer || status !== "loading";
   const key = printPreferenceStorageKey(scope);
   const raw = useSyncExternalStore(
     subscribe,
@@ -116,7 +125,7 @@ export function usePrintPreference(
     },
     [key, resolved.destination],
   );
-  return { ...resolved, role, setDestination, setPaperMm };
+  return { ...resolved, role, ready, setDestination, setPaperMm };
 }
 
 export type PrintDestinationVariant = "op" | "pay" | "receipt";
@@ -160,7 +169,10 @@ export function PrintDestinationPicker({
   variant = "op",
   className = "",
 }: {
-  pref: Pick<PrintPreferenceState, "destination" | "paperMm" | "setDestination" | "setPaperMm">;
+  pref: Pick<
+    PrintPreferenceState,
+    "destination" | "paperMm" | "ready" | "setDestination" | "setPaperMm"
+  >;
   disabled?: boolean;
   variant?: PrintDestinationVariant;
   className?: string;
@@ -170,6 +182,9 @@ export function PrintDestinationPicker({
   const paperId = useId();
   const s = STYLES[variant];
   const chip = (checked: boolean) => `${s.chip} ${checked ? s.on : s.off} disabled:opacity-50`;
+  // Mientras la sesión carga, nada marcado (todavía no se sabe qué vale).
+  const isOn = (checked: boolean) => pref.ready && checked;
+  const off = disabled || !pref.ready;
   const destinations: { value: PrintDestination; label: string }[] = [
     { value: "caja", label: t("destinationCaja") },
     { value: "device", label: t("destinationDevice") },
@@ -186,17 +201,17 @@ export function PrintDestinationPicker({
               key={d.value}
               type="button"
               role="radio"
-              aria-checked={pref.destination === d.value}
-              disabled={disabled}
+              aria-checked={isOn(pref.destination === d.value)}
+              disabled={off}
               onClick={() => pref.setDestination(d.value)}
-              className={chip(pref.destination === d.value)}
+              className={chip(isOn(pref.destination === d.value))}
             >
               {d.label}
             </button>
           ))}
         </div>
       </div>
-      {pref.destination === "device" && (
+      {pref.ready && pref.destination === "device" && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span id={paperId} className={`font-mono text-[10px] tracking-wider uppercase ${s.label}`}>
             {t("paperLabel")}
@@ -208,7 +223,7 @@ export function PrintDestinationPicker({
                 type="button"
                 role="radio"
                 aria-checked={pref.paperMm === mm}
-                disabled={disabled}
+                disabled={off}
                 onClick={() => pref.setPaperMm(mm)}
                 className={chip(pref.paperMm === mm)}
               >

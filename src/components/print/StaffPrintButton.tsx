@@ -25,6 +25,7 @@ import {
   usePrintPreference,
   type PrintDestinationVariant,
   type PrintPreferenceState,
+  type PrintViewer,
 } from "./PrintDestinationPicker";
 
 export type StaffPrintTone = "ok" | "warn" | "error";
@@ -76,6 +77,7 @@ export function StaffPrintButton({
   showDestination = true,
   destinationVariant = "op",
   destinationClassName = "",
+  viewer,
 }: {
   doc: StaffPrintDoc;
   /** El texto del botón, ya traducido ("Imprimir factura"). */
@@ -92,9 +94,11 @@ export function StaffPrintButton({
   showDestination?: boolean;
   destinationVariant?: PrintDestinationVariant;
   destinationClassName?: string;
+  /** Rol y comercio de quien mira, si la pantalla ya los sabe. */
+  viewer?: PrintViewer | null;
 }) {
   const t = useTranslations("staffPrint");
-  const print = useStaffPrint(doc, { openTab });
+  const print = useStaffPrint(doc, { openTab, viewer });
   return (
     <>
       {showDestination && (
@@ -105,7 +109,12 @@ export function StaffPrintButton({
           className={destinationClassName}
         />
       )}
-      <button type="button" onClick={() => void print.run()} disabled={print.busy} className={className}>
+      <button
+        type="button"
+        onClick={() => void print.run()}
+        disabled={print.busy || !print.pref.ready}
+        className={className}
+      >
         {print.busy ? t("sending") : label}
       </button>
       <StaffPrintNotice
@@ -141,17 +150,15 @@ export function useStaffPrint(
   doc: StaffPrintDoc,
   {
     openTab,
-    role,
-    scope,
+    viewer,
   }: {
     openTab?: (url: string) => boolean;
     /** El rol y el comercio, si la pantalla ya los sabe (si no, la sesión). */
-    role?: string | null;
-    scope?: string | null;
+    viewer?: PrintViewer | null;
   } = {},
 ): StaffPrintState {
   const t = useTranslations("staffPrint");
-  const pref = usePrintPreference({ role, scope });
+  const pref = usePrintPreference(viewer);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [browser, setBrowser] = useState<BrowserPrintState | null>(null);
@@ -164,7 +171,7 @@ export function useStaffPrint(
   );
 
   async function runAt(destination: PrintDestination) {
-    if (busy) return;
+    if (busy || !pref.ready) return;
     if (timer.current) clearTimeout(timer.current);
     const paperMm = pref.paperMm;
     setBusy(true);

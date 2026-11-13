@@ -22,7 +22,7 @@ export function PrintButton({ shiftId }: { shiftId: string }) {
         doc={{ kind: "shift", shiftId, href: `/operator/shifts/${shiftId}/tirilla` }}
         label={t("printTicket")}
         className="mp-btn mp-btn--primary mp-btn--sm"
-        statusClassName="basis-full text-right text-[11px]"
+        statusClassName="basis-full order-last text-right text-[11px]"
         destinationClassName="basis-full order-first"
         canConfigurePrinters
       />

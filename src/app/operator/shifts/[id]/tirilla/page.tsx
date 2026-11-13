@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { loadShiftCloseTicket } from "@/lib/print/shiftCloseQueue";
 import { devicePaperFromParam } from "@/lib/print/printDestination";
@@ -52,6 +53,7 @@ export default async function ShiftTicketPage({
     paperWidthMm: devicePaperFromParam(w),
   });
   if (!loaded.ok) notFound();
+  const session = await auth();
 
   return (
     <>
@@ -62,6 +64,10 @@ export default async function ShiftTicketPage({
             autoPrint={print === "1"}
             agent={{ kind: "shift", shiftId: id, href: `/operator/shifts/${id}/tirilla` }}
             paperMm={loaded.paperMm}
+            viewer={{
+              role: session?.user?.role ?? null,
+              scope: session?.user?.restaurantId ?? null,
+            }}
           />
           <Link href={`/operator/shifts/${id}`} className="secondary">
             {t("detailBack")}

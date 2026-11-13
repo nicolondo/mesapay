@@ -18,6 +18,7 @@ import {
 import {
   PrintDestinationPicker,
   usePrintPreference,
+  type PrintViewer,
 } from "@/components/print/PrintDestinationPicker";
 
 /**
@@ -54,15 +55,18 @@ export function PrintButton({
   autoPrint = false,
   agent = null,
   paperMm = null,
+  viewer = null,
 }: {
   autoPrint?: boolean;
   agent?: StaffPrintDoc | null;
   /** El ancho al que está dibujada esta página (58 u 80). */
   paperMm?: number | null;
+  /** Rol y comercio de quien mira (del servidor): el destino sale sin esperar. */
+  viewer?: PrintViewer | null;
 }) {
   const t = useTranslations("emailInvoice");
   const ts = useTranslations("staffPrint");
-  const pref = usePrintPreference();
+  const pref = usePrintPreference(viewer);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{
     tone: "ok" | "warn" | "error";
@@ -93,7 +97,7 @@ export function PrintButton({
       printHere();
       return;
     }
-    if (busy) return;
+    if (busy || !pref.ready) return;
     setBusy(true);
     setNote(null);
     const destination = pref.destination;
@@ -158,7 +162,7 @@ export function PrintButton({
       {agent && (
         <PrintDestinationPicker pref={pref} disabled={busy} variant="receipt" className="print-dest" />
       )}
-      <button type="button" onClick={onClick} disabled={busy}>
+      <button type="button" onClick={onClick} disabled={busy || (!!agent && !pref.ready)}>
         {busy ? ts("sending") : t("print")}
       </button>
       {note && (

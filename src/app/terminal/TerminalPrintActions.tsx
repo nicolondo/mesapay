@@ -30,9 +30,6 @@ export function TerminalPrintActions({
     "w-full h-11 rounded-full border border-ink bg-paper text-ink text-sm font-medium disabled:opacity-60";
   return (
     <section className="space-y-2 rounded-xl border border-hairline bg-paper p-3">
-      <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
-        {tr("printHeading")}
-      </div>
       {invoiceId ? (
         <StaffPrintButton
           doc={{ kind: "invoice", orderId, href: invoicePrintHref({ invoiceId }) }}

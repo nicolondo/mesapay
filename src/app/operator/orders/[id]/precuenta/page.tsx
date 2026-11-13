@@ -105,6 +105,7 @@ export default async function PrecuentaPage({
             autoPrint={print === "1"}
             agent={{ kind: "prebill", orderId: id, href: selfHref }}
             paperMm={paperMm}
+            viewer={{ role: role ?? null, scope: session?.user?.restaurantId ?? null }}
           />
           <Link href={backHref} className="secondary">
             {tr("prebillBack")}

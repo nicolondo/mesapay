@@ -1137,7 +1137,7 @@ export function TableDetailSheet({
                       <button
                         type="button"
                         onClick={() => void prebillPrint.run()}
-                        disabled={prebillPrint.busy}
+                        disabled={prebillPrint.busy || !prebillPrint.pref.ready}
                         className="mp-btn mp-btn--secondary mp-btn--block"
                       >
                         {prebillPrint.busy ? tr("prebillPrinting") : tr("prebillPrint")}

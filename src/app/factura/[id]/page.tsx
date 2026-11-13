@@ -220,7 +220,16 @@ export default async function FacturaPage({
       <style>{POS_STYLES}</style>
       <div className="factura-shell">
         <div className="factura-controls">
-          <PrintButton autoPrint={print === "1"} agent={agentDoc} paperMm={paperMm} />
+          <PrintButton
+            autoPrint={print === "1"}
+            agent={agentDoc}
+            paperMm={paperMm}
+            viewer={
+              agentDoc
+                ? { role: session?.user?.role ?? null, scope: session?.user?.restaurantId ?? null }
+                : null
+            }
+          />
           <Link href="/" className="secondary">
             {"MESAPAY"}
           </Link>

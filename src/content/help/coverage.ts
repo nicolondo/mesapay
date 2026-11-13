@@ -81,6 +81,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/clientes": ["clientes-de-facturacion", "cobrar-a-credito", "descuentos-para-clientes"],
   "/operator/clientes/[id]": ["descuentos-para-clientes"],
   "/terminal": ["cobrar-con-datafono", "datafonos"],
+  "/terminal/cobrar/[orderId]": ["cobrar-con-datafono", "cobrar-una-cuenta", "cobrar-en-efectivo"],
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },
@@ -170,11 +171,15 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/menu/import": ["importar-la-carta"],
   "/operator/menus": ["organizar-la-carta"],
   "/operator/settings/traducciones": ["traducir-la-carta"],
-  "/operator/settings/insumos": ["insumos-y-proveedores"],
+  "/operator/settings/insumos": ["insumos-y-proveedores", "archivar-o-eliminar-un-insumo"],
   "/operator/settings/proveedores": ["insumos-y-proveedores"],
   "/operator/recetas": ["recetas-y-food-cost", "sub-recetas-y-produccion"],
   "/operator/produccion": ["sub-recetas-y-produccion"],
-  "/operator/inventario": ["inventario-del-dia-a-dia", "conteo-de-inventario"],
+  "/operator/inventario": [
+    "inventario-del-dia-a-dia",
+    "conteo-de-inventario",
+    "archivar-o-eliminar-un-insumo",
+  ],
   "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra"],
 
   /* ── Facturación ── */

@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
-import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { staffForRestaurant } from "@/lib/staffAccess";
+import { CHECKOUT_STAFF_ROLES, staffCheckoutRoutes } from "@/lib/payments/staffCheckout";
 import { terminalClaimKey } from "@/lib/payments/methods";
 import { TERMINAL_CANCELED_REASON, toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
@@ -26,13 +27,13 @@ export default async function TerminalPendingPage({
   if (!order || order.restaurant.slug !== slug) notFound();
 
   // The URL flag is not staff authorization. Both success and retry retain
-  // the verified staff's scope; the waiter stays inside the installed PWA.
+  // the verified staff's scope; the waiter stays inside the installed PWA
+  // and the datáfono user goes back to its own checkout (/terminal/cobrar).
   const staff = op === "1"
-    ? await staffForRestaurant(order.restaurantId, [...OPERATOR_ROLES, "mesero"])
+    ? await staffForRestaurant(order.restaurantId, [...CHECKOUT_STAFF_ROLES])
     : null;
-  const checkoutHref = staff?.user.role === "mesero"
-    ? `/mesero/cobrar/${orderId}`
-    : `/t/${slug}/pay/${orderId}${staff ? "?op=1" : ""}`;
+  const routes = staff ? staffCheckoutRoutes(staff.user.role, { slug, orderId }) : null;
+  const checkoutHref = routes?.checkoutHref ?? `/t/${slug}/pay/${orderId}`;
   const doneHref = staff?.user.role === "mesero"
     ? `/mesero/cobrar/${orderId}/done`
     : `/t/${slug}/pay/${orderId}/done?pid=${encodeURIComponent(pid ?? "")}${staff ? "&op=1" : ""}`;

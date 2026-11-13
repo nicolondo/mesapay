@@ -89,8 +89,6 @@ export function StaffPoliciesClient({
         return t("policiesCompRoleOperator");
       case "mesero":
         return t("policiesCompRoleMesero");
-      case "terminal":
-        return t("policiesCompRoleTerminal");
     }
   }
   const formValues = {

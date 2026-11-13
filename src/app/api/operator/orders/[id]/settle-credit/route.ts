@@ -45,10 +45,11 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
   const session = await auth();
   if (
     !session?.user ||
+    // Sin el datáfono: sólo cobra con datáfono o efectivo, nunca a
+    // crédito (src/lib/payments/staffCheckout.ts).
     (session.user.role !== "operator" &&
       session.user.role !== "platform_admin" &&
       session.user.role !== "group_admin" &&
-      session.user.role !== "terminal" &&
       session.user.role !== "mesero")
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

@@ -89,6 +89,18 @@ beforeEach(() => {
   vi.stubEnv("DATABASE_URL", "postgresql://u:p@localhost:5432/test");
   h.invoice = null;
   h.creditedCents = 0;
+  h.session = { user: { id: "admin-1", role: "operator", email: "admin@sonymelona.co" } };
+});
+
+describe("quién puede dar cortesías", () => {
+  it("el datáfono nunca: 403 y la cuenta queda como estaba", async () => {
+    seed([]);
+    h.session = { user: { id: "pos-1", role: "terminal", email: "datafono@sonymelona.co" } };
+    const { status, json } = await comp();
+    expect(status).toBe(403);
+    expect(json).toMatchObject({ error: "forbidden" });
+    expect(h.fake.order()).toMatchObject({ status: "paying", subtotalCents: 63_470_000 });
+  });
 });
 
 describe("cortesía con pagos pendientes", () => {

@@ -81,6 +81,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/clientes": ["clientes-de-facturacion", "cobrar-a-credito", "descuentos-para-clientes"],
   "/operator/clientes/[id]": ["descuentos-para-clientes"],
   "/terminal": ["cobrar-con-datafono", "datafonos"],
+  "/terminal/cobrar/[orderId]": ["cobrar-con-datafono", "cobrar-una-cuenta", "cobrar-en-efectivo"],
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },

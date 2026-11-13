@@ -17,10 +17,19 @@ describe("billRequestSourceForRole", () => {
     }
   });
 
-  it("el datáfono NO es staff de piso: es la caja misma", () => {
-    // El rol `terminal` no pide cuentas — si llegara a pegarle a una ruta
-    // de pago lo tratamos como el resto del mundo, no como un mesero.
-    expect(billRequestSourceForRole("terminal")).toBe("diner");
+  it("el datáfono que inicia el cobro es staff: no es «la mesa pidió la cuenta»", () => {
+    // Desde «Mesas en vivo» el datáfono cobra en la mesa (también con
+    // "solo el administrador cobra"): no tiene que saltar el aviso de
+    // pantalla completa al administrador.
+    expect(billRequestSourceForRole("terminal")).toBe("staff");
+    expect(
+      shouldAnnounceBillOnPay({
+        adminOnlyCharge: true,
+        source: billRequestSourceForRole("terminal"),
+        serviceMode: "table",
+        tableNumber: 4,
+      }),
+    ).toBe(false);
   });
 });
 

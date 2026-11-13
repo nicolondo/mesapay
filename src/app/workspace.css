@@ -2102,6 +2102,45 @@ a.mp-viz-heat-cell:focus-visible {
   opacity: 0;
 }
 
+/* ─── Contabilidad › Gastos (ExpensesTab.tsx) ─────────────────────────────
+ *
+ *  La pestaña Gastos es una lista ancha (filas de una línea en columnas):
+ *  el contenedor de la página se abre sólo mientras está a la vista (las
+ *  demás pestañas siguen en su ancho de lectura). Sin :has (navegadores
+ *  viejos) queda angosta y la lista cae a tarjetas: nada se rompe.
+ *  .mp-exp-row       Columnas de la fila (y de su encabezado): consecutivo,
+ *                    fecha, proveedor, categoría, total a pagar, estado.
+ *  .mp-exp-filters   Barra de filtros: la lista de los buscadores de
+ *                    proveedor y cuenta flota encima de la página en vez de
+ *                    empujar la barra (en las hojas va en el flujo).
+ *  .mp-exp-pill--*   Tonos de «Pagado» / «Por pagar» legibles en oscuro.
+ */
+.op-contabilidad:has([data-conta-wide]) {
+  max-width: 72rem;
+}
+.mp-exp-row {
+  grid-template-columns: 5.25rem 4.75rem minmax(0, 1.1fr) minmax(0, 1.5fr) 8.5rem 9.5rem;
+  align-items: center;
+  column-gap: 0.875rem;
+}
+.mp-exp-filters [role="listbox"] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+}
+[data-op-theme="dark"] .mp-exp-pill--ok {
+  background: rgba(127, 201, 160, 0.14);
+  color: #8fd3ae;
+}
+[data-op-theme="dark"] .mp-exp-pill--warn {
+  color: #e0b46a;
+}
+[data-op-theme="dark"] span.mp-exp-pill--warn {
+  background: rgba(224, 180, 106, 0.14);
+}
+
 /* ─── Inventario (/operator/inventario) ───────────────────────────────────
    Cabecera con acciones compactas, barra de filtros de una fila, tarjeta
    con tira de resumen y tabla de una línea por insumo (≈48px), menú ⋯ por

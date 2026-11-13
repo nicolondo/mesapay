@@ -45,7 +45,7 @@ import {
   type CarteraPayment,
 } from "./cartera";
 import { isoDateUtc, periodToUtcRange } from "./period";
-import { expenseDocumentLabel } from "@/lib/erp/expenseNumber";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumberFormat";
 
 /** Límite EXCLUSIVO del corte: 00:00Z del día siguiente a `hasta`. */
 export function cutoffEnd(hasta: string): Date {

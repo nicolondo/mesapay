@@ -3,7 +3,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, localeTag } from "@/lib/format";
@@ -12,9 +12,8 @@ import {
   DEFAULT_CONTABILIDAD_TAB,
   parseContabilidadTab,
 } from "@/lib/erp/contabilidadTabs";
-import { expenseOutstandingCents } from "@/lib/erp/accounting";
-import { expensePayableCents } from "@/lib/erp/expenseTax";
 import { ExpenseSheet, type ExpenseDto, type SupplierRef } from "./ExpenseSheet";
+import { ExpensesTab, type ExpensesPayload } from "./ExpensesTab";
 import { PlanCuentasTab } from "./PlanCuentasTab";
 import { PresupuestoTab } from "./PresupuestoTab";
 import { ActivosTab } from "./ActivosTab";
@@ -24,18 +23,8 @@ import { EstadosTab } from "./EstadosTab";
 import { ImpuestosTab } from "./ImpuestosTab";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
-// Espejo de GET /api/operator/expenses (gastos del mes + plantillas +
-// categorías para el datalist); el gasto y el proveedor viven en
-// ExpenseSheet.tsx, con el formulario.
-
-type ExpensesPayload = {
-  /** Gastos del mes (recurring: false), date desc. */
-  expenses: ExpenseDto[];
-  /** TODAS las plantillas recurrentes (no dependen del mes). */
-  templates: ExpenseDto[];
-  /** Categorías ya usadas — alimentan el datalist (categoría libre, D2). */
-  categories: string[];
-};
+// La lista de gastos (y su espejo del API) vive en ExpensesTab.tsx; el
+// gasto y el proveedor, en ExpenseSheet.tsx, con el formulario.
 
 // Espejo de GET /api/operator/accounting/pnl (B2 · D3). Los % vienen con
 // 1 decimal; null = sin ventas en el mes (no inventar 0%).
@@ -298,26 +287,35 @@ export function ContabilidadClient({ currency }: { currency: string }) {
     params.set("tab", next);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
-  // `?month=YYYY-MM&expense=<id>`: los reportes (impuestos, cartera) abren
-  // un gasto directo. El mes de la URL manda al entrar; el gasto se abre en
-  // cuanto llega la lista de ese mes y el parámetro se limpia.
-  const urlMonth = searchParams.get("month");
-  const [month, setMonth] = useState(() =>
-    urlMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(urlMonth) ? urlMonth : currentMonth(),
-  );
-  const [pendingExpenseId, setPendingExpenseId] = useState<string | null>(() => searchParams.get("expense"));
-  // El payload viaja con SU mes: al cambiar de mes, `data` (derivado abajo)
-  // vuelve a null (cargando) sin resetear estado dentro del efecto; al
-  // recargar el MISMO mes (tras guardar) se muestra el dato viejo sin
-  // parpadeo hasta que llega el nuevo — patrón caché de Recetas.
-  const [loaded, setLoaded] = useState<{
-    month: string;
-    payload: ExpensesPayload;
-  } | null>(null);
-  const [loadErr, setLoadErr] = useState(false);
-  const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
-  // Se incrementa para re-fetchear el mes tras guardar/borrar: un gasto
-  // editado puede salir del mes, y una plantilla nueva cambia ambas listas.
+  // `?month=YYYY-MM`: el mes del selector compartido (Gastos, PYG, libros…)
+  // viaja en la URL. Si cambia por fuera (atrás, un enlace), el selector lo
+  // sigue — ajuste de estado durante el render, como la pestaña.
+  const urlMonthRaw = searchParams.get("month");
+  const urlMonth = urlMonthRaw && /^\d{4}-(0[1-9]|1[0-2])$/.test(urlMonthRaw) ? urlMonthRaw : null;
+  const [month, setMonthState] = useState(() => urlMonth ?? currentMonth());
+  const [lastUrlMonth, setLastUrlMonth] = useState(urlMonth);
+  if (urlMonth !== lastUrlMonth) {
+    setLastUrlMonth(urlMonth);
+    if (urlMonth) setMonthState(urlMonth);
+  }
+  function setMonth(update: (m: string) => string) {
+    const next = update(month);
+    setMonthState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("month", next);
+    // Otro mes: la lista de gastos vuelve a su primera página y al mes.
+    for (const k of ["desde", "hasta", "fechas", "page"]) params.delete(k);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+  // `?expense=<id>`: los reportes (impuestos, cartera) abren un gasto
+  // directo. Se pide por id —puede no estar en la página visible de la
+  // lista— y el parámetro se limpia.
+  const urlExpenseId = searchParams.get("expense");
+  // Categorías y proveedores para el formulario y los filtros.
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<Array<SupplierRef & { active: boolean }>>([]);
+  // Se incrementa para re-pedir la lista tras guardar/borrar: un gasto
+  // editado puede salir del filtro, y una plantilla nueva cambia ambas listas.
   const [reloadSeq, setReloadSeq] = useState(0);
   // null = cerrado · "new" = crear · dto = editar (gasto o plantilla).
   const [open, setOpen] = useState<ExpenseDto | "new" | null>(null);
@@ -333,45 +331,28 @@ export function ContabilidadClient({ currency }: { currency: string }) {
   );
 
   useEffect(() => {
+    if (!urlExpenseId) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/operator/expenses?month=${month}`);
-        if (!r.ok) throw new Error("load_failed");
-        const j = (await r.json()) as ExpensesPayload;
+    fetch(`/api/operator/expenses/${encodeURIComponent(urlExpenseId)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ expense: ExpenseDto }>) : null))
+      .then((j) => {
+        if (!cancelled && j?.expense) setOpen(j.expense);
+      })
+      .catch(() => undefined)
+      .finally(() => {
         if (cancelled) return;
-        setLoaded({ month, payload: j });
-        setLoadErr(false);
-      } catch {
-        if (!cancelled) setLoadErr(true);
-      }
-    })();
+        const params = new URLSearchParams(window.location.search);
+        params.delete("expense");
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      });
     return () => {
       cancelled = true;
     };
-  }, [month, reloadSeq]);
+  }, [urlExpenseId, router, pathname]);
 
-  // null = cargando el mes seleccionado (aún no hay payload de ESE mes).
-  const data = loaded !== null && loaded.month === month ? loaded.payload : null;
-
-  // Abrir el gasto del enlace (`?expense=`) cuando llega su mes: se busca
-  // entre los gastos y las plantillas y se limpia el parámetro de la URL.
-  // Ajuste de estado durante el render (patrón de la pestaña), no en un efecto.
-  if (pendingExpenseId && data) {
-    const hit = [...data.expenses, ...data.templates].find((e) => e.id === pendingExpenseId) ?? null;
-    setPendingExpenseId(null);
-    if (hit) setOpen(hit);
-  }
-  useEffect(() => {
-    if (pendingExpenseId !== null || !searchParams.get("expense")) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("expense");
-    params.delete("month");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [pendingExpenseId, searchParams, router, pathname]);
-
-  // Proveedores para el select del formulario. Lo abren los módulos de
-  // compras O de contabilidad: el gasto elige y crea su proveedor ahí mismo.
+  // Proveedores: el formulario elige entre los activos (y crea ahí mismo);
+  // el filtro de la lista también ve los desactivados, que pueden tener
+  // gastos. Lo abren los módulos de compras O de contabilidad.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -383,9 +364,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
         };
         if (!cancelled) {
           setSuppliers(
-            (j.suppliers ?? [])
-              .filter((s) => s.active !== false)
-              .map((s) => ({ id: s.id, name: s.name, taxId: s.taxId ?? null })),
+            (j.suppliers ?? []).map((s) => ({ id: s.id, name: s.name, taxId: s.taxId ?? null, active: s.active !== false })),
           );
         }
       } catch {
@@ -396,11 +375,6 @@ export function ContabilidadClient({ currency }: { currency: string }) {
       cancelled = true;
     };
   }, []);
-
-  const totalCents = useMemo(
-    () => (data?.expenses ?? []).reduce((sum, e) => sum + e.amountCents, 0),
-    [data],
-  );
 
   function handleChanged() {
     setOpen(null);
@@ -436,7 +410,7 @@ export function ContabilidadClient({ currency }: { currency: string }) {
 
       {/* Selector de mes: ◀ Julio de 2026 ▶ — compartido por gastos/P&L/libros.
           El Plan de cuentas no es mensual, así que ahí se oculta. */}
-      {tab !== "chart" && tab !== "bancos" && tab !== "activos" && (
+      {tab !== "chart" && tab !== "bancos" && tab !== "activos" && tab !== "expenses" && (
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -493,127 +467,30 @@ export function ContabilidadClient({ currency }: { currency: string }) {
           setCache={setBooksCache}
         />
       ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => setOpen("new")}
-            className="mp-btn mp-btn--primary mp-btn--block"
-          >
-            {t("newExpense")}
-          </button>
-
-          {loadErr ? (
-            <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-          ) : data === null ? (
-            <div className="py-6 text-center text-sm text-op-muted">
-              {t("loading")}
-            </div>
-          ) : (
-            <>
-              {/* Total del mes (solo gastos materializados, no plantillas) */}
-              <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex items-center justify-between gap-3">
-                <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                  {t("expensesTotalLabel")}
-                </span>
-                <span className="text-sm font-medium tabular-nums">
-                  {formatMoney(totalCents, { currency, locale })}
-                </span>
-              </div>
-
-              {data.expenses.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
-                  <div className="font-display text-lg mb-1">
-                    {t("expensesEmptyTitle")}
-                  </div>
-                  <p className="text-sm text-op-muted">
-                    {t("expensesEmptyBody")}
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-                  {data.expenses.map((e) => (
-                    <button
-                      key={e.id}
-                      type="button"
-                      onClick={() => setOpen(e)}
-                      className="w-full text-left px-4 py-2.5 border-b border-op-border last:border-b-0 hover:bg-op-bg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {e.category}
-                          </div>
-                          {e.description && (
-                            <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                              {e.description}
-                            </div>
-                          )}
-                          {/* Fecha · proveedor · centro van en la columna
-                              ancha: truncan sin empujar el monto fuera de
-                              la tarjeta en el celular. */}
-                          <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                            {formatDate(e.date, {
-                              locale,
-                              timeStyle: undefined,
-                            }) +
-                              (e.supplier ? ` · ${e.supplier.name}` : "") +
-                              (e.documentNumber ? ` · ${e.documentNumber}` : "") +
-                              (e.costCenter ? ` · ${e.costCenter.name}` : "")}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-sm font-medium tabular-nums">
-                            {formatMoney(e.amountCents, { currency, locale })}
-                          </div>
-                          {expenseOutstandingCents(e) > 0 ? (
-                            <div className="text-[11px] font-medium text-[#7F5A1F] mt-0.5 tabular-nums">
-                              {t("expenseOutstandingBadge", {
-                                amount: formatMoney(expenseOutstandingCents(e), { currency, locale }),
-                              })}
-                            </div>
-                          ) : (
-                            // Con IVA descontable o retenciones, lo que se
-                            // pagó no es el costo del gasto: se muestra.
-                            expensePayableCents(e) !== e.amountCents && (
-                              <div className="text-[11px] text-op-muted mt-0.5 tabular-nums">
-                                {t("expenseRowPayable", {
-                                  amount: formatMoney(expensePayableCents(e), { currency, locale }),
-                                })}
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Plantillas recurrentes (arriendo, nómina…) — el cron las
-                  materializa como gasto del mes cuando llega su día. */}
-              {data.templates.length > 0 && (
-                <TemplatesSection
-                  templates={data.templates}
-                  currency={currency}
-                  onOpen={setOpen}
-                />
-              )}
-            </>
-          )}
-        </>
+        // Gastos: su propio período (mes · fechas · todo) dentro de la barra
+        // de filtros; el mes es el mismo del selector compartido.
+        <ExpensesTab
+          month={month}
+          currency={currency}
+          reloadSeq={reloadSeq}
+          suppliers={suppliers}
+          onOpen={setOpen}
+          onNew={() => setOpen("new")}
+          onLoaded={(p: ExpensesPayload) => setCategories(p.categories)}
+        />
       )}
 
       {open !== null && (
         <ExpenseSheet
           expense={open === "new" ? null : open}
           currency={currency}
-          suppliers={suppliers}
-          categories={data?.categories ?? []}
+          suppliers={suppliers.filter((s) => s.active)}
+          categories={categories}
           onClose={() => setOpen(null)}
           onChanged={handleChanged}
           onSupplierCreated={(s) =>
             setSuppliers((prev) =>
-              [s, ...prev.filter((p) => p.id !== s.id)].sort((a, b) =>
+              [{ ...s, active: true }, ...prev.filter((p) => p.id !== s.id)].sort((a, b) =>
                 a.name.localeCompare(b.name),
               ),
             )
@@ -1779,80 +1656,5 @@ function PurchasesBookView({
         </div>
       )}
     </>
-  );
-}
-
-/* ─────────────────── Plantillas recurrentes (D2) ───────────────────── */
-
-/**
- * Sección colapsable con las plantillas de gasto recurrente. Cerrada por
- * defecto (mismo criterio que las alzas de precio en Recetas): son
- * configuración, no el movimiento del mes.
- */
-function TemplatesSection({
-  templates,
-  currency,
-  onOpen,
-}: {
-  templates: ExpenseDto[];
-  currency: string;
-  onOpen: (e: ExpenseDto) => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-  const [open, setOpen] = useState(false);
-
-  return (
-    <section className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full min-h-[44px] px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-op-bg"
-      >
-        <span className="text-sm font-medium">
-          {t("expenseTemplatesTitle", { count: templates.length })}
-        </span>
-        <span className="text-xs text-op-muted shrink-0" aria-hidden>
-          {open ? "▾" : "▸"}
-        </span>
-      </button>
-
-      {open &&
-        templates.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => onOpen(e)}
-            className="w-full text-left px-4 py-2.5 border-t border-op-border hover:bg-op-bg"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm font-medium truncate">
-                    {e.category}
-                  </span>
-                  <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                    {t("recurringBadge")}
-                  </span>
-                </div>
-                <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                  {[e.description, e.supplier?.name]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm font-medium tabular-nums">
-                  {formatMoney(e.amountCents, { currency, locale })}
-                </div>
-                <div className="text-[11px] text-op-muted mt-0.5">
-                  {t("recurringEveryMonth", { day: e.recurringDay ?? 1 })}
-                </div>
-              </div>
-            </div>
-          </button>
-        ))}
-    </section>
   );
 }

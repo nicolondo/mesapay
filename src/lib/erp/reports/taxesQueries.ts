@@ -72,7 +72,7 @@ import { FREE_LINES_INCLUDE, toFreeLines } from "../accountingData";
 import { orderFreeLineTaxSlices } from "../salesTaxSlices";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
-import { expenseDocumentLabel } from "@/lib/erp/expenseNumber";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumberFormat";
 
 /** Consecutivo de la OC como documento cuando no se capturó la factura del proveedor. */
 export function purchaseDocumentLabel(

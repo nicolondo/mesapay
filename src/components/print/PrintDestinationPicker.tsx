@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useId, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useContext, useId, useMemo, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
-import { useSession } from "next-auth/react";
+import { SessionContext } from "next-auth/react";
 import {
   DEVICE_PAPER_WIDTHS,
   parseStoredPrintPreference,
@@ -97,12 +97,16 @@ export type PrintViewer = { role: string | null; scope: string | null };
  * sabe —las vistas imprimibles los pasan desde el servidor— o de la sesión
  * del cliente, que llega con un pequeño retraso (`ready`). En el servidor y
  * en el primer pintado no hay recuerdo (no se desarma la hidratación).
+ *
+ * La sesión se lee del contexto y no con `useSession`, que tira fuera de un
+ * `<SessionProvider>` (un render suelto, un test): sin proveedor no hay a
+ * quién esperar y vale el valor por defecto.
  */
 export function usePrintPreference(viewer?: PrintViewer | null): PrintPreferenceState {
-  const { data, status } = useSession();
-  const role = viewer ? viewer.role : (data?.user?.role ?? null);
-  const scope = viewer ? viewer.scope : (data?.user?.restaurantId ?? null);
-  const ready = !!viewer || status !== "loading";
+  const session = useContext(SessionContext);
+  const role = viewer ? viewer.role : (session?.data?.user?.role ?? null);
+  const scope = viewer ? viewer.scope : (session?.data?.user?.restaurantId ?? null);
+  const ready = !!viewer || session?.status !== "loading";
   const key = printPreferenceStorageKey(scope);
   const raw = useSyncExternalStore(
     subscribe,

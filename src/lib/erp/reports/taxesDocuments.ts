@@ -56,6 +56,13 @@ export type SaleTaxInput = {
   freeLineSlices?: readonly { kind: SalesTaxKind; pct: number; baseCents: number; taxCents: number }[];
   /** Adquiriente si la factura es NOMINATIVA; null = consumidor final. */
   customer: { name: string; docType: string; docNumber: string } | null;
+  /**
+   * Factura con descuento del cliente emitida antes de que el descuento
+   * fuera dentro de las líneas: lo que declaró de más
+   * (`saleTaxSnapshot.undeclaredDiscountOf`). Ausente en las demás. La base
+   * y el impuesto de arriba siguen siendo lo DECLARADO: no se corrigen acá.
+   */
+  undeclaredDiscount?: { discountCents: number; valueCents: number; baseCents: number; taxCents: number };
 };
 
 export type PurchaseTaxInput = {

@@ -7,7 +7,7 @@ import {
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
-import { embeddedMenuTax } from "@/lib/dian/emit";
+import { discountInLinesOf, saleLines } from "@/lib/dian/discountedLines";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 import { invoicePrintArgs } from "@/lib/print/routing";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
@@ -185,8 +185,8 @@ export async function issueSimpleInvoice(opts: {
   // leen después la emisión a la DIAN (no de `Restaurant`) y la
   // contabilidad: prender o cambiar el impuesto mañana no toca lo emitido
   // hoy. El reparto base/impuesto es el MISMO por línea que hace el XML
-  // (`embeddedMenuTax` ⇒ `invoiceLineFor`), sobre el bruto de cada plato y
-  // sin descontar el descuento del comensal, para coincidir al centavo.
+  // (`saleLines`), con el descuento del cliente ya repartido en las líneas:
+  // la base y el impuesto que congela son NETOS, al centavo del XML.
   // Emitida ANTES de cobrar: la factura es la VENTA, sin propina. La
   // propina todavía no existe (o es la de un pago parcial que no es de toda
   // la mesa), no va al XML y la elige el cliente al pagar; el papel la
@@ -198,10 +198,13 @@ export async function issueSimpleInvoice(opts: {
 
   const salesTaxKind = r.salesTaxKind as SalesTaxKind;
   const salesTaxPct = salesTaxKind === "none" ? 0 : r.salesTaxPct;
-  const embedded = embeddedMenuTax(order.items, {
-    kind: salesTaxKind,
-    pct: salesTaxPct,
-  });
+  const fiscal = saleLines(
+    order.items,
+    { kind: salesTaxKind, pct: salesTaxPct },
+    order.discountCents,
+  );
+  const embedded = fiscal.embedded;
+  const discountInLines = discountInLinesOf(fiscal);
 
   const snapshot: InvoiceSnapshot = {
     restaurantName: r.name,
@@ -256,6 +259,10 @@ export async function issueSimpleInvoice(opts: {
     embeddedBaseCents: embedded.baseCents,
     discountCents: order.discountCents,
     discountPct: order.discountPct,
+    // El XML declara el descuento dentro de cada línea (ver
+    // `dian/discountedLines.ts`); la marca le dice a los reportes y al
+    // papel que la base y el impuesto de arriba ya son netos.
+    ...(discountInLines && { discountInLines }),
     tipCents: invoiceTipCents,
     totalCents: invoiceTotalCents,
     customer: opts.customer ?? null,

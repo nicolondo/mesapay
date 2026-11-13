@@ -10,8 +10,8 @@ import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
   itemDetailText,
-  taxLabelsFrom,
-  taxRows,
+  summaryLabelsFrom,
+  summaryRows,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/invoiceLines";
@@ -317,32 +317,19 @@ export default async function FacturaPage({
               <span>{t("subtotal")}</span>
               <span className="right">{fmtCOP(snap.subtotalCents)}</span>
             </div>
-            {/* Primero el impuesto EMBEBIDO en los platos (base gravable +
-                "Incl. impoconsumo 8%", informativo: ya está dentro del
-                subtotal) tal como quedó congelado en la factura; después el
-                que suman encima las líneas libres (servicios, alquileres).
-                Sin ninguno de los dos no hay filas. */}
-            {taxRows(snap, taxLabelsFrom(t)).map((r) => (
+            {/* El impuesto EMBEBIDO en los platos (base gravable + "Incl.
+                impoconsumo 8%", informativo: ya está dentro del subtotal) tal
+                como quedó congelado en la factura, el que suman encima las
+                líneas libres y el descuento del cliente, en el orden de
+                `summaryRows`: con el descuento dentro de las líneas, primero
+                el descuento y después la base y el impuesto NETOS, como el
+                XML. Una factura vieja se ve exactamente como antes. */}
+            {summaryRows(snap, summaryLabelsFrom(t)).map((r) => (
               <div className="row" key={r.label}>
                 <span>{r.label}</span>
-                <span className="right">{fmtCOP(r.cents)}</span>
+                <span className="right">{(r.negative ? "− " : "") + fmtCOP(r.cents)}</span>
               </div>
             ))}
-            {/* Descuento del comensal identificado. Las facturas emitidas
-                antes de esta feature no traen el campo — se trata como 0 y
-                la tirilla se ve exactamente como antes. */}
-            {(snap.discountCents ?? 0) > 0 && (
-              <div className="row">
-                <span>
-                  {snap.discountPct
-                    ? t("discountRowPct", { pct: snap.discountPct })
-                    : t("discountRow")}
-                </span>
-                <span className="right">
-                  {"− " + fmtCOP(snap.discountCents ?? 0)}
-                </span>
-              </div>
-            )}
             {snap.tipCents > 0 && (
               <div className="row">
                 <span>{t("tip")}</span>

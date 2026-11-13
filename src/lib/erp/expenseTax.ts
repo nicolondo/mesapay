@@ -19,6 +19,7 @@
 import { discountAmountCents } from "./purchaseDiscount";
 import { lineTaxCents } from "./purchaseTax";
 import { computeRetentions, type RetentionConceptInput } from "./retencionesCore";
+import { retentionTopic, type RetentionTopic } from "./retencionesCatalogo";
 import { uvtDelAno } from "./exogena/normativa";
 
 /** Tope de un monto en centavos (cabe en INT4, igual que el resto de gastos). */
@@ -164,10 +165,10 @@ export function uvtCentsForDate(date: Date | string, configUvtCents: number): nu
 /** Concepto tal como lo necesita la sugerencia (activo o no). */
 export type ExpenseRetentionConcept = RetentionConceptInput & { active?: boolean };
 
-const RETEFUENTE_HINTS: readonly { category: RegExp; account: RegExp; concept: RegExp }[] = [
-  { category: /(arriend|alquil|\blocal\b|renta|canon)/, account: /^5120/, concept: /(arrend|alquil)/ },
-  { category: /(honorar|contad|asesor|abogad|jur[ií]dic|revisor)/, account: /^5110/, concept: /honorar/ },
-  { category: /(compra|insumo|mercanc|suministr|papeler|aseo|desechable)/, account: /^(5195|6135)/, concept: /compra/ },
+const RETEFUENTE_HINTS: readonly { category: RegExp; account: RegExp; topic: RetentionTopic }[] = [
+  { category: /(arriend|alquil|\blocal\b|renta|canon)/, account: /^5120/, topic: "arrendamientos" },
+  { category: /(honorar|contad|asesor|abogad|jur[ií]dic|revisor)/, account: /^5110/, topic: "honorarios" },
+  { category: /(compra|insumo|mercanc|suministr|papeler|aseo|desechable)/, account: /^(5195|6135)/, topic: "compras" },
 ];
 
 /**
@@ -176,7 +177,8 @@ const RETEFUENTE_HINTS: readonly { category: RegExp; account: RegExp; concept: R
  * vez todos los conceptos de retefuente activos, como sí pasa con una
  * compra de insumos que usa el único activo. Por palabras de la categoría
  * o la cuenta; si nada calza, «servicios» (lo más común en gastos), luego
- * «compras», luego el primero.
+ * «compras», luego el primero. El tema de cada concepto sale del catálogo
+ * (si nació de él) o de su nombre (`retentionTopic`).
  */
 export function pickRetefuenteConcept<T extends ExpenseRetentionConcept>(
   concepts: readonly T[],
@@ -187,14 +189,14 @@ export function pickRetefuenteConcept<T extends ExpenseRetentionConcept>(
   if (candidates.length === 1) return candidates[0]!;
   const cat = (ctx.category ?? "").toLowerCase();
   const acc = ctx.accountCode ?? "";
-  const byName = (re: RegExp) => candidates.find((c) => re.test(c.name.toLowerCase())) ?? null;
+  const byTopic = (topic: RetentionTopic) => candidates.find((c) => retentionTopic(c) === topic) ?? null;
   for (const h of RETEFUENTE_HINTS) {
     if (h.category.test(cat) || (acc && h.account.test(acc))) {
-      const hit = byName(h.concept);
+      const hit = byTopic(h.topic);
       if (hit) return hit;
     }
   }
-  return byName(/servici/) ?? byName(/compra/) ?? candidates[0]!;
+  return byTopic("servicios") ?? byTopic("compras") ?? candidates[0]!;
 }
 
 export type SuggestedRetention = {

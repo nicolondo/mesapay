@@ -90,6 +90,10 @@ export type AuditKind =
   | "restaurant.delete_blocker.payment_links_cancelled"
   | "cash.movement"
   | "cash.shift_base.update"
+  // Contabilidad › Impuestos › Retenciones: conceptos del comercio
+  | "retention_concept.create"
+  | "retention_concept.update"
+  | "retention_concept.delete"
   | "group.legal_entity.create"
   | "group.legal_entity.update"
   | "group.legal_entity.delete"
@@ -163,6 +167,9 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.delete_blocker.payment_links_cancelled": "Anuló links de pago para eliminar un comercio",
   "cash.movement": "Movimiento de caja",
   "cash.shift_base.update": "Editó base de turno",
+  "retention_concept.create": "Creó un concepto de retención",
+  "retention_concept.update": "Editó un concepto de retención",
+  "retention_concept.delete": "Borró un concepto de retención",
   "group.legal_entity.create": "Creó razón social",
   "group.legal_entity.update": "Editó razón social",
   "group.legal_entity.delete": "Borró razón social",

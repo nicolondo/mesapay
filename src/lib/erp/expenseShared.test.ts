@@ -72,7 +72,7 @@ describe("resolveExpenseTaxes", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.retentions).toEqual([
-      { conceptId: "hon", kind: "retefuente", name: "Honorarios (11%)", rateBps: 1100, base: "subtotal", accountCode: "236515", baseCents: 1_000_000, amountCents: 110_000 },
+      { conceptId: "hon", kind: "retefuente", name: "Honorarios (11%)", rateBps: 1100, ratePpm: 110_000, base: "subtotal", accountCode: "236515", baseCents: 1_000_000, amountCents: 110_000 },
     ]);
     expect(r.fields).toEqual({
       amountCents: 1_000_000,

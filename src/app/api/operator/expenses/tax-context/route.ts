@@ -41,6 +41,7 @@ async function GETHandler() {
       thresholdUvt: c.thresholdUvt,
       accountCode: c.accountCode,
       active: c.active,
+      catalogKey: c.catalogKey,
     })),
     uvtCents: cfg.uvtCents,
     ivaDeductible: tenant?.purchaseIvaDeductible ?? false,

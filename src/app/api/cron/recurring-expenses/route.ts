@@ -53,7 +53,7 @@ async function POSTHandler(req: Request) {
         orderBy: { createdAt: "asc" },
         include: {
           concept: {
-            select: { id: true, kind: true, name: true, rateBps: true, base: true, thresholdUvt: true, accountCode: true, active: true },
+            select: { id: true, kind: true, name: true, rateBps: true, ratePpm: true, base: true, thresholdUvt: true, accountCode: true, active: true },
           },
         },
       },

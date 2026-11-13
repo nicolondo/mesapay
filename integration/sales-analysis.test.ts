@@ -9,6 +9,7 @@ import { loadDashboardSales } from "../src/lib/reports/dashboardSalesQuery";
 import { allocateLines, saleFacts, sumSaleFacts, summarizeReturns, type SaleOrderInput } from "../src/lib/salesAnalysis/metrics";
 import {
   loadChannels, loadHeat, loadMethods, loadModifiers, loadOrders, loadProducts, loadReturnRows, loadTotals, loadTrend, loadWaiters,
+  withCandidates,
 } from "../src/lib/salesAnalysis/queries";
 import { NO_WAITER, parseSalesFilters } from "../src/lib/salesAnalysis/filters";
 import { rangeInstants } from "../src/lib/salesAnalysis/period";
@@ -473,6 +474,20 @@ describe("análisis de ventas por hora del pedido", () => {
     expect(d13.accountNetCents).toBe(acctD.facts.netCents); // el ticket es el de la cuenta entera
     expect(d13.tipCents).toBe(100_000);
     expect((await loadTotals(db, at(day("2026-10-13"), "pago"))).orders).toBe(0);
+  });
+
+  it("con las candidatas resueltas de antemano el resultado es idéntico", async () => {
+    for (const range of [day("2026-10-13"), day("2026-10-14"), day("2026-10-16")]) {
+      for (const dims of [{}, { hora: 22 }, { producto: C.pasta.id }] as SalesScope["dims"][]) {
+        const plain = at(range, "pedido", dims);
+        const resolved = await withCandidates(db, plain);
+        expect(resolved.candidates?.length).toBeGreaterThan(0);
+        expect(await loadTotals(db, resolved)).toEqual(await loadTotals(db, plain));
+        expect(await loadTrend(db, resolved, "hora")).toEqual(await loadTrend(db, plain, "hora"));
+      }
+    }
+    // B (pagada el 16) es candidata del 14: se montó ese día.
+    expect((await withCandidates(db, at(day("2026-10-14"), "pedido"))).candidates).toContain(acctB.id);
   });
 
   it("las mismas ventas en los dos ejes: en un rango que cubre todo, los totales coinciden", async () => {

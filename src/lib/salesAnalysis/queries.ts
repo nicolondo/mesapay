@@ -3,6 +3,7 @@
 // pruebas. No suma nada en JS: lo que llega ya viene agregado.
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  candidatesSql,
   categoriesSql,
   channelsSql,
   durationSql,
@@ -53,6 +54,17 @@ export function toInt(value: DbInt | Prisma.Decimal | undefined): number {
 
 function toIntOrNull(value: DbInt | undefined): number | null {
   return value === null || value === undefined ? null : toInt(value);
+}
+
+/**
+ * Eje «pedido»: resuelve una vez las cuentas candidatas del período y las
+ * deja en el alcance, así cada consulta parte de una lista que PostgreSQL
+ * estima exacto (ver `SalesScope.candidates`). Con eje «pago», no hace nada.
+ */
+export async function withCandidates(client: SalesDb, scope: SalesScope): Promise<SalesScope> {
+  if (scope.axis !== "pedido" || scope.candidates) return scope;
+  const rows = await client.$queryRaw<{ id: string }[]>(candidatesSql(scope));
+  return { ...scope, candidates: rows.map((r) => r.id) };
 }
 
 export async function loadTotals(client: SalesDb, scope: SalesScope): Promise<SalesTotals> {

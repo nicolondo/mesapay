@@ -16,7 +16,7 @@ import {
   waitersSql,
   type SalesScope,
 } from "./sql";
-import { loadFilterOptions, loadReturnRows, loadTotals, type SalesDb } from "./queries";
+import { loadFilterOptions, loadReturnRows, loadTotals, withCandidates, type SalesDb } from "./queries";
 
 const RID = "restaurant-scope-check";
 const scope = (dims: SalesScope["dims"] = {}, axis: SalesScope["axis"] = "pago"): SalesScope => ({
@@ -100,7 +100,7 @@ describe("eje de tiempo", () => {
     const sql = totalsSql(scope({}, "pago")).text;
     expect(sql).toMatch(/o\."paidAt" >= \(\$\d+::timestamptz AT TIME ZONE 'UTC'\) AND o\."paidAt" < \(\$\d+::timestamptz/);
     expect(sql).toContain(`SELECT o0."paidAt" AS "anchorAt"`);
-    expect(sql).not.toContain(`"fu" AS`);
+    expect(sql).not.toContain(`OVER ()`);
   });
 
   it("«pedido»: candidatas pagadas desde el inicio y creadas antes del fin; tajadas por la ronda de cada línea", () => {
@@ -108,15 +108,32 @@ describe("eje de tiempo", () => {
     expect(sql).toMatch(/o\."paidAt" >= \(\$\d+::timestamptz AT TIME ZONE 'UTC'\) AND o\."createdAt" < \(\$\d+::timestamptz/);
     expect(sql).toContain(`SELECT o0."openedAt" AS "anchorAt"`);
     expect(sql).toContain(`COALESCE(r."placedAt", fo."openedAt") AS "at"`);
-    expect(sql).toContain(`"fu" AS`);
+    expect(sql).toContain(`SUM(g."net") OVER () AS "acctNet"`);
     // Sin cuentas pagadas, no hay venta: las abiertas no entran nunca.
     expect(sql).toContain(`o."status" = 'paid'`);
+  });
+
+  it("«pedido»: con las candidatas resueltas, cada consulta parte de la lista (que el planificador estima exacto)", async () => {
+    const queryRaw = vi.fn(async () => [{ id: "a" }, { id: "b" }]);
+    const client = { $queryRaw: queryRaw } as unknown as SalesDb;
+    const resolved = await withCandidates(client, scope({}, "pedido"));
+    expect(resolved.candidates).toEqual(["a", "b"]);
+    const lookup = (queryRaw.mock.calls[0] as unknown as [Prisma.Sql])[0];
+    expect(lookup.text).toMatch(/o\."restaurantId" = \$\d+ AND o\."status" = 'paid'/);
+    expect(lookup.text).toMatch(/o\."paidAt" >= .* AND o\."createdAt" < /);
+    const sql = totalsSql(resolved);
+    expect(sql.text).toMatch(/o\."id" = ANY\(\$\d+::text\[\]\)/);
+    expect(sql.values).toContainEqual(["a", "b"]);
+    expect(sql.text).toContain(`o."restaurantId" = $`);
+    // Con eje «pago» no se consulta nada extra.
+    expect(await withCandidates(client, scope({}, "pago"))).not.toHaveProperty("candidates");
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it("«pedido»: día y hora filtran las tajadas, no la cuenta", () => {
     const pedido = totalsSql(scope({ hora: 21 }, "pedido")).text;
     expect(pedido).not.toMatch(/o1\."hour" = /);
-    expect(pedido).toMatch(/EXTRACT\(HOUR FROM \(w\."at"\) - interval '5 hours'\)::int = \$\d+::int/);
+    expect(pedido).toMatch(/EXTRACT\(HOUR FROM \(s\."at"\) - interval '5 hours'\)::int = \$\d+::int/);
     expect(totalsSql(scope({ hora: 21 }, "pago")).text).toMatch(/o1\."hour" = \$\d+::int/);
     // Para las devoluciones (lista de ids) el día y la hora siguen siendo de la cuenta.
     expect(filterOrderIdsSql(scope({ hora: 21 }, "pedido"), ["a"]).text).toMatch(/o1\."hour" = \$\d+::int/);

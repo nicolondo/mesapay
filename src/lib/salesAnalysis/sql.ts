@@ -61,6 +61,14 @@ export type SalesScope = {
   dims: DimensionFilters;
   /** Eje de tiempo: hora del pedido u hora del pago (ver arriba). */
   axis: TimeAxis;
+  /**
+   * Eje «pedido»: las cuentas candidatas ya resueltas (`candidatesSql`). Con
+   * ellas cada consulta parte de `id = ANY(…)`, que el planificador estima
+   * exacto; sin ellas, del filtro «pagada desde el inicio y creada antes del
+   * fin», que da el mismo resultado pero se estima muy mal (rangos sobre dos
+   * columnas) y dispara la compilación JIT de PostgreSQL en cada consulta.
+   */
+  candidates?: readonly string[];
 };
 
 /** El universo de cuentas: por rango (del eje) o por una lista de cuentas. */
@@ -120,6 +128,25 @@ function slotOf(at: Prisma.Sql, cutoffHour: number): { bizDate: Prisma.Sql; hour
   };
 }
 
+/**
+ * Eje «pedido»: cuentas que pueden tener algo montado en [inicio, fin). Toda
+ * ronda se monta entre la creación de la cuenta y su pago (un plato movido
+ * a otra mesa conserva la hora de su ronda, pero la cuenta destino se crea
+ * al moverlo, antes de pagarse), así que basta «pagada desde el inicio y
+ * creada antes del fin». Cubre las cuentas pagadas DESPUÉS del período: si
+ * ya están pagadas, cuentan en el período en que se montaron.
+ */
+function candidateRange(scope: SalesScope): Prisma.Sql {
+  return Prisma.sql`o."paidAt" >= ${utc(scope.start)} AND o."createdAt" < ${utc(scope.end)}`;
+}
+
+/** Ids de las cuentas candidatas del eje «pedido» (se resuelven una vez por período). */
+export function candidatesSql(scope: SalesScope): Prisma.Sql {
+  return Prisma.sql`SELECT o."id" FROM "Order" o
+WHERE o."restaurantId" = ${scope.restaurantId} AND o."status" = 'paid' AND o."paidAt" IS NOT NULL
+  AND ${candidateRange(scope)}`;
+}
+
 /** Condición «la tajada en `at` cae en el período y en el día/hora filtrados». */
 function inSliceOf(scope: SalesScope, at: Prisma.Sql): Prisma.Sql {
   const s = slotOf(at, scope.cutoffHour);
@@ -168,6 +195,26 @@ function currentTaxOf(gross: Prisma.Sql, pct: number, invoiceId: Prisma.Sql): Pr
     THEN ${gross} - ROUND(${gross} * 10000 / (10000 + ${pct}::int)) ELSE 0 END`;
 }
 
+const GROSS = Prisma.sql`(it."priceCentsSnapshot"::numeric * it."qty")`;
+
+/**
+ * Valores de una línea viva de la cuenta `fo` (lateral `v`): valor de lista,
+ * su parte del descuento y su impuesto incluido. El mismo reparto de
+ * `allocateLines`; la neta sale de `lineNet`.
+ */
+function lineValues(pct: number): Prisma.Sql {
+  return Prisma.sql`CROSS JOIN LATERAL (
+    SELECT ${GROSS} AS "gross",
+      COALESCE(${GROSS} * fo."discountCents" / NULLIF(fo."linesGross", 0), 0) AS "disc",
+      CASE WHEN it."taxKind" IS NOT NULL THEN 0
+        WHEN fo."invoiceId" IS NULL THEN ${currentTaxOf(GROSS, pct, Prisma.sql`fo."invoiceId"`)}
+        ELSE COALESCE(fo."included" * ${GROSS} / NULLIF(fo."menuGross", 0), 0) END AS "tax"
+  ) v`;
+}
+
+/** Venta neta de la línea: Σ líneas de la cuenta = su venta neta. */
+const LINE_NET = Prisma.sql`CASE WHEN fo."orderRawNet" > 0 THEN fo."net" * (v."gross" - v."disc" - v."tax") / fo."orderRawNet" ELSE 0 END`;
+
 /** Columnas de cuenta que viajan hasta los hechos (`f`) y las líneas (`lf`). */
 const ACCOUNT_COLUMNS = [
   "id", "shortCode", "paidAt", "placedAt", "createdAt", "openedAt", "channel",
@@ -193,18 +240,18 @@ export function salesCtes(scope: SalesScope, universe: Universe = { kind: "range
   const pct = pctTimes100(scope.tax);
   const pedido = byOrder(scope);
   // Con eje «pedido» la cuenta entra si alguna de sus rondas pudo montarse en
-  // el rango: toda ronda va entre la creación de la cuenta y su pago, así que
-  // basta «pagada desde el inicio y creada antes del fin». Lo de afuera lo
-  // descartan las tajadas (`inSlice`). Ver la nota de índices en el PR.
+  // el rango (`candidatesSql`); lo de afuera lo descartan las tajadas.
   const where = universe.kind === "ids"
     ? universe.ids.length
       ? Prisma.sql`o."id" IN (${Prisma.join([...universe.ids])})`
       : Prisma.sql`false`
     : pedido
-      ? Prisma.sql`o."paidAt" >= ${utc(scope.start)} AND o."createdAt" < ${utc(scope.end)}`
+      ? scope.candidates
+        ? Prisma.sql`o."id" = ANY(${[...scope.candidates]}::text[])`
+        : candidateRange(scope)
       : Prisma.sql`o."paidAt" >= ${utc(scope.start)} AND o."paidAt" < ${utc(scope.end)}`;
   const item = hasItemFilter(scope);
-  const gross = Prisma.sql`(it."priceCentsSnapshot"::numeric * it."qty")`;
+  const gross = GROSS;
   const account = slotOf(Prisma.sql`an."anchorAt"`, scope.cutoffHour);
   const line = slotOf(Prisma.sql`ln."at"`, scope.cutoffHour);
   return Prisma.sql`WITH
@@ -283,7 +330,7 @@ export function salesCtes(scope: SalesScope, universe: Universe = { kind: "range
     it."id" AS "itemId", it."menuItemId", it."nameSnapshot", it."qty", it."taxKind",
     it."modifierSelections", mi."categoryId",
     v."gross", v."disc", v."tax",
-    CASE WHEN fo."orderRawNet" > 0 THEN fo."net" * (v."gross" - v."disc" - v."tax") / fo."orderRawNet" ELSE 0 END AS "net",
+    ${LINE_NET} AS "net",
     ${lineMatch(scope)} AS "match",
     ${pedido ? inSliceOf(scope, Prisma.sql`ln."at"`) : Prisma.sql`true`} AS "inSlice"
   FROM fo
@@ -292,16 +339,10 @@ export function salesCtes(scope: SalesScope, universe: Universe = { kind: "range
   LEFT JOIN "MenuItem" mi ON mi."id" = it."menuItemId" AND mi."restaurantId" = ${scope.restaurantId}
   -- Instante de la línea: con eje «pedido», el de su ronda (sin ronda, la apertura).
   CROSS JOIN LATERAL (SELECT ${pedido ? Prisma.sql`COALESCE(r."placedAt", fo."openedAt")` : Prisma.sql`fo."paidAt"`} AS "at") ln
-  CROSS JOIN LATERAL (
-    SELECT ${gross} AS "gross",
-      COALESCE(${gross} * fo."discountCents" / NULLIF(fo."linesGross", 0), 0) AS "disc",
-      CASE WHEN it."taxKind" IS NOT NULL THEN 0
-        WHEN fo."invoiceId" IS NULL THEN ${currentTaxOf(gross, pct, Prisma.sql`fo."invoiceId"`)}
-        ELSE COALESCE(fo."included" * ${gross} / NULLIF(fo."menuGross", 0), 0) END AS "tax"
-  ) v
+  ${lineValues(pct)}
   WHERE ${LIVE_LINE}
 ),
-${pedido ? sliceFacts(scope, item) : Prisma.sql`"f" AS MATERIALIZED (
+${pedido ? sliceFacts(scope, item, pct) : Prisma.sql`"f" AS MATERIALIZED (
   ${item ? itemFacts() : orderFacts()}
 )`}
 `;
@@ -347,22 +388,21 @@ function itemFacts(): Prisma.Sql {
 
 /**
  * Eje «pedido»: la cuenta partida en tajadas, una por instante de pedido.
- *
- *  fu  las líneas vivas (con filtro de producto/categoría, sólo las que
- *      coinciden) + una fila de APERTURA por cuenta, en `anchorAt`, con lo
- *      que no es de ninguna línea: el impuesto sumado encima de las líneas
- *      libres y cualquier diferencia de redondeo. Así la suma de las
- *      tajadas de una cuenta da exactamente sus montos con eje «pago».
- *  fg  suma por (cuenta, instante): la apertura cae en la tajada de la
- *      primera ronda (es el mismo instante).
- *  f   tajadas dentro del período (y del día/hora filtrados); lo de la
- *      cuenta (contarla, comensales, propina, comisión, ticket) sólo en la
- *      de apertura. Con filtro de producto, la cuenta cuenta sólo si tiene
- *      alguna línea que coincide (en cualquier tajada).
- * Sólo agrega y une CTE por unión, nunca CTE con CTE por JOIN.
+ * Se arma cuenta por cuenta (lateral sobre sus líneas, por índice), sin
+ * pasar por `lf`:
+ *  · las líneas vivas (con filtro de producto/categoría, sólo las que
+ *    coinciden) agrupadas por el instante de su ronda (sin ronda, la
+ *    apertura) + una fila de APERTURA en `anchorAt` con lo que no es de
+ *    ninguna línea: el impuesto sumado encima de las líneas libres y
+ *    cualquier diferencia de redondeo. Así la suma de las tajadas de una
+ *    cuenta da exactamente sus montos con eje «pago». La apertura cae en la
+ *    tajada de la primera ronda (es el mismo instante).
+ *  · lo de la cuenta (contarla, comensales, propina, comisión, ticket) sólo
+ *    en la tajada de apertura; con filtro de producto, la cuenta cuenta sólo
+ *    si tiene alguna línea que coincide (en cualquier tajada).
+ *  · quedan las tajadas dentro del período (y del día/hora filtrados).
  */
-function sliceFacts(scope: SalesScope, item: boolean): Prisma.Sql {
-  const acct = columns("fo", ACCOUNT_COLUMNS, { id: "orderId" });
+function sliceFacts(scope: SalesScope, item: boolean, pct: number): Prisma.Sql {
   const zero = Prisma.sql`0::numeric`;
   const residual = item
     ? { gross: zero, discount: zero, tax: zero, net: zero }
@@ -373,46 +413,43 @@ function sliceFacts(scope: SalesScope, item: boolean): Prisma.Sql {
           - CASE WHEN fo."invoiceId" IS NULL THEN fo."curTax" WHEN fo."menuGross" > 0 THEN fo."included" ELSE 0 END`,
         net: Prisma.sql`(CASE WHEN fo."orderRawNet" > 0 THEN 0 ELSE fo."net" END)::numeric`,
       };
-  const groupCols = columns("fu", [...LINE_ACCOUNT_COLUMNS, "tipCents", "commissionCents", "at"]);
-  const s = slotOf(Prisma.sql`w."at"`, scope.cutoffHour);
-  return Prisma.sql`"fu" AS (
-  SELECT ${columns("lf", LINE_ACCOUNT_COLUMNS)}, lf."tipCents", lf."commissionCents", lf."at",
-    lf."gross", lf."disc" AS "discount", lf."tax", lf."net",
-    (CASE WHEN lf."menuItemId" IS NOT NULL THEN lf."qty" ELSE 0 END)::numeric AS "units",
-    0 AS "opening", 1 AS "lines"
-  FROM lf ${item ? Prisma.sql`WHERE lf."match"` : Prisma.empty}
-  UNION ALL
-  SELECT ${acct}, fo."tipCents", fo."commissionCents", fo."anchorAt",
-    ${residual.gross}, ${residual.discount}, ${residual.tax}, ${residual.net}, ${zero},
-    1, 0
+  const menuJoin = scope.dims.categoria
+    ? Prisma.sql`LEFT JOIN "MenuItem" mi ON mi."id" = it."menuItemId" AND mi."restaurantId" = ${scope.restaurantId}`
+    : Prisma.empty;
+  const s = slotOf(Prisma.sql`s."at"`, scope.cutoffHour);
+  return Prisma.sql`"f" AS MATERIALIZED (
+  SELECT ${columns("fo", ACCOUNT_COLUMNS.filter((c) => c !== "diners"))},
+    s."at", ${s.bizDate} AS "bizDate", ${s.hour} AS "hour", ${s.dow} AS "dow",
+    s."gross", s."discount", s."tax", s."net", s."units",
+    ${item ? Prisma.sql`NULL::numeric` : Prisma.sql`(CASE WHEN s."opening" THEN fo."tipCents" ELSE 0 END)::numeric`} AS "tip",
+    ${item ? Prisma.sql`NULL::numeric` : Prisma.sql`(CASE WHEN s."opening" THEN fo."commissionCents" END)::numeric`} AS "commission",
+    CASE WHEN s."opening" THEN fo."diners" ELSE 0 END AS "diners",
+    CASE WHEN s."opening" THEN 1 ELSE 0 END AS "opens",
+    CASE WHEN s."opening" THEN s."acctNet" ELSE 0 END AS "accountNet",
+    CASE WHEN s."opening" THEN s."acctUnits" ELSE 0 END AS "accountUnits"
   FROM fo
-),
-"fg" AS (
-  SELECT ${groupCols},
-    SUM(fu."gross") AS "gross", SUM(fu."discount") AS "discount", SUM(fu."tax") AS "tax",
-    SUM(fu."net") AS "net", SUM(fu."units") AS "units",
-    MAX(fu."opening") AS "opening", SUM(fu."lines") AS "lines"
-  FROM fu
-  GROUP BY ${groupCols}
-),
-"f" AS MATERIALIZED (
-  SELECT ${columns("w", LINE_ACCOUNT_COLUMNS.filter((c) => c !== "diners"), { orderId: "id" })},
-    w."at", ${s.bizDate} AS "bizDate", ${s.hour} AS "hour", ${s.dow} AS "dow",
-    w."gross", w."discount", w."tax", w."net", w."units",
-    ${item ? Prisma.sql`NULL::numeric` : Prisma.sql`(CASE WHEN w."opening" = 1 THEN w."tipCents" ELSE 0 END)::numeric`} AS "tip",
-    ${item ? Prisma.sql`NULL::numeric` : Prisma.sql`(CASE WHEN w."opening" = 1 THEN w."commissionCents" END)::numeric`} AS "commission",
-    CASE WHEN w."opening" = 1 THEN w."diners" ELSE 0 END AS "diners",
-    w."opening" AS "opens",
-    CASE WHEN w."opening" = 1 THEN w."acctNet" ELSE 0 END AS "accountNet",
-    CASE WHEN w."opening" = 1 THEN w."acctUnits" ELSE 0 END AS "accountUnits"
-  FROM (
-    SELECT fg.*,
-      SUM(fg."net") OVER (PARTITION BY fg."orderId") AS "acctNet",
-      SUM(fg."units") OVER (PARTITION BY fg."orderId") AS "acctUnits",
-      SUM(fg."lines") OVER (PARTITION BY fg."orderId") AS "acctLines"
-    FROM fg
-  ) w
-  WHERE ${inSliceOf(scope, Prisma.sql`w."at"`)}${item ? Prisma.sql` AND w."acctLines" > 0` : Prisma.empty}
+  CROSS JOIN LATERAL (
+    SELECT g.*,
+      SUM(g."net") OVER () AS "acctNet", SUM(g."units") OVER () AS "acctUnits", SUM(g."lines") OVER () AS "acctLines"
+    FROM (
+      SELECT x."at", SUM(x."gross") AS "gross", SUM(x."discount") AS "discount", SUM(x."tax") AS "tax",
+        SUM(x."net") AS "net", SUM(x."units") AS "units", bool_or(x."opening") AS "opening", SUM(x."lines") AS "lines"
+      FROM (
+        SELECT COALESCE(r."placedAt", fo."openedAt") AS "at", v."gross", v."disc" AS "discount", v."tax", ${LINE_NET} AS "net",
+          (CASE WHEN it."menuItemId" IS NOT NULL THEN it."qty" ELSE 0 END)::numeric AS "units",
+          false AS "opening", 1 AS "lines"
+        FROM "OrderItem" it
+        LEFT JOIN "Round" r ON r."id" = it."roundId"
+        ${menuJoin}
+        ${lineValues(pct)}
+        WHERE it."orderId" = fo."id" AND ${LIVE_LINE}${item ? Prisma.sql` AND ${lineMatch(scope)}` : Prisma.empty}
+        UNION ALL
+        SELECT fo."anchorAt", ${residual.gross}, ${residual.discount}, ${residual.tax}, ${residual.net}, ${zero}, true, 0
+      ) x
+      GROUP BY x."at"
+    ) g
+  ) s
+  WHERE ${inSliceOf(scope, Prisma.sql`s."at"`)}${item ? Prisma.sql` AND s."acctLines" > 0` : Prisma.empty}
 )`;
 }
 

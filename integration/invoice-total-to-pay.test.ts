@@ -19,6 +19,12 @@
 // del webhook (`processKushkiWebhook`).
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Llave maestra de PRUEBA (cifra las llaves Bre-B del comercio de prueba),
+// como en bre-b.test.ts: en CI la variable no existe.
+vi.hoisted(() => {
+  process.env.MESAPAY_SECRET_KEY ??= "ab".repeat(32);
+});
 import { db } from "../src/lib/db";
 import { encrypt } from "../src/lib/crypto";
 import { formatMoney } from "../src/lib/format";

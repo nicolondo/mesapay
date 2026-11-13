@@ -166,10 +166,14 @@ model Restaurant {
   // anticipación mínima, etc. Shape: ReservationConfig (ver
   // src/lib/reservations.ts). Null = usar defaults del helper.
   reservationConfig         Json?
-  // Plano del salón: grilla (cols/rows) + zonas (jardín, terraza,
-  // interior…) + markers (entrada, baños, barra…). Las posiciones de
-  // las mesas siguen en Table.floorPlanX/Y. Shape: FloorPlan (ver
-  // src/lib/floorPlan.ts). Null = grilla por defecto sin zonas.
+  // Plano del salón. Dos formatos conviven en el mismo blob (ver
+  // src/lib/floorPlan.ts, `resolveFloor`):
+  //   - libre (v2): `{ version: 2, v2: { zones (polígonos), markers } }`
+  //     + las claves viejas con una proyección en celdas. Las mesas van
+  //     en Table.floorX/Y/W/H/Rotation.
+  //   - viejo (v1, celdas): `{ cols, rows, zones[{cells}], markers }`,
+  //     mesas en Table.floorPlanX/Y. Se convierte al vuelo al leer.
+  // Null = sin plano.
   floorPlan                 Json?
   // Qué medios de pago se ofrecen para el DEPÓSITO de reserva. Subconjunto
   // de los métodos online del comercio (tarjeta/PSE/Apple Pay) — efectivo
@@ -1242,14 +1246,25 @@ model Table {
   // al diner al reservar y al imprimir la cuenta. null = sin mínimo.
   // shape: cómo se renderiza en el floor plan. Bar es horizontal.
   // reservable: si la mesa acepta reservas (algunas son walk-in only).
-  // floorPlanX/Y: coords en la grilla del editor visual (Fase 4).
-  // null/null = mesa todavía no posicionada.
+  // floorPlanX/Y: CELDA en la grilla del plano viejo (v1). Se conservan
+  // con su tipo y significado: el editor nuevo escribe ahí una proyección
+  // para que la versión anterior (deploy blue/green, rollback) siga
+  // leyendo algo coherente. null/null = mesa sin ubicar en el plano viejo.
   capacity                Int        @default(4)
   minConsumptionCents     Int?
   shape                   TableShape @default(square)
   reservable              Boolean    @default(true)
   floorPlanX              Int?
   floorPlanY              Int?
+  // Plano LIBRE (v2): centro (floorX, floorY), tamaño (floorW, floorH) y
+  // rotación en grados horarios, en unidades del plano (≈ metros). Solo
+  // valen cuando Restaurant.floorPlan trae `version: 2`; todas null =
+  // mesa sin ubicar. Ver src/lib/floorPlan.ts.
+  floorX                  Float?
+  floorY                  Float?
+  floorW                  Float?
+  floorH                  Float?
+  floorRotation           Float?
   // Depósito para reservar esta mesa. null/0 = sin depósito. Se cobra
   // online al reservar (tarjeta/PSE) y se abona a la cuenta al llegar
   // (no reembolsable si no se presentan). Lo edita el operador en

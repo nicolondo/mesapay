@@ -112,15 +112,15 @@ export default async function OrdersPage({
   // Facturas manuales abiertas o emitidas por cobrar: la fila ofrece
   // "Emitir y enviar" / "Reenviar link" y dice si sigue por cobrar. Pocas
   // por página (sólo las manuales), una lectura cada una.
-  const origin = appOrigin(await headers());
   const sendInfos = new Map<string, ManualInvoiceSendInfo>();
+  const manualRows = list.rows.filter(
+    (o) =>
+      o.table.kind === "manual" &&
+      ((o.status !== "paid" && o.status !== "cancelled") || !!o.payLink?.creditPaymentId),
+  );
+  const origin = manualRows.length > 0 ? appOrigin(await headers()) : "";
   await Promise.all(
-    list.rows
-      .filter(
-        (o) =>
-          o.table.kind === "manual" &&
-          ((o.status !== "paid" && o.status !== "cancelled") || !!o.payLink?.creditPaymentId),
-      )
+    manualRows
       .map(async (o) => {
         const info = await loadManualInvoiceSendInfo({ restaurantId, orderId: o.id, origin });
         if (info) sendInfos.set(o.id, info);

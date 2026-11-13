@@ -63,7 +63,8 @@ export function NewTableForm({
     setBusy(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? t("newTableCreateFailed"));
+      // La API responde con códigos; el texto lo pone el catálogo.
+      setErr(j.error === "number_taken" ? t("numberTaken") : t("newTableCreateFailed"));
       return;
     }
     setNumber(String(n + 1));

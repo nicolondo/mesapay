@@ -808,7 +808,12 @@ export function TableDetailSheet({
       {open && (
         <div
           className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-          onClick={() => setOpen(false)}
+          // La ficha de una mesa es de consulta y cierra al tocar afuera. No
+          // cierra si es una factura manual (se está armando) ni si hay algo
+          // digitado en "identificar cliente": un clic perdido lo borraba.
+          onClick={() => {
+            if (!manual && identifyQuery.trim() === "") setOpen(false);
+          }}
         >
           <div
             className="w-full md:max-w-lg bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
@@ -1998,8 +2003,8 @@ function FreeLineSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
@@ -2230,8 +2235,8 @@ function CancelItemSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: un clic perdido borraba el motivo digitado.
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"

@@ -13,6 +13,8 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
+import { chargeFailureLogFields, classifyKushkiChargeError } from "@/lib/payments/kushki/chargeError";
+import { settleRejectedCharge } from "@/lib/payments/rejectedCharge";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
@@ -147,8 +149,29 @@ async function POSTHandler(
       ...(contactDetails ? { contactDetails } : {}),
     });
   } catch (err) {
+    // El proveedor LANZÓ. Un rechazo de Kushki llega así (HTTP 4xx con
+    // `{ code, message }`, p. ej. K322 del antifraude) y es definitivo: se
+    // liquida por el mismo camino que un `declined` normal, para que el
+    // comensal vea el rechazo y la mesa quede libre. Red, timeout, 5xx,
+    // «token ya usado» y demás casos donde el cargo PUDO haberse procesado
+    // siguen inciertos. Tabla de decisión: lib/payments/kushki/chargeError.ts.
+    const failure = classifyKushkiChargeError(err);
+    if (failure.outcome === "declined") {
+      console.error("charge_declined", { paymentId: pendingPayment.id, ...chargeFailureLogFields(failure) });
+      const rejected = await settleRejectedCharge({
+        restaurantId: tenant.id, paymentId: pendingPayment.id, amountCents: parsed.data.amountCents,
+        currency, failure, source: "charge",
+      });
+      if (rejected.status === "error") {
+        await markPaymentUncertain(pendingPayment.id);
+        return NextResponse.json({ paymentId: pendingPayment.id, pending: true }, { status: 202 });
+      }
+      // Misma respuesta que el rechazo normal, más el motivo (un código que
+      // la pantalla traduce; nunca texto de Kushki).
+      return NextResponse.json({ paymentId: pendingPayment.id, approved: false, error: "payment_declined", reason: failure.reason });
+    }
     await markPaymentUncertain(pendingPayment.id);
-    console.error("charge_uncertain", { paymentId: pendingPayment.id, error: err instanceof Error ? err.name : "provider_error" });
+    console.error("charge_uncertain", { paymentId: pendingPayment.id, ...chargeFailureLogFields(failure) });
     return NextResponse.json({ error: "payment_pending", paymentId: pendingPayment.id, pending: true }, { status: 202 });
   }
 

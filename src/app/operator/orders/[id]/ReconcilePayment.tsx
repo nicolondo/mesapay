@@ -8,15 +8,18 @@ export function ReconcilePayment({
   paymentId,
   refund,
   pending,
+  defaultOpen = false,
 }: {
   paymentId: string;
   refund: boolean;
   pending: boolean;
+  /** Llega desplegado: quien viene del aviso «Conciliar pago» ya decidió abrirlo. */
+  defaultOpen?: boolean;
 }) {
   const t = useTranslations("paymentReconciliation");
   const apiError = useApiError();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const options = refund
     ? ["refunded", "not_refunded"]
     : pending

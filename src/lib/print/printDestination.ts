@@ -49,7 +49,17 @@
  * Archivo sin React ni DOM: lo usan los botones y los tests.
  */
 
-export type PrintDestination = "caja" | "device";
+/**
+ * Los destinos de «Imprimir en»:
+ *   - `caja`: la impresora de caja, por el agente;
+ *   - `terminal` («Datáfono»): la impresora integrada del datáfono Kushki
+ *     del comercio, por su Print API cloud (`terminalPrint.ts`). Para todo
+ *     el personal, sólo si el comercio tiene datáfonos Kushki;
+ *   - `device` («Este dispositivo»): este navegador. Para el usuario
+ *     Datáfono es su propio datáfono, por Kushki (#622): a él no se le
+ *     muestra «Datáfono», que sería lo mismo (`printDestinationsFor`).
+ */
+export type PrintDestination = "caja" | "terminal" | "device";
 
 /** Ancho del papel del equipo, en mm enteros (`DEVICE_PAPER_MIN_MM`–`MAX`). */
 export type DevicePaperMm = number;
@@ -89,6 +99,19 @@ export function defaultPrintDestination(role: string | null | undefined): PrintD
 }
 
 /**
+ * Qué destinos se ofrecen, en orden: «Impresora de caja · Datáfono · Este
+ * dispositivo». «Datáfono» sólo con datáfonos Kushki y nunca al usuario
+ * Datáfono (su «Este dispositivo» ya imprime en el datáfono).
+ */
+export function printDestinationsFor(
+  role: string | null | undefined,
+  terminalAvailable: boolean,
+): PrintDestination[] {
+  if (role === "terminal") return ["caja", "device"];
+  return terminalAvailable ? ["caja", "terminal", "device"] : ["caja", "device"];
+}
+
+/**
  * Clave del almacenamiento local: por comercio. Sin comercio en la sesión
  * (un admin de plataforma o de grupo entrando a uno), una clave general.
  */
@@ -98,7 +121,7 @@ export function printPreferenceStorageKey(scope: string | null | undefined): str
 }
 
 export function isPrintDestination(v: unknown): v is PrintDestination {
-  return v === "caja" || v === "device";
+  return v === "caja" || v === "terminal" || v === "device";
 }
 
 export function isDevicePaperMm(v: unknown): v is DevicePaperMm {
@@ -185,9 +208,16 @@ export function serializePrintPreference(pref: PrintPreference): string {
 export function resolvePrintPreference(
   stored: StoredPrintPreference | null | undefined,
   role: string | null | undefined,
+  /** ¿El comercio tiene datáfonos Kushki? `undefined` = todavía no se sabe. */
+  terminalAvailable?: boolean,
 ): PrintPreference & { remembered: boolean } {
+  let destination = stored?.destination ?? defaultPrintDestination(role);
+  // Para el usuario Datáfono, «Datáfono» es su «Este dispositivo».
+  if (role === "terminal" && destination === "terminal") destination = "device";
+  // Sin datáfonos Kushki no se puede mandar al datáfono: la caja.
+  if (destination === "terminal" && terminalAvailable === false) destination = "caja";
   return {
-    destination: stored?.destination ?? defaultPrintDestination(role),
+    destination,
     paperMm: stored?.paperMm ?? defaultDevicePaperMm(role),
     remembered: !!stored?.destination,
   };

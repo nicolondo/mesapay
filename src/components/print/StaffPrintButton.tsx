@@ -191,7 +191,10 @@ export function useStaffPrint(
     if (timer.current) clearTimeout(timer.current);
     setBusy(true);
     setBrowser(null);
-    setNotice({ tone: "ok", text: t("terminalSending"), destination: "device" });
+    // El destino con el que se reintenta: «Datáfono», o el «Este
+    // dispositivo» del usuario Datáfono.
+    const dest: PrintDestination = pref.role === "terminal" ? "device" : "terminal";
+    setNotice({ tone: "ok", text: t("terminalSending"), destination: dest });
     const scope = pref.scope;
     try {
       const result = await printOnTerminal(doc, {
@@ -202,21 +205,21 @@ export function useStaffPrint(
         setNotice({
           tone: "ok",
           text: t("terminalSent", { device: result.deviceLabel }),
-          destination: "device",
+          destination: dest,
         });
       } else if (result.via === "choose_device") {
         setNotice({
           tone: "warn",
           text: t("terminalChoose"),
-          destination: "device",
+          destination: dest,
           chooseDevices: result.devices,
         });
       } else {
         const m = terminalPrintMessage(result.code, result.reason);
-        setNotice({ tone: "error", text: t(m.key, m.values), destination: "device" });
+        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
       }
     } catch {
-      setNotice({ tone: "error", text: t("terminalFailed"), destination: "device" });
+      setNotice({ tone: "error", text: t("terminalFailed"), destination: dest });
     } finally {
       setBusy(false);
     }
@@ -224,7 +227,9 @@ export function useStaffPrint(
 
   async function runAt(destination: PrintDestination) {
     if (busy || !pref.ready) return;
-    if (destination === "device" && pref.role === "terminal") {
+    // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
+    // mismo): la impresora del datáfono por Kushki.
+    if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
       await runOnTerminal();
       return;
     }
@@ -399,7 +404,7 @@ export function StaffPrintNotice({
             disabled={print.busy}
             onClick={() => void print.switchTo(otherDestination(notice.destination!))}
           >
-            {notice.destination === "caja" ? t("useDevice") : t("useCaja")}
+            {otherDestination(notice.destination) === "caja" ? t("useCaja") : t("useDevice")}
           </button>
         </>
       )}

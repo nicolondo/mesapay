@@ -2291,7 +2291,8 @@
     "terminalNoDevices": "Não há maquininhas ativas com número de série: adicione em Configurações → Maquininhas.",
     "terminalBusinessCode": "Falta o Business-Code da Kushki do estabelecimento para imprimir na maquininha.",
     "terminalKushkiFailed": "A Kushki não aceitou a impressão ({reason}).",
-    "terminalClosed": "Não há o que imprimir: a conta já foi fechada ou não tem consumo."
+    "terminalClosed": "Não há o que imprimir: a conta já foi fechada ou não tem consumo.",
+    "destinationTerminal": "Maquininha"
   },
   "opCartera": {
     "hubCategory": "Comerciais",

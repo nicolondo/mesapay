@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import es from "../../../../messages/es.json";
 import en from "../../../../messages/en.json";
 import pt from "../../../../messages/pt.json";
-import { addIngredientBarcode, barcodeErrorKey, parseBarcodeResponse, removeIngredientBarcode } from "./barcodeApi";
+import { addIngredientBarcode, barcodeErrorKey, barcodeTakenError, parseBarcodeResponse, removeIngredientBarcode } from "./barcodeApi";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -53,5 +53,23 @@ describe("respuesta de la API", () => {
     expect(await removeIngredientBarcode("a", "77")).toEqual({ ok: false, errorKey: "barcodeRemoveMissing" });
     expect(fetchMock).toHaveBeenCalledWith("/api/operator/ingredients/a/barcode", expect.objectContaining({ method: "DELETE" }));
     expect(await removeIngredientBarcode("a", "77")).toEqual({ ok: false, errorKey: "barcodeRemoveFailed" });
+  });
+});
+
+describe("barcodeTakenError: el aviso dice de quién es el código", () => {
+  it("con el dueño activo nombra el producto", () => {
+    expect(barcodeTakenError({ error: "barcode_taken", owner: { id: "i1", name: "Vino blanco", active: true } }))
+      .toEqual({ errorKey: "barcodeAddTakenBy", errorValues: { name: "Vino blanco" } });
+  });
+
+  it("con el dueño archivado lo dice", () => {
+    expect(barcodeTakenError({ error: "barcode_taken", owner: { id: "i1", name: "Vino blanco", active: false } }))
+      .toEqual({ errorKey: "barcodeAddTakenByArchived", errorValues: { name: "Vino blanco" } });
+  });
+
+  it("sin dueño (respuesta vieja o el código se liberó entre tanto) usa el aviso genérico", () => {
+    expect(barcodeTakenError({ error: "barcode_taken" })).toEqual({ errorKey: "barcodeAddTaken" });
+    expect(barcodeTakenError({ error: "barcode_taken", owner: null })).toEqual({ errorKey: "barcodeAddTaken" });
+    expect(barcodeTakenError(null)).toEqual({ errorKey: "barcodeAddTaken" });
   });
 });

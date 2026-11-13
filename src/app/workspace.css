@@ -1522,13 +1522,21 @@ a.mp-viz-heat-cell:focus-visible {
   margin-top: 12px;
   /* Siempre en una línea: «$ 209.393.685» no se parte. El tamaño baja con el
      ancho de la tarjeta (12cqi ≈ 13 caracteres de cifra en el ancho útil) y
-     nunca pasa de 26 px ni baja de 12 px. */
-  font-size: clamp(12px, 12cqi, 26px);
+     nunca pasa de 26 px ni baja de 12 px. Antes de Chrome 105 (datáfonos)
+     no hay cqi: queda un tamaño fijo que cabe en la tarjeta más angosta. El
+     cqi va bajo @supports porque el minificador junta dos `font-size`
+     seguidos y se quedaría sólo con el último. */
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
   white-space: nowrap;
+}
+@supports (font-size: 1cqi) {
+  .mp-sales-kpi-value {
+    font-size: clamp(12px, 12cqi, 26px);
+  }
 }
 .mp-sales-kpi-delta {
   display: block;

@@ -13,9 +13,17 @@ import type { StaffPrintDoc } from "./staffPrint";
 export type TerminalPrintDevice = { id: string; label: string };
 
 export type TerminalPrintClientResult =
-  | { via: "terminal"; deviceId: string; deviceLabel: string; simulated: boolean }
+  | {
+      via: "terminal";
+      /** `printed`: el datáfono la imprimió. `queued`: todavía no (reintentar con `printJobId`). */
+      state: "printed" | "queued";
+      printJobId: string;
+      deviceId: string;
+      deviceLabel: string;
+      simulated: boolean;
+    }
   | { via: "choose_device"; devices: TerminalPrintDevice[] }
-  | { via: "error"; code: string | null; reason?: string };
+  | { via: "error"; code: string | null; reason?: string; errorCode?: string; printJobId?: string };
 
 type FetchLike = (
   url: string,
@@ -23,16 +31,21 @@ type FetchLike = (
 ) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
 
 /** El cuerpo que espera la ruta, según el documento. */
-export function terminalPrintBody(doc: StaffPrintDoc, deviceId?: string | null): Record<string, string> {
+export function terminalPrintBody(
+  doc: StaffPrintDoc,
+  deviceId?: string | null,
+  printJobId?: string | null,
+): Record<string, string> {
   const base: Record<string, string> =
     doc.kind === "shift" ? { kind: "shift", shiftId: doc.shiftId } : { kind: doc.kind, orderId: doc.orderId };
   if (deviceId) base.deviceId = deviceId;
+  if (printJobId) base.printJobId = printJobId;
   return base;
 }
 
 export async function printOnTerminal(
   doc: StaffPrintDoc,
-  opts: { deviceId?: string | null; fetch?: FetchLike } = {},
+  opts: { deviceId?: string | null; printJobId?: string | null; fetch?: FetchLike } = {},
 ): Promise<TerminalPrintClientResult> {
   const doFetch: FetchLike = opts.fetch ?? ((url, init) => fetch(url, init));
   let ok = false;
@@ -41,7 +54,7 @@ export async function printOnTerminal(
     const res = await doFetch("/api/operator/print/terminal", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(terminalPrintBody(doc, opts.deviceId)),
+      body: JSON.stringify(terminalPrintBody(doc, opts.deviceId, opts.printJobId)),
     });
     ok = res.ok;
     body = ((await res.json().catch(() => null)) as Record<string, unknown> | null) ?? null;
@@ -51,6 +64,8 @@ export async function printOnTerminal(
   if (ok && body && body.ok === true && typeof body.deviceId === "string") {
     return {
       via: "terminal",
+      state: body.state === "queued" ? "queued" : "printed",
+      printJobId: typeof body.printJobId === "string" ? body.printJobId : "",
       deviceId: body.deviceId,
       deviceLabel: typeof body.deviceLabel === "string" ? body.deviceLabel : "",
       simulated: body.simulated === true,
@@ -67,6 +82,8 @@ export async function printOnTerminal(
     via: "error",
     code: typeof body?.error === "string" ? body.error : null,
     ...(typeof body?.reason === "string" && { reason: body.reason }),
+    ...(typeof body?.errorCode === "string" && { errorCode: body.errorCode }),
+    ...(typeof body?.printJobId === "string" && { printJobId: body.printJobId }),
   };
 }
 
@@ -74,7 +91,23 @@ export async function printOnTerminal(
 export function terminalPrintMessage(
   code: string | null,
   reason?: string,
-): { key: "terminalNoDevices" | "terminalBusinessCode" | "terminalKushkiFailed" | "terminalClosed" | "terminalFailed"; values?: { reason: string } } {
+  errorCode?: string,
+): {
+  key:
+    | "terminalNoDevices"
+    | "terminalBusinessCode"
+    | "terminalKushkiFailed"
+    | "terminalClosed"
+    | "terminalFailed"
+    | "terminalOutOfPaper"
+    | "terminalJobFailed";
+  values?: { reason: string };
+} {
+  // El datáfono la intentó y falló: lo que dijo el equipo.
+  if (errorCode) {
+    if (/PAPER/i.test(errorCode)) return { key: "terminalOutOfPaper" };
+    return { key: "terminalJobFailed", values: { reason: errorCode } };
+  }
   switch (code) {
     case "no_devices":
       return { key: "terminalNoDevices" };

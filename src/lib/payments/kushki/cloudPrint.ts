@@ -31,17 +31,26 @@ import {
 } from "./cloudTerminal";
 
 /**
- * Kushki ONE — Print API (Cloud). Manda un trabajo de impresión a la
- * impresora térmica del datáfono SmartPOS vía el relay cloud:
+ * Kushki ONE — Print API (Cloud), contrato verificado el 2026-11-13
+ * (api-docs.kushkipagos.com/colombia/kushki-one/cloud-services/print, Beta):
  *
- *   POST {cloudt|uat-cloudt}/terminal/v1/{serial}/sync/print/job
- *   body { printJobId, commands[], externalReference, skipIfBusy }
- *   → 202 { printJobId, status: "PENDING" } (la impresión es asíncrona)
+ *   CREAR   POST {cloudt|uat-cloudt}/terminal/v1/{serial}/sync/print
+ *           { printJobId, commands[], externalReference? }
+ *           → 202 { printJobId, status: "PENDING" }: ENCOLADO, no impreso.
+ *   ESTADO  POST {cloudt|uat-cloudt}/terminal/v1/{serial}/sync/print_job
+ *           { print_job_id }  (snake_case, en el cuerpo)
+ *           → 200 { printJobId, status: PENDING | IN_PROGRESS | COMPLETED
+ *             | FAILED, errorCode? (OUT_OF_PAPER…), errorMessage? }
  *
- * La doc dice "same scheme as the Payment API", así que reusamos el MISMO
- * transporte cifrado del cobro (password businessCode+serial, Basic SHA512,
- * body AES-256-CBC en { data }). Si el relay esperara body plano, el error
- * queda logueado con el detalle para ajustar rápido (API en Beta).
+ * Por eso un 202 NO es "impreso": `waitForCloudPrintJob` sondea el estado
+ * cada ~2,5 s hasta ~30 s y sólo COMPLETED es impreso. Reintentar con el
+ * MISMO `printJobId` no imprime doble (el terminal deduplica).
+ *
+ * Mismo transporte cifrado del cobro (password businessCode+serial, Basic
+ * SHA512, timestamp, cuerpo AES-256-CBC en { data }). Comandos: `type` en
+ * minúscula, enums (align, dividerType, errorLevel) en MAYÚSCULA; `text`
+ * con "\n" y tamaños 24 (normal) / 32 (subtítulo) / 48 (título); `feed`
+ * antes de `cut`.
  */
 
 export type PrintCommand =
@@ -87,7 +96,7 @@ export function buildInvoiceCommands(
   if (snapshot.legalPhone) c.push(center(`Tel ${snapshot.legalPhone}`));
   c.push({ type: "divider", dividerType: "SOLID", offset: 10 });
 
-  c.push(center(`FACTURA ${formatInvoiceNumber(snapshot, invoiceNumber)}`, 28, true));
+  c.push(center(`FACTURA ${formatInvoiceNumber(snapshot, invoiceNumber)}`, 32, true));
   const paidAt = new Date(snapshot.paidAtIso);
   c.push(
     center(
@@ -150,8 +159,8 @@ export function buildInvoiceCommands(
   c.push(totalRow(t("total"), money(snapshot.totalCents)));
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
-  c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 20, true));
-  c.push({ type: "text", text: wrap(t("tipNoticeBody"), 32).join("\n") + "\n", align: "LEFT", size: 20 });
+  c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 24, true));
+  c.push({ type: "text", text: wrap(t("tipNoticeBody"), 32).join("\n") + "\n", align: "LEFT", size: 24 });
 
   if (snapshot.dianResolution) {
     c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
@@ -174,44 +183,42 @@ export type PrintJobResult = {
   raw?: unknown;
 };
 
-/** Encola la impresión en el datáfono. 202 + PENDING = encolado OK. */
-export async function printOnCloudTerminal(args: {
+type TerminalTarget = {
   serialNumber: string;
-  commands: PrintCommand[];
   businessCode?: string | null;
   mode?: KushkiMode;
-  externalReference?: string;
-  printJobId?: string;
-}): Promise<PrintJobResult> {
-  const businessCode = resolveBusinessCode(args.businessCode);
-  const printJobId = args.printJobId ?? randomUUID();
-  const payload: Record<string, unknown> = {
-    printJobId,
-    commands: args.commands,
-    skipIfBusy: false,
-    ...(args.externalReference
-      ? { externalReference: args.externalReference }
-      : {}),
-  };
+};
 
+type CloudResponse = {
+  /** HTTP del relay; null si no hubo respuesta (red o timeout). */
+  httpStatus: number | null;
+  /** El cuerpo, descifrado si venía cifrado. */
+  body: Record<string, unknown>;
+  /** "timeout" | "network_error" sin respuesta. */
+  error?: string;
+  /** Los primeros caracteres del cuerpo crudo, para el log. */
+  rawText: string;
+};
+
+/**
+ * Un POST cifrado al relay del Cloud Terminal (el mismo esquema del cobro).
+ * No lanza: sin respuesta devuelve `httpStatus: null` y el motivo.
+ */
+async function cloudTerminalPost(
+  target: TerminalTarget,
+  path: "sync/print" | "sync/print_job",
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<CloudResponse> {
+  const businessCode = resolveBusinessCode(target.businessCode);
   const ts = Math.floor(Date.now() / 1000);
-  const password = tokenPassword(businessCode + args.serialNumber, ts);
+  const password = tokenPassword(businessCode + target.serialNumber, ts);
   const authHash = buildAuthHash(payload, ts, password);
   const encryptedData = encryptPayload(JSON.stringify(payload), ts, password);
-  const url =
-    terminalBaseUrl(args.mode) +
-    `/terminal/v1/${encodeURIComponent(args.serialNumber)}/sync/print/job`;
-
-  console.log("[kushki/cloud-print] job", {
-    url,
-    serial: args.serialNumber,
-    printJobId,
-    commands: args.commands.length,
-    ts,
-  });
+  const url = terminalBaseUrl(target.mode) + `/terminal/v1/${encodeURIComponent(target.serialNumber)}/${path}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -228,12 +235,8 @@ export async function printOnCloudTerminal(args: {
   } catch (err) {
     clearTimeout(timer);
     const aborted = err instanceof Error && err.name === "AbortError";
-    console.error("[kushki/cloud-print] network", err);
-    return {
-      ok: false,
-      printJobId,
-      message: aborted ? "timeout" : "network_error",
-    };
+    console.error("[kushki/cloud-print] network", { path, serial: target.serialNumber, aborted });
+    return { httpStatus: null, body: {}, error: aborted ? "timeout" : "network_error", rawText: "" };
   }
   clearTimeout(timer);
 
@@ -245,10 +248,7 @@ export async function printOnCloudTerminal(args: {
     json = null;
   }
   // La respuesta puede venir cifrada como en el cobro.
-  const dataField =
-    json && typeof json === "object"
-      ? (json as Record<string, unknown>).data
-      : undefined;
+  const dataField = json && typeof json === "object" ? (json as Record<string, unknown>).data : undefined;
   if (typeof dataField === "string" && /^[0-9a-f]+:[0-9a-f]+$/i.test(dataField)) {
     try {
       json = JSON.parse(decryptData(dataField, ts, password));
@@ -256,21 +256,123 @@ export async function printOnCloudTerminal(args: {
       /* respuesta plana */
     }
   }
-  const obj =
-    json && typeof json === "object" ? (json as Record<string, unknown>) : {};
-  const ok = res.status === 202 || res.status === 200;
-  if (!ok) {
-    console.error("[kushki/cloud-print] error", {
-      httpStatus: res.status,
-      body: text.slice(0, 400),
-    });
-  }
+  const body = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  return { httpStatus: res.status, body, rawText: text.slice(0, 400) };
+}
+
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+/**
+ * Encola la impresión en el datáfono. 202 + PENDING = ENCOLADO (no
+ * impreso: ver `waitForCloudPrintJob`). La respuesta se registra siempre,
+ * también la 2xx, para diagnosticar (sin datos del documento).
+ */
+export async function printOnCloudTerminal(args: TerminalTarget & {
+  commands: PrintCommand[];
+  externalReference?: string;
+  printJobId?: string;
+}): Promise<PrintJobResult> {
+  const printJobId = args.printJobId ?? randomUUID();
+  const payload: Record<string, unknown> = {
+    printJobId,
+    commands: args.commands,
+    ...(args.externalReference ? { externalReference: args.externalReference } : {}),
+  };
+  const r = await cloudTerminalPost(args, "sync/print", payload, 20_000);
+  const ok = r.httpStatus === 202 || r.httpStatus === 200;
+  const logged = {
+    serial: args.serialNumber,
+    printJobId,
+    commands: args.commands.length,
+    httpStatus: r.httpStatus,
+    status: str(r.body.status),
+    message: str(r.body.message),
+    ...(r.error && { error: r.error }),
+  };
+  if (ok) console.log("[kushki/cloud-print] encolada", logged);
+  else console.error("[kushki/cloud-print] rechazada", { ...logged, body: r.rawText });
   return {
     ok,
     printJobId,
-    status: typeof obj.status === "string" ? obj.status : undefined,
-    message: typeof obj.message === "string" ? obj.message : undefined,
-    httpStatus: res.status,
-    raw: json ?? text,
+    status: str(r.body.status),
+    message: str(r.body.message) ?? r.error,
+    httpStatus: r.httpStatus ?? undefined,
+    raw: r.body,
   };
+}
+
+export type CloudPrintJobStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+
+export type CloudPrintJobState = {
+  ok: boolean;
+  httpStatus?: number;
+  status?: CloudPrintJobStatus;
+  errorCode?: string;
+  errorMessage?: string;
+  error?: string;
+};
+
+/** Estado de un trabajo de impresión (`/sync/print_job`). No lanza. */
+export async function getCloudPrintJobStatus(
+  args: TerminalTarget & { printJobId: string },
+): Promise<CloudPrintJobState> {
+  const r = await cloudTerminalPost(args, "sync/print_job", { print_job_id: args.printJobId }, 10_000);
+  const status = str(r.body.status)?.toUpperCase();
+  const known = status === "PENDING" || status === "IN_PROGRESS" || status === "COMPLETED" || status === "FAILED";
+  const state: CloudPrintJobState = {
+    ok: r.httpStatus === 200 && known,
+    httpStatus: r.httpStatus ?? undefined,
+    ...(known && { status: status as CloudPrintJobStatus }),
+    ...(str(r.body.errorCode) && { errorCode: str(r.body.errorCode) }),
+    ...(str(r.body.errorMessage) && { errorMessage: str(r.body.errorMessage)!.slice(0, 200) }),
+    ...(r.error && { error: r.error }),
+  };
+  console.log("[kushki/cloud-print] estado", { serial: args.serialNumber, printJobId: args.printJobId, ...state });
+  return state;
+}
+
+export type CloudPrintOutcome =
+  /** El datáfono la imprimió. */
+  | { state: "completed" }
+  /** El datáfono la intentó y falló (sin papel…). */
+  | { state: "failed"; errorCode?: string; errorMessage?: string }
+  /** Sigue encolada (o no se supo) al vencer el tiempo: reintentar con el mismo id. */
+  | { state: "pending"; lastStatus?: CloudPrintJobStatus };
+
+/**
+ * Sondea el estado cada `intervalMs` hasta COMPLETED o FAILED, o hasta
+ * `timeoutMs`. Un error del sondeo (red, 5xx) no corta: se vuelve a
+ * preguntar hasta el tiempo.
+ */
+export async function waitForCloudPrintJob(
+  args: TerminalTarget & { printJobId: string },
+  opts: {
+    intervalMs?: number;
+    timeoutMs?: number;
+    getStatus?: (a: TerminalTarget & { printJobId: string }) => Promise<CloudPrintJobState>;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+  } = {},
+): Promise<CloudPrintOutcome> {
+  const intervalMs = opts.intervalMs ?? 2_500;
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  const getStatus = opts.getStatus ?? getCloudPrintJobStatus;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const now = opts.now ?? (() => Date.now());
+  const deadline = now() + timeoutMs;
+  let lastStatus: CloudPrintJobStatus | undefined;
+  for (;;) {
+    await sleep(intervalMs);
+    const st = await getStatus(args);
+    if (st.status) lastStatus = st.status;
+    if (st.status === "COMPLETED") return { state: "completed" };
+    if (st.status === "FAILED") {
+      return {
+        state: "failed",
+        ...(st.errorCode && { errorCode: st.errorCode }),
+        ...(st.errorMessage && { errorMessage: st.errorMessage }),
+      };
+    }
+    if (now() >= deadline) return { state: "pending", ...(lastStatus && { lastStatus }) };
+  }
 }

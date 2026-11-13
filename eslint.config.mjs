@@ -116,6 +116,8 @@ const MIGRATED = [
   "src/app/factura/\\[id\\]/PrintButton.tsx",
   "src/app/operator/layout.tsx",
   "src/app/operator/OperatorMobileMenu.tsx",
+  // Aviso del tope de un cargo o servicio: nació trilingüe.
+  "src/app/operator/tables/FreeLineLimitNotice.tsx",
   "src/app/operator/OperatorCockpit.tsx",
   "src/app/operator/GroupSwitcher.tsx",
   "src/app/operator/BillRequestAlert.tsx",

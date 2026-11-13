@@ -77,7 +77,16 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Iniciar conteo definitivo", exact: true }).click();
       await expect(page.getByLabel("Conteo de Botellas", { exact: true })).toHaveValue("");
       await expect(page.getByLabel("Conteo de Vasos", { exact: true })).toHaveValue("");
-      await quantities(page, "9", "0", "3");
+      // Solo se recuenta lo que tuvo diferencia: Cucharas cuadró (3 = 3) y no se
+      // movió, así que queda confirmada con su cantidad, plegada al final.
+      await expect(page.getByRole("heading", { name: "Por recontar 2", exact: true })).toBeVisible();
+      const confirmedGroup = page.getByRole("button", { name: /^Confirmados del preliminar 1/ });
+      await expect(confirmedGroup).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByLabel("Conteo de Cucharas", { exact: true })).toHaveCount(0);
+      await confirmedGroup.click();
+      await expect(page.getByLabel("Conteo de Cucharas", { exact: true })).toHaveValue("3");
+      await page.getByLabel("Conteo de Botellas", { exact: true }).fill("9");
+      await page.getByLabel("Conteo de Vasos", { exact: true }).fill("0");
       await page.getByRole("button", { name: "Revisar ajuste definitivo", exact: true }).click();
       await expect(page.getByRole("button", { name: "Confirmar y ajustar inventario", exact: true })).toBeVisible();
       expect(await balances()).toEqual([10000, 5000, 3000]);

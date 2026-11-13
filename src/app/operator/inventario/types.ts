@@ -63,7 +63,11 @@ export type CountItemRow = {
   };
 };
 
-export type CountDetail = Omit<CountSummary, "_count"> & { items: CountItemRow[] };
+export type CountDetail = Omit<CountSummary, "_count"> & {
+  items: CountItemRow[];
+  /** Snapshot del conteo definitivo; trae el plan de qué recontar (recountPlan.ts). */
+  recountSnapshot?: unknown;
+};
 
 /** Etiqueta (clave i18n) de la etapa/estado de una sesión de conteo. */
 export function countStageKey(c: Pick<CountSummary, "status" | "preliminaryAt" | "recountStartedAt">): string {

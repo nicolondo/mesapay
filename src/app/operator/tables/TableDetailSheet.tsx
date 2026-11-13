@@ -27,20 +27,22 @@ import {
   cancellationRequiresAdmin,
   hasPreparationStarted,
 } from "@/lib/orders/cancellationPolicy";
-import {
-  BrowserPrintStatus,
-  browserPrintStateFrom,
-  type BrowserPrintState,
-} from "@/components/BrowserPrintStatus";
-import { printAsStaff } from "@/lib/print/staffPrint";
+import { StaffPrintNotice, useStaffPrint } from "@/components/print/StaffPrintButton";
+import { PrintDestinationPicker } from "@/components/print/PrintDestinationPicker";
 import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
   salesTaxRates,
   MAX_FREE_LINE_QTY,
-  MAX_FREE_LINE_TOTAL_CENTS,
   type RestaurantTax,
 } from "@/lib/salesTax";
+import {
+  maxFreeLineCents,
+  maxFreeLineDisplayCents,
+  orderRoomFromLines,
+  type OrderRoomInput,
+} from "@/lib/freeLineLimit";
+import { FreeLineLimitNotice } from "./FreeLineLimitNotice";
 
 /**
  * Impuesto de una línea libre tal como lo elige quien la carga:
@@ -362,17 +364,6 @@ export function TableDetailSheet({
   // busy mientras vuela el POST, asked cuando ya avisamos a caja.
   const [billBusy, setBillBusy] = useState(false);
   const [billAsked, setBillAsked] = useState(false);
-  // "Imprimir precuenta": busy mientras vuela el POST; `prebillNote` es lo
-  // que se le dice al mesero después ("enviada a Caja", "sin impresora…");
-  // `prebillBrowser` es cómo va el respaldo "imprimir desde el navegador"
-  // (preparando, enviada, pestaña de emergencia, error).
-  const [prebillBusy, setPrebillBusy] = useState(false);
-  const [prebillNote, setPrebillNote] = useState<string | null>(null);
-  const [prebillBrowser, setPrebillBrowser] =
-    useState<BrowserPrintState | null>(null);
-  // Se cayó al navegador porque el local NO tiene impresora de facturas:
-  // el aviso dice cómo imprimir por el agente (ver BrowserPrintStatus).
-  const [prebillNoPrinter, setPrebillNoPrinter] = useState(false);
   const router = useRouter();
   const [, startTx] = useTransition();
   // Cuenta facturada y sin cobrar: no se agrega, quita ni descuenta nada.
@@ -402,65 +393,27 @@ export function TableDetailSheet({
     : `/operator/orders/${orderId}/precuenta`;
 
   /**
-   * Manda la precuenta a la impresora de facturas del local (la elegida en
-   * Configuración, por el agente, como las comandas). Si el local no tiene
-   * (o su agente no responde), la imprime desde el navegador sin salir de
-   * acá: la vista imprimible se carga en un iframe oculto, en una sola
-   * página del alto de la precuenta, y el diálogo sale sobre esta misma
-   * pantalla. Toda la lógica es la de `printAsStaff` (staffPrint.ts).
+   * "Imprimir precuenta", en el destino elegido en este equipo («Imprimir
+   * en: Impresora de caja · Este dispositivo»): por el agente, como las
+   * comandas, o desde este navegador al papel del equipo. Sin impresora de
+   * facturas (o con el agente caído) se imprime desde el navegador sin
+   * salir de acá. Toda la lógica es la de `printAsStaff` (staffPrint.ts).
    */
-  async function printPrebill() {
-    if (prebillBusy) return;
-    setPrebillBusy(true);
-    setPrebillNote(null);
-    setPrebillBrowser(null);
-    setPrebillNoPrinter(false);
-    try {
-      const result = await printAsStaff(
-        { kind: "prebill", orderId, href: prebillHref },
-        {
-          // Si el navegador no deja imprimir embebido se cae a lo de antes:
-          // en la PWA del mesero no hay pestañas, así que se navega in-app
-          // a la vista imprimible (scope /mesero/); en el panel, la pestaña.
-          openTab: isMeseroView
-            ? () => {
-                router.push(prebillHref);
-                return true;
-              }
-            : undefined,
-          onBrowserFallback: (reason) => {
-            setPrebillNote(
-              reason === "agent_offline"
-                ? tr("prebillPrinterOffline")
-                : tr("prebillNoPrinter"),
-            );
-            setPrebillNoPrinter(reason === "no_printer");
-            setPrebillBrowser({ step: "preparing" });
-          },
-        },
-      );
-      if (result.via === "agent") {
-        setPrebillNote(tr("prebillSent", { printer: result.printerName }));
-        return;
-      }
-      if (result.via === "error") {
-        setPrebillBrowser(null);
-        setPrebillNote(tr("prebillFailed"));
-        return;
-      }
-      if (result.outcome.kind === "tab" && isMeseroView) {
-        // Ya navegamos a la precuenta: no hay nada más que contar acá.
-        setPrebillBrowser(null);
-        return;
-      }
-      setPrebillBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
-    } catch {
-      setPrebillBrowser(null);
-      setPrebillNote(tr("prebillFailed"));
-    } finally {
-      setPrebillBusy(false);
-    }
-  }
+  const prebillPrint = useStaffPrint(
+    { kind: "prebill", orderId, href: prebillHref },
+    {
+      // Si el navegador no deja imprimir embebido se cae a lo de antes: en
+      // la PWA del mesero no hay pestañas, así que se navega in-app a la
+      // vista imprimible (scope /mesero/), que se imprime sola; en el
+      // panel, la pestaña.
+      openTab: isMeseroView
+        ? (url) => {
+            router.push(url);
+            return true;
+          }
+        : undefined,
+    },
+  );
 
   /**
    * El mesero avisa a caja que la mesa quiere pagar. Dispara el aviso de
@@ -657,6 +610,26 @@ export function TableDetailSheet({
     startTx(() => router.refresh());
   }
 
+  // Lo que la cuenta ya tiene, para el tope de un cargo nuevo: los platos de
+  // las rondas vivas (impuesto adentro) + los cargos (su impuesto encima).
+  // Misma cuenta que el servidor; si quedó vieja, la API corrige con su máximo.
+  const freeLineRoom = orderRoomFromLines([
+    ...rounds
+      .filter((rd) => rd.status !== "cancelled")
+      .flatMap((rd) =>
+        rd.items.map((it) => ({
+          amountCents: it.priceCents * it.qty,
+          taxKind: null,
+          taxPct: null,
+        })),
+      ),
+    ...freeLines.map((l) => ({
+      amountCents: l.priceCents * l.qty,
+      taxKind: l.taxKind,
+      taxPct: l.taxPct,
+    })),
+  ]);
+
   /**
    * Agrega una línea libre a la cuenta. El backend recalcula subtotal,
    * impuesto y total con la función canónica; acá sólo refrescamos.
@@ -675,7 +648,7 @@ export function TableDetailSheet({
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      return freeLineErrorMessage(j.error);
+      return freeLineErrorMessage(j.error, j.maxLineCents);
     }
     setShowFreeLineSheet(false);
     // Traer la línea recién creada + el total nuevo del server.
@@ -691,7 +664,14 @@ export function TableDetailSheet({
   }
 
   /** Códigos del endpoint de líneas libres → copy traducido. */
-  function freeLineErrorMessage(code: unknown): string {
+  function freeLineErrorMessage(code: unknown, maxLineCents?: unknown): string {
+    // El servidor manda: si la cuenta cambió desde que se abrió el diálogo
+    // (otro dispositivo sumó platos), su máximo es el que vale.
+    if (code === "line_too_large" && typeof maxLineCents === "number") {
+      return `${tr("freeLineMaxForAccount", {
+        max: fmtCOP(maxFreeLineDisplayCents(maxLineCents)),
+      })} ${tr("freeLineMaxSplitHint")}`;
+    }
     switch (code) {
       case "order_paying":
         return tr("freeLineErrorPaying");
@@ -1182,35 +1162,27 @@ export function TableDetailSheet({
                       </a>
                     ))}
                   {canPrebill && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
+                      <PrintDestinationPicker
+                        pref={prebillPrint.pref}
+                        disabled={prebillPrint.busy}
+                      />
                       <button
                         type="button"
-                        onClick={printPrebill}
-                        disabled={prebillBusy}
+                        onClick={() => void prebillPrint.run()}
+                        disabled={prebillPrint.busy || !prebillPrint.pref.ready}
                         className="mp-btn mp-btn--secondary mp-btn--block"
                       >
-                        {prebillBusy ? tr("prebillPrinting") : tr("prebillPrint")}
+                        {prebillPrint.busy ? tr("prebillPrinting") : tr("prebillPrint")}
                       </button>
                       <div className="flex items-center justify-between gap-2 px-1 font-mono text-[10px] text-op-muted">
                         <span className="min-w-0 leading-snug">
-                          {prebillNote}
-                          {prebillBrowser && (
-                            <>
-                              {" "}
-                              <BrowserPrintStatus
-                                state={prebillBrowser}
-                                linkClassName="underline text-op-text"
-                                sameTab={isMeseroView}
-                                setup={
-                                  prebillNoPrinter
-                                    ? isMeseroView
-                                      ? "ask"
-                                      : "link"
-                                    : null
-                                }
-                              />
-                            </>
-                          )}
+                          <StaffPrintNotice
+                            print={prebillPrint}
+                            className="leading-snug"
+                            sameTab={isMeseroView}
+                            canConfigurePrinters={!isMeseroView}
+                          />
                         </span>
                         {isMeseroView ? (
                           <Link
@@ -1241,7 +1213,7 @@ export function TableDetailSheet({
                       initialIntent={invoiceIntent}
                       sameTab={isMeseroView}
                       canConfigurePrinters={!isMeseroView}
-                      onPrintPrebill={printPrebill}
+                      onPrintPrebill={() => void prebillPrint.run()}
                       onIssued={() => startTx(() => router.refresh())}
                     />
                   )}
@@ -1674,6 +1646,7 @@ export function TableDetailSheet({
           // Una factura manual se arma con cargos que son ventas del
           // restaurante: nacen con el impuesto de la carta incluido.
           defaultIncluded={manual}
+          room={freeLineRoom}
           onClose={() => setShowFreeLineSheet(false)}
           onSubmit={addFreeLine}
         />
@@ -1913,6 +1886,7 @@ function FreeLineSheet({
   country,
   salesTax,
   defaultIncluded,
+  room,
   onClose,
   onSubmit,
 }: {
@@ -1921,6 +1895,8 @@ function FreeLineSheet({
   salesTax: RestaurantTax | null;
   /** true ⇒ el selector nace en "incluido" (factura manual). */
   defaultIncluded: boolean;
+  /** Lo que la cuenta ya tiene: define el máximo de esta línea. */
+  room: OrderRoomInput;
   onClose: () => void;
   /** Devuelve un mensaje de error ya traducido, o null si guardó bien. */
   onSubmit: (input: {
@@ -1963,6 +1939,14 @@ function FreeLineSheet({
   // La "base" de la vista previa es como la muestra la tirilla: con el
   // impuesto incluido, el precio menos lo que va adentro; si no, el precio.
   const previewBaseCents = lineCents - includedCents;
+  // Tope DINÁMICO (`freeLineLimit.ts`): lo que le queda libre a la cuenta con
+  // el impuesto elegido. Pasarlo NO apaga el botón en silencio: debajo del
+  // precio sale cuánto es el máximo y qué hacer.
+  const maxLineCents = maxFreeLineCents(room, {
+    taxKind: taxKind === "included" ? null : taxKind,
+    taxPct,
+  });
+  const overMax = lineCents > maxLineCents;
 
   function changeKind(k: FreeLineTaxChoice) {
     setErr(null);
@@ -1981,7 +1965,7 @@ function FreeLineSheet({
     qty >= 1 &&
     qty <= MAX_FREE_LINE_QTY &&
     lineCents > 0 &&
-    lineCents <= MAX_FREE_LINE_TOTAL_CENTS &&
+    !overMax &&
     !busy;
 
   async function submit() {
@@ -2074,10 +2058,17 @@ function FreeLineSheet({
                 setPriceDigits(digits);
               }}
               ariaLabel={tr("freeLineUnitPrice")}
+              aria-invalid={overMax || undefined}
               className="w-full min-h-[44px] px-3 rounded-lg border border-hairline bg-paper text-sm tabular focus:outline-none focus:border-ink/40"
             />
           </label>
         </div>
+
+        <FreeLineLimitNotice
+          lineCents={lineCents}
+          maxLineCents={maxLineCents}
+          qty={qty}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">

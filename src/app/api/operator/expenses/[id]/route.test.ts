@@ -10,7 +10,9 @@ const m = vi.hoisted(() => ({
   retDelete: vi.fn(),
   retCreate: vi.fn(),
   concepts: vi.fn(),
+  numberPending: vi.fn(),
 }));
+vi.mock("@/lib/erp/expenseNumber", () => ({ numberPendingExpenses: m.numberPending }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
 vi.mock("@/lib/erp/access", () => ({
   getErpContext: async () => ({ restaurantId: "r1" }),
@@ -73,7 +75,8 @@ const stored = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.resetAllMocks();
   m.findUnique.mockResolvedValue(stored());
-  m.update.mockResolvedValue({ id: "e1" });
+  m.update.mockResolvedValue({ id: "e1", number: 12 });
+  m.numberPending.mockResolvedValue(new Map());
   m.restaurantFind.mockResolvedValue({ purchaseIvaDeductible: false });
   m.concepts.mockResolvedValue([
     { id: "serv", restaurantId: "r1", kind: "retefuente", name: "Servicios (4%)", rateBps: 400, base: "subtotal", thresholdUvt: 4, accountCode: "236505", active: true },
@@ -135,5 +138,19 @@ describe("PATCH /api/operator/expenses/[id]", () => {
   it("la cuenta del gasto y el vencimiento ahora sí se guardan al editar", async () => {
     await patch({ accountCode: "514505", dueAt: "2026-11-30T17:00:00.000Z" });
     expect(m.update.mock.calls[0]![0].data).toMatchObject({ accountCode: "514505", dueAt: new Date("2026-11-30T17:00:00.000Z") });
+  });
+
+  it("editar no cambia el consecutivo; una plantilla que pasa a gasto normal recibe el suyo en la misma transacción", async () => {
+    await patch({ category: "Mantenimiento nevera" });
+    expect(m.update.mock.calls[0]![0].data).not.toHaveProperty("number");
+    expect(m.numberPending).not.toHaveBeenCalled();
+
+    m.findUnique.mockResolvedValue(stored({ recurring: true, recurringDay: 5 }));
+    m.update.mockResolvedValue({ id: "e1", number: null });
+    m.numberPending.mockResolvedValue(new Map([["e1", 74]]));
+    const res = await patch({ recurring: false, recurringDay: null });
+    expect(res.status).toBe(200);
+    expect(m.numberPending).toHaveBeenCalledTimes(1);
+    expect(((await res.json()) as { expense: { number: number } }).expense.number).toBe(74);
   });
 });

@@ -12,6 +12,13 @@ const m = vi.hoisted(() => ({
   restaurantFind: vi.fn(),
   concepts: vi.fn(),
   accounts: new Map<string, string>([["111005", "acc-banco"]]),
+  numberPending: vi.fn(),
+}));
+// El consecutivo (G-0001) tiene sus propios tests (expenseNumber.test.ts y
+// integration/expense-number.test.ts); acá sólo se verifica que el alta lo pida.
+vi.mock("@/lib/erp/expenseNumber", () => ({
+  numberPendingExpenses: m.numberPending,
+  ensureExpenseNumbers: async () => undefined,
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "u1" } }) }));
@@ -56,6 +63,7 @@ beforeEach(() => {
   m.expenseCreate.mockResolvedValue({ id: "e1" });
   m.expenseFind.mockResolvedValue({ id: "e1" });
   m.paymentCreate.mockResolvedValue({ id: "p1" });
+  m.numberPending.mockResolvedValue(new Map([["e1", 1]]));
   m.concepts.mockResolvedValue([
     { id: "serv", restaurantId: "r1", kind: "retefuente", name: "Servicios (4%)", rateBps: 400, base: "subtotal", thresholdUvt: 4, accountCode: "236505", active: true },
   ]);
@@ -75,6 +83,9 @@ describe("POST /api/operator/expenses", () => {
     });
     expect(m.expenseCreate.mock.calls[0]![0].data.retentions).toBeUndefined();
     expect(m.paymentCreate.mock.calls[0]![0].data).toMatchObject({ amountCents: 250_000, accountCode: "111005" });
+    // El consecutivo se asigna dentro de la MISMA transacción del alta.
+    expect(m.numberPending).toHaveBeenCalledTimes(1);
+    expect(m.numberPending.mock.calls[0]![1]).toBe("r1");
   });
 
   it("factura con IVA descontable y retefuente: guarda costo, IVA, retención del concepto y paga el total a pagar", async () => {
@@ -131,6 +142,8 @@ describe("POST /api/operator/expenses", () => {
   it("la plantilla recurrente guarda su configuración de impuestos pero no se paga", async () => {
     await post({ ...BASE, supplierId: "s1", subtotalCents: 1_000_000, ivaPct: 19, recurring: true, recurringDay: 5, payFromAccountCode: "111005" });
     expect(m.expenseCreate.mock.calls[0]![0].data).toMatchObject({ recurring: true, recurringDay: 5, ivaCents: 190_000, paidCents: 0 });
+    // Una plantilla no es un gasto: no lleva consecutivo.
+    expect(m.numberPending).not.toHaveBeenCalled();
     expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 });

@@ -136,11 +136,13 @@ export type TerminalAmountView = {
  * es de antes de este cambio).
  */
 export function toTerminalAmountView(
-  claim: { amountCents: number; authorizedCents?: number | null; amountCheck?: string | null } | null | undefined,
+  claim: { amountCents: number; authorizedCents?: number | bigint | null; amountCheck?: string | null } | null | undefined,
 ): TerminalAmountView | null {
   const check = claim?.amountCheck;
   if (!claim || !check) return null;
   if (check !== "tip" && check !== "partial" && !isTerminalAmountMismatch(check)) return null;
-  if ((check === "tip" || check === "partial") && claim.authorizedCents == null) return null;
-  return { check, expectedCents: claim.amountCents, authorizedCents: claim.authorizedCents ?? null };
+  // BIGINT en la base (un ×100 de una cuenta grande no cabe en INT4).
+  const authorizedCents = claim.authorizedCents == null ? null : Number(claim.authorizedCents);
+  if ((check === "tip" || check === "partial") && authorizedCents == null) return null;
+  return { check, expectedCents: claim.amountCents, authorizedCents };
 }

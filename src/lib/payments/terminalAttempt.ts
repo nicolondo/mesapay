@@ -63,7 +63,7 @@ type ClaimLike = {
   answerMessage?: string | null;
   answeredAt?: Date | null;
   amountCents?: number;
-  authorizedCents?: number | null;
+  authorizedCents?: number | bigint | null;
   amountCheck?: string | null;
 };
 

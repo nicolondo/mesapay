@@ -72,7 +72,8 @@ export async function terminalClaims(
         answeredAt: o.answeredAt ?? null,
         nextPaymentId: o.nextPaymentId ?? null,
         amountCents: o.amountCents,
-        authorizedCents: o.authorizedCents ?? null,
+        // BIGINT en la base: a número (cabe de sobra en un double).
+        authorizedCents: o.authorizedCents == null ? null : Number(o.authorizedCents),
         amountCheck: o.amountCheck ?? null,
       },
     ]),

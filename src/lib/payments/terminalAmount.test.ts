@@ -89,3 +89,13 @@ describe("toTerminalAmountView", () => {
     expect(toTerminalAmountView(null)).toBeNull();
   });
 });
+
+describe("toTerminalAmountView con BIGINT", () => {
+  it("un ×100 de una cuenta grande (no cabe en INT4) llega como número", () => {
+    expect(toTerminalAmountView({ amountCents: 50_000_000, authorizedCents: BigInt(5_000_000_000), amountCheck: "units" })).toEqual({
+      check: "units",
+      expectedCents: 50_000_000,
+      authorizedCents: 5_000_000_000,
+    });
+  });
+});

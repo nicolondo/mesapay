@@ -65,6 +65,7 @@ export default async function AdminAuditPage({
     "group.legal_entity.create",
     "group.legal_entity.update",
     "group.legal_entity.delete",
+    "ingredient.delete",
   ]);
   const kindLabel = (k: string): string =>
     KNOWN_AUDIT_KINDS.has(k)

@@ -17,7 +17,8 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
-import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
+import { BARCODE_MAX_LENGTH, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { barcodeTakenOwner, moveIngredientBarcode, type BarcodeOwnerRef } from "@/app/operator/inventario/barcodeApi";
 import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
@@ -783,6 +784,11 @@ export function InsumosClient({
             upsert(saved);
             closeSheet();
           }}
+          onBarcodeMoved={(source) =>
+            setItems((prev) => prev.map((item) => item.id === source.id
+              ? { ...item, barcode: source.barcode, barcodes: [...(source.barcodes ?? [])] }
+              : item))
+          }
           onDelete={(item) => setDeleting(item)}
           onArchive={(item) => {
             closeSheet();
@@ -836,6 +842,7 @@ function IngredientSheet({
   categories,
   onClose,
   onSaved,
+  onBarcodeMoved,
   onDelete,
   onArchive,
 }: {
@@ -844,6 +851,8 @@ function IngredientSheet({
   categories: string[];
   onClose: () => void;
   onSaved: (i: Ingredient) => void;
+  /** Un código pasó de otro insumo a este: llega el registro del que lo soltó. */
+  onBarcodeMoved?: (source: IngredientBarcodeUpdate) => void;
   /** «Eliminar» de la ficha: abre la confirmación (solo al editar). */
   onDelete: (i: Ingredient) => void;
   /** «Archivar», cuando el insumo no se puede eliminar. */
@@ -891,6 +900,8 @@ function IngredientSheet({
   }
 
   const [stockReset, setStockReset] = useState<StockResetSnapshot | null>(null);
+  /** El código digitado ya es de otro insumo: se ofrece pasárselo a este. */
+  const [taken, setTaken] = useState<{ code: string; owner: BarcodeOwnerRef } | null>(null);
 
   const current = editing ?? created;
 
@@ -915,7 +926,14 @@ function IngredientSheet({
     if (!stockReset) void save();
   }
 
-  async function save(resetStock?: StockResetSnapshot) {
+  /** «Pasárselo a este insumo»: guarda y, en el mismo paso, le pasa el código. */
+  function takeBarcode() {
+    if (!taken || busy) return;
+    if (!window.confirm(t("barcodeTakeConfirm", { code: taken.code, owner: taken.owner.name, name: name.trim() }))) return;
+    void save(undefined, taken);
+  }
+
+  async function save(resetStock?: StockResetSnapshot, take?: { code: string; owner: BarcodeOwnerRef }) {
     if (busy) return;
     setErr(null);
 
@@ -939,8 +957,10 @@ function IngredientSheet({
       category: category.trim() || null,
       sku: sku.trim() || null,
       // Se manda crudo: la API es la que normaliza (un solo punto de
-      // limpieza para el formulario y para cualquier import futuro).
-      barcode: barcode || null,
+      // limpieza para el formulario y para cualquier import futuro). Si el
+      // código viene de otro insumo, primero se guarda sin él y se le pasa
+      // después (abajo): mientras tanto sigue siendo del otro.
+      ...(take ? (current ? {} : { barcode: null }) : { barcode: barcode || null }),
       notes: notes.trim() || null,
       ...(!current || referencePriceCents !== (current.referencePriceCents ?? null) || measureKind !== current.measureKind
         ? { referencePriceCents }
@@ -976,6 +996,14 @@ function IngredientSheet({
           setErr(j.error === "stock_reset_conflict" ? t("stockResetChanged") : null);
           return;
         }
+        const owner = j.error === "barcode_taken" ? barcodeTakenOwner(j) : null;
+        const code = normalizeBarcode(barcode);
+        if (owner && code && owner.id !== current?.id) {
+          // Dice quién lo tiene y ofrece pasárselo a este en un paso.
+          setTaken({ code, owner });
+          setErr(t(owner.active ? "ingredientCodeTakenBy" : "ingredientCodeTakenByArchived", { name: owner.name }));
+          return;
+        }
         setErr(
           j.error === "inventory_balance_remaining"
             ? t("errInventoryBalance")
@@ -1007,6 +1035,32 @@ function IngredientSheet({
         }
         const j2 = await r2.json();
         saved = j2.ingredient as Ingredient;
+        if (!saved?.id) throw new Error("invalid_ingredient_response");
+      }
+
+      if (take) {
+        // El insumo ya existe (creado o guardado): si algo falla desde aquí,
+        // el formulario queda en modo edición y se puede reintentar.
+        if (!current) setCreated({ ...saved, _count: { supplierItems: 0 } });
+        const moved = await moveIngredientBarcode(take.owner.id, take.code, saved.id);
+        if (!moved.ok) {
+          setErr(t(moved.errorKey, moved.errorValues));
+          return;
+        }
+        setTaken(null);
+        onBarcodeMoved?.(moved.ingredient);
+        // Ya es suyo: queda como su código principal, que es lo que se digitó.
+        const r3 = await fetch(`/api/operator/ingredients/${saved.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ barcode: take.code }),
+        });
+        if (!r3.ok) {
+          setErr(t("errSaveFailed"));
+          return;
+        }
+        const j3 = await r3.json();
+        saved = j3.ingredient as Ingredient;
         if (!saved?.id) throw new Error("invalid_ingredient_response");
       }
 
@@ -1191,7 +1245,7 @@ function IngredientSheet({
             <input
               type="text"
               value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
+              onChange={(e) => { setBarcode(e.target.value); setTaken(null); }}
               // El lector HID "teclea" el código y remata con Enter: sin
               // esto, ese Enter enviaría el formulario a medio llenar
               // apenas se escanea el empaque.
@@ -1228,6 +1282,11 @@ function IngredientSheet({
           )}
 
           {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+          {taken && !stockReset && (
+            <button type="button" onClick={takeBarcode} disabled={busy} className="mp-btn mp-btn--secondary mp-btn--sm">
+              {t("barcodeTakeHere")}
+            </button>
+          )}
 
           {stockReset ? (
             <StockResetConfirmation

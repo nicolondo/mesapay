@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./workspace.css";
+@import "./floor-plan.css";
 
 :root {
   /* Radio de TODOS los botones del equipo (operador, admin, mesero, CRM):

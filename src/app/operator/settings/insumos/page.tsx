@@ -48,7 +48,7 @@ export default async function InsumosSettingsPage({
   const currency = await getCurrencyForCountry(tenant.country);
 
   const { editar } = await searchParams;
-  const [ingredients, costs] = await Promise.all([db.ingredient.findMany({
+  const [ingredients, costs, deletableIds] = await Promise.all([db.ingredient.findMany({
     where: { restaurantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
@@ -70,14 +70,14 @@ export default async function InsumosSettingsPage({
       reorderQtyBase: true,
       _count: { select: { supplierItems: true } },
     },
-  }), loadIngredientCostViews(restaurantId)]);
+  }), loadIngredientCostViews(restaurantId),
+    // Cuáles se pueden eliminar del todo (sin movimientos ni usos): pinta
+    // «Eliminar» y el filtro «Sin movimientos». La API vuelve a revisar.
+    deletableIngredientIds(db, restaurantId)]);
   const initial = ingredients.map(ingredient => ({
     ...ingredient,
     ...(costs.get(ingredient.id) ?? { costPerBase: null, costSource: null, purchaseCost: null }),
   }));
-  // Cuáles se pueden eliminar del todo (sin movimientos ni usos): pinta
-  // «Eliminar» y el filtro «Sin movimientos». La API vuelve a revisar.
-  const deletableIds = await deletableIngredientIds(db, restaurantId, ingredients);
 
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">

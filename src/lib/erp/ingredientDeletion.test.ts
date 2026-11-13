@@ -59,7 +59,10 @@ const recipeOf = (recipeId: string) => data.recipes.find((recipe) => recipe.id =
 const client = {
   ingredient: {
     findMany: async ({ where }: { where: Where }) => data.ingredients
-      .filter((row) => row.restaurantId === where.restaurantId && inList(where, "id").includes(row.id))
+      .filter((row) => row.restaurantId === where.restaurantId && (where.id
+        ? inList(where, "id").includes(row.id)
+        // Candidatos de la lista: sin saldo, o con saldo en cero.
+        : !data.stockLevels.some((level) => level.ingredientId === row.id && (level.qtyBase !== 0 || level.totalValueCents !== 0))))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((row) => ({
         category: null, sku: null, active: true, barcode: null, measureKind: "mass", ...row,
@@ -261,16 +264,17 @@ describe("la regla: qué bloquea eliminar un insumo", () => {
 });
 
 describe("cuáles se pueden eliminar (lista de Insumos)", () => {
-  it("ni consulta los que tienen existencias, y devuelve solo los eliminables", async () => {
-    data.ingredients.push({ id: "stocked", restaurantId: "r", name: "Con saldo" });
+  it("ni consulta los que tienen existencias, y devuelve solo los eliminables del comercio", async () => {
+    data.ingredients.push({ id: "stocked", restaurantId: "r", name: "Con saldo" }, { id: "valued", restaurantId: "r", name: "Con valor" });
+    data.stockLevels.push(
+      { ingredientId: "stocked", qtyBase: 3, totalValueCents: 0 },
+      { ingredientId: "valued", qtyBase: 0, totalValueCents: 9 },
+      { ingredientId: "other", qtyBase: 0, totalValueCents: 0 },
+    );
     data.movements.push({ ingredientId: "other" });
-    const ids = await deletableIngredientIds(tx, "r", [
-      { id: "ing", stockLevel: null },
-      { id: "other", stockLevel: { qtyBase: 0, totalValueCents: 0 } },
-      { id: "stocked", stockLevel: { qtyBase: 3, totalValueCents: 0 } },
-    ]);
-    expect(ids).toEqual(["ing"]);
-    expect(await deletableIngredientIds(tx, "r", [{ id: "stocked", stockLevel: { qtyBase: 0, totalValueCents: 9 } }])).toEqual([]);
+    expect(await deletableIngredientIds(tx, "r")).toEqual(["ing"]);
+    expect(await deletableIngredientIds(tx, "r2")).toEqual(["foreign"]);
+    expect(await deletableIngredientIds(tx, "nadie")).toEqual([]);
   });
 
   it("la vista previa separa eliminables, bloqueados y ajenos, sin borrar", async () => {

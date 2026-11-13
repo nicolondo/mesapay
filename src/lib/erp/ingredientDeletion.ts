@@ -117,16 +117,77 @@ async function checkChunk(client: Client, restaurantId: string, ids: string[], o
     owned.map((id) => [id, { barcodes: 0, supplierItems: 0, invoiceAliases: 0 }]),
   );
 
-  // Los hijos se buscan SOLO por el insumo, sin filtrar por comercio: lo que
-  // importa es qué arrastraría (o qué frenaría) el borrado de esa fila.
-  for (const row of await client.stockLevel.findMany({
-    where: { ingredientId: inIds, OR: [{ qtyBase: { not: 0 } }, { totalValueCents: { not: 0 } }] },
-    select: { ingredientId: true },
-  })) bump(tallies, row.ingredientId, "stock", 1);
+  // Las consultas no dependen entre sí: van a la vez (la lista de Insumos
+  // revisa todos los insumos sin saldo al abrir la página). Los hijos se
+  // buscan SOLO por el insumo, sin filtrar por comercio: lo que importa es
+  // qué arrastraría (o qué frenaría) el borrado de esa fila.
+  const [
+    stocked, movements, orderLines, draftLines, supplierItems, batches,
+    closedCountLines, draftCountLines, recipeLines, modifierLines, ownRecipes, barcodes, aliases,
+  ] = await Promise.all([
+    client.stockLevel.findMany({
+      where: { ingredientId: inIds, OR: [{ qtyBase: { not: 0 } }, { totalValueCents: { not: 0 } }] },
+      select: { ingredientId: true },
+    }),
+    client.stockMovement.groupBy({ by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true } }),
+    client.purchaseOrderItem.groupBy({
+      by: ["ingredientId", "purchaseOrderId"],
+      where: { ingredientId: inIds, purchaseOrder: { status: { not: "draft" } } },
+      _count: { _all: true },
+    }),
+    client.purchaseOrderItem.findMany({
+      where: { ingredientId: inIds, purchaseOrder: { status: "draft" } },
+      select: { ingredientId: true, purchaseOrder: { select: { id: true, number: true } } },
+    }),
+    client.supplierIngredient.findMany({ where: { ingredientId: inIds }, select: { id: true, ingredientId: true } }),
+    client.productionBatch.groupBy({ by: ["outputIngredientId"], where: { outputIngredientId: inIds }, _count: { _all: true } }),
+    // Conteos: cualquier estado que no sea borrador es un documento cerrado.
+    client.stockCountItem.groupBy({
+      by: ["ingredientId"],
+      where: { ingredientId: inIds, count: { status: { not: "draft" } } },
+      _count: { _all: true },
+    }),
+    client.stockCountItem.findMany({
+      where: { ingredientId: inIds, count: { status: "draft" } },
+      select: { ingredientId: true, count: { select: { createdAt: true } } },
+    }),
+    client.recipeItem.findMany({
+      where: { ingredientId: inIds },
+      select: {
+        ingredientId: true,
+        recipe: { select: { menuItem: { select: { name: true } }, outputIngredient: { select: { name: true } } } },
+      },
+      orderBy: { id: "asc" },
+    }),
+    client.modifierRecipeItem.findMany({
+      where: { ingredientId: inIds },
+      select: { ingredientId: true, optLabel: true, recipe: { select: { menuItem: { select: { name: true } } } } },
+      orderBy: { id: "asc" },
+    }),
+    client.recipe.findMany({
+      where: { outputIngredientId: inIds },
+      select: { outputIngredientId: true, items: { select: { id: true } }, modifierItems: { select: { id: true } } },
+    }),
+    client.ingredientBarcode.groupBy({ by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true } }),
+    client.supplierInvoiceAlias.groupBy({ by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true } }),
+  ]);
 
-  for (const row of await client.stockMovement.groupBy({
-    by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true },
-  })) bump(tallies, row.ingredientId, "movements", row._count._all);
+  // Presentaciones de proveedor: configuración, salvo que ya tengan órdenes
+  // o historial de precios. Una línea de orden normal ya se cuenta por su
+  // insumo; acá entran las que cuelgan de la presentación con OTRO insumo
+  // (borrar la presentación les dejaría el vínculo en null).
+  const itemIds = { in: supplierItems.map((item) => item.id) };
+  const [itemOrderLines, priceHistory] = supplierItems.length === 0 ? [[], []] : await Promise.all([
+    client.purchaseOrderItem.groupBy({
+      by: ["supplierItemId", "ingredientId", "purchaseOrderId"],
+      where: { supplierItemId: itemIds },
+      _count: { _all: true },
+    }),
+    client.supplierPriceHistory.groupBy({ by: ["supplierItemId"], where: { supplierItemId: itemIds }, _count: { _all: true } }),
+  ]);
+
+  for (const row of stocked) bump(tallies, row.ingredientId, "stock", 1);
+  for (const row of movements) bump(tallies, row.ingredientId, "movements", row._count._all);
 
   // Compras: se cuentan ÓRDENES distintas, no líneas.
   const orders = new Map<string, Set<string>>();
@@ -136,17 +197,16 @@ async function checkChunk(client: Client, restaurantId: string, ids: string[], o
     set.add(orderId);
     orders.set(id, set);
   };
-  for (const row of await client.purchaseOrderItem.groupBy({
-    by: ["ingredientId", "purchaseOrderId"],
-    where: { ingredientId: inIds, purchaseOrder: { status: { not: "draft" } } },
-    _count: { _all: true },
-  })) addOrder(row.ingredientId, row.purchaseOrderId);
+  for (const row of orderLines) addOrder(row.ingredientId, row.purchaseOrderId);
+  const itemOwner = new Map(supplierItems.map((item) => [item.id, item.ingredientId]));
+  for (const row of itemOrderLines) {
+    const owner = row.supplierItemId ? itemOwner.get(row.supplierItemId) : undefined;
+    if (owner && owner !== row.ingredientId) addOrder(owner, row.purchaseOrderId);
+  }
+  for (const [id, set] of orders) bump(tallies, id, "purchases", set.size);
 
   const draftOrders = new Map<string, Map<string, number>>();
-  for (const row of await client.purchaseOrderItem.findMany({
-    where: { ingredientId: inIds, purchaseOrder: { status: "draft" } },
-    select: { ingredientId: true, purchaseOrder: { select: { id: true, number: true } } },
-  })) {
+  for (const row of draftLines) {
     const map = draftOrders.get(row.ingredientId) ?? new Map<string, number>();
     map.set(row.purchaseOrder.id, row.purchaseOrder.number);
     draftOrders.set(row.ingredientId, map);
@@ -156,91 +216,37 @@ async function checkChunk(client: Client, restaurantId: string, ids: string[], o
     for (const number of numbers) bump(tallies, id, "draftPurchases", 1, String(number));
   }
 
-  // Presentaciones de proveedor: configuración, salvo que ya tengan órdenes
-  // o historial de precios. Una línea de orden normal ya se contó arriba por
-  // su insumo; acá entran las que cuelgan de la presentación con OTRO insumo
-  // (borrar la presentación les dejaría el vínculo en null).
-  const supplierItems = await client.supplierIngredient.findMany({
-    where: { ingredientId: inIds },
-    select: { id: true, ingredientId: true },
-  });
-  const itemOwner = new Map(supplierItems.map((item) => [item.id, item.ingredientId]));
   for (const item of supplierItems) {
     const entry = removes.get(item.ingredientId);
     if (entry) entry.supplierItems++;
   }
-  if (supplierItems.length > 0) {
-    const itemIds = { in: supplierItems.map((item) => item.id) };
-    for (const row of await client.purchaseOrderItem.groupBy({
-      by: ["supplierItemId", "ingredientId", "purchaseOrderId"],
-      where: { supplierItemId: itemIds },
-      _count: { _all: true },
-    })) {
-      const owner = row.supplierItemId ? itemOwner.get(row.supplierItemId) : undefined;
-      if (owner && owner !== row.ingredientId) addOrder(owner, row.purchaseOrderId);
-    }
-    for (const row of await client.supplierPriceHistory.groupBy({
-      by: ["supplierItemId"], where: { supplierItemId: itemIds }, _count: { _all: true },
-    })) {
-      const owner = itemOwner.get(row.supplierItemId);
-      if (owner) bump(tallies, owner, "priceHistory", row._count._all);
-    }
+  for (const row of priceHistory) {
+    const owner = itemOwner.get(row.supplierItemId);
+    if (owner) bump(tallies, owner, "priceHistory", row._count._all);
   }
-  for (const [id, set] of orders) bump(tallies, id, "purchases", set.size);
 
-  for (const row of await client.productionBatch.groupBy({
-    by: ["outputIngredientId"], where: { outputIngredientId: inIds }, _count: { _all: true },
-  })) bump(tallies, row.outputIngredientId, "production", row._count._all);
-
-  // Conteos: cualquier estado que no sea borrador es un documento cerrado.
-  for (const row of await client.stockCountItem.groupBy({
-    by: ["ingredientId"],
-    where: { ingredientId: inIds, count: { status: { not: "draft" } } },
-    _count: { _all: true },
-  })) bump(tallies, row.ingredientId, "closedCounts", row._count._all);
-
-  for (const row of await client.stockCountItem.findMany({
-    where: { ingredientId: inIds, count: { status: "draft" } },
-    select: { ingredientId: true, count: { select: { createdAt: true } } },
-  })) bump(tallies, row.ingredientId, "draftCount", 1, row.count.createdAt.toISOString());
-
-  for (const row of await client.recipeItem.findMany({
-    where: { ingredientId: inIds },
-    select: {
-      ingredientId: true,
-      recipe: { select: { menuItem: { select: { name: true } }, outputIngredient: { select: { name: true } } } },
-    },
-    orderBy: { id: "asc" },
-  })) bump(tallies, row.ingredientId, "recipes", 1, row.recipe.menuItem?.name ?? row.recipe.outputIngredient?.name);
-
-  for (const row of await client.modifierRecipeItem.findMany({
-    where: { ingredientId: inIds },
-    select: { ingredientId: true, optLabel: true, recipe: { select: { menuItem: { select: { name: true } } } } },
-    orderBy: { id: "asc" },
-  })) {
+  for (const row of batches) bump(tallies, row.outputIngredientId, "production", row._count._all);
+  for (const row of closedCountLines) bump(tallies, row.ingredientId, "closedCounts", row._count._all);
+  for (const row of draftCountLines) bump(tallies, row.ingredientId, "draftCount", 1, row.count.createdAt.toISOString());
+  for (const row of recipeLines) {
+    bump(tallies, row.ingredientId, "recipes", 1, row.recipe.menuItem?.name ?? row.recipe.outputIngredient?.name);
+  }
+  for (const row of modifierLines) {
     const dish = row.recipe.menuItem?.name;
     bump(tallies, row.ingredientId, "modifierRecipes", 1, dish ? `${dish} · ${row.optLabel}` : row.optLabel);
   }
-
   // El insumo ES una sub-receta. Con líneas es una dependencia viva (se
   // borra primero la sub-receta); vacía no dice nada y se va con él.
-  for (const row of await client.recipe.findMany({
-    where: { outputIngredientId: inIds },
-    select: { outputIngredientId: true, items: { select: { id: true } }, modifierItems: { select: { id: true } } },
-  })) {
+  for (const row of ownRecipes) {
     const lines = row.items.length + row.modifierItems.length;
     if (row.outputIngredientId && lines > 0) bump(tallies, row.outputIngredientId, "ownRecipe", lines);
   }
 
-  for (const row of await client.ingredientBarcode.groupBy({
-    by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true },
-  })) {
+  for (const row of barcodes) {
     const entry = removes.get(row.ingredientId);
     if (entry) entry.barcodes = row._count._all;
   }
-  for (const row of await client.supplierInvoiceAlias.groupBy({
-    by: ["ingredientId"], where: { ingredientId: inIds }, _count: { _all: true },
-  })) {
+  for (const row of aliases) {
     const entry = removes.get(row.ingredientId);
     if (entry) entry.invoiceAliases = row._count._all;
   }
@@ -259,7 +265,7 @@ async function checkChunk(client: Client, restaurantId: string, ids: string[], o
 }
 
 /**
- * La regla para varios insumos a la vez (una docena de consultas, sin
+ * La regla para varios insumos a la vez (tres tandas de consultas, sin
  * importar cuántos sean). Los ids que no son de este comercio no salen en
  * el mapa: quien llama los trata como «no existe».
  */
@@ -286,19 +292,17 @@ export async function ingredientDeletionCheck(
 }
 
 /**
- * ¿Cuáles de estos insumos se pueden eliminar? Para pintar «Eliminar» y el
- * filtro «Sin movimientos» de la lista. Un saldo distinto de cero ya lo
- * descarta, así que solo se revisan los que no tienen existencias: los que
- * mueven inventario todos los días ni se consultan.
+ * ¿Cuáles insumos del comercio se pueden eliminar? Para pintar «Eliminar» y
+ * el filtro «Sin movimientos» de la lista de Insumos. Un saldo distinto de
+ * cero ya lo descarta, así que solo se revisan los que no tienen
+ * existencias: los que mueven inventario todos los días ni se consultan.
+ * No depende de otras consultas de la página: corre en paralelo con ellas.
  */
-export async function deletableIngredientIds(
-  client: Client,
-  restaurantId: string,
-  ingredients: { id: string; stockLevel?: { qtyBase: number; totalValueCents: number } | null }[],
-): Promise<string[]> {
-  const candidates = ingredients
-    .filter((i) => !i.stockLevel || (i.stockLevel.qtyBase === 0 && i.stockLevel.totalValueCents === 0))
-    .map((i) => i.id);
+export async function deletableIngredientIds(client: Client, restaurantId: string): Promise<string[]> {
+  const candidates = (await client.ingredient.findMany({
+    where: { restaurantId, OR: [{ stockLevel: null }, { stockLevel: { qtyBase: 0, totalValueCents: 0 } }] },
+    select: { id: true },
+  })).map((row) => row.id);
   if (candidates.length === 0) return [];
   const checks = await ingredientDeletionChecks(client, restaurantId, candidates);
   return candidates.filter((id) => checks.get(id)?.deletable === true);

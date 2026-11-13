@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "../src/lib/db";
 import { applyStockMovement } from "../src/lib/erp/stock";
-import { deleteIngredientsPermanently, ingredientDeletionCheck } from "../src/lib/erp/ingredientDeletion";
+import { deletableIngredientIds, deleteIngredientsPermanently, ingredientDeletionCheck } from "../src/lib/erp/ingredientDeletion";
 import { DELETE as archiveIngredient } from "../src/app/api/operator/ingredients/[id]/route";
 import { GET as checkRoute, DELETE as deleteRoute } from "../src/app/api/operator/ingredients/[id]/delete/route";
 import { POST as bulkDeleteRoute } from "../src/app/api/operator/ingredients/bulk-delete/route";
@@ -405,6 +405,23 @@ describe("eliminar un insumo sin movimientos (PostgreSQL)", () => {
       expect(statuses).toEqual([200, 404]);
       expect(await db.auditEvent.count({ where: { targetId: item.id, kind: "ingredient.delete" } })).toBe(1);
     });
+  });
+
+  it("la lista de Insumos sabe cuáles se pueden eliminar: sin saldo, con saldo en cero, nunca los de otro comercio", async () => {
+    const free = await ingredient();
+    const zero = await ingredient();
+    await db.stockLevel.create({ data: { restaurantId: scope.restaurantId, ingredientId: zero.id } });
+    const stocked = await ingredient();
+    await db.stockLevel.create({ data: { restaurantId: scope.restaurantId, ingredientId: stocked.id, qtyBase: 10 } });
+    const moved = await ingredient();
+    await move(moved.id, "adjust_in", 50);
+    await move(moved.id, "adjust_out", 50);
+    const inRecipe = await ingredient();
+    await db.recipeItem.create({ data: { recipeId: (await dish()).id, ingredientId: inRecipe.id, qtyBase: 10 } });
+    const foreignTenant = await db.restaurant.create({ data: { name: "Other", slug: `permanent-delete-list-${randomUUID()}`, enabledModules: ["inventory"] } });
+    tenants.push(foreignTenant.id);
+    await ingredient({ restaurantId: foreignTenant.id });
+    expect((await deletableIngredientIds(db, scope.restaurantId)).sort()).toEqual([free.id, zero.id].sort());
   });
 
   it("la regla se puede consultar sola y no modifica nada", async () => {

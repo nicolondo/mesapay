@@ -210,12 +210,13 @@ export async function emitDianInvoice(opts: {
               email: true,
             },
           },
-          // Cobro a crédito de la cuenta: la factura sale con forma de
-          // pago "crédito" y vence a los días de plazo del cliente.
+          // Cobros aprobados de la cuenta: uno a crédito hace que la factura
+          // salga con forma de pago "crédito" (vence a los días de plazo del
+          // cliente; `billingCustomer` sólo existe en `customer_credit`), y
+          // una cuenta pagada toda con Bre-B declara el medio "transferencia".
           payments: {
-            where: { method: "customer_credit", status: "approved" },
-            take: 1,
-            select: { billingCustomer: { select: { creditTermsDays: true } } },
+            where: { status: "approved" },
+            select: { method: true, billingCustomer: { select: { creditTermsDays: true } } },
           },
         },
       },
@@ -334,7 +335,8 @@ export async function emitDianInvoice(opts: {
     customer: customerPartyFor(inv.order.invoiceRequests[0] ?? null),
     lines,
     // Emitida antes de cobrar ⇒ medio "1 – Instrumento no definido" (ver
-    // `invoicePaymentMeans`); a crédito ⇒ crédito; si no, efectivo "10".
+    // `invoicePaymentMeans`); a crédito ⇒ crédito; toda con Bre-B ⇒
+    // transferencia "47"; si no, efectivo "10".
     ...invoicePaymentMeans(inv.order.payments ?? [], issued.date, {
       issuedBeforePayment: isIssuedBeforePayment(snap),
     }),

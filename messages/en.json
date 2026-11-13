@@ -9717,6 +9717,7 @@
     "fieldDocNumber": "ID number",
     "fieldDocNumberHint": "Without the check digit. DIAN requires identifying a resident seller by NIT: an individual's NIT is their ID number, and MESAPAY calculates the check digit.",
     "fieldCity": "Municipality",
+    "fieldCityPlaceholder": "Search for the municipality (e.g. Envigado)",
     "fieldPostalCode": "Postal code",
     "fieldPostalHint": "6 digits, of the seller's municipality (look it up at codigopostal.gov.co).",
     "fieldCountry": "Country",

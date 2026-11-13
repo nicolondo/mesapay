@@ -132,6 +132,7 @@ export function SupplierDataForm({
           <div>
             <span className={labelCls}>{t("fieldCity")}</span>
             <MunicipioAutocomplete
+              placeholder={t("fieldCityPlaceholder")}
               value={city}
               onChange={(m) => setCity(m ? { code: m.code, label: m.label } : null)}
               inputClassName={inputCls}

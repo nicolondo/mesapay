@@ -9717,6 +9717,7 @@
     "fieldDocNumber": "Número de documento",
     "fieldDocNumberHint": "Sin dígito de verificación. La DIAN pide identificar al vendedor residente con NIT: el de una persona natural es su número de cédula, y MESAPAY calcula el dígito.",
     "fieldCity": "Municipio",
+    "fieldCityPlaceholder": "Busca el municipio (ej. Envigado)",
     "fieldPostalCode": "Código postal",
     "fieldPostalHint": "6 dígitos, del municipio del vendedor (consúltalo en codigopostal.gov.co).",
     "fieldCountry": "País",

@@ -103,14 +103,13 @@ export function SupportDocumentPanel({
     }
   }
 
-  if (hidden) return null;
-  if (!panel) {
-    return (
-      <section className="rounded-2xl border border-op-border bg-op-surface p-4 text-sm text-op-muted">
-        {t("loading")}
-      </section>
-    );
-  }
+  // Sin documento soporte activado (y sin documentos viejos que mostrar) el
+  // panel no aparece: la inmensa mayoría de los gastos y compras son de
+  // proveedores que sí facturan.
+  if (hidden || (panel && !panel.config.enabled && panel.documents.length === 0)) return null;
+  // Mientras carga no se pinta nada: en la mayoría de los comercios el panel
+  // no aplica y un "Cargando…" que desaparece sería ruido.
+  if (!panel) return null;
 
   const { config, supplier } = panel;
   const money = (c: number) => formatMoney(c, { currency, locale });
@@ -219,7 +218,7 @@ export function SupportDocumentPanel({
             <p className="text-xs text-op-muted">{t(sourceType === "expense" ? "notReadyExpense" : "notReadyPurchase")}</p>
           )}
 
-          {!panel.hasActive && panel.sourceReady && (
+          {!panel.hasActive && panel.sourceReady && supplier?.notObligatedToInvoice && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {panel.deadline && (
                 <p className={"text-xs " + (late ? "text-danger" : "text-op-muted")}>

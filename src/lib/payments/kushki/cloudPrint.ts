@@ -44,7 +44,7 @@ import {
  * queda logueado con el detalle para ajustar rápido (API en Beta).
  */
 
-type PrintCommand =
+export type PrintCommand =
   | { type: "text"; text: string; align?: "LEFT" | "CENTER" | "RIGHT"; size?: number; bold?: boolean; italic?: boolean; underline?: boolean }
   | { type: "columns"; columns: Array<{ text: string; weight?: number; align?: "LEFT" | "CENTER" | "RIGHT" }> }
   | { type: "divider"; dividerType?: "SOLID" | "DOTTED" | "EMPTY"; offset?: number }

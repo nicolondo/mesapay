@@ -120,7 +120,10 @@ export function SimpleInvoiceSheet({
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
+      // El staff (`operatorMode`) digita el correo por el cliente: ahí tocar
+      // afuera NO cierra mientras es formulario (un clic perdido lo borraba).
+      // El resultado, y todo para el comensal, sigue cerrando como siempre.
+      onClick={operatorMode && !done ? undefined : onClose}
     >
       <div
         className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"

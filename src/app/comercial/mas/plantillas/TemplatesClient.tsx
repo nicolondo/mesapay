@@ -108,7 +108,8 @@ function TemplateSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-center lg:justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      {/* Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado. */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
       <div className="relative z-10 bg-op-surface rounded-t-2xl max-h-[90dvh] flex flex-col shadow-xl lg:rounded-2xl lg:max-w-lg lg:w-full lg:max-h-[85vh]" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex justify-center pt-3 pb-1 shrink-0 lg:hidden">
           <div className="w-10 h-1 rounded-full bg-op-border" />

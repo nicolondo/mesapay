@@ -19,7 +19,6 @@ import {
 } from "@/lib/erp/units";
 import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
 import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
-import { useBackdropClose } from "@/lib/useBackdropClose";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
@@ -892,8 +891,8 @@ function IngredientSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      {...useBackdropClose(onClose)}
     >
       <div
         role="dialog"

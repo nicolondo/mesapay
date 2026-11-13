@@ -341,8 +341,8 @@ function ParamsSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 md:items-center md:p-6"
-      onClick={() => !busy && onClose()}
     >
       <div
         className="max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-op-border bg-op-surface p-5 md:max-w-md md:rounded-3xl"

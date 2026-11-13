@@ -1529,6 +1529,11 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-filter-row > .mp-sales-field {
   flex: 0 1 200px;
 }
+/* Los segmentados (eje de tiempo, agrupar) miden lo que sus opciones: con
+   200 px se montaban sobre el campo siguiente. */
+.mp-sales-filter-row > .mp-sales-field--seg {
+  flex: 0 0 auto;
+}
 .mp-sales-range {
   display: flex;
   flex-wrap: wrap;

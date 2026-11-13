@@ -122,7 +122,7 @@ export function FilterBar({
             ))}
           </select>
         </label>
-        <div className="mp-sales-field">
+        <div className="mp-sales-field mp-sales-field--seg">
           <span id="sales-axis">{t("axisLabel")}</span>
           <div className="mp-seg mp-sales-axis" role="radiogroup" aria-labelledby="sales-axis" data-testid="sales-axis">
             {TIME_AXES.map((a) => (
@@ -143,7 +143,7 @@ export function FilterBar({
           </div>
         </div>
         {allowedGranularities.length > 1 && (
-          <div className="mp-sales-field">
+          <div className="mp-sales-field mp-sales-field--seg">
             <span id="sales-granularity">{t("granularityLabel")}</span>
             <div className="mp-seg" role="radiogroup" aria-labelledby="sales-granularity">
               {allowedGranularities.map((g) => (

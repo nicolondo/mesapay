@@ -2,13 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { isEmbeddedFrame } from "@/lib/printInBrowser";
+import { isEmbeddedFrame, printInBrowserOrOpenTab } from "@/lib/printInBrowser";
 import { fitPageToContent } from "@/lib/print/fitPageToContent";
 import {
   agentMessage,
   printAsStaff,
+  type StaffPrintDeps,
   type StaffPrintDoc,
 } from "@/lib/print/staffPrint";
+import {
+  DEVICE_PAPER_PARAM,
+  devicePaperFromParam,
+  devicePrintHelpHref,
+} from "@/lib/print/printDestination";
+import {
+  PrintDestinationPicker,
+  usePrintPreference,
+  type PrintViewer,
+} from "@/components/print/PrintDestinationPicker";
 
 /**
  * Botón "Imprimir" de las vistas imprimibles (la factura `/factura/[id]` y
@@ -22,10 +33,16 @@ import {
  * corte en dos tiras. También con Ctrl+P (`beforeprint`).
  *
  * `agent` (sólo cuando mira el STAFF del comercio, lo decide el server):
- * el botón manda el documento al AGENTE, como las comandas, y dice por
- * cuál impresora salió; si el local no tiene impresora de facturas (o su
- * agente no responde), imprime esta misma página como siempre. Sin
- * `agent` (el comensal) imprime esta página y nada más.
+ * arriba, «Imprimir en: Impresora de caja · Este dispositivo» (recordado
+ * en el equipo, ver `printDestination.ts`).
+ *   - Impresora de caja: el botón manda el documento al AGENTE, como las
+ *     comandas, y dice por cuál impresora salió; si el local no tiene
+ *     impresora de facturas (o su agente no responde), imprime esta misma
+ *     página como siempre.
+ *   - Este dispositivo: imprime acá, al papel del equipo. Si esta página
+ *     ya está a ese ancho, la misma página; si no, la tirilla a ese ancho
+ *     en el iframe oculto (`?w=55`).
+ * Sin `agent` (el comensal) imprime esta página y nada más.
  *
  * `autoPrint` (llegado como ?print=1): abre el diálogo de impresión solo
  * al cargar — es la pestaña de respaldo de los botones del staff, así que
@@ -37,16 +54,25 @@ import {
 export function PrintButton({
   autoPrint = false,
   agent = null,
+  paperMm = null,
+  viewer = null,
 }: {
   autoPrint?: boolean;
   agent?: StaffPrintDoc | null;
+  /** El ancho al que está dibujada esta página (58 u 80). */
+  paperMm?: number | null;
+  /** Rol y comercio de quien mira (del servidor): el destino sale sin esperar. */
+  viewer?: PrintViewer | null;
 }) {
   const t = useTranslations("emailInvoice");
   const ts = useTranslations("staffPrint");
+  const pref = usePrintPreference(viewer);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{
     tone: "ok" | "warn" | "error";
     text: string;
+    /** La guía de «Este dispositivo», si quien mira puede abrirla. */
+    help?: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -71,26 +97,56 @@ export function PrintButton({
       printHere();
       return;
     }
-    if (busy) return;
+    if (busy || !pref.ready) return;
     setBusy(true);
     setNote(null);
+    const destination = pref.destination;
+    const deps: StaffPrintDeps =
+      destination === "device"
+        ? {
+            onDevicePrint: () => setNote({ tone: "ok", text: ts("deviceOpening") }),
+            // Esta página ya está al papel del equipo: se imprime ella. Si
+            // no, la tirilla a ese ancho, en el iframe oculto.
+            printInBrowser: async (url, options) => {
+              const target = new URL(url, window.location.href);
+              if (devicePaperFromParam(target.searchParams.get(DEVICE_PAPER_PARAM)) === paperMm) {
+                printHere();
+                return { kind: "printed" };
+              }
+              return printInBrowserOrOpenTab(url, options);
+            },
+          }
+        : {
+            // Sin agente, el respaldo es ESTA página: no hace falta el iframe.
+            // El aviso va antes del diálogo (en pantalla; al imprimir no sale).
+            onBrowserFallback: (reason) =>
+              setNote({
+                tone: "warn",
+                text: ts(reason === "agent_offline" ? "agentOffline" : "noPrinter"),
+              }),
+            printInBrowser: async () => {
+              printHere();
+              return { kind: "printed" };
+            },
+          };
     try {
-      const result = await printAsStaff(agent, {
-        // Sin agente, el respaldo es ESTA página: no hace falta el iframe.
-        // El aviso va antes del diálogo (en pantalla; al imprimir no sale).
-        onBrowserFallback: (reason) =>
-          setNote({
-            tone: "warn",
-            text: ts(reason === "agent_offline" ? "agentOffline" : "noPrinter"),
-          }),
-        printInBrowser: async () => {
-          printHere();
-          return { kind: "printed" };
-        },
+      const result = await printAsStaff(agent, deps, {
+        destination,
+        paperMm: pref.paperMm,
       });
       if (result.via === "agent") {
         const m = agentMessage(result);
         setNote({ tone: m.tone, text: ts(m.key, m.values) });
+      } else if (result.via === "device") {
+        setNote(
+          result.outcome.kind === "printed"
+            ? {
+                tone: "ok",
+                text: ts("deviceOpened", { mm: result.paperMm }) + " " + ts("deviceHint"),
+                help: devicePrintHelpHref(pref.role),
+              }
+            : { tone: "error", text: ts("failed") },
+        );
       } else if (result.via === "error") {
         setNote({ tone: "error", text: ts("failed") });
       }
@@ -103,12 +159,23 @@ export function PrintButton({
 
   return (
     <>
-      <button type="button" onClick={onClick} disabled={busy}>
+      {agent && (
+        <PrintDestinationPicker pref={pref} disabled={busy} variant="receipt" className="print-dest" />
+      )}
+      <button type="button" onClick={onClick} disabled={busy || (!!agent && !pref.ready)}>
         {busy ? ts("sending") : t("print")}
       </button>
       {note && (
         <span role="status" className={`print-note ${note.tone}`}>
           {note.text}
+          {note.help && (
+            <>
+              {" "}
+              <a href={note.help} className="print-help">
+                {ts("deviceHelpLink")}
+              </a>
+            </>
+          )}
         </span>
       )}
     </>

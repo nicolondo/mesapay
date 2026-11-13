@@ -56,7 +56,8 @@ describe("etiquetas de todos los medios de pago, en es/en/pt", () => {
   it.each([
     ["src/app/operator/reports/ShiftPanel.tsx", "opReports.methodKushkiBreB"],
     ["src/app/operator/reports/page.tsx", "opReports.methodKushkiBreB"],
-    ["src/app/operator/shifts/[id]/page.tsx", "opShifts.methodKushkiBreB"],
+    // El rótulo de cada método del cierre (pantalla y tirilla) vive acá.
+    ["src/lib/print/shiftCloseDoc.ts", "opShifts.methodKushkiBreB"],
     ["src/app/operator/orders/[id]/page.tsx", "opOrders.mKushkiBreB"],
     ["src/app/operator/payments/page.tsx", "opPayments.mKushkiBreB"],
     ["src/app/operator/contabilidad/ContabilidadClient.tsx", "opErp.mKushkiBreB"],

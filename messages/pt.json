@@ -2240,10 +2240,6 @@
     "billRequested": "Caixa avisado",
     "prebillPrint": "Imprimir pré-conta",
     "prebillPrinting": "Enviando pré-conta…",
-    "prebillSent": "Pré-conta enviada para {printer}",
-    "prebillNoPrinter": "Sem impressora de recibos: imprime-se pelo navegador.",
-    "prebillPrinterOffline": "O agente de impressão não responde: imprime-se pelo navegador.",
-    "prebillFailed": "Não foi possível imprimir a pré-conta.",
     "prebillView": "Ver pré-conta",
     "prebillBack": "Voltar para Mesas",
     "prebillUnavailable": "A pré-conta não está disponível: a conta já foi fechada ou não tem consumo.",
@@ -2272,7 +2268,22 @@
     "sentDianPending": "Saiu o comprovante em {printer}: a DIAN ainda não aceitou a fatura eletrônica desta conta.",
     "noPrinter": "Não há impressora de faturas no agente: imprimindo pelo navegador.",
     "agentOffline": "O agente de impressão não está respondendo: imprimindo pelo navegador.",
-    "failed": "Não foi possível imprimir. Tente de novo."
+    "failed": "Não foi possível imprimir.",
+    "destinationLabel": "Imprimir em",
+    "destinationCaja": "Impressora do caixa",
+    "destinationDevice": "Este dispositivo",
+    "paperLabel": "Papel",
+    "paperMm": "{mm} mm",
+    "deviceOpening": "Abrindo a impressão deste dispositivo…",
+    "deviceOpened": "A impressão deste dispositivo foi aberta ({mm} mm).",
+    "deviceHint": "A impressora do aparelho não aparece? Ative-a em Configurações → Impressão.",
+    "deviceHelpLink": "Ver guia",
+    "retry": "Tentar de novo",
+    "useDevice": "Imprimir neste dispositivo",
+    "useCaja": "Enviar para a impressora do caixa",
+    "paperOther": "Outro",
+    "paperCustomLabel": "Largura do papel do aparelho, em milímetros",
+    "paperCustomHint": "mm (de {min} a {max})"
   },
   "opCartera": {
     "hubCategory": "Comerciais",
@@ -4386,6 +4397,8 @@
     "consumptionTaxPendingShort": "{count, plural, one {# pagamento sem discriminação fiscal} other {# pagamentos sem discriminação fiscal}}",
     "consumptionTaxShort": "INC",
     "consumptionTaxAmount": "INC: {amount}",
+    "printTicket": "Imprimir fechamento",
+    "printFullReport": "Imprimir relatório completo",
     "methodKushkiBreB": "Bre-B"
   },
   "opDashboard": {
@@ -5764,6 +5777,8 @@
     "methodCash": "Dinheiro",
     "methodDemoCard": "Cartão (demo)",
     "methodNequi": "Nequi",
+    "printInvoice": "Imprimir fatura",
+    "printPrebill": "Imprimir pré-conta",
     "methodBreB": "Bre-B"
   },
   "opAdminAi": {

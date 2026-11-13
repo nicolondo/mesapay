@@ -2240,10 +2240,6 @@
     "billRequested": "Cash desk notified",
     "prebillPrint": "Print pre-bill",
     "prebillPrinting": "Sending pre-bill…",
-    "prebillSent": "Pre-bill sent to {printer}",
-    "prebillNoPrinter": "No receipt printer: printing from the browser instead.",
-    "prebillPrinterOffline": "The print agent is not responding: printing from the browser instead.",
-    "prebillFailed": "The pre-bill could not be printed.",
     "prebillView": "View pre-bill",
     "prebillBack": "Back to Tables",
     "prebillUnavailable": "The pre-bill is not available: the bill is already closed or has no items.",
@@ -2272,7 +2268,22 @@
     "sentDianPending": "The receipt was printed on {printer}: DIAN hasn't accepted this bill's electronic invoice yet.",
     "noPrinter": "There's no invoice printer on the print agent: printing from the browser instead.",
     "agentOffline": "The print agent is not responding: printing from the browser instead.",
-    "failed": "Couldn't print. Try again."
+    "failed": "Couldn't print.",
+    "destinationLabel": "Print on",
+    "destinationCaja": "Register printer",
+    "destinationDevice": "This device",
+    "paperLabel": "Paper",
+    "paperMm": "{mm} mm",
+    "deviceOpening": "Opening this device's print dialog…",
+    "deviceOpened": "This device's print dialog opened ({mm} mm).",
+    "deviceHint": "Don't see the device's printer? Turn it on in Settings → Printing.",
+    "deviceHelpLink": "See guide",
+    "retry": "Try again",
+    "useDevice": "Print on this device",
+    "useCaja": "Send to the register printer",
+    "paperOther": "Other",
+    "paperCustomLabel": "Device paper width, in millimeters",
+    "paperCustomHint": "mm ({min} to {max})"
   },
   "opCartera": {
     "hubCategory": "Commercial",
@@ -4386,6 +4397,8 @@
     "consumptionTaxPendingShort": "{count, plural, one {# payment without a tax breakdown} other {# payments without a tax breakdown}}",
     "consumptionTaxShort": "INC",
     "consumptionTaxAmount": "INC: {amount}",
+    "printTicket": "Print closing slip",
+    "printFullReport": "Print full report",
     "methodKushkiBreB": "Bre-B"
   },
   "opDashboard": {
@@ -5764,6 +5777,8 @@
     "methodCash": "Cash",
     "methodDemoCard": "Card (demo)",
     "methodNequi": "Nequi",
+    "printInvoice": "Print invoice",
+    "printPrebill": "Print pre-bill",
     "methodBreB": "Bre-B"
   },
   "opAdminAi": {

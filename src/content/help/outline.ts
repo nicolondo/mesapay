@@ -698,6 +698,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "Diagnóstico por el bloque Estado del programa, sin conexión, token rechazado, impresora sin papel o en otra red, IP cambiada, todo en cero (categorías sin estación), servicio detenido y el archivo de registro para soporte.",
     },
     {
+      slug: "imprimir-en-este-dispositivo",
+      title: "Imprime en la impresora de caja o en este dispositivo",
+      covers:
+        "«Imprimir en: Impresora de caja · Este dispositivo» en la factura, la precuenta, el cierre de turno y el datáfono (Mesas en vivo), el papel del equipo (55 mm por defecto en el datáfono, 58, 80 u «Otro» con el ancho exacto), que cada equipo recuerda la última opción por comercio, el valor de la primera vez (Datáfono → este dispositivo), qué pasa en cada opción, reintentar o cambiar de destino, y activar una vez el servicio de impresión de Android para la impresora integrada (Sunmi P3).",
+    },
+    {
       slug: "datafonos",
       title: "Configura los datáfonos del comercio",
       covers:

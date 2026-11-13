@@ -156,6 +156,9 @@ async function POSTHandler(
       n += (await tx.stockCount.deleteMany({ where: { restaurantId: id } })).count; // cascadea StockCountItem
       n += (await tx.stockLevel.deleteMany({ where: { restaurantId: id } })).count;
       n += (await tx.purchaseInvoiceUpload.deleteMany({ where: { restaurantId: id } })).count;
+      // Notas crédito de proveedores: cascadean líneas, facturas relacionadas,
+      // cruces y reintegros; antes que compras, insumos y proveedores (RESTRICT).
+      n += (await tx.supplierCreditNote.deleteMany({ where: { restaurantId: id } })).count;
       n += (await tx.purchaseOrder.deleteMany({ where: { restaurantId: id } })).count; // cascadea PurchaseOrderItem
       n += (await tx.recipe.deleteMany({ where: { restaurantId: id } })).count; // cascadea RecipeItem
       n += (await tx.productionBatch.deleteMany({ where: { restaurantId: id } })).count;

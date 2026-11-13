@@ -194,6 +194,8 @@ export const UPLOAD_COLUMNS: readonly { model: string; field: string; archive: f
   { model: "PurchaseInvoiceUpload", field: "fileUrl", archive: "purchase-invoices" },
   // Soportes de gastos (factura, cuenta de cobro, recibo): también contables.
   { model: "Expense", field: "attachmentUrl", archive: "expense-documents" },
+  // Notas crédito de proveedores: soporte contable de la compra → con las facturas.
+  { model: "SupplierCreditNote", field: "attachmentUrl", archive: "purchase-invoices" },
   // Documentos del alta (RUT, cámara de comercio, certificación bancaria…).
   { model: "KushkiDocument", field: "fileUrl", archive: "onboarding" },
 ];

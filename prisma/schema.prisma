@@ -304,6 +304,10 @@ model Restaurant {
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
   invoiceNextNumber       Int       @default(1)
+  /// Próximo consecutivo interno de GASTOS («G-0001»). Sólo crece: un gasto
+  /// borrado no devuelve su número (ver src/lib/erp/expenseNumber.ts) y
+  /// restaurar una copia nunca lo baja (RESTAURANT_MONOTONIC_COLUMNS).
+  expenseNextNumber       Int       @default(1)
 
   // Correo registrado ante la DIAN para la RECEPCIÓN de documentos e
   // instrumentos electrónicos. Viaja en el cac:Contact/cbc:ElectronicMail
@@ -2892,6 +2896,14 @@ model Expense {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  /// Consecutivo interno por comercio («G-0012», ver expenseNumber.ts). Lo
+  /// asigna el servidor en la transacción del alta, bajo el candado de
+  /// `Restaurant.expenseNextNumber`: sin huecos por carreras y nunca se
+  /// reutiliza. null = plantilla recurrente (no es un gasto) o un gasto que
+  /// creó una versión anterior del código durante un despliegue: el próximo
+  /// alta o la lista lo numeran en orden de creación.
+  number       Int?
+
   category     String
   description  String?
   /// COSTO del gasto que va al PYG y a la cuenta de gasto: base + INC + IVA
@@ -2971,6 +2983,7 @@ model Expense {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([restaurantId, number])
   @@index([restaurantId, date])
   @@index([restaurantId, recurring])
 }

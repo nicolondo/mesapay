@@ -74,9 +74,10 @@ export const RESTAURANT_SKIPPED_COLUMNS: ReadonlySet<string> = new Set([
 /**
  * Consecutivos que sólo pueden crecer: los números de comprobante ya
  * emitidos (a la DIAN o impresos) después de la copia quedan quemados; si
- * el contador volviera atrás se repetirían.
+ * el contador volviera atrás se repetirían. Igual el consecutivo interno de
+ * gastos (G-0001): un número ya usado no se vuelve a dar.
  */
-export const RESTAURANT_MONOTONIC_COLUMNS = ["invoiceNextNumber"] as const;
+export const RESTAURANT_MONOTONIC_COLUMNS = ["invoiceNextNumber", "expenseNextNumber"] as const;
 
 export const RESTORE_TX_OPTIONS = { timeout: 10 * 60_000, maxWait: 30_000 };
 /** Palabra exacta que el operador tiene que escribir para restaurar (la valida el servidor). */
@@ -386,7 +387,7 @@ async function insertRows(tx: Client, model: TenantModel, rows: SnapshotRow[]): 
 async function updateRestaurantRow(tx: Client, restaurantId: string, snapshot: SnapshotRow): Promise<void> {
   const current = await tx.restaurant.findUniqueOrThrow({
     where: { id: restaurantId },
-    select: { invoiceNextNumber: true },
+    select: { invoiceNextNumber: true, expenseNextNumber: true },
   });
   const row = deserializeRow(restaurantFields(), snapshot);
   const patch: SnapshotRow = {};
@@ -394,7 +395,7 @@ async function updateRestaurantRow(tx: Client, restaurantId: string, snapshot: S
     if (!RESTAURANT_SKIPPED_COLUMNS.has(column)) patch[column] = value;
   }
   for (const column of RESTAURANT_MONOTONIC_COLUMNS) {
-    patch[column] = Math.max(current[column], Number(row[column] ?? 0));
+    patch[column] = Math.max(current[column] ?? 1, Number(row[column] ?? 0) || 0);
   }
   await tx.restaurant.update({
     where: { id: restaurantId },

@@ -15,6 +15,7 @@ import {
   type ExpenseTaxPayload,
 } from "@/lib/erp/expenseShared";
 import { expenseBaseCents, expensePayableCents } from "@/lib/erp/expenseTax";
+import { numberPendingExpenses } from "@/lib/erp/expenseNumber";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,27 @@ function mergedPayload(e: Owned, b: Partial<ReturnType<typeof patchSchema.parse>
     incCents: b.incCents ?? e.incCents,
     retentions: b.retentions ?? storedRetentionInputs(e),
   };
+}
+
+/**
+ * Un gasto (o plantilla) por id: lo abren los enlaces de los reportes
+ * (`?expense=`) aunque no esté en la página visible de la lista.
+ */
+async function GETHandler(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const ctx = await getErpContext(GATE);
+  if (isDenied(ctx)) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+  const { id } = await params;
+  const expense = await db.expense.findFirst({
+    where: { id, restaurantId: ctx.restaurantId },
+    include: EXPENSE_INCLUDE,
+  });
+  if (!expense) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  return NextResponse.json({ expense });
 }
 
 async function PATCHHandler(
@@ -159,7 +181,7 @@ async function PATCHHandler(
         });
       }
     }
-    return tx.expense.update({
+    const updated = await tx.expense.update({
       where: { id },
       data: {
         ...(b.category !== undefined ? { category: b.category } : {}),
@@ -185,6 +207,12 @@ async function PATCHHandler(
       },
       include: EXPENSE_INCLUDE,
     });
+    // Una plantilla que pasa a ser gasto normal recibe su consecutivo.
+    if (!recurring && updated.number == null) {
+      const assigned = await numberPendingExpenses(tx, ctx.restaurantId);
+      return { ...updated, number: assigned.get(id) ?? null };
+    }
+    return updated;
   });
   return NextResponse.json({ expense });
 }
@@ -206,6 +234,8 @@ async function DELETEHandler(
   await db.expense.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
 
 export const PATCH = secureApi(PATCHHandler);
 

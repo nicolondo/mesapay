@@ -72,6 +72,7 @@ import { FREE_LINES_INCLUDE, toFreeLines } from "../accountingData";
 import { orderFreeLineTaxSlices } from "../salesTaxSlices";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumber";
 
 /** Consecutivo de la OC como documento cuando no se capturó la factura del proveedor. */
 export function purchaseDocumentLabel(
@@ -268,6 +269,7 @@ export async function loadExpenseTaxDocs(
       id: true,
       date: true,
       category: true,
+      number: true,
       documentType: true,
       documentNumber: true,
       amountCents: true,
@@ -288,7 +290,7 @@ export async function loadExpenseTaxDocs(
   });
   return rows.map((e) => ({
     expenseId: e.id,
-    document: e.documentNumber?.trim() || e.category,
+    document: expenseDocumentLabel(e, e.category),
     dateIso: e.date.toISOString(),
     category: e.category,
     documentType: e.documentType,

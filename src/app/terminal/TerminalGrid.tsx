@@ -21,6 +21,7 @@ import {
 } from "@/lib/tables/terminalOrder";
 import type { TableVisualState } from "@/lib/walkoutRisk";
 import type { TerminalChargeState } from "@/lib/tables/terminalCharge";
+import { TerminalPrintActions } from "./TerminalPrintActions";
 
 export type TableState = TerminalTableState;
 
@@ -59,6 +60,8 @@ export type TableCard = {
   label: string | null;
   state: TableState;
   orderId: string | null;
+  /** La factura (o comprobante) de la cuenta, si ya se emitió. */
+  invoiceId: string | null;
   shortCode: string | null;
   subtotalCents: number;
   outstandingCents: number;
@@ -866,6 +869,11 @@ function DetailSheet({
               )}
             </>
           )}
+          <TerminalPrintActions
+            orderId={table.orderId}
+            invoiceId={table.invoiceId}
+            canPrebill={table.state !== "paid" && table.items.length > 0}
+          />
         </div>
       </div>
     </div>

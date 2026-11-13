@@ -26,10 +26,14 @@ vi.mock("@/lib/auditLog", () => ({ recordAuditEvent: m.audit }));
 
 import { POST } from "./route";
 
-const post = () =>
-  POST(new Request("http://localhost/api/operator/orders/order-1/prebill", { method: "POST" }), {
-    params: Promise.resolve({ id: "order-1" }),
-  });
+const post = (body?: string) =>
+  POST(
+    new Request("http://localhost/api/operator/orders/order-1/prebill", {
+      method: "POST",
+      ...(body !== undefined && { body, headers: { "content-type": "application/json" } }),
+    }),
+    { params: Promise.resolve({ id: "order-1" }) },
+  );
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -117,5 +121,47 @@ describe("POST /operator/orders/[id]/prebill", () => {
     m.enqueue.mockResolvedValue({ queued: false, reason: "order_closed" });
     expect((await post()).status).toBe(409);
     expect(m.audit).not.toHaveBeenCalled();
+  });
+
+  it("deja entrar al staff que imprime, datáfono incluido", async () => {
+    await post();
+    expect(m.scope).toHaveBeenCalledWith(
+      expect.arrayContaining(["operator", "mesero", "terminal"]),
+    );
+  });
+
+  describe("«Este dispositivo» ({ destination: \"device\" })", () => {
+    const device = JSON.stringify({ destination: "device" });
+
+    it("NO encola: valida, deja rastro y responde reason: device", async () => {
+      const res = await post(device);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ queued: false, reason: "device" });
+      expect(m.enqueue).not.toHaveBeenCalled();
+      expect(m.audit).toHaveBeenCalledOnce();
+      expect(m.audit.mock.calls[0][0]).toMatchObject({
+        kind: "order.prebill.print",
+        target: { type: "order", id: "order-1" },
+        summary: "Imprimió precuenta A4F2 en su dispositivo",
+      });
+    });
+
+    it("una cuenta ya pagada sigue siendo 409 (no se imprime a ciegas)", async () => {
+      m.findUnique.mockResolvedValue({
+        id: "order-1",
+        restaurantId: "rest-1",
+        status: "paid",
+        shortCode: "A4F2",
+      });
+      expect((await post(device)).status).toBe(409);
+      expect(m.audit).not.toHaveBeenCalled();
+    });
+
+    it("un cuerpo que no se entiende es la impresora de caja, como siempre", async () => {
+      await post("{no-json");
+      expect(m.enqueue).toHaveBeenCalledOnce();
+      await post(JSON.stringify({ destination: "otra" }));
+      expect(m.enqueue).toHaveBeenCalledTimes(2);
+    });
   });
 });

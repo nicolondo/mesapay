@@ -437,8 +437,8 @@ function SupplierSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-lg bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[90dvh] overflow-y-auto"
@@ -694,7 +694,11 @@ function SupplierDetailSheet({
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
+      // El detalle es de consulta y cierra al tocar afuera; con el formulario
+      // de un precio abierto NO, porque un clic perdido borraba lo digitado.
+      onClick={() => {
+        if (form === null) onClose();
+      }}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"

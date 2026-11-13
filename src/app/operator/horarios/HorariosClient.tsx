@@ -1354,8 +1354,8 @@ function ShiftSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -1745,8 +1745,8 @@ function EmployeeSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -2225,14 +2225,11 @@ function FaceEnrollSheet({
   }
 
   return (
-    // stopPropagation: este overlay vive DENTRO del backdrop del sheet de
-    // empleado — sin él, cerrar acá cerraría también el sheet padre.
     <div
       className="fixed inset-0 z-[60] bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
+      // Sin cierre al tocar afuera (un clic perdido borraba las fotos tomadas)
+      // y sin dejar pasar el clic a la hoja del empleado, que es su ancestro.
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -2647,8 +2644,8 @@ function SettingsSheet({
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
@@ -2793,8 +2790,8 @@ function AttendanceReportSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-      onClick={onClose}
     >
       <div
         className="w-full md:max-w-md bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"

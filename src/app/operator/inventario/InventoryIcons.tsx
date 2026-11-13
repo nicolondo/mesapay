@@ -60,7 +60,7 @@ const paths: Record<InventoryIconName, React.ReactNode> = {
       <path d="M12 11v5.5M12 7.6h.01" />
     </>
   ),
-  trash: <path d="M4.5 7h15M10 7V5h4v2M6.5 7l.8 11a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-11M10 11v5M14 11v5" />,
+  trash: <path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7M10 11v5M14 11v5" />,
 };
 
 export function InvIcon({ name, size = 18, ...props }: SVGProps<SVGSVGElement> & { name: InventoryIconName; size?: number }) {

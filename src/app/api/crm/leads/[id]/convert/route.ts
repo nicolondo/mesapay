@@ -17,7 +17,7 @@ const convertSchema = z.object({
 });
 
 const RESERVED = new Set([
-  "www", "api", "admin", "app", "signin", "signup",
+  "www", "api", "admin", "app", "signin", "signup", "salir",
   "operator", "operador", "t", "mesapay",
 ]);
 

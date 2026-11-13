@@ -241,15 +241,28 @@ export function creditPaymentMeans(
  * tiene que declarar lo mismo que ya dice el papel que tiene el cliente.
  */
 export function invoicePaymentMeans(
-  payments: readonly { billingCustomer: { creditTermsDays: number } | null }[],
+  payments: readonly { billingCustomer: { creditTermsDays: number } | null; method?: string | null }[],
   issueDate: string,
   opts: { issuedBeforePayment?: boolean } = {},
 ): Pick<DianInvoiceInput, "paymentMeansCode" | "paymentMeansId" | "paymentDueDate"> {
   const credit = creditPaymentMeans(payments, issueDate);
   if (credit.paymentMeansId === "2") return credit;
   if (opts.issuedBeforePayment) return { paymentMeansCode: "1" };
+  // Cuenta pagada TODA con Bre-B (transferencia inmediata de cuenta a
+  // cuenta): medio "47 – Transferencia Débito Bancaria" de la tabla 13.3.4.2
+  // «Medios de Pago» del anexo técnico (Res. 000012/2021), el código de
+  // transferencia que ya usa este módulo (ver `DianInvoiceInput` en ubl.ts).
+  // Con medios mezclados se sigue declarando "10", como siempre: una
+  // factura lleva un solo medio. Pendiente de confirmar con el contador si
+  // prefiere "45 – Transferencia Crédito Bancaria" (también de la tabla).
+  if (payments.length > 0 && payments.every((p) => p.method === "kushki_bre_b")) {
+    return { paymentMeansCode: BRE_B_PAYMENT_MEANS_CODE };
+  }
   return credit;
 }
+
+/** Medio DIAN de una cuenta pagada toda con Bre-B (ver `invoicePaymentMeans`). */
+export const BRE_B_PAYMENT_MEANS_CODE = "47";
 
 /**
  * Hora Colombia "HH:mm:ss-05:00" para el XML/CUFE. Para documentos nuevos

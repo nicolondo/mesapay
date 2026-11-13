@@ -19,6 +19,10 @@ import { publishOrderEvent } from "@/lib/events";
 
 // Métodos que pasaron por un charge de Kushki con ticketNumber refundeable.
 // PSE (transferencia) usa otro flujo de devolución → excluido por ahora.
+// Bre-B (`kushki_bre_b`) tampoco: la referencia de «Transfer In» de Kushki no
+// documenta ningún reverso para Bre-B. Responde `not_refundable_method` y la
+// pantalla de la orden explica la devolución manual (transferencia al
+// cliente desde la cuenta del comercio + nota crédito si hubo factura).
 const REFUNDABLE_METHODS = new Set([
   "kushki_card",
   "kushki_apple_pay",

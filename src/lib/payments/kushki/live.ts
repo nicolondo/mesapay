@@ -17,6 +17,8 @@ import type {
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
 import { kushkiFetch, KushkiHttpError } from "./client";
 import { UNREPORTED_WALLET_PENDING } from "../walletPending";
+import { buildPseTokenBody } from "./pseToken";
+import { pseProcessorFor } from "./transferConfig";
 import {
   pushPaymentToCloudTerminal,
   cancelCloudTerminalPayment,
@@ -200,6 +202,10 @@ export class LiveKushkiProvider implements PaymentProvider {
    *   currency                   ← "COP"
    *   bankId                     ← código del banco elegido
    *   paymentDescription         ← opcional, aparece en extracto
+   *   processor: { name }        ← SÓLO en modo multiprocesador (el mismo
+   *                                comercio con PSE y Bre-B): el nombre sale
+   *                                del config del comercio. Con PSE como
+   *                                único procesador no viaja, como siempre.
    *
    * Respuesta esperada (Transaction model):
    *   token         ← identifica el transfer
@@ -213,23 +219,22 @@ export class LiveKushkiProvider implements PaymentProvider {
    */
   async initiatePse(req: PseInitRequest): Promise<PseInitResult> {
     const amount = req.amount.amountCents / 100;
-    const body = {
-      amount: {
-        subtotalIva: 0,
-        subtotalIva0: amount,
-        iva: 0,
+    // Modo multiprocesador: si el comercio tiene más de un procesador de
+    // transferencias, el token dice a cuál va. Si el config no responde, el
+    // token sale sin `processor` (lo de siempre): PSE no depende de config.
+    const mode = this.mode ?? getKushkiModeSync();
+    const processor = mode === "mock" ? null : await pseProcessorFor(mode, req.merchantId);
+    const body = buildPseTokenBody(
+      {
+        amountCents: req.amount.amountCents,
+        currency: req.amount.currency,
+        callbackUrl: req.callbackUrl,
+        buyer: req.buyer,
+        bankCode: req.bankCode,
+        paymentDescription: req.paymentDescription,
       },
-      callbackUrl: req.callbackUrl,
-      userType: req.buyer.personType === "juridica" ? "1" : "0",
-      documentType: req.buyer.docType,
-      documentNumber: req.buyer.docNumber,
-      email: req.buyer.email,
-      currency: req.amount.currency,
-      bankId: req.bankCode,
-      ...(req.paymentDescription
-        ? { paymentDescription: req.paymentDescription }
-        : {}),
-    };
+      processor,
+    );
 
     // Logging defensivo: la API real de PSE no está 100% documentada
     // todavía, así que dejamos rastro del request y la respuesta para

@@ -510,7 +510,10 @@ test("a new ingredient is created from the count, counted right away and closed 
     await expect(sheet(page).getByRole("button", { name: "Nuevo insumo", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Iniciar conteo definitivo", exact: true }).click();
     await expect(scanner).toBeFocused();
-    for (const [name, amount] of [["Aceite", "5000"], ["Comino viejo", "0,3"], ["Laurel", "0,25"], ["Pimienta negra", "6"], ["Sal", "2"]]) await quantity(page, name).fill(amount);
+    // Aceite y Comino viejo cuadraron sin movimientos: quedan confirmados (plegados); el resto se recuenta.
+    await expect(page.getByRole("button", { name: /^Confirmados del preliminar 2/ })).toHaveAttribute("aria-expanded", "false");
+    await expect(quantity(page, "Aceite")).toHaveCount(0);
+    for (const [name, amount] of [["Laurel", "0,25"], ["Pimienta negra", "6"], ["Sal", "2"]]) await quantity(page, name).fill(amount);
     // En el definitivo también se puede crear: entra con existencia 0 y hay que contarlo.
     await sheet(page).getByRole("button", { name: "Nuevo insumo", exact: true }).click();
     await fields.name.fill("Orégano");

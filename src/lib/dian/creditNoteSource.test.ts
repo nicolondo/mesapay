@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { buildDianInvoiceXml } from './ubl';
 import { originalInvoiceInput } from './__fixtures__/creditNote';
 import { parseAcceptedInvoiceXml } from './creditNoteSource';
+import { saleLines } from './discountedLines';
+import { buildDianCreditNoteXml } from './creditNote';
+import { buildProposal, remainingLines } from './creditNotes/domain';
 
 const xml = () => buildDianInvoiceXml(originalInvoiceInput).xml;
 
@@ -65,5 +68,61 @@ describe('immutable accepted invoice source', () => {
     ['fake namespace', (s: string) => s.replaceAll('CommonBasicComponents-2', 'Fake-2')],
   ])('rejects %s rather than inventing fiscal values', (_name, mutate) => {
     expect(() => parseAcceptedInvoiceXml(mutate(xml()))).toThrow('source_unsupported');
+  });
+});
+
+// Facturas nuevas: el descuento del cliente va DENTRO de cada línea
+// (cac:InvoiceLine/cac:AllowanceCharge, ver discountedLines.ts). La nota se
+// reconstruye con las líneas NETAS: lo máximo a acreditar por línea es lo
+// que se cobró por ella. Las facturas viejas (sin descuento en las líneas)
+// se leen como siempre — el bloque de arriba sigue pasando sin cambios.
+describe('accepted invoice with the customer discount inside its lines', () => {
+  const items = [
+    { nameSnapshot: 'Plato & bebida', qty: 2, priceCentsSnapshot: 10_800, cancelledAt: null, taxKind: null, taxPct: null },
+    { nameSnapshot: 'Postre', qty: 1, priceCentsSnapshot: 5_400, cancelledAt: null, taxKind: null, taxPct: null },
+  ];
+  // Subtotal 27.000 centavos, 20 % de descuento = 5.400.
+  const sale = saleLines(items, { kind: 'inc', pct: 8 }, 5_400);
+  const discountedXml = () => buildDianInvoiceXml({ ...originalInvoiceInput, lines: sale.lines }).xml;
+
+  it('reads net lines, keeps the discount per line and matches the accepted totals', () => {
+    const source = parseAcceptedInvoiceXml(discountedXml());
+    expect(source.lines.map((l) => [l.lineTotalCents, l.taxCents, l.allowanceCents])).toEqual(
+      sale.lines.map((l) => [l.lineTotalCents, l.taxCents, l.allowanceCents]),
+    );
+    expect(source.lines.reduce((s, l) => s + l.grossCents, 0)).toBe(27_000 - 5_400);
+    expect(source.totals.payableCents).toBe(21_600);
+    expect(source.totals.taxIncCents).toBe(sale.embedded.taxCents);
+  });
+
+  it('a total credit note credits what was charged, not the list price', () => {
+    const source = parseAcceptedInvoiceXml(discountedXml());
+    const proposal = buildProposal(remainingLines(source.lines, []), {
+      originalInvoiceId: 'i', sourceVersion: 'v', mode: 'total', reasonCode: '2', reasonText: 'Anulación',
+    });
+    expect(proposal.totalCents).toBe(21_600);
+    expect(proposal.taxCents).toBe(sale.embedded.taxCents);
+    const note = buildDianCreditNoteXml({
+      ...originalInvoiceInput, invoiceNumber: 'NC1', lines: proposal.lines,
+      reference: { invoiceNumber: source.invoiceNumber, cufe: source.cufe, issueDate: source.issueDate },
+      discrepancyCode: '2',
+    });
+    // La nota no lleva descuentos: acredita importes netos.
+    expect(note.xml).not.toContain('AllowanceCharge>');
+    expect(note.totals.payableCents).toBe(21_600);
+  });
+
+  it.each([
+    ['a charge instead of a discount', (s: string) => s.replace('<cbc:ChargeIndicator>false', '<cbc:ChargeIndicator>true')],
+    ['a coded line discount', (s: string) => s.replace('<cbc:AllowanceChargeReason>', '<cbc:AllowanceChargeReasonCode>00</cbc:AllowanceChargeReasonCode><cbc:AllowanceChargeReason>')],
+    ['a base that is not the line before the discount', (s: string) => s.replace(/(<cbc:BaseAmount currencyID="COP">)(\d+)\./, (_m, a: string, b: string) => `${a}${Number(b) + 1}.`)],
+    ['a percentage that does not match the amounts', (s: string) => s.replace('<cbc:MultiplierFactorNumeric>20.00', '<cbc:MultiplierFactorNumeric>35.00')],
+    ['two discounts on one line', (s: string) => s.replace(/(<cac:AllowanceCharge>.*?<\/cac:AllowanceCharge>)/, '$1$1')],
+    ['a document-level discount', (s: string) => s.replace('<cac:LegalMonetaryTotal>', '<cac:AllowanceCharge><cbc:ID>1</cbc:ID></cac:AllowanceCharge><cac:LegalMonetaryTotal>')],
+    ['a discount hidden inside the price', (s: string) => s.replace('</cac:Price>', '<cac:AllowanceCharge/></cac:Price>')],
+  ])('rejects %s rather than inventing fiscal values', (_name, mutate) => {
+    const original = discountedXml();
+    expect(mutate(original)).not.toBe(original);
+    expect(() => parseAcceptedInvoiceXml(mutate(original))).toThrow('source_unsupported');
   });
 });

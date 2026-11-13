@@ -156,6 +156,24 @@ export function orderFreeLineTaxSlices(order: SalesTaxOrder): SalesTaxSlice[] {
   const snap = order.invoiceSnapshot;
   const fallback = order.freeLines ?? [];
   if (!snap) return freeLinesToSlices(fallback);
+  // Un descuento mayor que todos los platos alcanzó a las líneas libres con
+  // impuesto encima: lo que declaró la factura por esas líneas (neto, ver
+  // `dian/discountedLines.ts`) es lo que congeló el snapshot. En el caso
+  // normal no existe y esas líneas quedaron tal como se cobraron.
+  const declared = snap.discountInLines?.freeLineTax;
+  if (declared) {
+    return sumSalesTaxSlices(
+      declared
+        .filter((s) => s.taxCents > 0 || s.baseCents > 0)
+        .map((s) => ({
+          kind: s.kind,
+          pct: s.pct,
+          grossCents: s.baseCents + s.taxCents,
+          taxCents: s.taxCents,
+          baseCents: s.baseCents,
+        })),
+    );
+  }
   return matchDeclared(freeLinesToSlices(invoiceFreeLines(snap, fallback)), snap);
 }
 

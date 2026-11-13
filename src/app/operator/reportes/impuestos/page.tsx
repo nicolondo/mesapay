@@ -265,6 +265,8 @@ const CHECK_LINKS: Partial<Record<CheckResult["key"], { href: string; labelKey: 
   terceroSinNit: { href: "/operator/settings/proveedores", labelKey: "linkSuppliers" },
   sinDocumento: { href: "/operator/contabilidad/comprobantes", labelKey: "linkVouchers" },
   facturadaPendiente: { href: "/operator/tables", labelKey: "linkTables" },
+  // Se corrigen con nota crédito (lo decide el contador): ahí se emiten.
+  descuentoSinDeclarar: { href: "/operator/facturas/notas-credito", labelKey: "linkCreditNotes" },
 };
 
 const AMOUNT_HEAD: Partial<Record<CheckResult["key"], string>> = {
@@ -274,6 +276,7 @@ const AMOUNT_HEAD: Partial<Record<CheckResult["key"], string>> = {
   ivaNoDescontable: "colDeductible",
   desactualizado: "colDifference",
   sinDocumento: "colMovement",
+  descuentoSinDeclarar: "colOverstatedTax",
 };
 
 /** Revisiones → textos traducidos para el panel (sin las filas: esas las trae la API). */
@@ -298,6 +301,8 @@ function checkItems(
       current: rateText(c.params.kind, c.params.pct),
       orders: c.params.orders ?? c.count,
       regime: regime === "none" ? t("noRate") : t(`tile_${regime}`),
+      base: money(typeof c.params.baseCents === "number" ? c.params.baseCents : 0),
+      discount: money(typeof c.params.discountCents === "number" ? c.params.discountCents : 0),
     };
     const body =
       c.key === "ivaNoDescontable"

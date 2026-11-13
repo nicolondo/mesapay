@@ -4,6 +4,15 @@
  * profiles fail explicitly, so allowances, tips, retentions or extra taxes
  * can never disappear while a credit note is reconstructed.
  * Acceptance and the XML's ownership/signature are verified by the caller.
+ *
+ * The one allowance MESAPAY emits is the customer discount INSIDE a line
+ * (`cac:InvoiceLine/cac:AllowanceCharge`, Anexo Técnico FBE01–FBE09, see
+ * `discountedLines.ts`): one discount per line, ChargeIndicator false, no
+ * reason code, BaseAmount = the line before the discount and
+ * LineExtensionAmount = BaseAmount − Amount. Those lines are read NET: the
+ * credit note can adjust at most what was charged for each line. Invoices
+ * accepted before that (no allowances) read exactly as before. Document
+ * allowances, charges and anything else still fail.
  */
 import { DOMParser, type Element } from '@xmldom/xmldom';
 import { computeDianTotals, type DianLine, type DianParty, type DianTotals } from './ubl';
@@ -156,12 +165,14 @@ function readLine(node: Element): CreditNoteSource['lines'][number] {
   requireValue(Number.isSafeInteger(quantity) && quantity > 0);
   const lineTotalCents = money(node, 'LineExtensionAmount');
   requireValue(lineTotalCents > 0);
+  const allowanceCents = lineAllowance(node, lineTotalCents);
   const price = one(node, CAC, 'Price');
   const unitPriceCents = money(price, 'PriceAmount');
   const baseQty = one(price, CBC, 'BaseQuantity');
   requireValue(baseQty.getAttribute('unitCode') === 'EA' && Number(text(baseQty)) === 1);
   // MESAPAY rounds unit prices separately. Keep original line base as authoritative.
-  requireValue(Math.abs(unitPriceCents * quantity - lineTotalCents) <= quantity);
+  // The price is the list price, before the line discount (FAV06).
+  requireValue(Math.abs(unitPriceCents * quantity - (lineTotalCents + allowanceCents)) <= quantity);
   const totals = elements(node, CAC, 'TaxTotal');
   requireValue(totals.length <= 1);
   const taxes = totals.flatMap((total) => taxSubtotals(total, true));
@@ -175,8 +186,35 @@ function readLine(node: Element): CreditNoteSource['lines'][number] {
     lineId: basic(node, 'ID'), description: basic(item, 'Description'), quantity,
     unitPriceCents, lineTotalCents, taxCents: tax?.tax ?? 0,
     taxPct: tax?.pct ?? '0.00', taxSchemeId: tax?.scheme ?? '04', itemCode: text(itemId),
+    ...(allowanceCents > 0 ? { allowanceCents } : {}),
     grossCents: safeSum([lineTotalCents, tax?.tax ?? 0]),
   };
+}
+/**
+ * The customer discount of a line, as MESAPAY emits it (`ubl.lineAllowanceXml`),
+ * or 0 when the line has none. Anything else (a charge, a reason code, several
+ * allowances, a base that is not the line before the discount) is another
+ * profile and fails.
+ */
+function lineAllowance(node: Element, lineTotalCents: number): number {
+  const groups = elements(node, CAC, 'AllowanceCharge');
+  requireValue(groups.length <= 1);
+  const group = groups[0];
+  if (!group) return 0;
+  requireValue(basic(group, 'ID') === '1');
+  requireValue(basic(group, 'ChargeIndicator') === 'false');
+  requireValue(elements(group, CBC, 'AllowanceChargeReasonCode').length === 0);
+  optionalBasic(group, 'AllowanceChargeReason');
+  const amountCents = money(group, 'Amount');
+  const baseCents = money(group, 'BaseAmount');
+  requireValue(amountCents > 0 && baseCents > amountCents);
+  requireValue(baseCents === safeSum([lineTotalCents, amountCents]));
+  const rawPct = basic(group, 'MultiplierFactorNumeric');
+  requireValue(/^\d{1,3}(?:\.\d{1,2})?$/.test(rawPct));
+  const pct100 = Math.round(Number(rawPct) * 100);
+  requireValue(pct100 <= 10000);
+  requireValue(Math.abs(pct100 - Math.round((amountCents * 10000) / baseCents)) <= 1);
+  return amountCents;
 }
 
 export function parseAcceptedInvoiceXml(xml: string): CreditNoteSource {
@@ -190,7 +228,7 @@ export function parseAcceptedInvoiceXml(xml: string): CreditNoteSource {
     requireValue(basic(root, 'DocumentCurrencyCode') === 'COP');
     requireValue(basic(root, 'InvoiceTypeCode') === '01');
     requireValue(basic(root, 'CustomizationID') === '10');
-    for (const unsupported of ['AllowanceCharge', 'WithholdingTaxTotal', 'PrepaidPayment', 'PaymentExchangeRate', 'TaxExchangeRate', 'PricingExchangeRate']) {
+    for (const unsupported of ['WithholdingTaxTotal', 'PrepaidPayment', 'PaymentExchangeRate', 'TaxExchangeRate', 'PricingExchangeRate']) {
       requireValue(root.getElementsByTagNameNS(CAC, unsupported).length === 0);
     }
     const environment = basic(root, 'ProfileExecutionID');
@@ -204,6 +242,11 @@ export function parseAcceptedInvoiceXml(xml: string): CreditNoteSource {
     requireValue(/^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d-05:00$/.test(issueTime));
     const lineNodes = elements(root, CAC, 'InvoiceLine');
     requireValue(lineNodes.length > 0 && lineNodes.length <= 1000);
+    // Allowances only as the line discount read by `lineAllowance`: none at
+    // document level (FAQ01 — it does not lower the tax base, so it is not
+    // MESAPAY's profile) and none anywhere else in the tree.
+    const lineAllowances = lineNodes.reduce((sum, line) => sum + elements(line, CAC, 'AllowanceCharge').length, 0);
+    requireValue(root.getElementsByTagNameNS(CAC, 'AllowanceCharge').length === lineAllowances);
     const lines = lineNodes.map(readLine);
     requireValue(new Set(lines.map((line) => line.lineId)).size === lines.length);
     requireValue(Number(basic(root, 'LineCountNumeric')) === lines.length);

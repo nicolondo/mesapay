@@ -204,7 +204,7 @@
         "inventory": "Inventory and recipes",
         "payroll": "Payroll",
         "accounting": "Accounting",
-        "pulso": "Pulso AI"
+        "pulso": "Pulso AI agent"
       }
     },
     "pains": {
@@ -315,16 +315,16 @@
         "shot1": "Monthly income statement with revenue, costs, expenses and result for the period"
       },
       "pulso": {
-        "kicker": "Reports and Pulso",
+        "kicker": "Reports and Pulso AI agent",
         "pain": "“I make decisions blind, on gut feeling.”",
         "title": "Ask your restaurant. It answers with data.",
-        "f1t": "Pulso, your AI assistant",
+        "f1t": "Pulso AI agent, your assistant",
         "f1d": "“What are my best-selling dishes this month?” It answers with your real data and doesn’t make up figures.",
         "f2t": "Sales analysis",
         "f2d": "How much, when and what you sold versus another period: day and hour, products and margin, team and payment methods.",
         "f3t": "Today’s summary",
         "f3d": "Today’s sales, average ticket, open tables and the cash that should be in the drawer, as soon as you open the dashboard.",
-        "shot1": "Pulso answering which dishes sold best this month",
+        "shot1": "Pulso AI agent answering which dishes sold best this month",
         "shot2": "Today’s summary with sales, paid orders, average ticket and cash"
       },
       "more": {
@@ -1441,7 +1441,7 @@
     "navClose": "Close-out",
     "navWallet": "Wallet",
     "navSettings": "Settings",
-    "navInsights": "Pulso",
+    "navInsights": "Pulso AI agent",
     "navVouchers": "Vouchers",
     "navHelp": "Help",
     "liveSection": "Live",
@@ -5594,7 +5594,7 @@
     "methodNequi": "Nequi"
   },
   "opAdminAi": {
-    "title": "Pulso Assistant",
+    "title": "Pulso AI agent",
     "enabledLabel": "Assistant status",
     "optInherit": "Inherit from plan",
     "optOn": "Force enabled",
@@ -5607,14 +5607,14 @@
     "saveFailed": "Could not save."
   },
   "insights": {
-    "title": "Pulso",
+    "title": "Pulso AI agent",
     "subtitle": "Ask your data about your business.",
     "placeholder": "Type your question…",
     "send": "Send",
     "thinking": "Analyzing your data…",
     "error": "Something went wrong. Please try again.",
     "limitReached": "You've reached today's question limit.",
-    "disabled": "The Pulso assistant is not enabled for this business.",
+    "disabled": "The Pulso AI agent is not enabled for this business.",
     "sug1": "What are my best-selling dishes this month?",
     "sug2": "Which dishes barely sell?",
     "sug3": "Show me my top dishes by revenue",

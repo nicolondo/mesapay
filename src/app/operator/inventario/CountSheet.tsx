@@ -10,6 +10,7 @@ import {
   filterCountItems, orderCountItems, pruneBlankCountParts, restoreCountOrder, serializeCountOrder,
   type CountOrderState, type DifferenceFilter,
 } from "@/lib/erp/countView";
+import { parseRecountPlan, RECOUNT_REASONS, recountStatus, recountSummary, type RecountReason } from "@/lib/erp/recountPlan";
 import { countEntriesFromBase, nextCountEntry, parseCountEntries, parseCountEntry, type CountEntry } from "@/lib/erp/stockCountInput";
 import { MAX_COUNT_PARTS } from "@/lib/erp/stockCountParts";
 import type { IngredientConflict, IngredientRef } from "../compras/shared";
@@ -70,6 +71,8 @@ type ScanPanel =
   | { kind: "linked"; code: string; item: { id: string; ingredientId: string; name: string }; previous: Named | null }
   | { kind: "note"; tone: "ok" | "error"; text: string };
 
+const REASON_LABEL: Record<RecountReason, string> = { difference: "countReasonDifference", uncounted: "countReasonUncounted", moved: "countReasonMoved" };
+
 const COUNT_ERROR_KEYS: Record<string, string> = {
   count_changed: "countErrChanged", stock_changed: "countErrStockChanged",
   incomplete_count: "countErrIncomplete", empty_count: "countErrEmpty",
@@ -110,6 +113,9 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   const [order, dispatchOrder] = useReducer(countOrderReducer, initialCount, loadOrder);
   const [q, setQ] = useState("");
   const [differenceFilter, setDifferenceFilter] = useState<DifferenceFilter>("all");
+  // Conteo definitivo: filtro por motivo y grupo «Confirmados del preliminar».
+  const [reasonFilter, setReasonFilter] = useState<"all" | RecountReason | "confirmed">("all");
+  const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState<"stock" | "count" | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -183,6 +189,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
     setEntries(entriesOf(next));
     setConflict(null);
     setDifferenceFilter("all");
+    setReasonFilter("all");
     setQuantityError(null);
     setExpandedId(null);
     setHit(null);
@@ -231,6 +238,19 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
     [count.items],
   );
 
+  // Conteo definitivo: qué se pidió recontar y qué quedó confirmado del
+  // preliminar. Conteos iniciados antes de esta regla no traen plan.
+  const plan = useMemo(() => (count.recountStartedAt ? parseRecountPlan(count.recountSnapshot) : null), [count.recountStartedAt, count.recountSnapshot]);
+  const statusOf = (item: CountItemRow) => (plan && item.ingredient.trackInventory ? recountStatus(plan, item.ingredient.id) : null);
+  const tagsOf = (item: CountItemRow) => {
+    const status = statusOf(item);
+    return status === null ? "" : status === "confirmed" ? "confirmed" : (plan?.reasons[item.ingredient.id] ?? []).join(",");
+  };
+  const reasonTotals = recountSummary(plan, count.items.filter((item) => item.ingredient.trackInventory).map((item) => item.ingredient.id));
+  /** Confirmado y todavía con el conteo que se arrastró del preliminar. */
+  const stillCarried = (item: CountItemRow) => statusOf(item) === "confirmed" && item.countedQty !== null && item.countedQty === item.preliminaryQty
+    && order.touched[item.id] === undefined && JSON.stringify(entries[item.id] ?? []) === JSON.stringify(savedEntriesOf(item));
+
   // Los filtros miran lo DIGITADO (igual que sus contadores), pero la fila
   // recién escaneada, la que se está editando y la desplegada no desaparecen:
   // escribir el primer número no saca la fila de «Pendientes» ni le quita el
@@ -240,7 +260,20 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
     q, filter: differenceFilter, pinned,
     view: (item) => ({ ingredient: item.ingredient, tracked: item.ingredient.trackInventory, value: quantity(item), baseline: baseline(item) }),
   });
-  const { recent, rest } = orderCountItems(filtered, order.touched);
+  const byReason = reasonFilter === "all" || !plan ? filtered : filtered.filter((item) => pinned.has(item.id)
+    || (reasonFilter === "confirmed" ? statusOf(item) === "confirmed" : statusOf(item) === "recount" && (plan.reasons[item.ingredient.id] ?? []).includes(reasonFilter)));
+  const { recent, rest } = orderCountItems(byReason, order.touched);
+  // En el definitivo, lo no tocado se reparte en «Por recontar», «Ya
+  // recontados» y «Confirmados del preliminar» (este último, plegado).
+  const grouped = !!plan && canEdit;
+  const isPending = (item: CountItemRow) => { const value = quantity(item); return value == null || value === "invalid"; };
+  const toRecount = grouped ? rest.filter((item) => statusOf(item) === "recount" && isPending(item)) : [];
+  const confirmed = grouped ? rest.filter((item) => statusOf(item) === "confirmed") : [];
+  const recounted = grouped ? rest.filter((item) => statusOf(item) === "recount" && !isPending(item)) : [];
+  // Sin plan, o insumos que no llevan inventario: van en su orden de siempre.
+  const others = grouped ? rest.filter((item) => statusOf(item) === null) : rest;
+  const showConfirmed = confirmedOpen || reasonFilter === "confirmed" || q.trim() !== "";
+  const pendingRecount = plan ? count.items.filter((item) => statusOf(item) === "recount" && isPending(item)).length : 0;
 
   // Desviación en vivo: contados y con diferencia (borrador usa lo
   // digitado; cerrado usa lo persistido).
@@ -262,7 +295,10 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
    */
   function focusItem(item: CountItemRow, current: readonly CountEntry[]): boolean {
     if (!item.ingredient.trackInventory) return false;
-    const next = nextCountEntry(current, item.ingredient.measureKind);
+    // Un insumo confirmado del preliminar se RECUENTA: queda seleccionada la
+    // cantidad arrastrada para escribir encima (Enter la deja como está), en
+    // vez de sumarle otra cantidad.
+    const next = stillCarried(item) && current.length ? { entries: [...current], index: 0 } : nextCountEntry(current, item.ingredient.measureKind);
     if (!next) {
       setPanel({ kind: "note", tone: "error", text: t("countPartsLimit", { count: MAX_COUNT_PARTS }) });
       return false;
@@ -272,6 +308,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
     // El buscador puede estar escondiendo justo la fila escaneada.
     setQ("");
     setDifferenceFilter("all");
+    setReasonFilter("all");
     setHintOpen(false);
     dispatchOrder({ type: "scan", itemId: item.id });
     setExpandedId(next.entries.length > 1 ? item.id : null);
@@ -578,6 +615,14 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
     setBusy(false);
   }
 
+  /** «Recontar todo»: el definitivo vuelve a empezar vacío, sin confirmados. */
+  async function recountAll() {
+    if (busy || !window.confirm(t("countRecountAllConfirm"))) return;
+    setErr(null); setBusy(true);
+    try { await requestCount("recount", { revision: count.revision, full: true }); }
+    finally { setBusy(false); }
+  }
+
   async function advance(action: "preliminary" | "recount" | "review") {
     setErr(null); setBusy(true);
     try {
@@ -678,6 +723,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
       expanded={expandedId === item.id}
       errorIndex={quantityError?.itemId === item.id ? quantityError.index : null}
       codesAccent={pendingCode !== null}
+      tags={tagsOf(item)}
       enterHintId={enterHintId}
       handlers={handlers}
     />
@@ -793,6 +839,40 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
                 )}
               </div>
 
+              {plan && (
+                <div className="mp-tally-chips" role="group" aria-label={t("countRecountFilterLabel")}>
+                  <span className="mp-tally-stat"><span>{t("countRecountGroup")}</span>{" "}<b>{pendingRecount}</b></span>
+                  {RECOUNT_REASONS.map((reason) => (
+                    <button
+                      key={reason}
+                      type="button"
+                      className="mp-tally-chip"
+                      aria-pressed={reasonFilter === reason}
+                      title={reason === "moved" ? t("countReasonMovedTitle") : undefined}
+                      onClick={() => { setReasonFilter(reasonFilter === reason ? "all" : reason); setHit(null); setExpandedId(null); }}
+                    >
+                      <span>{t(REASON_LABEL[reason])}</span>{" "}
+                      <b>{reasonTotals[reason]}</b>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="mp-tally-chip"
+                    data-tone="ok"
+                    aria-pressed={reasonFilter === "confirmed"}
+                    onClick={() => { setReasonFilter(reasonFilter === "confirmed" ? "all" : "confirmed"); setHit(null); setExpandedId(null); }}
+                  >
+                    <span>{t("countReasonConfirmed")}</span>{" "}
+                    <b>{reasonTotals.confirmed}</b>
+                  </button>
+                  {canEdit && (
+                    <button type="button" disabled={busy} onClick={recountAll} className="mp-btn mp-btn--ghost mp-btn--xs ml-auto shrink-0">
+                      {t("countRecountAll")}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="mp-tally-cols" aria-hidden="true">
                 <span />
                 <span>{t("countColItem")}</span>
@@ -828,7 +908,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
               </div>
             )}
 
-            {filtered.length === 0 ? (
+            {byReason.length === 0 ? (
               <div className="m-3 rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-6 text-center text-sm text-op-muted">
                 {t("emptyFiltered")}
                 {canEdit && q.trim() !== "" && (
@@ -848,10 +928,38 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
                     {recent.map(row)}
                   </section>
                 )}
-                {rest.length > 0 && (
-                  <section aria-label={t(recent.length ? "countRestGroup" : "countAllGroup")}>
-                    {recent.length > 0 && <h3 className="mp-tally-group">{t("countRestGroup")}{" "}<b>{rest.length}</b></h3>}
-                    {rest.map(row)}
+                {grouped && toRecount.length > 0 && (
+                  <section aria-label={t("countRecountGroup")}>
+                    <h3 className="mp-tally-group">{t("countRecountGroup")}{" "}<b>{toRecount.length}</b></h3>
+                    {toRecount.map(row)}
+                  </section>
+                )}
+                {recounted.length > 0 && (
+                  <section aria-label={t("countRecountedGroup")}>
+                    <h3 className="mp-tally-group">{t("countRecountedGroup")}{" "}<b>{recounted.length}</b></h3>
+                    {recounted.map(row)}
+                  </section>
+                )}
+                {others.length > 0 && (
+                  <section aria-label={t(recent.length || grouped ? "countRestGroup" : "countAllGroup")}>
+                    {(grouped || recent.length > 0) && <h3 className="mp-tally-group">{t("countRestGroup")}{" "}<b>{others.length}</b></h3>}
+                    {others.map(row)}
+                  </section>
+                )}
+                {grouped && confirmed.length > 0 && (
+                  <section aria-label={t("countConfirmedGroup")}>
+                    <h3 className="mp-tally-group">
+                      <button
+                        type="button"
+                        className="mp-tally-group__toggle"
+                        aria-expanded={showConfirmed}
+                        onClick={() => setConfirmedOpen(!showConfirmed)}
+                      >
+                        <span>{t("countConfirmedGroup")}{" "}<b>{confirmed.length}</b></span>
+                        <InvIcon name="chevronDown" size={14} />
+                      </button>
+                    </h3>
+                    {showConfirmed ? confirmed.map(row) : <p className="mp-tally-row__msg !px-3 py-2">{t("countConfirmedHint")}</p>}
                   </section>
                 )}
               </div>

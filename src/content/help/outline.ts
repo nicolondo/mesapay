@@ -67,7 +67,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "permisos-propinas-y-turnos",
       title: "Define permisos, propinas y turnos del equipo",
       covers:
-        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Sólo el administrador puede iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
+        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Solo el administrador y el datáfono pueden iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
     },
     {
       slug: "suscripcion",
@@ -155,7 +155,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-una-cuenta",
       title: "Cobra una cuenta paso a paso",
       covers:
-        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Sólo el administrador puede iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
+        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Solo el administrador y el datáfono pueden iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
       legacy:
         "Desde Salón o la app del mesero: efectivo, datáfono o cortesía (gastos de representación). Tras el pago se ofrece la factura al cliente.",
     },
@@ -169,7 +169,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono (su orden, \"Toca para cobrar\" y \"Cobrar\" para empezar el cobro, y lo que no puede hacer).",
     },
     {
       slug: "dividir-la-cuenta",
@@ -591,9 +591,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "pulso",
-      title: "Pregúntale a Pulso sobre tu negocio",
+      title: "Pregúntale a Pulso agente IA sobre tu negocio",
       covers:
-        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está, el límite diario de preguntas y el historial de conversaciones (reabrir y borrar).",
+        "El asistente \"Pulso agente IA\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está, el límite diario de preguntas y el historial de conversaciones (reabrir y borrar).",
     },
   ],
 

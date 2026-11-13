@@ -2,8 +2,10 @@
 //
 // Cuando `Restaurant.adminOnlyCharge = true`, el rol `mesero` NO puede
 // iniciar ni cerrar el cobro de una mesa: sólo `operator` /
-// `platform_admin`. El comensal sigue pudiendo pagar solo desde su QR —
-// lo que se restringe es que un miembro del staff que no sea el dueño
+// `platform_admin` — y el usuario de datáfono (`terminal`), que sigue
+// cobrando desde «Mesas en vivo»: el equipo existe para cobrar y la opción
+// apunta a los meseros (decisión del dueño, 2026-11-13). El comensal sigue
+// pudiendo pagar solo desde su QR — lo que se restringe es que un mesero
 // toque la plata.
 //
 // Este archivo es PURO a propósito (no importa `@/lib/db`): así los

@@ -9,6 +9,10 @@ import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 const createSchema = z.object({
   number: z.number().int().min(1).max(999),
   label: z.string().trim().max(40).optional(),
+  // Opcionales: el editor del plano crea la mesa ya con su forma y su
+  // capacidad (el alta rápida de Mesas no los manda y quedan los defaults).
+  capacity: z.number().int().min(1).max(40).optional(),
+  shape: z.enum(["square", "round", "bar"]).optional(),
 });
 
 async function POSTHandler(req: Request) {
@@ -39,10 +43,8 @@ async function POSTHandler(req: Request) {
     },
   });
   if (existing) {
-    return NextResponse.json(
-      { error: "Ya existe una mesa con ese número" },
-      { status: 409 },
-    );
+    // Código, no texto: el front lo traduce (es/en/pt).
+    return NextResponse.json({ error: "number_taken" }, { status: 409 });
   }
 
   const table = await db.table.create({
@@ -51,10 +53,18 @@ async function POSTHandler(req: Request) {
       number: parsed.data.number,
       label: parsed.data.label?.trim() || null,
       qrToken: randomBytes(16).toString("hex"),
+      ...(parsed.data.capacity !== undefined && { capacity: parsed.data.capacity }),
+      ...(parsed.data.shape !== undefined && { shape: parsed.data.shape }),
     },
   });
 
-  return NextResponse.json({ id: table.id });
+  return NextResponse.json({
+    id: table.id,
+    number: table.number,
+    label: table.label,
+    capacity: table.capacity,
+    shape: table.shape,
+  });
 }
 
 export const POST = secureApi(POSTHandler);

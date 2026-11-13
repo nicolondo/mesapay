@@ -54,6 +54,12 @@ async function POSTHandler(
   }
 
   const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
+  // El datáfono sólo cobra con datáfono o efectivo: nunca aplica bonos
+  // (src/lib/payments/staffCheckout.ts). Se corta acá y no sacándolo de la
+  // lista, porque sin sesión de staff la ruta redimiría como comensal.
+  if (staff?.user.role === "terminal") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   if (staff && isChargeBlockedForRole(staff.user.role, tenant.adminOnlyCharge)) {
     return chargeBlockedResponse();
   }

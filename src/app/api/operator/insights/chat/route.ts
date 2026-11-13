@@ -76,7 +76,7 @@ async function POSTHandler(req: Request) {
   const today = localIsoDate(new Date(), timeZone);
   // Español neutro (tú), como el resto del producto: el modelo copia el tono.
   const system =
-    `Eres "Pulso", el analista de negocio del restaurante "${r.name}". Hoy es ${today}. ` +
+    `Eres "Pulso agente IA" (en inglés, "Pulso AI agent"; en portugués, "Pulso agente de IA"), el analista de negocio del restaurante "${r.name}". Hoy es ${today}. ` +
     `Responde SIEMPRE en el idioma: ${locale}. Usa SOLO las herramientas para obtener datos ` +
     `(nunca inventes cifras). Sé concreto: números clave, comparaciones y 1-2 recomendaciones ` +
     `accionables. Si una pregunta no se puede responder con las herramientas, dilo.`;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
-import { resolveFloorPlan } from "@/lib/floorPlan";
+import { resolveFloor } from "@/lib/floorPlan";
 import { FloorPlanEditor, type EditorTable } from "./FloorPlanEditor";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,11 @@ export default async function SalonEditorPage() {
         shape: true,
         floorPlanX: true,
         floorPlanY: true,
+        floorX: true,
+        floorY: true,
+        floorW: true,
+        floorH: true,
+        floorRotation: true,
       },
     }),
     db.restaurant.findUnique({
@@ -32,40 +37,30 @@ export default async function SalonEditorPage() {
     }),
   ]);
 
-  const floorPlan = resolveFloorPlan(restaurant?.floorPlan);
+  // Plano libre, o el de celdas convertido al vuelo (no se escribe nada
+  // hasta que el dueño toque «Guardar mapa»).
+  const { scene, placements } = resolveFloor(restaurant?.floorPlan, tables);
 
-  const rows: EditorTable[] = tables.map((t) => ({
-    id: t.id,
-    number: t.number,
-    label: t.label,
-    capacity: t.capacity,
-    shape: t.shape,
-    x: t.floorPlanX,
-    y: t.floorPlanY,
+  const rows: EditorTable[] = tables.map((tb) => ({
+    id: tb.id,
+    number: tb.number,
+    label: tb.label,
+    capacity: tb.capacity,
+    shape: tb.shape,
+    placement: placements[tb.id] ?? null,
   }));
 
   return (
-    <div className="p-6 max-w-4xl mx-auto w-full">
-      <Link
-        href="/operator/settings"
-        className="text-sm text-op-muted hover:underline"
-      >
+    <div className="p-4 sm:p-6 max-w-[1400px] mx-auto w-full">
+      <Link href="/operator/settings" className="text-sm text-op-muted hover:underline">
         {t("backToSettings")}
       </Link>
-      <div className="font-display text-3xl mt-2 mb-1">{t("title")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("intro")}</p>
+      <h1 className="font-display text-3xl mt-2 mb-1">{t("title")}</h1>
+      <p className="text-sm text-op-muted mb-5 max-w-[72ch]">{t("intro")}</p>
 
-      {rows.length === 0 ? (
-        <div className="rounded-2xl border border-op-border bg-op-surface px-4 py-10 text-center text-sm text-op-muted">
-          {t("noTablesPre")}
-          <Link href="/operator/tables" className="text-terracotta hover:underline">
-            {t("noTablesLink")}
-          </Link>
-          {t("noTablesPost")}
-        </div>
-      ) : (
-        <FloorPlanEditor initialTables={rows} initialFloorPlan={floorPlan} />
-      )}
+      {/* Sin mesas también se abre: se puede dibujar el salón y crear las
+          mesas desde la bandeja («Nueva mesa»). */}
+      <FloorPlanEditor restaurantId={restaurantId} initialTables={rows} initialScene={scene} />
     </div>
   );
 }

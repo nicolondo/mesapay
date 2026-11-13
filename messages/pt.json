@@ -5539,6 +5539,7 @@
     "tileTerminalRequested": "📱 Pediu maquininha",
     "tileCashRequested": "💵 Pediu dinheiro",
     "tileTotal": "Total {amount}",
+    "tilePaidFromPhone": "Pagou pelo celular · {ago}",
     "tileCharge": "Cobrar",
     "tileRequestedAt": "Pedido {ago}",
     "tilePending": "Pendente",

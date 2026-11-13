@@ -5,13 +5,10 @@ import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, pesosToCents } from "@/lib/format";
-import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
-import { applyArchive, fold } from "@/lib/erp/inventoryView";
-import { IngredientBarcodes } from "./IngredientBarcodes";
-import { CountQuantityFields } from "./CountQuantityFields";
-import { countEntriesFromBase, parseCountEntry as parseCounted, parseCountEntries, nextCountEntry, formatCountQty, type CountEntry } from "@/lib/erp/stockCountInput";
-import { effectiveCountParts, MAX_COUNT_PARTS } from "@/lib/erp/stockCountParts";
+import { pesosToCents } from "@/lib/format";
+import { mergeIngredientBarcodes, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
+import { applyArchive } from "@/lib/erp/inventoryView";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   DEFAULT_INPUT_UNIT,
@@ -21,6 +18,7 @@ import {
   type MeasureKind,
 } from "@/lib/erp/units";
 import { BarcodeSheet } from "./BarcodeSheet";
+import { CountSheet } from "./CountSheet";
 import { CountsTab } from "./CountsTab";
 import { InvIcon } from "./InventoryIcons";
 import { MovementsTab } from "./MovementsTab";
@@ -30,7 +28,6 @@ import {
   WASTE_REASONS,
   WASTE_REASON_KEYS,
   type CountDetail,
-  type CountItemRow,
   type SheetMode,
   type StockLevel,
   type StockRow,
@@ -338,7 +335,13 @@ export function InventarioClient({
       )}
 
       {barcodeRow && (
-        <BarcodeSheet ingredient={barcodeRow} onClose={() => setBarcodeFor(null)} onSaved={updateBarcodes} />
+        <BarcodeSheet
+          ingredient={barcodeRow}
+          moveTargets={activeIngredients}
+          onClose={() => setBarcodeFor(null)}
+          onSaved={updateBarcodes}
+          onMoved={(source, target) => { updateBarcodes(source); updateBarcodes(target); }}
+        />
       )}
 
       {newCountOpen && (
@@ -357,8 +360,16 @@ export function InventarioClient({
         <CountSheet
           count={openCount}
           onBarcodeSaved={updateBarcodes}
+          onCatalogChanged={reloadStock}
           onClose={() => setOpenCount(null)}
           onClosed={handleCountClosed}
+          onDraftSaved={() => {
+            // Nada queda sin guardar: se cierra sin preguntar y la lista de
+            // conteos se vuelve a pedir (el borrador se reabre con «Continuar»).
+            setOpenCount(null);
+            setCountsVersion((v) => v + 1);
+            setNotice({ tone: "ok", text: t("draftSaved") });
+          }}
           onDeleted={() => {
             // Un borrador no tocó saldos: basta con cerrar el sheet e
             // invalidar la lista (no hace falta refrescar existencias).
@@ -585,12 +596,11 @@ function MovementSheet({
   const kind = selected?.measureKind ?? null;
   const unitOptions = kind ? DISPLAY_UNITS[kind] : [];
 
-  const matches = useMemo(() => {
-    const needle = fold(ingQ.trim());
-    return ingredients
-      .filter((i) => !needle || fold(i.name).includes(needle))
-      .slice(0, 8);
-  }, [ingredients, ingQ]);
+  // Nombre, categoría o cualquiera de sus códigos de barras (lector incluido).
+  const matches = useMemo(
+    () => ingredients.filter((i) => ingredientMatchesSearch(i, ingQ)).slice(0, 8),
+    [ingredients, ingQ],
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -990,597 +1000,6 @@ function NewCountSheet({
             </button>
           </div>
         </form>
-      </div>
-    </div>
-  );
-}
-
-function CountSheet({
-  count: initialCount,
-  onClose,
-  onClosed,
-  onDeleted,
-  onBarcodeSaved,
-}: {
-  count: CountDetail;
-  onClose: () => void;
-  onClosed: () => void;
-  onDeleted: () => void;
-  onBarcodeSaved: (ingredient: IngredientBarcodeUpdate) => void;
-}) {
-  const t = useTranslations("opErp");
-  const [count, setCount] = useState(initialCount);
-  const locale = useLocale() as Locale;
-
-  // Cada escaneo conserva su propia cantidad y unidad; el total se deriva.
-  const [entries, setEntries] = useState<Record<string, CountEntry[]>>(() => {
-    const init: Record<string, CountEntry[]> = {};
-    for (const it of count.items) {
-      init[it.id] = countEntriesFromBase(it.countedQty, it.ingredient.measureKind, it.countedParts);
-    }
-    return init;
-  });
-  const [q, setQ] = useState("");
-  const [requestBusy, setBusy] = useState(false);
-  const [barcodeSaving, setBarcodeSaving] = useState(false);
-  const busy = requestBusy || barcodeSaving;
-  const [conflict, setConflict] = useState<"stock" | "count" | null>(null);
-  const [differenceFilter, setDifferenceFilter] = useState<"all" | "shortage" | "surplus" | "pending">("all");
-  const [err, setErr] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
-  const [closedResult, setClosedResult] = useState<number | null>(null);
-
-  // ── Lectura de código de barras ──
-  // Los lectores del mercado son HID ("tipo teclado"): teclean el código a
-  // toda velocidad y rematan con un Enter. No hace falta cámara ni pedir
-  // permisos: alcanza con un input enfocado que capture la ráfaga y
-  // reaccione al submit. Funciona con cualquier lector USB o bluetooth.
-  const [scan, setScan] = useState("");
-  const [scanErr, setScanErr] = useState<string | null>(null);
-  const [unmatchedCode, setUnmatchedCode] = useState<string | null>(null);
-  const [quantityErrorKey, setQuantityErrorKey] = useState<string | null>(null);
-  // Item al que saltó el último escaneo. `seq` sube en cada lectura para
-  // que re-escanear el MISMO código vuelva a enfocar (sin él, el estado no
-  // cambia y el efecto no corre).
-  const [hit, setHit] = useState<{ itemId: string; index: number; seq: number } | null>(null);
-  const seqRef = useRef(0);
-  const scanRef = useRef<HTMLInputElement | null>(null);
-  const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const readOnly = count.status === "closed" || closedResult !== null;
-  const phase = readOnly ? "closed" : count.finalReview ? "review" : count.recountStartedAt ? "recount" : count.preliminaryAt ? "preliminary" : "initial";
-  const canEdit = phase === "initial" || phase === "recount";
-  // Lo guardado, en la misma forma que `entries`: si difieren, hay
-  // cantidades digitadas que se perderían al cerrar.
-  const savedEntries = useMemo(
-    () => JSON.stringify(Object.fromEntries(count.items.map((item) => [item.id, countEntriesFromBase(item.countedQty, item.ingredient.measureKind, item.countedParts)]))),
-    [count],
-  );
-  const dirty = canEdit && JSON.stringify(entries) !== savedEntries;
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
-  /** ✕ y Cancelar: con cantidades sin guardar, pregunta antes de perderlas. */
-  function requestClose() {
-    if (busy) return;
-    if (dirty && !window.confirm(t("countUnsavedConfirm"))) return;
-    onClose();
-  }
-  const finalStage = !!count.recountStartedAt;
-  const baseline = (item: CountItemRow) => finalStage ? (item.finalExpectedQty ?? item.expectedQty) : item.expectedQty;
-  const quantity = (item: CountItemRow) => {
-    if (!canEdit) return item.countedQty;
-    const parsed = parseCountEntries(entries[item.id] ?? [], item.ingredient.measureKind);
-    return parsed === "invalid" ? parsed : parsed.countedQty;
-  };
-
-  function acceptCount(next: CountDetail) {
-    setCount(next);
-    setEntries(Object.fromEntries(next.items.map((item) => [item.id, countEntriesFromBase(item.countedQty, item.ingredient.measureKind, item.countedParts)])));
-    setConflict(null);
-    setDifferenceFilter("all");
-    setQuantityErrorKey(null);
-  }
-
-  function showError(code?: string) {
-    const keys: Record<string, string> = {
-      count_changed: "countErrChanged", stock_changed: "countErrStockChanged",
-      incomplete_count: "countErrIncomplete", empty_count: "countErrEmpty",
-      preliminary_required: "countErrPreliminary", recount_required: "countErrRecount",
-      review_required: "countErrReview", already_closed: "errAlreadyClosed", qty_invalid: "errQtyInvalid",
-    };
-    setErr(t(keys[code ?? ""] ?? "errSaveFailed"));
-    if (code === "stock_changed") setConflict("stock");
-    if (code === "count_changed" || code === "already_closed") setConflict("count");
-  }
-
-  async function requestCount(action: string, body?: unknown): Promise<CountDetail | null> {
-    try {
-      const response = await fetch(`/api/operator/stock/counts/${count.id}${action ? `/${action}` : ""}`, {
-        method: action ? "POST" : "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) { showError(result.error); return null; }
-      acceptCount(result.count as CountDetail);
-      return result.count as CountDetail;
-    } catch { setErr(t("errSaveFailed")); return null; }
-  }
-
-  async function reloadCount() {
-    setBusy(true); setErr(null);
-    try {
-      const response = await fetch(`/api/operator/stock/counts/${count.id}`);
-      if (!response.ok) throw new Error("load_failed");
-      acceptCount((await response.json()).count as CountDetail);
-    } catch { setErr(t("errSaveFailed")); }
-    finally { setBusy(false); }
-  }
-
-  const visibleItems = count.items.filter((item) => {
-    const needle = fold(q.trim());
-    if (needle && !fold(`${item.ingredient.name} ${item.ingredient.category ?? ""}`).includes(needle)) return false;
-    if (differenceFilter === "all") return true;
-    if (!item.ingredient.trackInventory) return false;
-    // Keep editable rows stable until save, so typing the first digit never
-    // removes a pending row or steals focus as its difference changes.
-    const value = canEdit ? item.countedQty : quantity(item);
-    if (differenceFilter === "pending") return value == null;
-    if (value == null || value === "invalid") return false;
-    return differenceFilter === "shortage" ? value < baseline(item) : value > baseline(item);
-  });
-
-  // Código de barras → item del conteo. El índice único
-  // (restaurantId, barcode) garantiza que no haya dos insumos con el mismo
-  // código, así que el mapa nunca pierde filas y el escaneo no es ambiguo.
-  const byBarcode = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const it of count.items) {
-      for (const code of ingredientBarcodeValues(it.ingredient)) m.set(code, it.id);
-    }
-    return m;
-  }, [count.items]);
-
-  /** Escaneo (o Enter manual): salta al insumo del código leído. */
-  function handleScan(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canEdit || busy) return;
-    const code = normalizeBarcode(scan);
-    setScan("");
-    if (!code) return;
-    const itemId = byBarcode.get(code);
-    if (!itemId) {
-      // Nunca fallar en silencio: el operador tiene el empaque en la mano
-      // y necesita enterarse de que ese código no está en el conteo (o de
-      // que al insumo le falta cargar el código en su ficha).
-      setScanErr(t("errBarcodeNotFound", { code }));
-      setUnmatchedCode(code);
-      return;
-    }
-    setScanErr(null);
-    setUnmatchedCode(null);
-    addQuantity(itemId);
-  }
-
-  function addQuantity(itemId: string) {
-    if (!canEdit || busy) return;
-    const item = count.items.find((candidate) => candidate.id === itemId);
-    if (!item?.ingredient.trackInventory) return;
-    const next = nextCountEntry(entries[itemId] ?? [], item.ingredient.measureKind);
-    if (!next) {
-      setScanErr(t("countPartsLimit", { count: MAX_COUNT_PARTS }));
-      return;
-    }
-    setEntries((prev) => ({ ...prev, [itemId]: next.entries }));
-    setSavedFlash(false);
-    setQuantityErrorKey(null);
-    // El buscador puede estar escondiendo justo la fila escaneada.
-    setQ("");
-    setDifferenceFilter("all");
-    setHit({ itemId, index: next.index, seq: ++seqRef.current });
-  }
-
-  // Enfocar la cantidad del insumo escaneado. Corre DESPUÉS del render, así
-  // que la fila ya existe aunque el escaneo haya tenido que limpiar el
-  // filtro de búsqueda para revelarla.
-  useEffect(() => {
-    if (!hit) return;
-    const el = qtyRefs.current[`${hit.itemId}:${hit.index}`];
-    if (!el) return;
-    el.scrollIntoView({ block: "center", behavior: "instant" });
-    el.focus({ preventScroll: true });
-    el.select();
-  }, [hit]);
-
-  // Desviación en vivo: contados y con diferencia (borrador usa lo
-  // digitado; cerrado usa lo persistido).
-  const stats = count.items.reduce((sum, item) => {
-    if (!item.ingredient.trackInventory) return sum;
-    const value = quantity(item);
-    if (value == null || value === "invalid") { sum.pending++; return sum; }
-    sum.counted++;
-    const diff = value - baseline(item);
-    if (diff < 0) sum.shortages++;
-    if (diff > 0) sum.surpluses++;
-    if (diff !== 0) sum.diffs++;
-    else sum.equal++;
-    return sum;
-  }, { counted: 0, diffs: 0, shortages: 0, surpluses: 0, equal: 0, pending: 0 });
-
-  /** Payload PATCH completo, o null si hay alguna cantidad inválida. */
-  function buildPayload(): { itemId: string; countedQty: number | null; countedParts: number[] }[] | null {
-    const out: { itemId: string; countedQty: number | null; countedParts: number[] }[] = [];
-    for (const it of count.items) {
-      const parsed = parseCountEntries(entries[it.id] ?? [], it.ingredient.measureKind);
-      if (parsed === "invalid") return null;
-      out.push({ itemId: it.id, ...parsed });
-    }
-    return out;
-  }
-
-  async function patchDraft(): Promise<CountDetail | null> {
-    const items = buildPayload();
-    if (!items) { setErr(t("errQtyInvalid")); return null; }
-    return requestCount("", { revision: count.revision, items });
-  }
-
-  async function save() {
-    setErr(null); setSavedFlash(false); setBusy(true);
-    const saved = await patchDraft();
-    setBusy(false);
-    if (saved) setSavedFlash(true);
-  }
-
-  async function advance(action: "preliminary" | "recount" | "review") {
-    setErr(null); setSavedFlash(false); setBusy(true);
-    try {
-      const saved = action === "recount" ? count : await patchDraft();
-      if (saved) await requestCount(action, { revision: saved.revision });
-    } finally { setBusy(false); }
-  }
-
-  /**
-   * Borra la sesión — la API solo lo permite en BORRADOR. Un conteo
-   * cerrado ya generó ajustes y movió saldos: borrarlo dejaría el stock
-   * mintiendo, por eso ni se ofrece el botón (el pie en modo lectura no lo
-   * incluye) y, si igual llegara la respuesta, se muestra el 409 traducido.
-   */
-  async function deleteSession() {
-    setErr(null); setSavedFlash(false);
-    if (!window.confirm(t("deleteCountConfirm"))) return;
-    setBusy(true);
-    try {
-      const response = await fetch(`/api/operator/stock/counts/${count.id}`, {
-        method: "DELETE", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ revision: count.revision }),
-      });
-      if (!response.ok) { showError((await response.json().catch(() => ({}))).error); return; }
-      onDeleted();
-    } catch { setErr(t("errSaveFailed")); }
-    finally { setBusy(false); }
-  }
-
-  async function closeSession() {
-    if (!count.finalReview) return;
-    setErr(null); setBusy(true);
-    try {
-      const response = await fetch(`/api/operator/stock/counts/${count.id}/close`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ revision: count.revision, reviewToken: count.finalReview.token }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) { showError(result.error); return; }
-      acceptCount(result.count as CountDetail);
-      setClosedResult(result.adjustments ?? 0);
-      onClosed();
-    } catch { setErr(t("errSaveFailed")); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <div
-      // Sin cierre al tocar afuera: es un formulario, y un clic perdido borraba lo digitado.
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("countTitle")}
-        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border max-h-[90dvh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="shrink-0 px-5 pt-5 pb-3 border-b border-op-border">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="font-display text-2xl">{t("countTitle")}</h2>
-            <span
-              className={
-                "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-                (readOnly ? "bg-paper text-op-muted" : "bg-ink text-bone")
-              }
-            >
-              {t(readOnly ? "countStatusClosed" : phase === "initial" ? "countStageInitial" : phase === "preliminary" ? "countStagePreliminary" : phase === "review" ? "countStageReview" : "countStageDefinitive")}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            disabled={busy}
-            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
-            aria-label={t("cancel")}
-          >
-            {"✕"}
-          </button>
-        </div>
-        {canEdit && (
-          <form onSubmit={handleScan}>
-            <Field label={t("scanBarcodeLabel")} hint={t("scanHint")}>
-              <input
-                ref={scanRef}
-                type="text"
-                value={scan}
-                aria-label={t("scanBarcodeLabel")}
-                // Los lectores HID escriben en el campo enfocado.
-                autoFocus
-                autoComplete="off"
-                inputMode="text"
-                enterKeyHint="go"
-                disabled={busy}
-                onChange={(e) => {
-                  setScan(e.target.value);
-                  setScanErr(null);
-                }}
-                placeholder={t("scanBarcodePlaceholder")}
-                maxLength={BARCODE_MAX_LENGTH}
-                className={inputCls + " font-mono"}
-              />
-            </Field>
-            {scanErr && (
-              <div role="alert" className="text-xs text-danger break-words mt-1">{scanErr}</div>
-            )}
-          </form>
-        )}
-        </div>
-        <div role="region" aria-label={t("countScrollRegion")} className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-3">
-        <div className="text-[11px] text-op-muted mb-1">
-          {[
-            formatDate(count.createdAt, { locale }),
-            count.createdBy?.name ?? null,
-            count.notes,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
-        {/* Desviación en unidades; el valor en $ queda en los movimientos
-            count_adjust del libro (tab Movimientos). */}
-        <div className="text-xs text-op-muted mb-3">
-          {`${t("summaryCounted", { count: stats.counted })} · ${t(
-            "summaryWithDiff",
-            { count: stats.diffs },
-          )}`}
-        </div>
-
-        {!readOnly && <div className="rounded-xl bg-op-bg border border-op-border p-3 mb-4 text-sm leading-relaxed">
-          <p className="font-medium">{t(phase === "initial" ? "countInitialHint" : phase === "preliminary" ? "countPreliminaryHint" : phase === "review" ? "countReviewHint" : "countRecountHint")}</p>
-          {(phase === "preliminary" || phase === "recount") && <p className="text-xs text-op-muted mt-2">{t("countRecountSafety")}</p>}
-        </div>}
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-          {([
-            ["countShortages", stats.shortages, "text-danger"],
-            ["countSurpluses", stats.surpluses, "text-ok"],
-            ["countEqual", stats.equal, "text-op-text"],
-            ["countPending", stats.pending, "text-op-muted"],
-          ] as const).map(([label, value, color]) => (
-            <div key={label} className="rounded-xl border border-op-border px-3 py-2">
-              <div className={"text-lg font-medium tabular-nums " + color}>{value}</div>
-              <div className="text-xs text-op-muted">{t(label)}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-2 flex-wrap mb-3" aria-label={t("countFilterLabel")}>
-          {([ ["all", "filterAll"], ["shortage", "countShortages"], ["surplus", "countSurpluses"], ["pending", "countPending"] ] as const).map(([value, label]) => (
-            <button key={value} type="button" aria-pressed={differenceFilter === value} onClick={() => setDifferenceFilter(value)} className={"min-h-[40px] rounded-full px-3 text-xs border " + (differenceFilter === value ? "bg-ink text-bone border-ink" : "border-op-border")}>{t(label)}</button>
-          ))}
-        </div>
-
-        {closedResult !== null && (
-          <div className="rounded-xl border border-op-border bg-op-bg px-4 py-3 text-sm text-ok mb-3">
-            {t("closeCountResult", { count: closedResult })}
-          </div>
-        )}
-
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("searchCountPlaceholder")}
-          className="w-full min-h-[44px] px-4 rounded-full border border-op-border bg-op-bg text-sm focus:outline-none focus:border-op-text/40 mb-3"
-        />
-
-        {visibleItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-op-border bg-op-bg/50 p-6 text-center text-sm text-op-muted">
-            {t("emptyFiltered")}
-          </div>
-        ) : (
-          <div className="border border-op-border rounded-2xl overflow-hidden">
-            {visibleItems.map((it) => {
-              const kind = it.ingredient.measureKind;
-              const itemEntries = entries[it.id];
-              const parsed = quantity(it);
-              const initialParts = effectiveCountParts(it.preliminaryQty, it.preliminaryParts);
-              const currentParts = effectiveCountParts(it.countedQty, it.countedParts);
-              const diff =
-                parsed != null && parsed !== "invalid"
-                  ? parsed - baseline(it)
-                  : null;
-              const diffCls =
-                diff == null || diff === 0
-                  ? "text-op-muted"
-                  : diff > 0
-                    ? "text-ok"
-                    : "text-danger";
-              const diffText =
-                diff == null
-                  ? "—"
-                  : (diff > 0 ? "+" : diff < 0 ? "−" : "") +
-                    formatCountQty(Math.abs(diff), kind, locale);
-              return (
-                <div
-                  key={it.id}
-                  className={
-                    "px-4 py-3 border-b border-op-border last:border-b-0 " +
-                    // Feedback del escaneo: "es esta fila". Se apaga al
-                    // escanear otro código.
-                    (hit?.itemId === it.id ? "bg-op-bg" : "")
-                  }
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium truncate">
-                          {it.ingredient.name}
-                        </span>
-                        {!it.ingredient.active && (
-                          <span className="px-2 h-5 inline-flex items-center rounded-full bg-paper text-op-muted text-[10px] font-medium shrink-0">
-                            {t("inactiveBadge")}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {`${t(finalStage ? "countFinalExpectedLabel" : "countInitialExpectedLabel")}: ${formatCountQty(
-                          baseline(it),
-                          kind,
-                          locale,
-                        )}`}
-                      </div>
-                    </div>
-                    {!canEdit && (
-                      <div className="text-right shrink-0">
-                        <div className="text-sm tabular-nums">
-                          {parsed == null
-                            ? t("notCounted")
-                            : formatCountQty(parsed as number, kind, locale)}
-                        </div>
-                        {parsed != null && (
-                          <div
-                            className={
-                              "text-[11px] mt-0.5 tabular-nums " + diffCls
-                            }
-                          >
-                            {diffText}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {count.preliminaryAt && (
-                    <div className="text-xs text-op-muted mt-2">
-                      {t("countInitialLabel")}: {it.preliminaryQty == null ? t("notCounted") : formatCountQty(it.preliminaryQty, kind, locale)}
-                      {it.preliminaryQty != null && <span> · {t("countInitialDifference")}: {formatCountQty(it.preliminaryQty - it.expectedQty, kind, locale)}</span>}
-                      {initialParts.length > 1 && <p className="mt-1 break-words">{t("countInitialParts", { amounts: initialParts.map(value => formatCountQty(value, kind, locale)).join(" + ") })}</p>}
-                    </div>
-                  )}
-                  {!it.ingredient.trackInventory && <p className="text-xs text-op-muted mt-1">{t("nonInventoriable")}</p>}
-                  {canEdit && (
-                    <CountQuantityFields
-                      itemId={it.id} name={it.ingredient.name} kind={kind} entries={itemEntries}
-                      disabled={busy || !it.ingredient.trackInventory} tracked={it.ingredient.trackInventory}
-                      invalidTotal={parsed === "invalid"} errorKey={quantityErrorKey}
-                      setInputRef={(index, element) => { qtyRefs.current[`${it.id}:${index}`] = element; }}
-                      onChange={(index, change) => {
-                        setSavedFlash(false);
-                        setQuantityErrorKey(null);
-                        setEntries(prev => ({ ...prev, [it.id]: prev[it.id].map((entry, partIndex) => partIndex === index ? { ...entry, ...change } : entry) }));
-                      }}
-                      onEnter={(index) => {
-                        const entry = itemEntries[index];
-                        const value = parseCounted(entry.raw, kind, entry.unit);
-                        if (value == null || value === "invalid" || parsed === "invalid") {
-                          setQuantityErrorKey(`${it.id}:${index}`);
-                          return;
-                        }
-                        setQuantityErrorKey(null);
-                        setScan(""); setScanErr(null); setUnmatchedCode(null);
-                        scanRef.current?.focus({ preventScroll: true });
-                      }}
-                      onRemove={(index) => {
-                        const remaining = itemEntries.filter((_, partIndex) => partIndex !== index);
-                        setEntries(prev => ({ ...prev, [it.id]: remaining }));
-                        setSavedFlash(false); setQuantityErrorKey(null);
-                        setHit({ itemId: it.id, index: Math.min(index, remaining.length - 1), seq: ++seqRef.current });
-                      }}
-                      onAdd={() => addQuantity(it.id)}
-                    />
-                  )}
-                  {!canEdit && currentParts.length > 1 && (
-                    <p className="mt-2 text-xs text-op-muted break-words">{t("countPartsBreakdown", { amounts: currentParts.map(value => formatCountQty(value, kind, locale)).join(" + ") })}</p>
-                  )}
-                  <div className="mt-2 flex items-start justify-between gap-3 border-t border-op-border pt-2">
-                    <div role="status" aria-label={t("countTotalLabel", { name: it.ingredient.name })} className="min-w-0 text-sm font-medium">
-                      <span className="text-xs text-op-muted">{t("countTotal")}</span>
-                      <div className={"mt-0.5 tabular-nums " + (parsed === "invalid" ? "text-danger" : "")}>
-                        {parsed === "invalid" ? t("countPartsInvalidTotal") : parsed == null ? t("notCounted") : formatCountQty(parsed, kind, locale)}
-                      </div>
-                    </div>
-                    {canEdit && diff != null && (
-                      <div className={"text-right text-xs font-medium tabular-nums " + diffCls}>
-                        {diffText}
-                        {diff !== 0 && <div className="text-[10px]">{t(diff < 0 ? "countShortage" : "countSurplus")}</div>}
-                      </div>
-                    )}
-                  </div>
-                  <IngredientBarcodes
-                    ingredient={it.ingredient}
-                    canAdd={canEdit && it.ingredient.active && it.ingredient.trackInventory}
-                    disabled={busy}
-                    suggestedCode={unmatchedCode}
-                    onBusyChange={setBarcodeSaving}
-                    onSaved={(ingredient) => {
-                      // Only merge barcode metadata. acceptCount/reload would
-                      // reconstruct entries and erase quantities not yet saved.
-                      setCount((current) => ({ ...current, items: current.items.map((item) => item.ingredient.id === ingredient.id
-                        ? { ...item, ingredient: mergeIngredientBarcodes(item.ingredient, ingredient) } : item) }));
-                      onBarcodeSaved(ingredient);
-                      setUnmatchedCode(null); setScanErr(null);
-                    }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {err && <div role="alert" className="rounded-xl border border-danger/30 p-3 text-sm text-danger mt-3">
-          {err}
-          {conflict === "count" && <button type="button" disabled={busy} onClick={reloadCount} className="block mt-2 underline min-h-[44px]">{t("countReload")}</button>}
-          {conflict === "stock" && <button type="button" disabled={busy} onClick={() => advance("recount")} className="block mt-2 underline min-h-[44px]">{t("countRestartRecount")}</button>}
-        </div>}
-        {savedFlash && !err && (
-          <div className="text-xs text-ok mt-3">{t("draftSaved")}</div>
-        )}
-
-        <div className="sticky [@media(max-height:600px)]:static bottom-0 -mx-5 px-5 mt-4 pt-3 pb-5 bg-op-surface border-t border-op-border flex flex-wrap items-center justify-end gap-2">
-          {readOnly ? (
-            <button type="button" onClick={requestClose} className="mp-btn mp-btn--secondary">{t("cancel")}</button>
-          ) : (
-            <>
-              <button type="button" onClick={deleteSession} disabled={busy} className="mr-auto min-h-[44px] px-3 text-danger text-sm disabled:opacity-40">{t("deleteCount")}</button>
-              {canEdit && <button type="button" onClick={save} disabled={busy || !!conflict} className="mp-btn mp-btn--secondary">{busy ? t("saving") : t("saveDraft")}</button>}
-              {phase === "initial" && <button type="button" onClick={() => advance("preliminary")} disabled={busy || !!conflict || stats.counted === 0} className="mp-btn mp-btn--primary">{t("countViewPreliminary")}</button>}
-              {phase === "preliminary" && <button type="button" onClick={() => advance("recount")} disabled={busy || !!conflict} className="mp-btn mp-btn--primary">{t("countStartRecount")}</button>}
-              {phase === "recount" && <button type="button" onClick={() => advance("review")} disabled={busy || !!conflict || stats.pending > 0 || stats.counted === 0} className="mp-btn mp-btn--primary">{t("countReviewFinal")}</button>}
-              {phase === "review" && <>
-                <button type="button" onClick={save} disabled={busy || !!conflict} className="mp-btn mp-btn--secondary">{t("countEditFinal")}</button>
-                <button type="button" onClick={closeSession} disabled={busy || !!conflict} className="mp-btn mp-btn--primary">{busy ? t("closing") : t("countConfirmFinal")}</button>
-              </>}
-            </>
-          )}
-        </div>
-        </div>
       </div>
     </div>
   );

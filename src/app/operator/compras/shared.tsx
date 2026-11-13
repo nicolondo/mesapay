@@ -7,7 +7,8 @@
 
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { MEASURE_KINDS, type MeasureKind } from "@/lib/erp/units";
+import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
+import { DISPLAY_UNITS, MEASURE_KINDS, type MeasureKind } from "@/lib/erp/units";
 
 export type SupplierRef = { id: string; name: string; taxId?: string | null };
 
@@ -229,26 +230,63 @@ const DIM_LABEL_KEYS: Record<MeasureKind, string> = {
   count: "dimCount",
 };
 
+/** Insumo que ya existe con ese nombre o ese código (mismo comercio). */
+export type IngredientConflict = {
+  kind: "name" | "barcode";
+  ingredient: { id: string; name: string; active: boolean };
+};
+
+function conflictIngredient(value: unknown): IngredientConflict["ingredient"] | null {
+  const item = value as Partial<IngredientConflict["ingredient"]> | null | undefined;
+  if (!item || typeof item.id !== "string" || typeof item.name !== "string" || !item.name) return null;
+  return { id: item.id, name: item.name, active: item.active !== false };
+}
+
 /**
- * Alta de insumo sin salir de la línea libre: Nombre (req.), tipo de
- * medida (req.) y categoría (opc.). Entrega el insumo devuelto por el API
- * a `onCreated` (que lo suma a la lista y lo deja elegido para la línea).
+ * Alta de insumo sin salir de donde se está: Nombre (req.), tipo de medida
+ * (req.) y categoría (opc.). Entrega el insumo devuelto por el API a
+ * `onCreated` (que lo suma a la lista y lo deja elegido).
+ *
+ * La usan la línea libre de «Nueva orden» y el conteo físico. Para el
+ * conteo se prenden las piezas opcionales: código de barras (`withBarcode`),
+ * categorías existentes como sugerencias (`categories`), las unidades junto
+ * a la dimensión (`showUnits`), una nota bajo la categoría (`categoryNote`)
+ * y, si el nombre o el código ya son de otro insumo, las acciones que el
+ * conteo ofrece sobre el existente (`conflictActions`).
  */
 export function IngredientInlineForm({
   initialName,
   onCreated,
   onCancel,
+  withBarcode = false,
+  initialBarcode,
+  categories,
+  initialCategory,
+  showUnits = false,
+  categoryNote,
+  conflictActions,
 }: {
   initialName?: string;
   onCreated: (ing: IngredientRef) => void;
   onCancel: () => void;
+  withBarcode?: boolean;
+  initialBarcode?: string;
+  categories?: readonly string[];
+  initialCategory?: string;
+  showUnits?: boolean;
+  categoryNote?: (category: string) => string | null;
+  conflictActions?: (conflict: IngredientConflict, busy: boolean) => React.ReactNode;
 }) {
   const t = useTranslations("opErp");
+  const listId = useId();
   const [name, setName] = useState(initialName ?? "");
   const [measureKind, setMeasureKind] = useState<MeasureKind>("mass");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(initialCategory ?? "");
+  const [barcode, setBarcode] = useState(initialBarcode ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<IngredientConflict | null>(null);
+  const note = categoryNote?.(category.trim()) ?? null;
 
   async function create() {
     const trimmed = name.trim();
@@ -257,23 +295,47 @@ export function IngredientInlineForm({
       return;
     }
     setErr(null);
+    setConflict(null);
     setBusy(true);
-    const r = await fetch("/api/operator/ingredients", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: trimmed,
-        measureKind,
-        category: category.trim() || undefined,
-      }),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/operator/ingredients", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          measureKind,
+          category: category.trim() || undefined,
+          // Crudo: la API es la que limpia lo que teclea el lector.
+          ...(withBarcode && barcode.trim() ? { barcode } : {}),
+        }),
+      });
+    } catch {
+      setBusy(false);
+      setErr(t("errSaveFailed"));
+      return;
+    }
     setBusy(false);
     if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
+      const j = (await r.json().catch(() => ({}))) as { error?: string; existing?: unknown; owner?: unknown };
+      const existing = j.error === "name_taken" ? conflictIngredient(j.existing) : j.error === "barcode_taken" ? conflictIngredient(j.owner) : null;
+      if (existing && conflictActions) {
+        const kind = j.error === "name_taken" ? "name" : "barcode";
+        setConflict({ kind, ingredient: existing });
+        setErr(t(
+          kind === "name"
+            ? (existing.active ? "ingredientNameTakenBy" : "ingredientNameTakenByArchived")
+            : (existing.active ? "ingredientCodeTakenBy" : "ingredientCodeTakenByArchived"),
+          { name: existing.name },
+        ));
+        return;
+      }
       setErr(
-        (j as { error?: string }).error === "name_taken"
+        j.error === "name_taken"
           ? t("errNameTaken")
-          : t("errSaveFailed"),
+          : j.error === "barcode_taken"
+            ? (existing ? t(existing.active ? "errBarcodeTakenBy" : "errBarcodeTakenByArchived", { name: existing.name }) : t("errBarcodeTaken"))
+            : t("errSaveFailed"),
       );
       return;
     }
@@ -292,7 +354,7 @@ export function IngredientInlineForm({
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setConflict(null); }}
           placeholder={t("namePlaceholder")}
           maxLength={120}
           className={inputCls}
@@ -306,21 +368,46 @@ export function IngredientInlineForm({
         >
           {MEASURE_KINDS.map((k) => (
             <option key={k} value={k}>
-              {t(DIM_LABEL_KEYS[k])}
+              {showUnits ? `${t(DIM_LABEL_KEYS[k])} — ${DISPLAY_UNITS[k].map((u) => u.symbol).join("/")}` : t(DIM_LABEL_KEYS[k])}
             </option>
           ))}
         </select>
       </Field>
-      <Field label={t("fieldCategory")}>
+      <Field label={t("fieldCategory")} hint={note ?? undefined}>
         <input
           type="text"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           placeholder={t("categoryPlaceholder")}
+          maxLength={60}
+          list={categories?.length ? listId : undefined}
           className={inputCls}
         />
+        {categories && categories.length > 0 && (
+          <datalist id={listId}>
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        )}
       </Field>
-      {err && <div className="text-xs text-danger">{err}</div>}
+      {withBarcode && (
+        <Field label={t("fieldBarcode")}>
+          <input
+            type="text"
+            value={barcode}
+            onChange={(e) => { setBarcode(e.target.value); setConflict(null); }}
+            placeholder={t("barcodePlaceholder")}
+            maxLength={BARCODE_MAX_LENGTH}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            className={inputCls + " font-mono"}
+          />
+        </Field>
+      )}
+      {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+      {conflict && conflictActions?.(conflict, busy)}
       <div className="flex items-center justify-end gap-2">
         <button
           type="button"

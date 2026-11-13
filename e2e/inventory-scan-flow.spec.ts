@@ -102,15 +102,23 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     await expect(scanner).toBeFocused();
     await expect(scanner).toHaveValue("");
 
+    // The row just counted is now the first one, under «Contados recientemente».
+    const rows = page.locator("[data-count-row]");
+    await expect(page.getByRole("heading", { name: /^Contados recientemente/ })).toBeVisible();
+    await expect(rows.first()).toContainText(seed.ingredients.at(-1)!.name);
+
     const additionalQuantity = quantity(page, seed.ingredients.at(-1)!, 2);
     for (const barcode of ["QA-039", "QA-LAST-ALTERNATE", "QA-039"]) {
       await hidScan(page, scanner, barcode, additionalQuantity);
       await expect(lastQuantity).toHaveValue("12");
       await expect(additionalQuantity).toHaveValue("");
       await expect(quantity(page, seed.ingredients.at(-1)!, 3)).toHaveCount(0);
-      // Repeating a scan reuses its unfinished quantity, without overwriting the first one.
+      // Leaving the row drops the quantity left blank; scanning again opens it
+      // once more, without overwriting the first one or piling up empty fields.
       await scanner.focus();
+      await expect(additionalQuantity).toHaveCount(0);
     }
+    await hidScan(page, scanner, "QA-039", additionalQuantity);
     await additionalQuantity.fill("0");
     await additionalQuantity.press("Enter");
     await expect(scanner).toBeFocused();
@@ -122,6 +130,12 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     await firstQuantity.fill("0");
     await firstQuantity.press("Enter");
     await expect(scanner).toBeFocused();
+    // Most recent first: 00, then the mass item, then the last one (two quantities, collapsed).
+    await expect(rows.nth(0)).toContainText(seed.ingredients[0].name);
+    await expect(rows.nth(1)).toContainText(seed.ingredients.at(-2)!.name);
+    await expect(rows.nth(2)).toContainText(seed.ingredients.at(-1)!.name);
+    await expect(rows.nth(2).getByRole("button", { name: /^2 cantidades de / })).toHaveAttribute("aria-expanded", "false");
+    await expect(rows.nth(3)).toContainText(seed.ingredients[1].name);
 
     // Scrolling the list by hand also leaves the scan control and action buttons reachable.
     await region.evaluate((element) => { element.scrollTop = element.scrollHeight; });
@@ -137,6 +151,9 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
     await expect.poll(() => db.stockCountItem.count({ where: { countId: count.id, countedQty: { not: null } } })).toBe(3);
     expect(mutations).toEqual(["PATCH"]);
+    // Saving the draft closes the sheet and confirms on the page.
+    await expect(scanner).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "Borrador guardado." })).toBeVisible();
     const saved = await db.stockCount.findUniqueOrThrow({ where: { id: count.id }, include: { items: true } });
     expect(saved.status).toBe("draft");
     expect(saved.items.find((item) => item.ingredientId === seed.ingredients[0].id)?.countedQty).toBe(0);
@@ -149,6 +166,9 @@ test("long count keeps the scanner visible and Enter starts the next HID scan wi
     // Escritorio: «Continuar» (nombre «Abrir el conteo del …»); celular: la tarjeta entera.
     await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|40 insumos/ }).filter({ visible: true }).first().click();
     await expect(scanner).toBeFocused();
+    // Reopened on this device: what was counted last is still on top.
+    await expect(rows.nth(0)).toContainText(seed.ingredients[0].name);
+    await expect(rows.nth(2)).toContainText(seed.ingredients.at(-1)!.name);
     const nextQuantity = quantity(page, seed.ingredients.at(-1)!, 3);
     await hidScan(page, scanner, "QA-LAST-ALTERNATE", nextQuantity);
     await expect(lastQuantity).toHaveValue("12");

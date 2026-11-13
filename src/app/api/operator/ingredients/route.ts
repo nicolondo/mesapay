@@ -64,10 +64,12 @@ async function POSTHandler(req: Request) {
     where: {
       restaurantId_name: { restaurantId: ctx.restaurantId, name: b.name },
     },
-    select: { id: true },
+    select: { id: true, name: true, active: true, trackInventory: true },
   });
   if (dup) {
-    return NextResponse.json({ error: "name_taken" }, { status: 409 });
+    // Con el insumo que ya existe: el alta desde el conteo lo ofrece (y, si
+    // está archivado, ofrece restaurarlo) en vez de dejar un callejón.
+    return NextResponse.json({ error: "name_taken", existing: dup }, { status: 409 });
   }
   // Mismo trato para el código de barras: error legible antes de que
   // reviente el índice único (dos insumos con el mismo código harían

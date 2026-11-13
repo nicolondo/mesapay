@@ -2283,7 +2283,15 @@
     "useCaja": "Enviar para a impressora do caixa",
     "paperOther": "Outro",
     "paperCustomLabel": "Largura do papel do aparelho, em milímetros",
-    "paperCustomHint": "mm (de {min} a {max})"
+    "paperCustomHint": "mm (de {min} a {max})",
+    "terminalSending": "Enviando para a maquininha…",
+    "terminalSent": "Enviada para a maquininha {device} ✓",
+    "terminalChoose": "Qual é esta maquininha? Toque nela uma vez e fica lembrado.",
+    "terminalFailed": "A maquininha não recebeu a impressão.",
+    "terminalNoDevices": "Não há maquininhas ativas com número de série: adicione em Configurações → Maquininhas.",
+    "terminalBusinessCode": "Falta o Business-Code da Kushki do estabelecimento para imprimir na maquininha.",
+    "terminalKushkiFailed": "A Kushki não aceitou a impressão ({reason}).",
+    "terminalClosed": "Não há o que imprimir: a conta já foi fechada ou não tem consumo."
   },
   "opCartera": {
     "hubCategory": "Comerciais",

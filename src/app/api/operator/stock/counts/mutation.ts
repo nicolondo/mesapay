@@ -14,12 +14,14 @@ const itemSchema = z.object({
 }).refine((item) => item.countedParts === undefined || isValidCountParts(item.countedQty, item.countedParts), { path: ["countedParts"] });
 const itemsSchema = baseSchema.extend({ items: z.array(itemSchema).min(1).max(2000) });
 const closeSchema = baseSchema.extend({ reviewToken: z.string().uuid() });
+// `full: true` = «Recontar todo»: el definitivo arranca vacío para todos.
+const recountSchema = baseSchema.extend({ full: z.boolean().optional() });
 
 export function countMutation(action: StockCountAction) {
   return async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
     const ctx = await getErpContext(["inventory"]);
     if (isDenied(ctx)) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-    const schema = action === "save" ? itemsSchema : action === "close" ? closeSchema : baseSchema;
+    const schema = action === "save" ? itemsSchema : action === "close" ? closeSchema : action === "recount" ? recountSchema : baseSchema;
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues.some((i) => i.path.includes("countedQty") || i.path.includes("countedParts")) ? "qty_invalid" : "invalid" }, { status: 400 });
     const { id } = await params;

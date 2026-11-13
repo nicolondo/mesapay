@@ -6,8 +6,13 @@ import bcrypt from "bcryptjs";
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 test.skip(!["127.0.0.1", "localhost"].includes(database.hostname) || !/^\/mesapay_.*validation$/.test(database.pathname) || !/^http:\/\/localhost:/.test(process.env.PLAYWRIGHT_BASE_URL ?? ""), "Isolated local app/database required");
 const db = new PrismaClient();
-// Alta rápida dentro del conteo (sigue en línea, debajo de cada insumo).
-const area = (page: Page, name: string) => page.getByRole("group", { name: `Códigos de barras de ${name}`, exact: true }).filter({ visible: true });
+// Dentro del conteo, cada fila abre la misma hoja «Códigos de barras» con su botón ▥.
+async function openRowCodes(page: Page, name: string) {
+  await page.getByRole("button", { name: `Códigos de barras de ${name}`, exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Códigos de barras", exact: true });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
 
 // Existencias: los códigos se administran en la hoja «Códigos de barras»,
 // que se abre desde el menú ⋯ de la fila.
@@ -72,7 +77,9 @@ test("multiple codes persist and scan without losing unsaved counts", async ({ p
     const group = await openCodes(page, "Arroz");
     await group.getByRole("textbox").fill("abC-002");
     await group.getByRole("button", { name: "Guardar código" }).click();
-    await expect(group.getByRole("alert")).toContainText("otro producto");
+    // El aviso dice QUIÉN tiene el código y ofrece pasárselo a este insumo.
+    await expect(group.getByRole("alert")).toContainText("ya lo tiene «Agua»");
+    await expect(group.getByRole("button", { name: "Pasárselo a este insumo", exact: true })).toBeVisible();
     await expect(group.getByRole("textbox")).toHaveValue("abC-002");
     await group.getByRole("button", { name: "Cerrar", exact: true }).click();
 
@@ -86,17 +93,27 @@ test("multiple codes persist and scan without losing unsaved counts", async ({ p
     const scanner = page.getByLabel("Escanear código de barras", { exact: true });
     await scanner.fill("New-003"); await scanner.press("Enter");
     await expect(page.getByText(/New-003.*no está/)).toBeVisible();
-    await area(page, "Agua").getByRole("button", { name: "Agregar otro código" }).click();
-    const newInput = area(page, "Agua").getByRole("textbox");
+    await expect(page.getByRole("button", { name: "Vincular a un insumo", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Crear insumo con este código", exact: true })).toBeVisible();
+    // El código leído llega escrito en la hoja de códigos de la fila.
+    const codes = await openRowCodes(page, "Agua");
+    const newInput = codes.getByRole("textbox", { name: "Código de barras de Agua", exact: true });
     await expect(newInput).toHaveValue("New-003");
     // Failure preserves barcode draft AND quantities; retry can use Enter (HID).
     await page.route(`**/api/operator/ingredients/${water.id}/barcode`, (route) => route.abort(), { times: 1 });
     await newInput.press("Enter");
-    await expect(area(page, "Agua").getByRole("alert")).toContainText("No se pudo guardar");
+    await expect(codes.getByRole("alert")).toContainText("No se pudo guardar");
     await expect(newInput).toHaveValue("New-003");
     await expect(waterQuantity).toHaveValue("12");
     await newInput.press("Enter");
-    await expect(area(page, "Agua").getByRole("status")).toHaveText("Código guardado");
+    await expect(codes.getByRole("status")).toHaveText("Código guardado");
+    await codes.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await expect(codes).toHaveCount(0);
+    // Al cerrar, el insumo queda listo para contar y se puede deshacer o corregir el vínculo.
+    await expect(page.getByLabel("Cantidad 2 de Agua", { exact: true })).toBeFocused();
+    await expect(page.getByText("El código New-003 quedó en «Agua».", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Deshacer", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Corregir", exact: true })).toBeVisible();
     for (const barcode of ["000123", "abC-002", "New-003"]) {
       await scanner.fill(barcode); await scanner.press("Enter");
       await expect(page.getByLabel("Cantidad 2 de Agua", { exact: true })).toBeFocused();
@@ -108,8 +125,7 @@ test("multiple codes persist and scan without losing unsaved counts", async ({ p
     await scanner.fill("Rice-001"); await scanner.press("Enter");
     await expect(page.getByLabel("Cantidad 2 de Arroz", { exact: true })).toBeFocused();
     await expect(riceQuantity).toHaveValue("7");
-    await expect(area(page, "Agua").getByRole("alert")).toHaveCount(0);
-    await expect(area(page, "Arroz").getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Conteo físico", exact: true }).getByRole("alert")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("multiple-barcodes.png"), fullPage: true });
     await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();

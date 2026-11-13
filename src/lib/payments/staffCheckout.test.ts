@@ -57,7 +57,7 @@ describe("staffCheckoutRoutes", () => {
 });
 
 describe("staffCheckoutCapabilities", () => {
-  it("el datáfono sólo cobra: sin anular, cliente, crédito, bonos, factura previa ni impresoras", () => {
+  it("el datáfono sólo cobra: sin anular, cliente, crédito, bonos, factura previa ni impresoras (sí Bre-B: cobra en la mesa)", () => {
     expect(staffCheckoutCapabilities("terminal")).toEqual({
       annulInvoice: false,
       customerStep: false,
@@ -65,6 +65,7 @@ describe("staffCheckoutCapabilities", () => {
       vouchers: false,
       preInvoice: false,
       configurePrinters: false,
+      breB: true,
     });
   });
 
@@ -76,6 +77,7 @@ describe("staffCheckoutCapabilities", () => {
       vouchers: true,
       preInvoice: true,
       configurePrinters: false,
+      breB: true,
     });
   });
 

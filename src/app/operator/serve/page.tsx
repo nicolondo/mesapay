@@ -10,6 +10,7 @@ import { terminalClaims } from "@/lib/payments/pendingRequests";
 import { usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
+import { asBreBState } from "@/lib/payments/breB/view";
 import { ServeBoard } from "./ServeBoard";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
 
@@ -51,6 +52,7 @@ export default async function ServePage() {
     tableWaiterCalls,
     cancelledPending,
     devices,
+    breBPending,
   ] = await Promise.all([
     db.round.findMany({
       where: {
@@ -165,6 +167,26 @@ export default async function ServePage() {
     // siempre el primero: con dos equipos el cobro podía ir al equivocado.
     // Ahora quien cobra elige (con uno solo, va a ése).
     tenant ? usableTerminalDevices(tenant).then((r) => r.devices) : Promise.resolve([]),
+    // Bre-B en curso que le toca al equipo: el QR que alguien del staff abrió
+    // en su dispositivo, o uno que quedó sin confirmar. El QR que el comensal
+    // paga solo desde su celular no necesita a nadie y no sale acá.
+    db.payment.findMany({
+      where: {
+        method: "kushki_bre_b",
+        status: "pending",
+        OR: [{ collectedByUserId: { not: null } }, { reconciliationRequired: true }],
+        order: {
+          restaurantId,
+          status: { notIn: ["paid", "cancelled"] },
+          ...tableFilter,
+        },
+      },
+      include: {
+        order: { include: { table: true } },
+        breBCharge: { select: { status: true, expiresAt: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   // Datáfono Kushki pendiente: ¿ya se envió al equipo (reclamo
@@ -282,6 +304,24 @@ export default async function ServePage() {
         // Ya enviado: ¿sigue en curso, el equipo contestó que no, o no hubo
         // respuesta? Define si se ofrece reintentar / cancelar al instante.
         terminalAttempt: toTerminalAttemptView(terminalClaimed.get(p.id), p.reconciliationRequired),
+        order: {
+          id: p.order.id,
+          shortCode: p.order.shortCode,
+          tableNumber: p.order.table.number,
+        },
+      }))}
+      breBPending={breBPending.map((p) => ({
+        id: p.id,
+        method: p.method,
+        amountCents: p.amountCents,
+        tipCents: p.tipCents,
+        cashTenderCents: null,
+        createdAt: p.createdAt.toISOString(),
+        replaceable: false,
+        reconciliationRequired: p.reconciliationRequired,
+        breB: p.breBCharge
+          ? { state: asBreBState(p.breBCharge.status), expiresAt: p.breBCharge.expiresAt?.toISOString() ?? null }
+          : null,
         order: {
           id: p.order.id,
           shortCode: p.order.shortCode,

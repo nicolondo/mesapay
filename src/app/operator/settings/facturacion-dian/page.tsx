@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { isModuleEnabled } from "@/lib/modules";
 import { DianConfigClient } from "./DianConfigClient";
+import { SupportDocumentSettings } from "./SupportDocumentSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,13 @@ export default async function FacturacionDianPage() {
       </p>
 
       <DianConfigClient />
+      {/* Documento soporte (Res. 000167/2021): mismo certificado, su propio
+          software, numeración y ambiente. Sólo con facturación electrónica. */}
+      {einvoicing && (
+        <div className="mt-5">
+          <SupportDocumentSettings />
+        </div>
+      )}
     </div>
   );
 }

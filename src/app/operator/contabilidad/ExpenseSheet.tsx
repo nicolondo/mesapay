@@ -37,6 +37,7 @@ import {
 import { MoneyInput } from "@/components/MoneyInput";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { AccountCombobox } from "@/components/accounts/AccountCombobox";
+import { SupportDocumentPanel } from "@/components/supportDocument/SupportDocumentPanel";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/operator/expenses, /suppliers y /expenses/tax-context.
@@ -1143,6 +1144,8 @@ export function ExpenseSheet({
                 accounts={accounts}
                 onPaid={onChanged}
               />
+              {/* Documento soporte DIAN (proveedor no obligado a facturar). */}
+              <SupportDocumentPanel sourceType="expense" sourceId={expense.id} currency={currency} />
             </>
           )}
 

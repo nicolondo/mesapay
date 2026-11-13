@@ -56,6 +56,7 @@ import {
   retentionsCents,
   totalsMatch,
 } from "@/lib/erp/purchaseTax";
+import { SupportDocumentPanel } from "@/components/supportDocument/SupportDocumentPanel";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 
@@ -3360,6 +3361,19 @@ function OrderDetailSheet({
                   </div>
                 );
               })()}
+
+            {/* Documento soporte DIAN: compra recibida a un proveedor no
+                obligado a facturar (Res. 000167/2021). */}
+            {order.status === "received" && (
+              <div className="mt-4">
+                <SupportDocumentPanel
+                  key={reloadKey}
+                  sourceType="purchase_order"
+                  sourceId={order.id}
+                  currency={currency}
+                />
+              </div>
+            )}
 
             {err && <div className="text-xs text-danger mt-3">{err}</div>}
             {okMsg && <div className="text-xs text-ok mt-3">{okMsg}</div>}

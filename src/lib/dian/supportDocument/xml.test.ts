@@ -17,8 +17,8 @@ const COMMON = {
   paymentMeans: { id: "1" as const, code: "1", dueDate: null },
 };
 
-function parse(xml: string) {
-  return new DOMParser().parseFromString(xml, "text/xml").documentElement!;
+function parse(xml: string): Element {
+  return new DOMParser().parseFromString(xml, "text/xml").documentElement as unknown as Element;
 }
 
 /** Hijos elemento directos (nombre local), en orden. */

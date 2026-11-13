@@ -56,6 +56,11 @@ const MIGRATED = [
   // Nació trilingüe, queda blindado.
   "src/components/print/**/*.{ts,tsx}",
   "src/components/SalesTaxConfigEditor.tsx",
+  // Documento soporte DIAN (panel de gastos/compras, configuración y
+  // representación gráfica): nació trilingüe, queda blindado.
+  "src/components/supportDocument/**/*.{ts,tsx}",
+  "src/app/operator/settings/facturacion-dian/SupportDocumentSettings.tsx",
+  "src/app/operator/documento-soporte/**/*.{ts,tsx}",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",
   "src/app/signup/page.tsx",

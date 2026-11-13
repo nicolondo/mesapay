@@ -312,6 +312,43 @@
         }
       ],
       "updated": "2026-11-04"
+    },
+    {
+      "slug": "documento-soporte",
+      "title": "Generate the support document for purchases and expenses",
+      "summary": "When you buy from someone who isn't required to invoice, MESAPAY generates the electronic support document from the purchase or expense, sends it to DIAN and, if it needs correcting, issues the adjustment note.",
+      "keywords": [
+        "support document",
+        "documento soporte",
+        "not required to invoice",
+        "no invoice supplier",
+        "resolution 167",
+        "cuds",
+        "adjustment note",
+        "void support document",
+        "test set",
+        "testsetid",
+        "numbering range",
+        "form 1876",
+        "withholding",
+        "reteiva",
+        "individual"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "When you buy from a person or company that **isn't required to invoice** (for example, an individual not registered for VAT, a farmer or a foreign service provider), DIAN requires you to generate the **support document for purchases from sellers not required to invoice** (Resolution 000167 of 2021). It's what supports the cost, the deduction and the deductible VAT of that purchase. MESAPAY generates it from the purchase or the expense, signs it with your certificate and sends it to DIAN.\n\n> If the supplier gives you an electronic invoice, no support document is needed.\n\n## What you do in the DIAN portal\n\nThe owner or the accountant does this once, with the business's DIAN user:\n\n1. In the electronic invoicing portal, go to **Registro y habilitación** › **Documentos electrónicos** › **Documento soporte para no obligados a facturar** and choose the **Software propio** (own software) operation mode. Write down the **Software ID** and **PIN** you register.\n2. If you already issue electronic invoices, DIAN may mark you as **Habilitado** right away, without a test set. If it asks for a test set, copy the **TestSetId**: the set requires 2 support documents and 1 adjustment note to be accepted.\n3. Request the **numbering authorization** in MUISCA (**Numeración de facturación**, Form 1876) with the type **Documento soporte**: a prefix of up to 4 characters, the range and the validity period. It's different from your invoices' one.\n4. In the portal, link that range to the software (**Configuración** › **Rangos de numeración**). When you move to production, if the operation mode isn't there, use **Sincronizar a Producción**.\n\n## Set it up in MESAPAY\n\n1. Go to [Settings › DIAN invoicing](/operator/settings/facturacion-dian) and scroll down to **Electronic support document**.\n2. Check **Generate support documents from Purchases and Expenses**.\n3. Enter the support document **Software ID** and **Software PIN**.\n4. Choose the **Environment**. In **Enablement (testing)** also enter the **TestSetId**.\n5. Enter the **Support document numbering authorization**: number, prefix, from, to and validity.\n6. Tap **Save**.\n\nIt's signed with the same digital certificate as electronic invoicing. Adjustment notes use internal numbering (prefix NAS by default): DIAN doesn't authorize it.\n\n> ⚠ In enablement everything goes to DIAN's test set and has no tax validity. Move to **Production** when DIAN shows the support document as **Habilitado**.\n\n## Mark the supplier as not required to invoice\n\nOn a received purchase or an expense you'll see the **DIAN support document** panel. The first time with a supplier, tap **Yes, generate support documents for them** and fill in their details. They're saved on the supplier for future purchases and expenses:\n\n- **Name or company name** and **Type of person**.\n- **ID number**, without the check digit. DIAN identifies a seller living in Colombia by NIT: for an individual it's their ID number, and MESAPAY calculates the check digit.\n- If they live in Colombia: **Municipality**, **Postal code** (6 digits) and **Address**.\n- If they live abroad: **Country** and **City**.\n\n## Generate the document\n\n1. Open the saved expense in [Accounting › Expenses](/operator/contabilidad) or the fully received purchase in [Purchases](/operator/compras).\n2. In the **DIAN support document** panel, tap **Generate support document**.\n\nMESAPAY numbers, signs and sends it in the same step. Each expense or purchase has only one current support document.\n\n- **Deadline:** on the day of the purchase it goes out as \"Por operación\" (per transaction); up to 6 days later, as \"Acumulado semanal\" (weekly). After that DIAN rejects it (rule DSFC02c) and MESAPAY won't let you generate it.\n- **Amounts:** it copies the base, VAT and withholdings from the expense or purchase. Income tax withholding and ReteIVA are reported to DIAN; ReteICA isn't, because the support document annex doesn't provide for it. Consumption tax isn't allowed.\n- Recurring expense templates don't get a support document: it's generated for each month's expense.\n\n## Statuses, rejections and resending\n\n- **Under DIAN validation**: DIAN is still processing it. Tap **Check status** or wait: MESAPAY checks on its own.\n- **Accepted**: it has tax validity (in production).\n- **Rejected**: the panel shows the rules DIAN returned. Fix the data (almost always the seller's) and tap **Resend to DIAN**: it goes out with the **same number**.\n- **Sending error**: DIAN didn't respond. MESAPAY retries on its own and, before resending, asks whether DIAN already had it.\n\n## Printable document and XML\n\n**View printable document** shows the document with its CUDS and QR code, ready to **Print**. **Download XML** downloads the signed file exactly as it was sent. Giving the seller a copy is optional.\n\n## Correct or void with an adjustment note\n\nOn an accepted document, tap **Adjustment note**:\n\n1. Choose the **Correction reason**: voiding, partial return, rebate or discount, price adjustment or other.\n2. If it's not a voiding, enter the **Amount to adjust (before VAT)**. VAT is adjusted proportionally.\n3. Write the **Description of the correction** (at least 20 characters) and tap **Send adjustment note to DIAN**.\n\nOnce the voiding is accepted, the expense or purchase is free to get a new support document.\n\n> The support document doesn't create journal entries: the expense or purchase already recorded the cost, taxes, withholdings and the account payable. If the purchase changed, correct the expense or purchase too.",
+      "links": [
+        {
+          "label": "Go to DIAN invoicing",
+          "href": "/operator/settings/facturacion-dian"
+        },
+        {
+          "label": "Go to Purchases",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-11-13"
     }
   ]
 }

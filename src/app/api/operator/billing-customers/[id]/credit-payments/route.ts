@@ -74,7 +74,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
         accountCode: b.accountCode,
         note: b.note || null,
         createdById: scope.userId,
-        creditChargeId: b.creditChargeId || null,
+        ...(b.creditChargeId ? { creditChargeId: b.creditChargeId } : {}),
       },
     });
     return { payment, debtAfterCents: summary.debtCents - b.amountCents };

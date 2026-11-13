@@ -256,18 +256,29 @@ function hasAncestorAtRule(node, names) {
 }
 
 /**
- * Variables definidas en `:root`/`:host`/`html` sin condición (@media,
- * @supports): es el valor que ve un navegador viejo. La última gana.
+ * Variables de color para calcular respaldos estáticos.
+ *
+ * 1. Las definidas en `:root`/`:host`/`html` sin condición (@media,
+ *    @supports): es el valor que ve un navegador viejo. La última gana.
+ * 2. Las que sólo existen en un componente (p. ej. `--fp-ink` en
+ *    `.fp-canvas`): se toma su PRIMERA definición sin condición, que por
+ *    convención es la base y lo que sigue son variantes (comensal, tema
+ *    oscuro). Es una aproximación: en una variante que cambie el color, el
+ *    navegador viejo ve el tono de la base (los modernos, el correcto).
+ *    Las `--tw-*` de Tailwind quedan fuera: son internas de cada utilidad.
  */
 function collectTokens(root) {
   const tokens = new Map();
+  const scoped = new Map();
   root.walkDecls((decl) => {
     if (!decl.prop.startsWith("--")) return;
     const rule = decl.parent;
-    if (!rule || rule.type !== "rule" || !isRootSelector(rule.selector)) return;
+    if (!rule || rule.type !== "rule") return;
     if (hasAncestorAtRule(rule, ["media", "supports", "container"])) return;
-    tokens.set(decl.prop, decl.value.trim());
+    if (isRootSelector(rule.selector)) tokens.set(decl.prop, decl.value.trim());
+    else if (!decl.prop.startsWith("--tw-") && !scoped.has(decl.prop)) scoped.set(decl.prop, decl.value.trim());
   });
+  for (const [name, value] of scoped) if (!tokens.has(name)) tokens.set(name, value);
   return tokens;
 }
 

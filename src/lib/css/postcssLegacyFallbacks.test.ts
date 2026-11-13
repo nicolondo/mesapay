@@ -50,6 +50,13 @@ describe("color-mix(): respaldo de Tailwind", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("usa la definición base de una variable de componente", async () => {
+    const { css } = await run(
+      ".fp-canvas{--fp-ink:var(--op-text)}.fp-view--diner .fp-canvas{--fp-ink:#000}.fp-grid{stroke:var(--fp-ink)}@supports (color:color-mix(in lab, red, red)){.fp-grid{stroke:color-mix(in srgb, var(--fp-ink) 20%, transparent)}}",
+    );
+    expect(css).toContain(".fp-grid{stroke:#1a161333}");
+  });
+
   it("avisa cuando una variable no tiene valor en :root", async () => {
     const { warnings } = await run(
       ".v{color:var(--x)}@supports (color:color-mix(in lab, red, red)){.v{color:color-mix(in srgb, var(--x) 10%, transparent)}}",

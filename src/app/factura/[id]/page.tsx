@@ -553,9 +553,10 @@ ${PRINT_DESTINATION_STYLES}
     padding-left: 3ch;
     overflow-wrap: anywhere;
   }
-  /* El TOTAL A PAGAR: negrita y más grande que todo lo demás (12px). Si
-     en 58 mm no entra junto al rótulo, el monto baja entero al renglón de
-     abajo, alineado a la derecha: nunca se parte. */
+  /* El TOTAL A PAGAR: negrita y más grande que todo lo demás (12px). En
+     58 mm, un punto menos y apenas más apretado para que rótulo y monto
+     (hasta $999.999) quepan en un renglón; si no entra, el monto baja
+     entero al renglón de abajo, alineado a la derecha: nunca se parte. */
   .receipt .totals .to-pay {
     font-weight: 700;
     font-size: 16px;
@@ -564,7 +565,11 @@ ${PRINT_DESTINATION_STYLES}
     padding-top: 2px;
     border-top: 1px solid #000;
   }
-  .receipt[data-print-width-mm="58"] .totals .to-pay { font-size: 15px; }
+  .receipt[data-print-width-mm="58"] .totals .to-pay {
+    font-size: 14px;
+    letter-spacing: -0.03em;
+    column-gap: 4px;
+  }
   .receipt .totals .pending { font-weight: 700; }
   .receipt .dian-fiscal { text-align: center; }
   .receipt .dian-fiscal .dian-qr {

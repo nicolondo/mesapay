@@ -21,7 +21,13 @@ import {
   type ReservationConfig,
   type Weekday,
 } from "./reservations";
-import { resolveFloorPlan, type FloorPlan } from "./floorPlan";
+import {
+  resolveFloor,
+  resolveLegacyFloorPlan,
+  type FloorScene,
+  type LegacyFloorPlan,
+  type TablePlacement,
+} from "./floorPlan";
 
 export type AvailableTable = {
   id: string;
@@ -32,7 +38,11 @@ export type AvailableTable = {
   reservationDepositCents: number | null;
 };
 
-/** Mesa con posición en el plano — para dibujar el mapa diner-side. */
+/**
+ * Mesa del plano VIEJO (celda x,y). Se sigue devolviendo solo para un
+ * navegador que quedó con la versión anterior de la página de reservas
+ * abierta durante un deploy; el front nuevo usa `FloorMapTable`.
+ */
 export type FloorTable = {
   id: string;
   number: number;
@@ -44,6 +54,21 @@ export type FloorTable = {
   x: number;
   y: number;
 };
+
+/** Mesa reservable ubicada en el plano libre — para dibujar el mapa. */
+export type FloorMapTable = {
+  id: string;
+  number: number;
+  label: string | null;
+  capacity: number;
+  minConsumptionCents: number | null;
+  reservationDepositCents: number | null;
+  shape: "square" | "round" | "bar";
+  placement: TablePlacement;
+};
+
+/** Plano del salón listo para dibujar: escena + mesas con su colocación. */
+export type FloorMap = { scene: FloorScene; tables: FloorMapTable[] };
 
 export type AvailableSlot = {
   /** "HH:MM" hora local de inicio. */
@@ -81,13 +106,14 @@ export async function getAvailability(args: {
 }): Promise<{
   config: ReservationConfig;
   slots: AvailableSlot[];
-  /** Todas las mesas reservables ubicadas en el plano (con coords).
-   *  Se usa para dibujar el mapa del salón en el lado del diner. Es
-   *  independiente del partySize: incluye todas, el front marca cuáles
-   *  son seleccionables comparando contra slot.tables. */
+  /** Plano del salón con TODAS las mesas reservables ubicadas. Es
+   *  independiente del partySize: el front marca cuáles se pueden elegir
+   *  comparando contra slot.tables. `tables` vacío = el operador no
+   *  dibujó el plano (el front cae al selector de lista). */
+  floor: FloorMap;
+  /** Lo mismo en el formato viejo (celdas), para clientes anteriores. */
   floorTables: FloorTable[];
-  /** Grilla + zonas + markers del salón (para que el diner se ubique). */
-  floorPlan: FloorPlan;
+  floorPlan: LegacyFloorPlan;
 }> {
   const now = args.now ?? new Date();
   const r = await db.restaurant.findUnique({
@@ -99,17 +125,15 @@ export async function getAvailability(args: {
     },
   });
   const config = resolveReservationConfig(r?.reservationConfig);
-  const floorPlan = resolveFloorPlan(r?.floorPlan);
 
-  // Todas las mesas reservables ubicadas en el plano — para dibujar el
-  // mapa. Independiente del partySize y de si el día tiene turnos.
-  const placed = await db.table.findMany({
+  // Todas las mesas reservables — para dibujar el mapa. Independiente
+  // del partySize y de si el día tiene turnos. Cuáles están ubicadas lo
+  // decide `resolveFloor` (plano libre, o el de celdas convertido).
+  const reservable = await db.table.findMany({
     where: {
       restaurantId: args.restaurantId,
       reservable: true,
       number: { gte: 0 },
-      floorPlanX: { not: null },
-      floorPlanY: { not: null },
     },
     select: {
       id: true,
@@ -121,29 +145,65 @@ export async function getAvailability(args: {
       shape: true,
       floorPlanX: true,
       floorPlanY: true,
+      floorX: true,
+      floorY: true,
+      floorW: true,
+      floorH: true,
+      floorRotation: true,
     },
     orderBy: { number: "asc" },
   });
-  const floorTables: FloorTable[] = placed.map((t) => ({
-    id: t.id,
-    number: t.number,
-    label: t.label,
-    capacity: t.capacity,
-    minConsumptionCents: t.minConsumptionCents,
-    reservationDepositCents: t.reservationDepositCents,
-    shape: t.shape,
-    x: t.floorPlanX as number,
-    y: t.floorPlanY as number,
-  }));
+  const resolved = resolveFloor(r?.floorPlan, reservable);
+  const floor: FloorMap = {
+    scene: resolved.scene,
+    tables: reservable.flatMap((t) => {
+      const placement = resolved.placements[t.id];
+      return placement
+        ? [
+            {
+              id: t.id,
+              number: t.number,
+              label: t.label,
+              capacity: t.capacity,
+              minConsumptionCents: t.minConsumptionCents,
+              reservationDepositCents: t.reservationDepositCents,
+              shape: t.shape,
+              placement,
+            },
+          ]
+        : [];
+    }),
+  };
+  // Formato viejo, para una pestaña de reservas abierta desde antes del
+  // deploy: mismas claves y formas que siempre (celdas).
+  const floorPlan = resolveLegacyFloorPlan(r?.floorPlan);
+  const floorTables: FloorTable[] = reservable.flatMap((t) =>
+    t.floorPlanX != null && t.floorPlanY != null
+      ? [
+          {
+            id: t.id,
+            number: t.number,
+            label: t.label,
+            capacity: t.capacity,
+            minConsumptionCents: t.minConsumptionCents,
+            reservationDepositCents: t.reservationDepositCents,
+            shape: t.shape,
+            x: t.floorPlanX,
+            y: t.floorPlanY,
+          },
+        ]
+      : [],
+  );
+  const noSlots = { config, slots: [], floor, floorTables, floorPlan };
 
   if (!r?.reservationsEnabled) {
-    return { config, slots: [], floorTables, floorPlan };
+    return noSlots;
   }
 
   const weekday = weekdayForLocalDate(args.dateLocal);
   const daySlots = slotsForDay(config, weekday);
   if (daySlots.length === 0) {
-    return { config, slots: [], floorTables, floorPlan };
+    return noSlots;
   }
 
   // Mesas candidatas: reservables + capacidad suficiente.
@@ -165,7 +225,7 @@ export async function getAvailability(args: {
     orderBy: { number: "asc" },
   });
   if (tables.length === 0) {
-    return { config, slots: [], floorTables, floorPlan };
+    return noSlots;
   }
 
   // Reservas activas que tocan ese día. Tomamos un rango generoso
@@ -235,5 +295,5 @@ export async function getAvailability(args: {
     });
   }
 
-  return { config, slots, floorTables, floorPlan };
+  return { config, slots, floor, floorTables, floorPlan };
 }

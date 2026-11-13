@@ -29,6 +29,11 @@ const MIGRATED = [
   "src/app/operator/reports/ventas/**/*.{ts,tsx}",
   "src/components/charts/**/*.{ts,tsx}",
   "src/components/InventoryTrackingField.tsx",
+  // Eliminar insumos (diálogo, pie de la ficha y eliminación masiva):
+  // nacieron trilingües, quedan blindados.
+  "src/components/IngredientDeleteDialog.tsx",
+  "src/app/operator/settings/insumos/IngredientDeletePanel.tsx",
+  "src/app/operator/settings/insumos/BulkDeleteIngredientsDialog.tsx",
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
@@ -96,6 +101,11 @@ const MIGRATED = [
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/3ds-return/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/pse-return/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/done/*.{ts,tsx}",
+  // Bre-B (QR de pago inmediato): nació trilingüe, queda blindado.
+  "src/components/payments/BreBSheet.tsx",
+  "src/components/payments/BreBPendingCard.tsx",
+  "src/app/t/bre-b-mock/**/*.{ts,tsx}",
+  "src/app/admin/restaurants/\\[id\\]/pagos/AdminBreBConfig.tsx",
   "src/app/p/\\[slug\\]/page.tsx",
   "src/app/p/\\[slug\\]/\\[orderId\\]/status/*.{ts,tsx}",
   "src/app/factura/\\[id\\]/page.tsx",
@@ -133,6 +143,8 @@ const MIGRATED = [
   "src/app/operator/horarios/**/*.{ts,tsx}",
   "src/app/operator/settings/page.tsx",
   "src/app/operator/settings/salon/**/*.{ts,tsx}",
+  // Dibujo del plano del salón (editor, comensal y Salón): nació trilingüe.
+  "src/components/floorplan/**/*.{ts,tsx}",
   "src/app/operator/settings/estaciones/**/*.{ts,tsx}",
   "src/app/operator/settings/reservas/**/*.{ts,tsx}",
   "src/app/operator/settings/etiquetas/**/*.{ts,tsx}",

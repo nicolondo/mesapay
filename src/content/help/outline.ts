@@ -67,7 +67,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "permisos-propinas-y-turnos",
       title: "Define permisos, propinas y turnos del equipo",
       covers:
-        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Sólo el administrador puede iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
+        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Solo el administrador y el datáfono pueden iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
     },
     {
       slug: "suscripcion",
@@ -155,7 +155,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-una-cuenta",
       title: "Cobra una cuenta paso a paso",
       covers:
-        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Sólo el administrador puede iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
+        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Solo el administrador y el datáfono pueden iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
       legacy:
         "Desde Salón o la app del mesero: efectivo, datáfono o cortesía (gastos de representación). Tras el pago se ofrece la factura al cliente.",
     },
@@ -169,7 +169,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono (su orden, \"Toca para cobrar\" y \"Cobrar\" para empezar el cobro, y lo que no puede hacer).",
     },
     {
       slug: "dividir-la-cuenta",
@@ -390,6 +390,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
         "Insumos (dimensión, \"Llevar inventario\", precio de referencia, punto de reorden, código de barras principal —los demás se agregan en Inventario—, archivar, acciones masivas, \"Importar con IA\" solo con Inventario) y proveedores (datos, condiciones de pago, \"Lista de precios\", un solo preferido por insumo, \"IVA de compras descontable\").",
     },
     {
+      slug: "archivar-o-eliminar-un-insumo",
+      title: "Archiva o elimina un insumo",
+      covers:
+        "Diferencia entre \"Archivar\" y \"Eliminar\"; cuándo se puede eliminar (sin existencias, movimientos, órdenes de compra, conteos, recetas, sub-receta ni historial de precios) y qué se va con el insumo (códigos de barras, presentaciones de proveedor, nombres de factura recordados); \"Eliminar\" en la fila y en la ficha de Insumos y en el menú ⋯ de Inventario; filtro \"Sin movimientos\" y eliminación en bloque (\"Sí, eliminar\"); \"Restaurar\"; los avisos \"No se puede eliminar: …\" y qué hacer con cada motivo.",
+    },
+    {
       slug: "recetas-y-food-cost",
       title: "Arma las recetas y controla el food cost",
       covers:
@@ -407,13 +413,13 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "inventario-del-dia-a-dia",
       title: "Registra entradas, ajustes y mermas de inventario",
       covers:
-        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\"): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
+        "\"Existencias\" (resumen \"Valor del inventario\" sobre lo filtrado, filtros \"Bajo mínimo\", \"Con existencias\", \"Archivados\" con su conteo, columnas y páginas de 50), menú ⋯ de cada insumo (\"Registrar entrada\", \"Hacer un ajuste\", \"Registrar merma\", \"Ver movimientos\", \"Códigos de barras\", \"Editar insumo\", \"Archivar\"/\"Restaurar\" y \"Eliminar\" en los que nunca tuvieron movimientos): \"Entrada\", \"Ajuste\", \"Merma\" y motivos, costo promedio, \"Categorías sin inventario\"; \"Movimientos\" (filtro por insumo, \"Cargar más\") y el consumo por venta (requiere Inventario y Recetas, y \"Llevar inventario\" en el plato y en el insumo).",
     },
     {
       slug: "conteo-de-inventario",
       title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias (principal, \"Quitar\") y asociarlos desde el conteo (\"Agregar código de barras\" / \"Agregar otro código\"), lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos, una línea por insumo con lo último contado arriba (\"Contados recientemente\") y varias cantidades por insumo (chip \"N cantidades\", \"+\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias y de cada fila del conteo (principal, editar, pasar a otro insumo, \"Quitar\", \"Pasárselo a este insumo\"), qué hacer con un código que no es de ningún insumo o es de uno que no está en el conteo (\"Vincular a un insumo\", \"Crear insumo con este código\", restaurar, \"Deshacer\" / \"Corregir\"), \"Nuevo insumo\" desde el conteo, lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\" (cierra y avisa), \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",
@@ -585,9 +591,9 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
     },
     {
       slug: "pulso",
-      title: "Pregúntale a Pulso sobre tu negocio",
+      title: "Pregúntale a Pulso agente IA sobre tu negocio",
       covers:
-        "El asistente \"Pulso\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está, el límite diario de preguntas y el historial de conversaciones (reabrir y borrar).",
+        "El asistente \"Pulso agente IA\": preguntas sugeridas, qué datos usa y cuáles no, en qué planes está, el límite diario de preguntas y el historial de conversaciones (reabrir y borrar).",
     },
   ],
 

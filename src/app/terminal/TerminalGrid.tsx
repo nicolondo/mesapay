@@ -4,22 +4,25 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
 import { isCashMethod } from "@/lib/payments/methods";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useApiError } from "@/lib/useApiError";
+import { useClock } from "@/lib/browser/clock";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
+import type { SalonSortOptions } from "@/lib/tables/sortTables";
+import {
+  isTerminalPhonePaidHighlighted,
+  sortTablesForTerminal,
+  type TerminalTableState,
+} from "@/lib/tables/terminalOrder";
+import type { TableVisualState } from "@/lib/walkoutRisk";
+import type { TerminalChargeState } from "@/lib/tables/terminalCharge";
 
-export type TableState =
-  | "free"
-  | "occupied"
-  | "partial"
-  | "charging"
-  | "terminal_requested"
-  | "cash_requested"
-  | "paid";
+export type TableState = TerminalTableState;
 
 export type PendingPayment = {
   id: string;
@@ -29,6 +32,11 @@ export type PendingPayment = {
   // Only set for cash payments where the diner declared upfront.
   cashTenderCents: number | null;
   createdAt: string;
+  /**
+   * Plata en vuelo: el cobro ya se envió al datáfono (o es un pago en línea
+   * en curso). Hay que esperar su resultado; no se vuelve a enviar.
+   */
+  inFlight: boolean;
 };
 
 export type GuestGroup = {
@@ -69,6 +77,21 @@ export type TableCard = {
     tipCents: number;
     settledAt: string | null;
   }[];
+  // Lo que mira el ORDEN de la grilla (regla del salón, ver
+  // src/lib/tables/terminalOrder.ts). No cambia el color ni el rótulo.
+  /** Cuenta abierta: estado visual del salón. Null en libres y pagadas. */
+  visualState: TableVisualState | null;
+  /** La mesa llamó al mesero y nadie atendió todavía. */
+  needsWaiter: boolean;
+  /** Sólo `paid`: cuándo se cerró la cuenta (ISO). */
+  paidAt: string | null;
+  /** Sólo `paid`: la cerró el comensal desde su celular. */
+  paidFromPhone: boolean;
+  /**
+   * ¿Se puede EMPEZAR el cobro desde la ficha («Cobrar»)? Si no, por qué
+   * (src/lib/tables/terminalCharge.ts).
+   */
+  charge: TerminalChargeState;
 };
 
 export function TerminalGrid({
@@ -76,12 +99,20 @@ export function TerminalGrid({
   tenantName,
   tables,
   devices,
+  initialTime,
+  phonePaidHighlightMinutes,
 }: {
   tenantSlug: string;
   tenantName: string;
   tables: TableCard[];
   // Datáfonos del comercio disponibles; con varios, se elige al cobrar.
   devices: { id: string; label: string }[];
+  // Hora del servidor al armar la página: arranca el reloj del cliente para
+  // que la hidratación y el primer render coincidan.
+  initialTime: number;
+  // Minutos que una mesa que acaba de pagar desde el celular va de primera
+  // (Restaurant.phonePaidHighlightMinutes; 0 = apagado).
+  phonePaidHighlightMinutes: number;
 }) {
   const tr = useTranslations("opTerminal");
   const router = useRouter();
@@ -127,17 +158,28 @@ export function TerminalGrid({
     return { free, open, paid, terminalReq, cashReq, outstanding };
   }, [tables]);
 
-  // Sort: tables that requested action (terminal first, then cash) jump
-  // to the front. Within a state, keep numeric order.
-  const sortedTables = useMemo(() => {
-    return [...tables].sort((a, b) => {
-      const stateRank = (s: TableState) =>
-        s === "terminal_requested" ? 0 : s === "cash_requested" ? 1 : 2;
-      const r = stateRank(a.state) - stateRank(b.state);
-      if (r !== 0) return r;
-      return a.number - b.number;
-    });
-  }, [tables]);
+  // Reloj del cliente (tick de 10 s): nada avisa cuando VENCE el resalte de
+  // la mesa que pagó desde el celular, así que "ahora" se reevalúa acá y la
+  // mesa baja sola a su lugar sin esperar un refresh del servidor.
+  const now = useClock(initialTime);
+  const sortOpts = useMemo<SalonSortOptions>(
+    () => ({ now, phonePaidHighlightMinutes }),
+    [now, phonePaidHighlightMinutes],
+  );
+
+  // ORDEN: el mismo del salón del admin (/operator/tables). Primero la mesa
+  // que acaba de pagar desde el celular, después las cuentas abiertas — las
+  // que piden cobro arriba — y al final las pagadas y las libres; cada grupo
+  // por número. Antes el datáfono sólo subía las que pedían datáfono o
+  // efectivo y dejaba TODO lo demás por número, con las pagadas mezcladas
+  // entre las abiertas. `tables` llega nuevo con cada refresh (SSE) y `now`
+  // cambia cada 10 s: el orden es determinista (grupo + número), así que la
+  // grilla sólo se mueve cuando una mesa de verdad cambia de grupo, y React
+  // reubica cada tarjeta por su `key`.
+  const sortedTables = useMemo(
+    () => sortTablesForTerminal(tables, sortOpts),
+    [tables, sortOpts],
+  );
 
   return (
     <div className="px-5 py-6">
@@ -153,7 +195,8 @@ export function TerminalGrid({
             <Stat
               label={tr("statTerminalRequested")}
               value={String(stats.terminalReq)}
-              tint="bg-terracotta text-bone"
+              tint="bg-terracotta-2 text-bone"
+              solid
             />
           )}
           {stats.cashReq > 0 && (
@@ -161,6 +204,7 @@ export function TerminalGrid({
               label={tr("statCashRequested")}
               value={String(stats.cashReq)}
               tint="bg-[#2E6B4C] text-bone"
+              solid
             />
           )}
           <Stat label={tr("statFree")} value={String(stats.free)} tint="bg-bone/10" />
@@ -176,7 +220,13 @@ export function TerminalGrid({
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {sortedTables.map((t) => (
-          <TableTile key={t.tableId} t={t} onOpen={() => setOpenTable(t)} />
+          <TableTile
+            key={t.tableId}
+            t={t}
+            now={now}
+            highlight={isTerminalPhonePaidHighlighted(t, sortOpts)}
+            onOpen={() => setOpenTable(t)}
+          />
         ))}
       </div>
 
@@ -198,10 +248,31 @@ export function TerminalGrid({
   );
 }
 
-function Stat({ label, value, tint }: { label: string; value: string; tint: string }) {
+/**
+ * Chip del resumen. Los tintes translúcidos (`bg-bone/10`, `bg-ok/20`…)
+ * heredan el texto claro de la pantalla; su rótulo va atenuado. Los chips
+ * `solid` (fondo de color pleno: "pidió datáfono", "pidió efectivo") llevan el
+ * rótulo a plena opacidad — atenuado sobre un color medio no llega a AA.
+ */
+function Stat({
+  label,
+  value,
+  tint,
+  solid = false,
+}: {
+  label: string;
+  value: string;
+  tint: string;
+  solid?: boolean;
+}) {
   return (
     <div className={"rounded-2xl px-4 py-2 " + tint}>
-      <div className="font-mono text-[9px] tracking-[0.18em] uppercase opacity-70">
+      <div
+        className={
+          "font-mono text-[9px] tracking-[0.18em] uppercase" +
+          (solid ? "" : " opacity-70")
+        }
+      >
         {label}
       </div>
       <div className="font-display text-xl tabular">{value}</div>
@@ -221,6 +292,35 @@ const STATE_TINT: Record<TableState, string> = {
   paid: "bg-ok/15 border-ok/40",
 };
 
+// La mesa que ACABA DE PAGAR DESDE EL CELULAR (va de primera mientras dure
+// el resalte del comercio): verde pleno, igual que en Mesas del admin.
+const PHONE_PAID_TINT = "bg-ok text-bone border-ok shadow-md";
+
+/**
+ * Texto secundario de la tarjeta (código, rótulos, "pedido hace N min") según
+ * su fondo. Contraste AA (≥ 4.5:1) en los tres casos:
+ *   - `dark`  — tinte translúcido sobre el fondo oscuro de la pantalla: el
+ *               texto claro heredado, atenuado.
+ *   - `light` — tarjeta clara ("cobrando", "pidió datáfono/efectivo"): un tono
+ *               oscuro SÓLIDO. Antes era el texto oscuro con opacidad: un gris
+ *               tenue sobre el fondo claro, lo menos legible de la pantalla.
+ *   - `solid` — verde pleno: texto claro a plena opacidad (atenuado sobre un
+ *               color medio no llega a AA).
+ */
+type TileTone = "dark" | "light" | "solid";
+
+const SUB_TEXT: Record<TileTone, string> = {
+  dark: " opacity-70",
+  light: " text-ink-3",
+  solid: "",
+};
+
+const LIGHT_STATES: ReadonlySet<TableState> = new Set([
+  "charging",
+  "terminal_requested",
+  "cash_requested",
+]);
+
 type Translator = ReturnType<typeof useTranslations>;
 
 const STATE_LABEL_KEY: Record<TableState, string> = {
@@ -237,11 +337,33 @@ function stateLabel(state: TableState, tr: Translator): string {
   return tr(STATE_LABEL_KEY[state]);
 }
 
-function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
+function TableTile({
+  t,
+  now,
+  highlight,
+  onOpen,
+}: {
+  t: TableCard;
+  // Reloj de la grilla (useClock): un solo tick para todas las tarjetas.
+  now: number;
+  // Acaba de pagar desde el celular y sigue en su ventana de resalte.
+  highlight: boolean;
+  onOpen: () => void;
+}) {
   const tr = useTranslations("opTerminal");
   const disabled = t.state === "free";
   const isTerminalReq = t.state === "terminal_requested";
   const isCashReq = t.state === "cash_requested";
+  const tone: TileTone = highlight
+    ? "solid"
+    : LIGHT_STATES.has(t.state)
+      ? "light"
+      : "dark";
+  const sub = SUB_TEXT[tone];
+  // Rótulo del estado. La tarjeta libre ya va atenuada entera (deshabilitada):
+  // atenuar además su rótulo lo dejaba por debajo de AA.
+  const stateText =
+    tone === "dark" ? (disabled ? "" : " opacity-80") : SUB_TEXT[tone];
   const ringClass = isTerminalReq
     ? " ring-4 ring-terracotta/40 shadow-lg"
     : isCashReq
@@ -258,23 +380,29 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
     : isCashReq
       ? t.pendingCashRequestedAt
       : null;
+  // Cuenta abierta que se puede cobrar y no muestra ya "Cobrar $X" (las que
+  // pidieron datáfono o efectivo lo dicen arriba): pie "Toca para cobrar".
+  const showTapToCharge = t.charge.canCharge && requestedAmount == null;
   return (
     <button
       type="button"
       onClick={onOpen}
       disabled={disabled}
       className={
-        "text-left rounded-2xl border-2 p-4 min-h-[140px] transition-colors disabled:cursor-default disabled:opacity-60 " +
-        STATE_TINT[t.state] +
+        "flex flex-col text-left rounded-2xl border-2 p-4 min-h-[140px] transition-[color,background-color,border-color,transform] enabled:cursor-pointer enabled:active:scale-[0.98] disabled:cursor-default disabled:opacity-60 " +
+        (highlight ? PHONE_PAID_TINT : STATE_TINT[t.state]) +
         ringClass
       }
     >
-      <div className="flex items-baseline justify-between gap-2">
+      {/* `flex-wrap`: a dos columnas en el datáfono el aviso "pidió datáfono"
+          no cabe al lado de "Mesa N"; baja a su propia línea en vez de
+          salirse de la tarjeta. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <div className="font-display text-2xl">
           {tr("tableNumber", { number: t.number })}
         </div>
         {isTerminalReq ? (
-          <span className="font-mono text-[10px] tracking-wider uppercase bg-terracotta text-bone px-2 py-0.5 rounded-full shrink-0">
+          <span className="font-mono text-[10px] tracking-wider uppercase bg-terracotta-2 text-bone px-2 py-0.5 rounded-full shrink-0">
             {tr("tileTerminalRequested")}
           </span>
         ) : isCashReq ? (
@@ -282,46 +410,54 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
             {tr("tileCashRequested")}
           </span>
         ) : (
-          <div className="font-mono text-[10px] tracking-wider uppercase opacity-80">
+          <div className={"font-mono text-[10px] tracking-wider uppercase" + stateText}>
             {stateLabel(t.state, tr)}
           </div>
         )}
       </div>
       {t.shortCode && (
-        <div className="font-mono text-[10px] tracking-wider opacity-70 mt-1" title={t.shortCode}>
+        <div className={"font-mono text-[10px] tracking-wider mt-1" + sub} title={t.shortCode}>
           {displayOrderCode(t.shortCode)}
         </div>
       )}
       {t.state !== "free" && (
         <div className="mt-3">
           {t.state === "paid" ? (
-            <div className="font-mono text-xs opacity-70">
-              {tr("tileTotal", { amount: fmtCOP(t.subtotalCents) })}
-            </div>
+            <>
+              {highlight && t.paidAt && (
+                <div className="text-[12px] font-semibold leading-tight mb-1">
+                  <span aria-hidden>{"✓ "}</span>
+                  {tr("tilePaidFromPhone", { ago: timeAgo(t.paidAt, tr, now) })}
+                </div>
+              )}
+              <div className={"font-mono text-xs" + sub}>
+                {tr("tileTotal", { amount: fmtCOP(t.subtotalCents) })}
+              </div>
+            </>
           ) : requestedAmount != null ? (
             <>
-              <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
+              <div className={"font-mono text-[10px] tracking-wider uppercase" + sub}>
                 {tr("tileCharge")}
               </div>
               <div className="font-display text-2xl tabular">
                 {fmtCOP(requestedAmount)}
               </div>
               {requestedAt && (
-                <div className="text-[11px] opacity-70 mt-0.5">
-                  {tr("tileRequestedAt", { ago: timeAgo(requestedAt, tr) })}
+                <div className={"text-[11px] mt-0.5" + sub}>
+                  {tr("tileRequestedAt", { ago: timeAgo(requestedAt, tr, now) })}
                 </div>
               )}
             </>
           ) : (
             <>
-              <div className="font-mono text-[10px] tracking-wider uppercase opacity-70">
+              <div className={"font-mono text-[10px] tracking-wider uppercase" + sub}>
                 {tr("tilePending")}
               </div>
               <div className="font-display text-2xl tabular">
                 {fmtCOP(t.outstandingCents)}
               </div>
               {t.paidCents > 0 && (
-                <div className="text-[11px] opacity-70 mt-0.5">
+                <div className={"text-[11px] mt-0.5" + sub}>
                   {tr("tileAlreadyPaid", { amount: fmtCOP(t.paidCents) })}
                 </div>
               )}
@@ -329,12 +465,25 @@ function TableTile({ t, onOpen }: { t: TableCard; onOpen: () => void }) {
           )}
         </div>
       )}
+      {showTapToCharge && (
+        <div className="mt-auto pt-3 flex items-center justify-between gap-2 text-[12px] font-medium">
+          <span>{tr("tileTapToCharge")}</span>
+          <span aria-hidden className="text-base leading-none">
+            {"›"}
+          </span>
+        </div>
+      )}
     </button>
   );
 }
 
-function timeAgo(iso: string, tr: Translator): string {
-  const ms = Date.now() - new Date(iso).getTime();
+/**
+ * "hace N min". En la grilla se pasa el `now` del reloj compartido (el texto
+ * avanza con el tick y coincide con lo que renderizó el servidor); la ficha,
+ * que se abre por un toque, usa la hora del momento.
+ */
+function timeAgo(iso: string, tr: Translator, now: number = Date.now()): string {
+  const ms = now - new Date(iso).getTime();
   const mins = Math.floor(ms / 60000);
   if (mins < 1) return tr("agoNow");
   if (mins < 60) return tr("agoMinutes", { mins });
@@ -467,6 +616,9 @@ function DetailSheet({
                     const total = p.amountCents;
                     const isTerminal = p.method === "kushki_card_terminal";
                     const isCash = isCashMethod(p.method);
+                    // Ya está en el datáfono: se espera su resultado (el
+                    // botón de enviarlo de nuevo sólo rebotaría).
+                    const canPush = isTerminal && !p.inFlight;
                     return (
                       <div
                         key={p.id}
@@ -529,7 +681,12 @@ function DetailSheet({
                             </div>
                           )}
 
-                        {isTerminal && (
+                        {isTerminal && p.inFlight && (
+                          <div className="mt-3 text-[13px] font-medium text-ink-2">
+                            {tr("sentToTerminalWaiting")}
+                          </div>
+                        )}
+                        {canPush && (
                           <div className="mt-3">
                             <TerminalPicker
                               variant="pay"
@@ -540,7 +697,7 @@ function DetailSheet({
                             />
                           </div>
                         )}
-                        {isTerminal && (
+                        {canPush && (
                           <button
                             type="button"
                             onClick={() => chargeTerminal(p.id)}
@@ -597,6 +754,16 @@ function DetailSheet({
                   })}
                 </div>
               </div>
+
+              {/* «Cobrar»: empieza el cobro de la cuenta con el MISMO checkout
+                  del mesero y del administrador (/terminal/cobrar → PayFlow).
+                  Con una solicitud pendiente arriba (el comensal o un mesero
+                  pidió datáfono o efectivo), ésa sigue siendo la vía directa
+                  y esto queda como "cobrar de otra forma". */}
+              <ChargeAction
+                table={table}
+                hasRequestAbove={table.pendingPayments.length > 0}
+              />
 
               {/* Order summary — what's on the table. Grouped by guest
                   when names exist, so split-bill is visible at a glance. */}
@@ -694,11 +861,6 @@ function DetailSheet({
                 </div>
               )}
 
-              {table.pendingPayments.length === 0 && (
-                <div className="text-xs text-muted text-center pt-2">
-                  {tr("noPaymentRequestedYet")}
-                </div>
-              )}
               {err && (
                 <div className="text-danger text-sm text-center">{err}</div>
               )}
@@ -706,6 +868,61 @@ function DetailSheet({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Botón «Cobrar» de la ficha, o el motivo por el que no se puede (pagada, un
+ * cobro ya enviado al datáfono o un pago en línea en curso que se lleva el
+ * saldo). Ver src/lib/tables/terminalCharge.ts.
+ */
+function ChargeAction({
+  table,
+  hasRequestAbove,
+}: {
+  table: TableCard;
+  hasRequestAbove: boolean;
+}) {
+  const tr = useTranslations("opTerminal");
+  const { canCharge, block, inFlight } = table.charge;
+  if (!table.orderId || block === "paid" || block === "nothing_outstanding") return null;
+
+  if (!canCharge) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[#C98A2E]/40 bg-[#C98A2E]/15 p-3 text-[13px] text-[#7F5A1F]"
+      >
+        {tr(block === "terminal_in_flight" ? "chargeBlockedTerminal" : "chargeBlockedOnline", {
+          amount: fmtCOP(inFlight?.amountCents ?? 0),
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Link
+        href={`/terminal/cobrar/${table.orderId}`}
+        prefetch={false}
+        className={
+          "w-full h-12 rounded-full font-medium inline-flex items-center justify-center " +
+          (hasRequestAbove
+            ? "border-2 border-ink text-ink bg-transparent"
+            : "bg-ink text-bone")
+        }
+      >
+        {hasRequestAbove ? tr("chargeOtherWay") : tr("chargeCta")}
+      </Link>
+      {inFlight && (
+        <div className="text-xs text-ink-3 text-center">
+          {tr("chargeRestInFlight", { amount: fmtCOP(inFlight.amountCents) })}
+        </div>
+      )}
+      {!hasRequestAbove && !inFlight && (
+        <div className="text-xs text-ink-3 text-center">{tr("noPaymentRequestedYet")}</div>
+      )}
     </div>
   );
 }
@@ -803,6 +1020,8 @@ function humanMethod(m: string, tr: Translator): string {
       return tr("methodExternalTerminal");
     case "kushki_pse":
       return tr("methodPse");
+    case "kushki_bre_b":
+      return tr("methodBreB");
     // Efectivo: el actual (cash) y el histórico (demo_cash).
     case "cash":
     case "demo_cash":

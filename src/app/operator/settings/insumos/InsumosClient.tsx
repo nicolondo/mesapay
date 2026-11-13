@@ -17,13 +17,18 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
-import { BARCODE_MAX_LENGTH } from "@/lib/erp/barcode";
+import { BARCODE_MAX_LENGTH, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { barcodeTakenOwner, moveIngredientBarcode, type BarcodeOwnerRef } from "@/app/operator/inventario/barcodeApi";
 import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
 import { ImportInsumosSheet } from "./ImportInsumosSheet";
 import { StockResetConfirmation } from "./StockResetConfirmation";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
 import type { IngredientCostView } from "@/lib/erp/recipeData";
 import { IngredientCostSummary } from "./IngredientCostSummary";
+import { IngredientDeleteDialog } from "@/components/IngredientDeleteDialog";
+import { skippedIngredientsText, type BulkDeleteResult } from "@/lib/erp/ingredientDeletionText";
+import { BulkDeleteIngredientsDialog } from "./BulkDeleteIngredientsDialog";
+import { IngredientDeletePanel } from "./IngredientDeletePanel";
 
 type Ingredient = IngredientCostView & {
   id: string;
@@ -104,12 +109,15 @@ export function InsumosClient({
   currency,
   canImport,
   initialEditId = null,
+  deletableIds = [],
 }: {
   initial: Ingredient[];
   currency: string;
   canImport: boolean;
   /** `?editar=<id>`: abre la ficha de ese insumo al entrar. */
   initialEditId?: string | null;
+  /** Insumos que hoy se pueden eliminar del todo (la regla es del server). */
+  deletableIds?: string[];
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -141,6 +149,13 @@ export function InsumosClient({
   const [catAction, setCatAction] = useState<"move" | "rename">("move");
   const [renameFrom, setRenameFrom] = useState("");
   const [renameTo, setRenameTo] = useState("");
+  // Eliminar del todo: solo los que no tienen movimientos ni están en uso.
+  // El conjunto viene del server y es una pista para pintar el botón y el
+  // filtro; al eliminar, el server vuelve a revisar.
+  const [deletable, setDeletable] = useState<Set<string>>(() => new Set(deletableIds));
+  const [onlyDeletable, setOnlyDeletable] = useState(false);
+  const [deleting, setDeleting] = useState<Ingredient | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Categorías existentes del comercio (sin taxonomía impuesta): alimentan
   // el filtro y el datalist del formulario.
@@ -150,7 +165,7 @@ export function InsumosClient({
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  const filtered = useMemo(() => {
+  const scoped = useMemo(() => {
     return items.filter((i) => {
       if (activeFilter === "active" && !i.active) return false;
       if (activeFilter === "inactive" && i.active) return false;
@@ -159,6 +174,9 @@ export function InsumosClient({
       return ingredientMatchesSearch(i, q);
     });
   }, [items, q, cat, activeFilter]);
+  // «Sin movimientos»: los que se pueden eliminar, dentro de lo ya filtrado.
+  const deletableScoped = useMemo(() => scoped.filter((i) => deletable.has(i.id)), [scoped, deletable]);
+  const filtered = onlyDeletable ? deletableScoped : scoped;
 
   // Al cerrar la ficha abierta por `?editar=`, el parámetro sale de la URL
   // (recargar no la vuelve a abrir) sin navegar ni mover el scroll.
@@ -214,6 +232,48 @@ export function InsumosClient({
       toggling.current = false;
       setTogglingId(null);
     }
+  }
+
+  /** Saca de la pantalla los insumos que ya no existen. */
+  function removeItems(ids: string[]) {
+    const gone = new Set(ids);
+    setItems((prev) => prev.filter((i) => !gone.has(i.id)));
+    setSelected((prev) => new Set([...prev].filter((id) => !gone.has(id))));
+    setDeletable((prev) => new Set([...prev].filter((id) => !gone.has(id))));
+    if (sheet?.mode === "edit" && gone.has(sheet.item.id)) closeSheet();
+  }
+
+  function handleDeleted(ingredient: { id: string; name: string }, how: "deleted" | "gone") {
+    setDeleting(null);
+    removeItems([ingredient.id]);
+    setRowError(null);
+    setBulkNote(null);
+    // «gone»: alguien más ya lo había eliminado; el diálogo ya lo dijo.
+    setArchiveNotice(how === "deleted" ? t("ingredientDeletedNotice", { name: ingredient.name }) : null);
+  }
+
+  function handleBulkDeleted(result: BulkDeleteResult) {
+    setBulkDeleting(false);
+    removeItems(result.deleted.map((row) => row.id));
+    // Lo que el server dijo que no se puede deja de ofrecerse como eliminable.
+    const blocked = new Set(result.skipped.map((row) => row.id));
+    if (blocked.size > 0) setDeletable((prev) => new Set([...prev].filter((id) => !blocked.has(id))));
+    setBulkMode(null);
+    setBulkNote(null);
+    const failed = result.failed.length > 0 ? t("ingredientsDeleteFailedSome", { count: result.failed.length }) : null;
+    if (result.skipped.length === 0) {
+      setArchiveNotice(result.deleted.length > 0 ? t("ingredientsDeletedNotice", { count: result.deleted.length }) : null);
+      setRowError(failed ?? (result.deleted.length === 0 ? t("deleteIngredientFailed") : null));
+      return;
+    }
+    const summary = t("ingredientsDeletedSkipped", {
+      deleted: result.deleted.length,
+      skipped: result.skipped.length,
+      details: skippedIngredientsText(t, locale, result.skipped),
+    });
+    // Con algo eliminado es un aviso; si no se eliminó nada, es un error.
+    setArchiveNotice(result.deleted.length > 0 ? summary : null);
+    setRowError(result.deleted.length > 0 ? failed : [summary, failed].filter(Boolean).join(" "));
   }
 
   // ── Selección múltiple ──
@@ -372,8 +432,21 @@ export function InsumosClient({
               </button>
             ))}
           </div>
+          {/* Los que se pueden eliminar del todo, dentro de lo ya filtrado. */}
+          {(deletable.size > 0 || onlyDeletable) && (
+            <button
+              type="button"
+              onClick={() => setOnlyDeletable((on) => !on)}
+              aria-pressed={onlyDeletable}
+              title={t("noMovementsHint")}
+              className="mp-chip"
+            >
+              {t("filterNoMovements")}
+              <span className="mp-chip__count">{deletableScoped.length}</span>
+            </button>
+          )}
         </div>
-        <p className="text-xs text-op-muted">{t("ingredientArchiveHint")}</p>
+        <p className="text-xs text-op-muted">{t(onlyDeletable ? "noMovementsHint" : "ingredientArchiveHint")}</p>
       </div>
 
       {rowError && <div role="alert" className="text-xs text-danger">{rowError}</div>}
@@ -416,6 +489,19 @@ export function InsumosClient({
                 }
               >
                 {t("bulkChangeMeasure")}
+              </button>
+              {/* Elimina los que se pueden; el diálogo dice cuáles no y por qué. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkMode(null);
+                  setBulkNote(null);
+                  setBulkDeleting(true);
+                }}
+                disabled={bulkBusy}
+                className="h-8 px-3 rounded-full text-xs font-medium border border-danger/30 text-danger hover:bg-danger/10 disabled:opacity-40"
+              >
+                {t("bulkDelete")}
               </button>
               <button
                 type="button"
@@ -642,11 +728,14 @@ export function InsumosClient({
                     : t("ingredientReferenceUnset")}
                 </div>
               </div>
+              {/* En el celular las acciones van juntas en su propia línea, a
+                  la derecha; desde sm son hijos directos de la fila. */}
+              <div className="col-start-2 col-span-2 justify-self-end flex items-center sm:contents">
               <button
                 type="button"
                 onClick={() => setSheet({ mode: "edit", item: i })}
                 aria-label={t("editIngredientNamed", { name: i.name })}
-                className="col-start-2 justify-self-end min-h-[44px] px-2 rounded-full text-xs font-medium shrink-0 text-op-text hover:bg-op-bg focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="min-h-[44px] px-2 rounded-full text-xs font-medium shrink-0 text-op-text hover:bg-op-bg focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 {t("editIngredientAction")}
               </button>
@@ -665,6 +754,19 @@ export function InsumosClient({
               >
                 {togglingId === i.id ? t("saving") : t(i.active ? "archiveIngredient" : "restoreIngredient")}
               </button>
+              {/* Solo en los que se pueden eliminar: sin movimientos ni usos. */}
+              {deletable.has(i.id) && (
+                <button
+                  type="button"
+                  onClick={() => setDeleting(i)}
+                  disabled={togglingId !== null || bulkBusy}
+                  aria-label={t("deleteIngredientNamed", { name: i.name })}
+                  className="min-h-[44px] px-3 rounded-full text-[11px] font-medium shrink-0 text-danger hover:bg-danger/10 disabled:opacity-40"
+                >
+                  {t("deleteIngredient")}
+                </button>
+              )}
+              </div>
             </div>
           ))}
         </div>
@@ -677,9 +779,43 @@ export function InsumosClient({
           categories={categories}
           onClose={closeSheet}
           onSaved={(saved) => {
+            // Un insumo recién creado no tiene nada que lo referencie.
+            if (!items.some((x) => x.id === saved.id)) setDeletable((prev) => new Set(prev).add(saved.id));
             upsert(saved);
             closeSheet();
           }}
+          onBarcodeMoved={(source) =>
+            setItems((prev) => prev.map((item) => item.id === source.id
+              ? { ...item, barcode: source.barcode, barcodes: [...(source.barcodes ?? [])] }
+              : item))
+          }
+          onDelete={(item) => setDeleting(item)}
+          onArchive={(item) => {
+            closeSheet();
+            void toggleActive(item);
+          }}
+        />
+      )}
+
+      {deleting && (
+        <IngredientDeleteDialog
+          ingredient={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={handleDeleted}
+          onArchive={() => {
+            const item = deleting;
+            setDeleting(null);
+            if (sheet?.mode === "edit" && sheet.item.id === item.id) closeSheet();
+            void toggleActive(item);
+          }}
+        />
+      )}
+
+      {bulkDeleting && (
+        <BulkDeleteIngredientsDialog
+          ids={[...selected]}
+          onClose={() => setBulkDeleting(false)}
+          onDone={handleBulkDeleted}
         />
       )}
 
@@ -706,12 +842,21 @@ function IngredientSheet({
   categories,
   onClose,
   onSaved,
+  onBarcodeMoved,
+  onDelete,
+  onArchive,
 }: {
   editing: Ingredient | null;
   currency: string;
   categories: string[];
   onClose: () => void;
   onSaved: (i: Ingredient) => void;
+  /** Un código pasó de otro insumo a este: llega el registro del que lo soltó. */
+  onBarcodeMoved?: (source: IngredientBarcodeUpdate) => void;
+  /** «Eliminar» de la ficha: abre la confirmación (solo al editar). */
+  onDelete: (i: Ingredient) => void;
+  /** «Archivar», cuando el insumo no se puede eliminar. */
+  onArchive: (i: Ingredient) => void;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -755,6 +900,8 @@ function IngredientSheet({
   }
 
   const [stockReset, setStockReset] = useState<StockResetSnapshot | null>(null);
+  /** El código digitado ya es de otro insumo: se ofrece pasárselo a este. */
+  const [taken, setTaken] = useState<{ code: string; owner: BarcodeOwnerRef } | null>(null);
 
   const current = editing ?? created;
 
@@ -779,7 +926,14 @@ function IngredientSheet({
     if (!stockReset) void save();
   }
 
-  async function save(resetStock?: StockResetSnapshot) {
+  /** «Pasárselo a este insumo»: guarda y, en el mismo paso, le pasa el código. */
+  function takeBarcode() {
+    if (!taken || busy) return;
+    if (!window.confirm(t("barcodeTakeConfirm", { code: taken.code, owner: taken.owner.name, name: name.trim() }))) return;
+    void save(undefined, taken);
+  }
+
+  async function save(resetStock?: StockResetSnapshot, take?: { code: string; owner: BarcodeOwnerRef }) {
     if (busy) return;
     setErr(null);
 
@@ -803,8 +957,10 @@ function IngredientSheet({
       category: category.trim() || null,
       sku: sku.trim() || null,
       // Se manda crudo: la API es la que normaliza (un solo punto de
-      // limpieza para el formulario y para cualquier import futuro).
-      barcode: barcode || null,
+      // limpieza para el formulario y para cualquier import futuro). Si el
+      // código viene de otro insumo, primero se guarda sin él y se le pasa
+      // después (abajo): mientras tanto sigue siendo del otro.
+      ...(take ? (current ? {} : { barcode: null }) : { barcode: barcode || null }),
       notes: notes.trim() || null,
       ...(!current || referencePriceCents !== (current.referencePriceCents ?? null) || measureKind !== current.measureKind
         ? { referencePriceCents }
@@ -840,6 +996,14 @@ function IngredientSheet({
           setErr(j.error === "stock_reset_conflict" ? t("stockResetChanged") : null);
           return;
         }
+        const owner = j.error === "barcode_taken" ? barcodeTakenOwner(j) : null;
+        const code = normalizeBarcode(barcode);
+        if (owner && code && owner.id !== current?.id) {
+          // Dice quién lo tiene y ofrece pasárselo a este en un paso.
+          setTaken({ code, owner });
+          setErr(t(owner.active ? "ingredientCodeTakenBy" : "ingredientCodeTakenByArchived", { name: owner.name }));
+          return;
+        }
         setErr(
           j.error === "inventory_balance_remaining"
             ? t("errInventoryBalance")
@@ -871,6 +1035,32 @@ function IngredientSheet({
         }
         const j2 = await r2.json();
         saved = j2.ingredient as Ingredient;
+        if (!saved?.id) throw new Error("invalid_ingredient_response");
+      }
+
+      if (take) {
+        // El insumo ya existe (creado o guardado): si algo falla desde aquí,
+        // el formulario queda en modo edición y se puede reintentar.
+        if (!current) setCreated({ ...saved, _count: { supplierItems: 0 } });
+        const moved = await moveIngredientBarcode(take.owner.id, take.code, saved.id);
+        if (!moved.ok) {
+          setErr(t(moved.errorKey, moved.errorValues));
+          return;
+        }
+        setTaken(null);
+        onBarcodeMoved?.(moved.ingredient);
+        // Ya es suyo: queda como su código principal, que es lo que se digitó.
+        const r3 = await fetch(`/api/operator/ingredients/${saved.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ barcode: take.code }),
+        });
+        if (!r3.ok) {
+          setErr(t("errSaveFailed"));
+          return;
+        }
+        const j3 = await r3.json();
+        saved = j3.ingredient as Ingredient;
         if (!saved?.id) throw new Error("invalid_ingredient_response");
       }
 
@@ -1055,7 +1245,7 @@ function IngredientSheet({
             <input
               type="text"
               value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
+              onChange={(e) => { setBarcode(e.target.value); setTaken(null); }}
               // El lector HID "teclea" el código y remata con Enter: sin
               // esto, ese Enter enviaría el formulario a medio llenar
               // apenas se escanea el empaque.
@@ -1081,7 +1271,22 @@ function IngredientSheet({
 
           </fieldset>
 
+          {/* Eliminar o archivar: el server dice si se puede eliminar. */}
+          {editing && !stockReset && (
+            <IngredientDeletePanel
+              ingredient={editing}
+              disabled={busy}
+              onDelete={() => onDelete(editing)}
+              onArchive={() => onArchive(editing)}
+            />
+          )}
+
           {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+          {taken && !stockReset && (
+            <button type="button" onClick={takeBarcode} disabled={busy} className="mp-btn mp-btn--secondary mp-btn--sm">
+              {t("barcodeTakeHere")}
+            </button>
+          )}
 
           {stockReset ? (
             <StockResetConfirmation

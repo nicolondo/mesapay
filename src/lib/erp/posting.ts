@@ -93,6 +93,11 @@ function cashAccountForMethod(method: string): string {
   // Venta a crédito a un cliente de facturación: tampoco entra plata —
   // debita Clientes (CxC). La plata llega con los abonos (bloque 1b).
   if (method === "customer_credit") return ENGINE.CLIENTES;
+  // Bre-B (`kushki_bre_b`) también cae acá: lo recauda Kushki con el comercio
+  // Bre-B del restaurante y queda como saldo en pasarela hasta que lo
+  // dispersa (igual que tarjeta y PSE). Explícito para que nadie lo mande a
+  // Bancos por parecer "una transferencia": al comercio no le llega directo.
+  if (method === "kushki_bre_b") return ENGINE.PASARELA;
   return ENGINE.PASARELA; // kushki_* → saldo en pasarela
 }
 

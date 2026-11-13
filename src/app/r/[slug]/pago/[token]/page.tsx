@@ -6,10 +6,7 @@ import { formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { isModuleEnabled } from "@/lib/modules";
 import { getPaymentProvider } from "@/lib/payments";
-import {
-  DEPOSIT_CAPABLE_SLUGS,
-  resolveEnabledPaymentMethods,
-} from "@/lib/paymentMethods";
+import { DEPOSIT_CAPABLE_SLUGS, offerablePaymentMethods } from "@/lib/paymentMethods";
 import { paymentLinkIsOpen } from "@/lib/paymentLinks";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
@@ -20,8 +17,8 @@ export const dynamic = "force-dynamic";
 /**
  * Página pública de un LINK DE PAGO: /r/[slug]/pago/[token]. Le llega a
  * la empresa por correo (emisión de bonos prepagados; corte a crédito).
- * Muestra qué se cobra y ofrece tarjeta / Apple Pay / PSE según los
- * medios online que el comercio tenga habilitados. Pagado, cancelado o
+ * Muestra qué se cobra y ofrece tarjeta / Apple Pay / PSE / Bre-B según
+ * los medios online que el comercio tenga habilitados. Pagado, cancelado o
  * vencido: lo dice y no cobra.
  */
 export default async function PayLinkPage({
@@ -45,6 +42,9 @@ export default async function PayLinkPage({
       kushkiMode: true,
       enabledPaymentMethods: true,
       enabledModules: true,
+      // Bre-B cobra con las llaves de SU comercio de Kushki.
+      kushkiBreBPublicKey: true,
+      kushkiBreBPrivateKeyEnc: true,
     },
   });
   if (!tenant) return notFound();
@@ -113,11 +113,14 @@ export default async function PayLinkPage({
 
   const kushkiMode = await getRestaurantKushkiMode(tenant);
   const onboarded = tenant.kushkiOnboardingStatus === "active" || kushkiMode === "mock";
-  const methods = onboarded
-    ? resolveEnabledPaymentMethods(tenant.enabledPaymentMethods).filter((m) =>
-        DEPOSIT_CAPABLE_SLUGS.includes(m),
-      )
-    : [];
+  // Tarjeta / Apple Pay / PSE piden el comercio de tarjeta activo. Bre-B no:
+  // tiene su propio comercio (sus llaves ya las exige `offerablePaymentMethods`)
+  // y sólo cobra en pesos.
+  const offerable = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant);
+  const methods: string[] = [
+    ...(onboarded ? offerable.filter((m) => DEPOSIT_CAPABLE_SLUGS.includes(m)) : []),
+    ...(offerable.includes("kushki_bre_b") && currency === "COP" ? ["kushki_bre_b"] : []),
+  ];
 
   // Bancos PSE pre-cargados (cacheados 1h en la API) — best-effort.
   let pseBanks: { code: string; name: string }[] = [];

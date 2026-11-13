@@ -3,7 +3,7 @@ import type { SVGProps } from "react";
 // Íconos propios de Inventario, con el mismo trazo que @/components/ui/Icon
 // (24×24, stroke 1.65, puntas redondeadas). Decorativos: el texto o el
 // aria-label del control que los contiene dicen qué hacen.
-export type InventoryIconName = "more" | "barcode" | "alert" | "plus" | "minus" | "adjust" | "settings" | "search" | "close" | "chevronLeft" | "chevronRight" | "list" | "pencil" | "archive" | "restore";
+export type InventoryIconName = "more" | "barcode" | "alert" | "plus" | "minus" | "adjust" | "settings" | "search" | "close" | "chevronLeft" | "chevronRight" | "list" | "pencil" | "archive" | "restore" | "check" | "circle" | "arrowUp" | "arrowDown" | "chevronDown" | "swap" | "info" | "trash";
 
 const paths: Record<InventoryIconName, React.ReactNode> = {
   more: (
@@ -48,6 +48,19 @@ const paths: Record<InventoryIconName, React.ReactNode> = {
     </>
   ),
   restore: <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.6M4 4v4.6h4.6" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  circle: <circle cx="12" cy="12" r="7.5" />,
+  arrowUp: <path d="M12 19V5m0 0-6 6m6-6 6 6" />,
+  arrowDown: <path d="M12 5v14m0 0-6-6m6 6 6-6" />,
+  chevronDown: <path d="m6 9 6 6 6-6" />,
+  swap: <path d="M4 8h14m0 0-4-4m4 4-4 4M20 16H6m0 0 4-4m-4 4 4 4" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5M12 7.6h.01" />
+    </>
+  ),
+  trash: <path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7M10 11v5M14 11v5" />,
 };
 
 export function InvIcon({ name, size = 18, ...props }: SVGProps<SVGSVGElement> & { name: InventoryIconName; size?: number }) {

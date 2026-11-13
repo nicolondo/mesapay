@@ -70,7 +70,7 @@ export const CLIENT_NAMESPACES = {
   p: ["chargeDecline", "menu", "pickup"],
   portada: [],
   privacidad: [],
-  r: ["breB", "chargeDecline", "payLink", "reservar", "wait"],
+  r: ["breB", "chargeDecline", "floorPlan", "payLink", "reservar", "wait"],
   restablecer: ["resetPwd", "restaurantWelcome"],
   signin: [
     "forgotPwd",

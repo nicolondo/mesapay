@@ -11,6 +11,7 @@ import { offerablePaymentMethods } from "@/lib/paymentMethods";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { amountCentsSchema, tipCentsSchema, validPaymentAmounts } from "@/lib/payments/validation";
 import { startOrderBreBCharge } from "@/lib/payments/breB/service";
+import { collectorUserIdFor } from "@/lib/payments/staffCheckout";
 
 /**
  * «Pagar con Bre-B» / «Cobrar con Bre-B»: reserva un pago pendiente por
@@ -18,7 +19,9 @@ import { startOrderBreBCharge } from "@/lib/payments/breB/service";
  *
  *   - El comensal lo abre desde su celular (paga con la app de su banco:
  *     escanea desde otro aparato o copia el código).
- *   - El staff lo abre en SU dispositivo para que el cliente lo escanee.
+ *   - El staff (mesero, administrador o el usuario de datáfono desde
+ *     «Mesas en vivo»; ver `staffCheckoutCapabilities.breB`) lo abre en SU
+ *     dispositivo para que el cliente lo escanee.
  *     Como en el resto del cobro del staff, reemplaza las solicitudes del
  *     comensal y respeta los pagos en vuelo (409 `pending_payment_in_flight`).
  *
@@ -74,7 +77,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
     orderId: order.id,
     amountCents: parsed.data.amountCents,
     tipCents: parsed.data.tipCents,
-    collectedByUserId: staff?.user.id ?? null,
+    collectedByUserId: collectorUserIdFor(staff?.user),
     staffCharge: !!staff,
     idempotencyKey: req.headers.get("idempotency-key"),
     // Kushki avisa también a esta URL (además de las de la Consola del

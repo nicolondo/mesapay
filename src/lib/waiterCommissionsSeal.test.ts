@@ -246,3 +246,33 @@ describe("resolveOrderWaiter — cuenta dividida entre dos meseros", () => {
     expect(w?.id).toBe("w-ana");
   });
 });
+
+describe("cobró el usuario de datáfono", () => {
+  // El datáfono queda como `collectedByUserId` (auditoría), pero no es
+  // mesero: la comisión sigue yendo al mesero de la mesa, como cuando el
+  // comensal paga desde el QR o cobra el administrador.
+  it("la comisión va al mesero que tiene la mesa asignada", async () => {
+    m.orderFindUnique.mockResolvedValue(
+      order({ payments: [{ collectedByUserId: "pos-1", amountCents: 100_000 }] }),
+    );
+    // 1.ª consulta: pos-1 no es mesero → []. 2.ª: Luis tiene la mesa 5.
+    m.userFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([LUIS]);
+    const res = await sealOrderCommission(client, "o1");
+    expect(res).toMatchObject({ sealed: true, waiterId: "w-luis", bps: 500, commissionCents: 5_000 });
+    // La 1.ª consulta sólo acepta meseros: el datáfono nunca se cuela.
+    expect(m.userFindMany.mock.calls[0][0].where).toMatchObject({ id: { in: ["pos-1"] }, role: "mesero" });
+  });
+
+  it("si un mesero cobró parte de la cuenta, la comisión es de él aunque el datáfono cobrara más", async () => {
+    m.userFindMany.mockResolvedValue([ANA]);
+    const w = await resolveOrderWaiter(client, {
+      restaurantId: "r1",
+      table: { number: 5 },
+      payments: [
+        { collectedByUserId: "pos-1", amountCents: 70_000 },
+        { collectedByUserId: "w-ana", amountCents: 30_000 },
+      ],
+    });
+    expect(w?.id).toBe("w-ana");
+  });
+});

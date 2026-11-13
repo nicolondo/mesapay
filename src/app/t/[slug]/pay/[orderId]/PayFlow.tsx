@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
-import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { staffForRestaurant } from "@/lib/staffAccess";
+import {
+  CHECKOUT_STAFF_ROLES,
+  staffCheckoutCapabilities,
+  staffCheckoutRoutes,
+  staffCheckoutView,
+} from "@/lib/payments/staffCheckout";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
 import { offerablePaymentMethods } from "@/lib/paymentMethods";
@@ -100,13 +106,18 @@ export async function PayFlow({
   // Sólo honramos op === "1" si la sesión es staff real — nunca confiar
   // en la URL sola. Incluimos `mesero` porque desde su PWA tiene
   // un botón "Cobrar la cuenta" que apunta acá; sin este rol caía
-  // al flow del cliente con "Partes iguales / Lo mío".
+  // al flow del cliente con "Partes iguales / Lo mío". Y el datáfono
+  // (`terminal`), que cobra desde «Mesas en vivo» (/terminal/cobrar).
+  // Qué ve y adónde vuelve cada rol: src/lib/payments/staffCheckout.ts.
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
   const session = op === "1"
-    ? await staffForRestaurant(tenant.id, [...OPERATOR_ROLES, "mesero"])
+    ? await staffForRestaurant(tenant.id, [...CHECKOUT_STAFF_ROLES])
     : null;
   const operatorMode = session !== null;
+  const staffRole = session?.user?.role;
+  const staffView = staffCheckoutView(staffRole);
+  const capabilities = staffCheckoutCapabilities(staffRole);
 
   // Heal stale subtotals before showing payment options — otherwise the
   // diner could end up paying for items that were cancelled in the kitchen.
@@ -206,26 +217,29 @@ export async function PayFlow({
   // así "Pagar" abre al instante.
   // Habilitados Y ofrecibles: Bre-B sólo si además están cargadas las llaves
   // de su comercio (otro comercio de Kushki que el de tarjeta/PSE).
-  const enabledMethods = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant);
+  // El rol también cuenta (staffCheckoutCapabilities.breB): hoy todos los
+  // que cobran pueden mostrar el QR, también el datáfono.
+  const enabledMethods = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant).filter(
+    (m) => m !== "kushki_bre_b" || !operatorMode || capabilities.breB,
+  );
   const pseBanks: Array<{ code: string; name: string }> = [];
 
   // Mesero usa su propia PWA con bottom nav (Salón/Cobros/Mesas) y
-  // está bloqueado por el guard de /operator/*. Operator y platform_admin
-  // vuelven a las pantallas del backoffice.
-  const isMeseroSession = session?.user?.role === "mesero";
-  const staffHomeHref = isMeseroSession ? "/mesero/mesas" : "/operator/tables";
-  const staffServeHref = isMeseroSession ? "/mesero/salon" : "/operator/serve";
-  // Tras un cobro exitoso, la pantalla de "listo" (con la factura) debe
-  // quedar DENTRO del scope del que cobra: el mesero en su PWA (con bottom
-  // nav), el operador/admin en la página done del comensal en modo op.
-  const doneHref = isMeseroSession
-    ? `/mesero/cobrar/${orderId}/done`
-    : `/t/${slug}/pay/${orderId}/done?op=1`;
+  // está bloqueado por el guard de /operator/*; el datáfono vuelve a
+  // «Mesas en vivo». Operator y platform_admin vuelven a las pantallas del
+  // backoffice. Tras un cobro exitoso, la pantalla de "listo" (con la
+  // factura) queda DENTRO del scope del que cobra.
+  const {
+    homeHref: staffHomeHref,
+    serveHref: staffServeHref,
+    doneHref,
+  } = staffCheckoutRoutes(staffRole, { slug, orderId });
 
   // Clientes de facturación (sólo staff): el paso "Cliente" existe si el
   // comercio tiene alguno; "Cobrar a crédito", si alguno tiene crédito. El
   // cliente de la factura nominativa (si coincide) llega preseleccionado.
-  const [customerCount, creditCount, linkedCustomer] = operatorMode
+  // El datáfono no asocia clientes ni cobra a crédito: ni se consulta.
+  const [customerCount, creditCount, linkedCustomer] = operatorMode && capabilities.customerStep
     ? await Promise.all([
         db.billingCustomer.count({ where: { restaurantId: tenant.id } }),
         db.billingCustomer.count({ where: { restaurantId: tenant.id, creditEnabled: true } }),
@@ -253,6 +267,14 @@ export async function PayFlow({
       staffHomeHref={staffHomeHref}
       staffServeHref={staffServeHref}
       doneHref={doneHref}
+      // Factura antes de cobrar e impresión: según el rol (el datáfono no
+      // emite la factura antes de cobrar; el mesero y el datáfono abren la
+      // vista de impresión en la misma pestaña; sólo el panel configura
+      // impresoras).
+      preInvoiceEnabled={capabilities.preInvoice}
+      printSameTab={staffView !== "admin"}
+      canConfigurePrinters={capabilities.configurePrinters}
+      terminalMode={staffView === "terminal"}
       // Gastos de representación (cortesía $0): solo cuando cobra staff, el
       // comercio lo tiene habilitado y el rol está entre los que pueden NO
       // COBRAR (Restaurant.compAllowedRoles — la misma lista que gobierna el
@@ -306,9 +328,9 @@ export async function PayFlow({
       enabledMethods={enabledMethods}
       // Bonos empresariales: el campo "¿Tenés un bono?" sólo existe con el
       // módulo activo (el server además responde module_disabled sin él).
-      vouchersEnabled={isModuleEnabled(tenant.enabledModules, "vouchers")}
-      customerStepEnabled={customerCount > 0}
-      creditEnabled={creditCount > 0}
+      vouchersEnabled={capabilities.vouchers && isModuleEnabled(tenant.enabledModules, "vouchers")}
+      customerStepEnabled={capabilities.customerStep && customerCount > 0}
+      creditEnabled={capabilities.credit && creditCount > 0}
       linkedCustomer={linkedCustomer}
       pseBanks={pseBanks}
       terminalDevices={terminalDevices}
@@ -327,8 +349,9 @@ export async function PayFlow({
       invoiceIntent={invoiceIntent}
       invoicePrefillEmail={order.customerEmail}
       preInvoice={preInvoice}
-      // Anular con nota crédito: los administradores, no el mesero.
-      canAnnulInvoice={operatorMode && !isMeseroSession}
+      // Anular con nota crédito: los administradores, no el mesero ni el
+      // datáfono.
+      canAnnulInvoice={operatorMode && capabilities.annulInvoice}
       // Impuesto de ventas del comercio, sólo para el renglón informativo
       // "Incluye impoconsumo 8%": los platos ya lo traen dentro del precio,
       // así que no toca ningún monto a cobrar.

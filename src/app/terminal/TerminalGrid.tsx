@@ -4,6 +4,7 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
@@ -19,6 +20,7 @@ import {
   type TerminalTableState,
 } from "@/lib/tables/terminalOrder";
 import type { TableVisualState } from "@/lib/walkoutRisk";
+import type { TerminalChargeState } from "@/lib/tables/terminalCharge";
 
 export type TableState = TerminalTableState;
 
@@ -30,6 +32,11 @@ export type PendingPayment = {
   // Only set for cash payments where the diner declared upfront.
   cashTenderCents: number | null;
   createdAt: string;
+  /**
+   * Plata en vuelo: el cobro ya se envió al datáfono (o es un pago en línea
+   * en curso). Hay que esperar su resultado; no se vuelve a enviar.
+   */
+  inFlight: boolean;
 };
 
 export type GuestGroup = {
@@ -80,6 +87,11 @@ export type TableCard = {
   paidAt: string | null;
   /** Sólo `paid`: la cerró el comensal desde su celular. */
   paidFromPhone: boolean;
+  /**
+   * ¿Se puede EMPEZAR el cobro desde la ficha («Cobrar»)? Si no, por qué
+   * (src/lib/tables/terminalCharge.ts).
+   */
+  charge: TerminalChargeState;
 };
 
 export function TerminalGrid({
@@ -368,13 +380,16 @@ function TableTile({
     : isCashReq
       ? t.pendingCashRequestedAt
       : null;
+  // Cuenta abierta que se puede cobrar y no muestra ya "Cobrar $X" (las que
+  // pidieron datáfono o efectivo lo dicen arriba): pie "Toca para cobrar".
+  const showTapToCharge = t.charge.canCharge && requestedAmount == null;
   return (
     <button
       type="button"
       onClick={onOpen}
       disabled={disabled}
       className={
-        "text-left rounded-2xl border-2 p-4 min-h-[140px] transition-colors disabled:cursor-default disabled:opacity-60 " +
+        "flex flex-col text-left rounded-2xl border-2 p-4 min-h-[140px] transition-[color,background-color,border-color,transform] enabled:cursor-pointer enabled:active:scale-[0.98] disabled:cursor-default disabled:opacity-60 " +
         (highlight ? PHONE_PAID_TINT : STATE_TINT[t.state]) +
         ringClass
       }
@@ -448,6 +463,14 @@ function TableTile({
               )}
             </>
           )}
+        </div>
+      )}
+      {showTapToCharge && (
+        <div className="mt-auto pt-3 flex items-center justify-between gap-2 text-[12px] font-medium">
+          <span>{tr("tileTapToCharge")}</span>
+          <span aria-hidden className="text-base leading-none">
+            {"›"}
+          </span>
         </div>
       )}
     </button>
@@ -593,6 +616,9 @@ function DetailSheet({
                     const total = p.amountCents;
                     const isTerminal = p.method === "kushki_card_terminal";
                     const isCash = isCashMethod(p.method);
+                    // Ya está en el datáfono: se espera su resultado (el
+                    // botón de enviarlo de nuevo sólo rebotaría).
+                    const canPush = isTerminal && !p.inFlight;
                     return (
                       <div
                         key={p.id}
@@ -655,7 +681,12 @@ function DetailSheet({
                             </div>
                           )}
 
-                        {isTerminal && (
+                        {isTerminal && p.inFlight && (
+                          <div className="mt-3 text-[13px] font-medium text-ink-2">
+                            {tr("sentToTerminalWaiting")}
+                          </div>
+                        )}
+                        {canPush && (
                           <div className="mt-3">
                             <TerminalPicker
                               variant="pay"
@@ -666,7 +697,7 @@ function DetailSheet({
                             />
                           </div>
                         )}
-                        {isTerminal && (
+                        {canPush && (
                           <button
                             type="button"
                             onClick={() => chargeTerminal(p.id)}
@@ -723,6 +754,16 @@ function DetailSheet({
                   })}
                 </div>
               </div>
+
+              {/* «Cobrar»: empieza el cobro de la cuenta con el MISMO checkout
+                  del mesero y del administrador (/terminal/cobrar → PayFlow).
+                  Con una solicitud pendiente arriba (el comensal o un mesero
+                  pidió datáfono o efectivo), ésa sigue siendo la vía directa
+                  y esto queda como "cobrar de otra forma". */}
+              <ChargeAction
+                table={table}
+                hasRequestAbove={table.pendingPayments.length > 0}
+              />
 
               {/* Order summary — what's on the table. Grouped by guest
                   when names exist, so split-bill is visible at a glance. */}
@@ -820,11 +861,6 @@ function DetailSheet({
                 </div>
               )}
 
-              {table.pendingPayments.length === 0 && (
-                <div className="text-xs text-muted text-center pt-2">
-                  {tr("noPaymentRequestedYet")}
-                </div>
-              )}
               {err && (
                 <div className="text-danger text-sm text-center">{err}</div>
               )}
@@ -832,6 +868,61 @@ function DetailSheet({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Botón «Cobrar» de la ficha, o el motivo por el que no se puede (pagada, un
+ * cobro ya enviado al datáfono o un pago en línea en curso que se lleva el
+ * saldo). Ver src/lib/tables/terminalCharge.ts.
+ */
+function ChargeAction({
+  table,
+  hasRequestAbove,
+}: {
+  table: TableCard;
+  hasRequestAbove: boolean;
+}) {
+  const tr = useTranslations("opTerminal");
+  const { canCharge, block, inFlight } = table.charge;
+  if (!table.orderId || block === "paid" || block === "nothing_outstanding") return null;
+
+  if (!canCharge) {
+    return (
+      <div
+        role="status"
+        className="rounded-xl border border-[#C98A2E]/40 bg-[#C98A2E]/15 p-3 text-[13px] text-[#7F5A1F]"
+      >
+        {tr(block === "terminal_in_flight" ? "chargeBlockedTerminal" : "chargeBlockedOnline", {
+          amount: fmtCOP(inFlight?.amountCents ?? 0),
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Link
+        href={`/terminal/cobrar/${table.orderId}`}
+        prefetch={false}
+        className={
+          "w-full h-12 rounded-full font-medium inline-flex items-center justify-center " +
+          (hasRequestAbove
+            ? "border-2 border-ink text-ink bg-transparent"
+            : "bg-ink text-bone")
+        }
+      >
+        {hasRequestAbove ? tr("chargeOtherWay") : tr("chargeCta")}
+      </Link>
+      {inFlight && (
+        <div className="text-xs text-ink-3 text-center">
+          {tr("chargeRestInFlight", { amount: fmtCOP(inFlight.amountCents) })}
+        </div>
+      )}
+      {!hasRequestAbove && !inFlight && (
+        <div className="text-xs text-ink-3 text-center">{tr("noPaymentRequestedYet")}</div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -79,7 +80,12 @@ export default async function ComprasPage({
   return (
     <div className="p-6 max-w-3xl mx-auto w-full">
       <div className="font-display text-3xl mb-1">{t("comprasTitle")}</div>
-      <p className="text-sm text-op-muted mb-6">{t("comprasIntro")}</p>
+      <p className="text-sm text-op-muted mb-6">
+        {t("comprasIntro")}{" "}
+        <Link href="/operator/reportes/proveedores" className="whitespace-nowrap text-op-accent hover:underline">
+          {t("supplierReportLink")} →
+        </Link>
+      </p>
 
       <ComprasClient
         initialOrders={orders}

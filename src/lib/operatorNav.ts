@@ -44,7 +44,14 @@ function accountingGroup(): NavGroupDef {
   };
 }
 
-/** Grupo REPORTES — mismo orden que zenith. */
+/**
+ * Informe de proveedores: abre con Contabilidad O con Compras. Con
+ * contabilidad va en Reportes (junto a Cartera); sin ella, en el grupo de
+ * administración junto a Compras. Nunca en los dos (un href, un ítem).
+ */
+const SUPPLIER_REPORT_HREF = "/operator/reportes/proveedores";
+
+/** Grupo REPORTES — mismo orden que zenith, más el informe de proveedores. */
 function reportsGroup(): NavGroupDef {
   return {
     labelKey: "navGroupReports",
@@ -52,6 +59,7 @@ function reportsGroup(): NavGroupDef {
       leaf("/operator/reportes", "navRepAll"),
       leaf("/operator/reportes/comisiones", "navRepCommissions"),
       leaf("/operator/reportes/cartera", "navRepReceivables"),
+      leaf(SUPPLIER_REPORT_HREF, "navRepSuppliers"),
       leaf("/operator/reportes/impuestos", "navRepTaxes"),
       leaf("/operator/reportes/estado-situacion", "navRepBalanceSheet"),
       leaf("/operator/reportes/estado-resultado", "navRepIncome"),
@@ -71,6 +79,7 @@ export function buildOperatorNav(input: OperatorNavInput): NavEntryDef[] {
       ? [leaf("/operator/settings/insumos", "navInsumos")]
       : []),
     ...(on("purchasing") ? [leaf("/operator/compras", "navPurchasing")] : []),
+    ...(on("purchasing") && !on("accounting") ? [leaf(SUPPLIER_REPORT_HREF, "navRepSuppliers")] : []),
     ...(on("recipes") ? [leaf("/operator/recetas", "navRecipes")] : []),
     ...(on("production") ? [leaf("/operator/produccion", "navProduction")] : []),
     ...(on("staff")

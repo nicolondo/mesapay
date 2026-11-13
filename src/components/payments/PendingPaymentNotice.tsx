@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney } from "@/lib/format";
@@ -50,6 +51,15 @@ export type PendingPaymentView = {
 };
 
 /**
+ * Detalle de la orden, abierto en el bloque «Conciliar pago» de ESE pago
+ * (`?conciliar=` lo despliega, el ancla lo deja a la vista). Ver
+ * src/app/operator/orders/[id]/page.tsx.
+ */
+export function reconcilePaymentHref(orderId: string, paymentId: string): string {
+  return `/operator/orders/${orderId}?conciliar=${encodeURIComponent(paymentId)}#conciliar-${paymentId}`;
+}
+
+/**
  * Aviso de pagos pendientes de una cuenta, arriba de la ficha de la mesa y
  * de la pantalla de cobro del staff.
  *
@@ -68,10 +78,16 @@ export type PendingPaymentView = {
  *     datáfono» / «Cancelar y cobrar de otra forma» al instante; sin
  *     respuesta, el administrador puede resolver de inmediato (`canResolveTerminal`,
  *     nunca el mesero) tiene "Resolver cobro", con evidencia.
+ *   · Pago EN LÍNEA sin confirmar (tarjeta, Apple Pay o PSE marcado
+ *     `reconciliationRequired`: el proveedor no contestó, o contestó y
+ *     MESAPAY no se enteró): la cuenta sigue bloqueada hasta que alguien lo
+ *     concilie. El administrador ve «Conciliar pago», que abre el bloque de
+ *     conciliación en el detalle de la orden; los demás, que se lo pidan.
  *   · Bre-B en curso (BreBPendingCard): hay un QR vivo que alguien puede
  *     estar pagando. «Ver código» lo vuelve a mostrar, «Consultar estado»
  *     trae el resultado real de Kushki y «Cancelar cobro» invalida el QR;
- *     la cuenta se libera sólo cuando Kushki lo confirma.
+ *     la cuenta se libera sólo cuando Kushki lo confirma. Si quedó sin
+ *     confirmar, el administrador además ve «Conciliar pago».
  *
  * `chargeLocked`: "solo el administrador cobra" y quien mira es un mesero —
  * ve la solicitud pero no la acción (el servidor la rebotaría igual).
@@ -90,9 +106,12 @@ export function PendingPaymentNotice({
   currency = "COP",
   tenantSlug = null,
   terminalDeviceId = null,
+  orderId = null,
 }: {
   pendings: PendingPaymentView[];
   order: { shortCode: string; tableNumber: number };
+  /** Id de la orden, para el enlace «Conciliar pago» a su detalle. */
+  orderId?: string | null;
   serviceMode?: "table" | "counter";
   chargeLocked?: boolean;
   onConfirmed: (result: { paid: boolean }) => void;
@@ -100,7 +119,12 @@ export function PendingPaymentNotice({
   /** Tras "Cancelar solicitud". Si falta, cae a `onDeclined` / `onRefresh`. */
   onCancelled?: () => void;
   onRefresh?: () => void;
-  /** Quien mira es administrador: puede "Resolver cobro" del datáfono sin respuesta. */
+  /**
+   * Quien mira es administrador (operador, administrador de grupo o de
+   * plataforma): puede "Resolver cobro" del datáfono sin respuesta y
+   * «Conciliar pago» de un pago en línea sin confirmar. Mismos roles que
+   * exige /api/operator/payments/[id]/reconcile.
+   */
   canResolveTerminal?: boolean;
   disabled?: boolean;
   currency?: string;
@@ -290,7 +314,42 @@ export function PendingPaymentNotice({
             disabled={disabled || busyId !== null}
             onApproved={(paid) => onConfirmed({ paid })}
             onChanged={() => (onCancelled ?? onRefresh)?.()}
+            // Sin confirmar: además de «Consultar estado», el administrador
+            // puede conciliarlo en el detalle de la orden (como tarjeta/PSE).
+            reconcileHref={canResolveTerminal && orderId ? reconcilePaymentHref(orderId, p.id) : null}
           />
+        ) : p.reconciliationRequired ? (
+          // Pago en línea SIN CONFIRMAR: nadie va a contestar solo. Esperar no
+          // lo destraba; se concilia (ver ReconcilePayment en el detalle de
+          // la orden), y sólo el administrador puede.
+          <div key={p.id} className="rounded-xl border-2 border-terracotta/60 bg-terracotta/10 p-3 space-y-2">
+            <div className="font-mono text-[10px] tracking-wider uppercase text-terracotta">
+              {t("inFlightReviewKicker")}
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-medium">{methodLabel(p.method)}</span>
+              <span className="font-display text-xl tabular leading-none">{money(p.amountCents)}</span>
+            </div>
+            <p className="text-[11px] text-op-muted leading-snug">{t("inFlightReviewBody")}</p>
+            {canResolveTerminal && orderId ? (
+              <Link
+                href={reconcilePaymentHref(orderId, p.id)}
+                className="flex w-full min-h-11 items-center justify-center rounded-full bg-terracotta text-bone text-sm font-medium"
+              >
+                {t("reconcile")}
+              </Link>
+            ) : (
+              <div className="rounded-lg border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">
+                {t("reconcileAskAdmin")}
+              </div>
+            )}
+            {onRefresh && (
+              <div className="pt-1">
+                <button type="button" onClick={onRefresh} disabled={disabled || busyId !== null}
+                  className="min-h-10 px-3 rounded-full border border-op-border text-sm disabled:opacity-50">{t("refresh")}</button>
+              </div>
+            )}
+          </div>
         ) : (
           <div key={p.id} className="rounded-xl border border-op-border bg-op-bg p-3 space-y-1">
             <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted">

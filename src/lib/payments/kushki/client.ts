@@ -36,6 +36,8 @@ export class KushkiHttpError extends Error {
     public url: string,
   ) {
     super(`kushki ${status} on ${url}: ${body.slice(0, 200)}`);
+    // Nombre real para los logs y para `classifyKushkiChargeError`.
+    this.name = "KushkiHttpError";
   }
 }
 
@@ -51,6 +53,7 @@ export class KushkiSchemaError extends Error {
     public body: string,
   ) {
     super(`kushki ${url} schema mismatch (${reason}): ${body.slice(0, 200)}`);
+    this.name = "KushkiSchemaError";
   }
 }
 

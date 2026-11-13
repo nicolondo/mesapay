@@ -261,7 +261,7 @@ describe("crear el cobro", () => {
       [404, "E049", "bre_b_keys_missing"],
       [401, "", "bre_b_credentials_invalid"],
     ] as const) {
-      gw.initError = new KushkiHttpError(status, code ? JSON.stringify({ code }) : "", "u");
+      gw.initError = new KushkiHttpError(status, JSON.stringify(code ? { code, message: "error" } : { message: "Unauthorized" }), "u");
       const order = await account();
       const res = await start(order.id);
       expect(res.status).toBe(502);

@@ -37,6 +37,10 @@ import {
   getRestaurantPrivateKey,
 } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import type { ChargeResult } from "@/lib/payments/types";
+import { chargeFailureLogFields, classifyKushkiChargeError } from "@/lib/payments/kushki/chargeError";
+import type { KushkiDeclineReason } from "@/lib/payments/kushki/declineReason";
+import { settleRejectedCharge } from "@/lib/payments/rejectedCharge";
 
 const itemSchema = z.object({
   menuItemId: z.string().min(1),
@@ -302,16 +306,38 @@ async function POSTHandler(
     return { order, payment, created: true, round, fired };
   });
   await grantGuestAccess({ restaurantId: tenant.id, orderId: result.order.id });
+  // Motivo del rechazo (código que la pantalla traduce) cuando Kushki
+  // rechazó el cargo con un 4xx definitivo.
+  let declineReason: KushkiDeclineReason | null = null;
   if (isKushki && result.created && provider && privateKey && parsed.data.token) {
     try {
-      const charge = await provider.chargeWithToken({
-        merchantId: privateKey, token: parsed.data.token,
-        amount: { amountCents: subtotalCents, currency },
-        metadata: { orderId: result.order.id, paymentId: result.payment.id, tableId: pickupTable.id },
-      });
-      if (charge.status === "pending") {
+      let charge: ChargeResult | null = null;
+      try {
+        charge = await provider.chargeWithToken({
+          merchantId: privateKey, token: parsed.data.token,
+          amount: { amountCents: subtotalCents, currency },
+          metadata: { orderId: result.order.id, paymentId: result.payment.id, tableId: pickupTable.id },
+        });
+      } catch (err) {
+        // El proveedor LANZÓ: rechazo definitivo de Kushki (4xx con código,
+        // p. ej. K322) o resultado incierto (red, timeout, 5xx, token ya
+        // usado). Misma tabla que pay/kushki-charge: kushki/chargeError.ts.
+        const failure = classifyKushkiChargeError(err);
+        console.error(failure.outcome === "declined" ? "charge_declined" : "charge_uncertain", { paymentId: result.payment.id, ...chargeFailureLogFields(failure) });
+        if (failure.outcome === "declined") {
+          const rejected = await settleRejectedCharge({
+            restaurantId: tenant.id, paymentId: result.payment.id, amountCents: subtotalCents,
+            currency, failure, source: "pickup",
+          });
+          if (rejected.status === "error") await markPaymentUncertain(result.payment.id);
+          else declineReason = failure.reason;
+        } else {
+          await markPaymentUncertain(result.payment.id);
+        }
+      }
+      if (charge?.status === "pending") {
         await markPaymentUncertain(result.payment.id);
-      } else {
+      } else if (charge) {
         const processed = await processKushkiWebhook({
           eventId: `pickup:${result.payment.id}:${charge.status}`,
           type: charge.status === "approved" ? "charge.approved" : "charge.declined",
@@ -323,7 +349,7 @@ async function POSTHandler(
     } catch { await markPaymentUncertain(result.payment.id); }
   }
   const finalPayment = await db.payment.findUniqueOrThrow({ where: { id: result.payment.id } });
-  if (finalPayment.status === "declined") return NextResponse.json({ error: "payment_declined", orderId: result.order.id }, { status: 402 });
+  if (finalPayment.status === "declined") return NextResponse.json({ error: "payment_declined", orderId: result.order.id, ...(declineReason ? { reason: declineReason } : {}) }, { status: 402 });
   if (finalPayment.status === "pending") return NextResponse.json({ pending: true, orderId: result.order.id, paymentId: result.payment.id }, { status: 202 });
 
   publishOrderEvent(tenant.id, {

@@ -10,6 +10,7 @@ import { onlineMethodsInOrder } from "@/lib/payments/defaultOnlineMethod";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
+import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
@@ -130,6 +131,7 @@ export function PayClient({
   terminalDevices = [],
   declinedFlag = false,
   declinedReason = null,
+  declineCode = null,
   operatorMode = false,
   staffHomeHref = "/operator/tables",
   staffServeHref = "/operator/serve",
@@ -232,6 +234,11 @@ export function PayClient({
    * cobró nada). El banner lo dice así en vez de "no fue aprobado".
    */
   declinedReason?: "terminal_canceled" | null;
+  /**
+   * Motivo (código) del rechazo con tarjeta con el que volvió, p. ej. del
+   * 3DS. Se traduce con `useChargeDeclineText`; desconocido → texto genérico.
+   */
+  declineCode?: string | null;
   // The waiter is initiating payment for a diner who didn't tap "Pedir
   // cuenta" themselves. Hides Apple Pay (needs diner's phone), shows
   // a banner, and bounces back to staffHomeHref/staffServeHref once
@@ -323,6 +330,8 @@ export function PayClient({
         ? `s:${checkoutIntent.email ?? ""}`
         : "none";
   const apiError = useApiError();
+  // Motivo del rechazo con tarjeta / Apple Pay (código del servidor → texto).
+  const declineText = useChargeDeclineText();
   // A qué datáfono va el cobro del staff (ver lib/payments/terminalChoice.ts).
   const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
@@ -621,7 +630,9 @@ export function PayClient({
           : `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
       );
     } else {
-      setErr(apiError(j, t("errDeclined")));
+      // Rechazado: se queda en esta pantalla, con el motivo (si Kushki lo
+      // dijo) y todos los medios de pago a la mano para reintentar.
+      setErr(declineText(j.reason) ?? apiError(j, t("errDeclined")));
     }
   }
 
@@ -808,7 +819,10 @@ export function PayClient({
         // mensaje principal — sirve para debug rápido sin pedirle al
         // diner que copie de DevTools.
         const detail = typeof j.detail === "string" ? ` (${j.detail})` : "";
-        setErr((j.message ?? j.error ?? t("errPseInit")) + detail);
+        // Códigos conocidos (p. ej. payment_declined: Kushki rechazó el
+        // inicio de la transferencia) se traducen; nunca se muestra el
+        // código crudo.
+        setErr(apiError(j, j.message ?? t("errPseInit")) + detail);
         return;
       }
       // Redirigimos a Kushki PSE hosted. El cliente vuelve a
@@ -1133,6 +1147,7 @@ export function PayClient({
             currency={currency}
             pendings={pendingPayments}
             order={{ shortCode, tableNumber }}
+            orderId={orderId}
             serviceMode={serviceMode}
             onConfirmed={({ paid }) => paymentConfirmed(paid)}
             onRefresh={refreshBalance}
@@ -1231,7 +1246,9 @@ export function PayClient({
               {declinedReason === "terminal_canceled" ? t("terminalCanceledTitle") : t("declinedTitle")}
             </div>
             <p className="text-xs text-muted mt-1">
-              {declinedReason === "terminal_canceled" ? t("terminalCanceledBody") : t("declinedBody")}
+              {declinedReason === "terminal_canceled"
+                ? t("terminalCanceledBody")
+                : (declineText(declineCode) ?? t("declinedBody"))}
             </p>
           </div>
         </div>

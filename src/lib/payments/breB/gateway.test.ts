@@ -126,9 +126,15 @@ describe("gateway Bre-B en vivo (UAT simulado)", () => {
 describe("errores de Kushki → qué se sabe", () => {
   const http = (status: number, code?: string) =>
     new KushkiHttpError(status, code ? kushkiError(code) : "", "https://api-uat.kushkipagos.com/x");
+  const unauthorized = new KushkiHttpError(401, JSON.stringify({ message: "Unauthorized" }), "u");
 
+  // Misma tabla que el resto de los cobros (kushki/chargeError.ts): un 4xx
+  // reconocible es rechazo; lo ambiguo queda incierto.
   it.each([
-    [http(401), "rejected", "bre_b_credentials_invalid"],
+    [unauthorized, "rejected", "bre_b_credentials_invalid"],
+    [http(401), "unknown", "bre_b_unavailable"],
+    [http(429, "K001"), "unknown", "bre_b_unavailable"],
+    [new KushkiHttpError(400, JSON.stringify({ code: "577", message: "Token ya usado" }), "u"), "unknown", "bre_b_unavailable"],
     [http(422, "E046"), "rejected", "bre_b_processor_mismatch"],
     [http(404, "E049"), "rejected", "bre_b_keys_missing"],
     [http(400, "E001"), "rejected", "bre_b_rejected"],

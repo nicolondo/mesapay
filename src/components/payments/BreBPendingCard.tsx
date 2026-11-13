@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useApiError } from "@/lib/useApiError";
 import { breBSecondsLeft, formatBreBCountdown, type BreBChargeView } from "@/lib/payments/breB/view";
@@ -33,6 +34,7 @@ export function BreBPendingCard({
   disabled = false,
   onApproved,
   onChanged,
+  reconcileHref = null,
 }: {
   pending: PendingPaymentView;
   amountLabel: string;
@@ -44,8 +46,15 @@ export function BreBPendingCard({
   onApproved: (paid: boolean) => void;
   /** Cambió el estado (cancelado, rechazado, vencido): releer la cuenta. */
   onChanged: () => void;
+  /**
+   * Sin confirmar y quien mira es administrador: «Conciliar pago» lleva al
+   * bloque de conciliación del detalle de la orden. null = no puede (se le
+   * dice que se lo pida al administrador).
+   */
+  reconcileHref?: string | null;
 }) {
   const t = useTranslations("breB");
+  const tPending = useTranslations("pendingPayment");
   const apiError = useApiError();
   const [busy, setBusy] = useState<"check" | "cancel" | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -142,6 +151,19 @@ export function BreBPendingCard({
           )}
         </div>
       )}
+      {uncertain &&
+        (reconcileHref ? (
+          <Link
+            href={reconcileHref}
+            className="flex w-full min-h-11 items-center justify-center rounded-full bg-terracotta text-bone text-sm font-medium"
+          >
+            {tPending("reconcile")}
+          </Link>
+        ) : (
+          <div className="rounded-lg border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">
+            {tPending("reconcileAskAdmin")}
+          </div>
+        ))}
       {note && (
         <div className="text-xs text-op-muted" role="status">
           {note}

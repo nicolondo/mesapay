@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import QRCode from "qrcode";
 import type { KushkiMode } from "@/lib/platformConfig";
 import { kushkiFetch, KushkiHttpError } from "../kushki/client";
+import { classifyKushkiChargeError } from "../kushki/chargeError";
 import {
   BreBContractError,
   KUSHKI_TRANSFER_ERRORS,
@@ -60,16 +61,31 @@ export interface BreBGateway {
 
 /**
  * Qué se sabe después de un fallo:
- *   rejected    — Kushki contestó que no (4xx): definitivo, no pasó nada.
+ *   rejected    — Kushki contestó que no: definitivo, no pasó nada.
  *   unparseable — contestó 2xx pero no se entiende (contrato): NO se asume nada.
- *   unknown     — sin respuesta (red, timeout, 5xx): pudo haber pasado.
+ *   unknown     — sin respuesta o ambiguo: pudo haber pasado.
+ *
+ * Usa la MISMA tabla que el resto de los cobros con Kushki
+ * (`classifyKushkiChargeError`, kushki/chargeError.ts): un 4xx reconocible es
+ * rechazo; red, timeout, 5xx, 408/409/425/429, un cuerpo que no es de Kushki
+ * o un token ya usado quedan inciertos. Encima, los códigos de error que el
+ * contrato de Bre-B documenta (422 E046, 404 E049) son rechazos definitivos
+ * aunque su texto hable del token: Kushki no creó nada.
  */
 export type BreBFailureKind = "rejected" | "unparseable" | "unknown";
 
+const BRE_B_DEFINITIVE_CODES: ReadonlySet<string> = new Set([
+  KUSHKI_TRANSFER_ERRORS.processorMismatch,
+  KUSHKI_TRANSFER_ERRORS.breBKeysMissing,
+]);
+
 export function breBFailureKind(err: unknown): BreBFailureKind {
   if (err instanceof BreBContractError) return "unparseable";
-  if (err instanceof KushkiHttpError && err.status >= 400 && err.status < 500) return "rejected";
-  return "unknown";
+  if (err instanceof KushkiHttpError && err.status >= 400 && err.status < 500) {
+    const code = breBErrorCode(err);
+    if (code && BRE_B_DEFINITIVE_CODES.has(code)) return "rejected";
+  }
+  return classifyKushkiChargeError(err).outcome === "declined" ? "rejected" : "unknown";
 }
 
 /** Código de error de Kushki (E046, E049, T023…) de un rechazo, o null. */
@@ -104,7 +120,7 @@ export type BreBStartError =
   | "bre_b_unavailable";
 
 export function breBStartError(err: unknown): BreBStartError {
-  if (!(err instanceof KushkiHttpError) || err.status < 400 || err.status >= 500) return "bre_b_unavailable";
+  if (!(err instanceof KushkiHttpError) || breBFailureKind(err) !== "rejected") return "bre_b_unavailable";
   if (err.status === 401) return "bre_b_credentials_invalid";
   const code = breBErrorCode(err);
   if (code === KUSHKI_TRANSFER_ERRORS.processorMismatch) return "bre_b_processor_mismatch";

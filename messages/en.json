@@ -2257,7 +2257,19 @@
     "sentDianPending": "The receipt was printed on {printer}: DIAN hasn't accepted this bill's electronic invoice yet.",
     "noPrinter": "There's no invoice printer on the print agent: printing from the browser instead.",
     "agentOffline": "The print agent is not responding: printing from the browser instead.",
-    "failed": "Couldn't print. Try again."
+    "failed": "Couldn't print.",
+    "destinationLabel": "Print on",
+    "destinationCaja": "Register printer",
+    "destinationDevice": "This device",
+    "paperLabel": "Paper",
+    "paperMm": "{mm} mm",
+    "deviceOpening": "Opening this device's print dialog…",
+    "deviceOpened": "This device's print dialog opened ({mm} mm).",
+    "deviceHint": "Don't see the device's printer? Turn it on in Settings → Printing.",
+    "deviceHelpLink": "See guide",
+    "retry": "Try again",
+    "useDevice": "Print on this device",
+    "useCaja": "Send to the register printer"
   },
   "opCartera": {
     "hubCategory": "Commercial",
@@ -5582,7 +5594,10 @@
     "methodPse": "PSE",
     "methodCash": "Cash",
     "methodDemoCard": "Card (demo)",
-    "methodNequi": "Nequi"
+    "methodNequi": "Nequi",
+    "printHeading": "Print",
+    "printInvoice": "Print invoice",
+    "printPrebill": "Print pre-bill"
   },
   "opAdminAi": {
     "title": "Pulso Assistant",

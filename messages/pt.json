@@ -2257,7 +2257,19 @@
     "sentDianPending": "Saiu o comprovante em {printer}: a DIAN ainda não aceitou a fatura eletrônica desta conta.",
     "noPrinter": "Não há impressora de faturas no agente: imprimindo pelo navegador.",
     "agentOffline": "O agente de impressão não está respondendo: imprimindo pelo navegador.",
-    "failed": "Não foi possível imprimir. Tente de novo."
+    "failed": "Não foi possível imprimir.",
+    "destinationLabel": "Imprimir em",
+    "destinationCaja": "Impressora do caixa",
+    "destinationDevice": "Este dispositivo",
+    "paperLabel": "Papel",
+    "paperMm": "{mm} mm",
+    "deviceOpening": "Abrindo a impressão deste dispositivo…",
+    "deviceOpened": "A impressão deste dispositivo foi aberta ({mm} mm).",
+    "deviceHint": "A impressora do aparelho não aparece? Ative-a em Configurações → Impressão.",
+    "deviceHelpLink": "Ver guia",
+    "retry": "Tentar de novo",
+    "useDevice": "Imprimir neste dispositivo",
+    "useCaja": "Enviar para a impressora do caixa"
   },
   "opCartera": {
     "hubCategory": "Comerciais",
@@ -5582,7 +5594,10 @@
     "methodPse": "PSE",
     "methodCash": "Dinheiro",
     "methodDemoCard": "Cartão (demo)",
-    "methodNequi": "Nequi"
+    "methodNequi": "Nequi",
+    "printHeading": "Imprimir",
+    "printInvoice": "Imprimir fatura",
+    "printPrebill": "Imprimir pré-conta"
   },
   "opAdminAi": {
     "title": "Assistente Pulso",

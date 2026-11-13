@@ -8,6 +8,8 @@ import { loadPrebill } from "@/lib/print/prebillData";
 import { buildPrebillDocument } from "@/lib/print/prebillQueue";
 import { PrintButton } from "@/app/factura/[id]/PrintButton";
 import { itemDetailText } from "@/lib/invoice";
+import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * "Imprimir" (el botón de acá) manda la precuenta al AGENTE, como las
  * comandas, y sólo si el local no tiene impresora de facturas imprime
- * esta página.
+ * esta página; o, con «Este dispositivo», la imprime en el equipo de quien
+ * la mira. `?w=58` (u 80) la dibuja al papel DEL EQUIPO (ver
+ * `lib/print/printDestination.ts`).
+ *
+ * La sirven tres rutas: ésta (panel), `/mesero/precuenta/[id]` (PWA del
+ * mesero) y `/terminal/precuenta/[id]` (el datáfono), cada una dentro del
+ * scope de quien la usa.
  *
  * Gate: el restaurante activo de la sesión (operador/staff) y que la
  * cuenta sea de ese comercio; una ajena es 404, no 403, para no revelar
@@ -44,19 +52,27 @@ export default async function PrecuentaPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string }>;
+  searchParams: Promise<{ print?: string; w?: string }>;
 }) {
   const { id } = await params;
-  const { print } = await searchParams;
+  const { print, w } = await searchParams;
   const tr = await getTranslations("opTables");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{tr("noRestaurant")}</div>;
 
-  // El mesero llega por /mesero/precuenta/[id] (re-export): su "volver"
-  // es su pantalla de mesas, no la del panel (que lo rebota).
+  // El mesero llega por /mesero/precuenta/[id] y el datáfono por
+  // /terminal/precuenta/[id] (re-exports): su "volver" es su pantalla de
+  // mesas, no la del panel (que los rebota).
   const session = await auth();
-  const isMesero = session?.user?.role === "mesero";
-  const backHref = isMesero ? "/mesero/mesas" : "/operator/tables";
+  const role = session?.user?.role;
+  const isMesero = role === "mesero";
+  const isTerminal = role === "terminal";
+  const backHref = isMesero ? "/mesero/mesas" : isTerminal ? "/terminal" : "/operator/tables";
+  const selfHref = isMesero
+    ? `/mesero/precuenta/${id}`
+    : isTerminal
+      ? `/terminal/precuenta/${id}`
+      : `/operator/orders/${id}/precuenta`;
 
   const loaded = await loadPrebill({ restaurantId, orderId: id });
   if (!loaded.ok) {
@@ -71,13 +87,14 @@ export default async function PrecuentaPage({
     );
   }
 
+  // El papel del comercio, o el del equipo que imprime (`?w=`).
+  const paperMm = devicePaperFromParam(w) ?? (loaded.paperWidthMm <= 58 ? 58 : 80);
   const doc = await buildPrebillDocument({
     data: loaded.data,
-    paperWidthMm: loaded.paperWidthMm,
+    paperWidthMm: devicePaperFromParam(w) ?? loaded.paperWidthMm,
     currency: loaded.currency,
     locale: loaded.locale,
   });
-  const paperMm = loaded.paperWidthMm <= 58 ? 58 : 80;
 
   return (
     <>
@@ -86,13 +103,8 @@ export default async function PrecuentaPage({
         <div className="precuenta-controls no-print">
           <PrintButton
             autoPrint={print === "1"}
-            agent={{
-              kind: "prebill",
-              orderId: id,
-              href: isMesero
-                ? `/mesero/precuenta/${id}`
-                : `/operator/orders/${id}/precuenta`,
-            }}
+            agent={{ kind: "prebill", orderId: id, href: selfHref }}
+            paperMm={paperMm}
           />
           <Link href={backHref} className="secondary">
             {tr("prebillBack")}
@@ -236,6 +248,7 @@ const POS_STYLES = `
   }
   .precuenta-controls .print-note.warn { color: #8f6828; }
   .precuenta-controls .print-note.error { color: #b3261e; }
+${PRINT_DESTINATION_STYLES}
   /* El recibo mide LO MISMO en pantalla que en papel (ancho y relleno):
      la página que se pide al imprimir sale de medirlo en pantalla. */
   .receipt {

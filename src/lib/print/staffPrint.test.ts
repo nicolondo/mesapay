@@ -152,6 +152,112 @@ describe("sin impresora (o agente caído): el navegador, como respaldo", () => {
   });
 });
 
+describe("«Este dispositivo»: ni se intenta el agente", () => {
+  const device = { destination: "device" as const, paperMm: 58 as const };
+
+  it("factura ⇒ sin llamar a la ruta, la vista al papel del equipo en el iframe oculto", async () => {
+    const fetch = route(200, { queued: true, printerName: "Caja" });
+    const printInBrowser = browser();
+    const onDevicePrint = vi.fn();
+    const r = await printAsStaff(invoice, { fetch, printInBrowser, onDevicePrint }, device);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(onDevicePrint).toHaveBeenCalledOnce();
+    expect(onDevicePrint.mock.invocationCallOrder[0]).toBeLessThan(
+      printInBrowser.mock.invocationCallOrder[0],
+    );
+    expect(printInBrowser).toHaveBeenCalledWith("/factura/inv-1?w=58", {
+      tabUrl: "/factura/inv-1?w=58&print=1",
+    });
+    expect(r).toEqual({
+      via: "device",
+      outcome: { kind: "printed" },
+      tabUrl: "/factura/inv-1?w=58&print=1",
+      paperMm: 58,
+    });
+  });
+
+  it("80 mm si el equipo usa ese papel; sin papel elegido, 58", async () => {
+    const printInBrowser = browser();
+    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 80 });
+    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=80", {
+      tabUrl: "/factura/inv-1?w=80&print=1",
+    });
+    await printAsStaff(invoice, { printInBrowser }, { destination: "device" });
+    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=58", {
+      tabUrl: "/factura/inv-1?w=58&print=1",
+    });
+  });
+
+  it("precuenta ⇒ avisa a su ruta (rastro) SIN encolar, y la imprime acá", async () => {
+    const fetch = route(200, { queued: false, reason: "device" });
+    const printInBrowser = browser();
+    const openTab = vi.fn(() => true);
+    const r = await printAsStaff(prebill, { fetch, printInBrowser, openTab }, device);
+    expect(fetch).toHaveBeenCalledWith("/api/operator/orders/order-1/prebill", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ destination: "device" }),
+    });
+    expect(printInBrowser).toHaveBeenCalledWith("/mesero/precuenta/order-1?w=58", {
+      tabUrl: "/mesero/precuenta/order-1?w=58&print=1",
+      openTab,
+    });
+    expect(r).toMatchObject({ via: "device", paperMm: 58 });
+  });
+
+  it("precuenta de una cuenta ya cerrada ⇒ error, sin imprimir", async () => {
+    const printInBrowser = browser();
+    const r = await printAsStaff(
+      prebill,
+      { fetch: route(409, { error: "order_closed" }), printInBrowser },
+      device,
+    );
+    expect(r).toEqual({ via: "error", code: "order_closed" });
+    expect(printInBrowser).not.toHaveBeenCalled();
+  });
+
+  it("un servidor viejo que ignora el aviso y la encola ⇒ salió por la caja: no se imprime dos veces", async () => {
+    const printInBrowser = browser();
+    const r = await printAsStaff(
+      prebill,
+      { fetch: route(200, { queued: true, printerName: "Caja" }), printInBrowser },
+      device,
+    );
+    expect(r).toEqual({ via: "agent", printerName: "Caja" });
+    expect(printInBrowser).not.toHaveBeenCalled();
+  });
+
+  it("el cierre de turno avisa a su ruta y se imprime en su tirilla", async () => {
+    const fetch = route(200, { queued: false, reason: "device" });
+    const printInBrowser = browser();
+    const r = await printAsStaff(
+      { kind: "shift", shiftId: "shift-1", href: "/operator/shifts/shift-1/tirilla" },
+      { fetch, printInBrowser },
+      device,
+    );
+    expect(fetch.mock.calls[0][0]).toBe("/api/operator/shifts/shift-1/print");
+    expect(printInBrowser).toHaveBeenCalledWith("/operator/shifts/shift-1/tirilla?w=58", {
+      tabUrl: "/operator/shifts/shift-1/tirilla?w=58&print=1",
+    });
+    expect(r).toMatchObject({ via: "device" });
+  });
+
+  it("si el documento no carga ⇒ lo dice (para reintentar o cambiar de destino)", async () => {
+    const r = await printAsStaff(
+      invoice,
+      { printInBrowser: browser({ kind: "failed", reason: "load_failed" }) },
+      device,
+    );
+    expect(r).toMatchObject({ via: "device", outcome: { kind: "failed", reason: "load_failed" } });
+  });
+
+  it("«Impresora de caja» explícita es lo de siempre (POST sin cuerpo)", async () => {
+    const fetch = route(200, { queued: true, printerName: "Caja" });
+    await printAsStaff(prebill, { fetch, printInBrowser: browser() }, { destination: "caja" });
+    expect(fetch).toHaveBeenCalledWith("/api/operator/orders/order-1/prebill", { method: "POST" });
+  });
+});
+
 describe("errores: no se imprime nada a ciegas", () => {
   it("sin sesión de staff (el comensal) ⇒ error, sin navegador", async () => {
     const printInBrowser = browser();
@@ -213,15 +319,19 @@ describe("agentMessage — qué se le dice al que apretó el botón", () => {
 });
 
 describe("staffPrintAccessFor — quién ve el botón del agente", () => {
-  it("operador, admins y mesero sí; sólo los que entran a Configuración ven el link", () => {
+  it("operador, admins, mesero y datáfono sí; sólo los que entran a Configuración ven el link", () => {
     for (const role of ["operator", "platform_admin", "group_admin"]) {
       expect(staffPrintAccessFor(role)).toEqual({ canConfigurePrinters: true });
     }
     expect(staffPrintAccessFor("mesero")).toEqual({ canConfigurePrinters: false });
+    // El usuario Datáfono cobra la mesa desde el Smart POS: imprime la
+    // precuenta y la factura (en su impresora integrada o en la de caja),
+    // pero no entra a Configuración.
+    expect(staffPrintAccessFor("terminal")).toEqual({ canConfigurePrinters: false });
   });
 
   it("el comensal (sin sesión o con rol de comensal) y la cocina, no: nunca encolan", () => {
-    for (const role of [null, undefined, "", "diner", "kitchen", "bar", "terminal"]) {
+    for (const role of [null, undefined, "", "diner", "kitchen", "bar", "comercial"]) {
       expect(staffPrintAccessFor(role)).toBeNull();
     }
   });

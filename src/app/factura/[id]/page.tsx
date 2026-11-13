@@ -27,6 +27,8 @@ import {
 } from "@/lib/print/staffPrint";
 import { PrintButton } from "./PrintButton";
 import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
+import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
 
@@ -77,17 +79,23 @@ export async function generateMetadata({
  *    modificadores y nota en un renglón chico.
  *
  * Cuando la mira el STAFF del comercio, "Imprimir" manda la factura al
- * agente, como las comandas (ver `PrintButton`).
+ * agente, como las comandas, o la imprime en su propio dispositivo (ver
+ * `PrintButton`).
+ *
+ * `?w=58` (u 80): el ancho del papel DEL EQUIPO que imprime, cuando no es
+ * el de la caja — «Este dispositivo» desde un datáfono con impresora
+ * integrada de 58 mm en un comercio cuya caja usa 80 (ver
+ * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho.
  */
 export default async function FacturaPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string }>;
+  searchParams: Promise<{ print?: string; w?: string }>;
 }) {
   const { id } = await params;
-  const { print } = await searchParams;
+  const { print, w } = await searchParams;
   const t = await getTranslations("emailInvoice");
   const locale = (await getLocale()) as Locale;
   const tag = localeTag(locale);
@@ -126,9 +134,11 @@ export default async function FacturaPage({
   const dianDate = snap.dianResolutionDate
     ? new Date(snap.dianResolutionDate)
     : null;
-  // El ancho del papel del comercio: el recibo mide eso en pantalla y en
-  // papel, y la página que se pide al imprimir también.
-  const paperMm = (inv.restaurant.printPaperWidthMm ?? 80) <= 58 ? 58 : 80;
+  // El ancho del papel del comercio (o el del equipo, con `?w=`): el recibo
+  // mide eso en pantalla y en papel, y la página que se pide al imprimir
+  // también.
+  const paperMm =
+    devicePaperFromParam(w) ?? ((inv.restaurant.printPaperWidthMm ?? 80) <= 58 ? 58 : 80);
 
   // ¿La mira el STAFF de este comercio? Entonces "Imprimir" va al agente.
   // Se decide acá, con la sesión: el comensal (sin sesión, o de otro
@@ -210,7 +220,7 @@ export default async function FacturaPage({
       <style>{POS_STYLES}</style>
       <div className="factura-shell">
         <div className="factura-controls">
-          <PrintButton autoPrint={print === "1"} agent={agentDoc} />
+          <PrintButton autoPrint={print === "1"} agent={agentDoc} paperMm={paperMm} />
           <Link href="/" className="secondary">
             {"MESAPAY"}
           </Link>
@@ -457,6 +467,7 @@ const POS_STYLES = `
   }
   .factura-controls .print-note.warn { color: #8f6828; }
   .factura-controls .print-note.error { color: #b3261e; }
+${PRINT_DESTINATION_STYLES}
   .receipt {
     background: #fff;
     color: #000;

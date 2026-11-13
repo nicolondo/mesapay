@@ -11,6 +11,7 @@ import { isCashMethod } from "@/lib/payments/methods";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useApiError } from "@/lib/useApiError";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
+import { TerminalPrintActions } from "./TerminalPrintActions";
 
 export type TableState =
   | "free"
@@ -51,6 +52,8 @@ export type TableCard = {
   label: string | null;
   state: TableState;
   orderId: string | null;
+  /** La factura (o comprobante) de la cuenta, si ya se emitió. */
+  invoiceId: string | null;
   shortCode: string | null;
   subtotalCents: number;
   outstandingCents: number;
@@ -704,6 +707,11 @@ function DetailSheet({
               )}
             </>
           )}
+          <TerminalPrintActions
+            orderId={table.orderId}
+            invoiceId={table.invoiceId}
+            canPrebill={table.state !== "paid" && table.items.length > 0}
+          />
         </div>
       </div>
     </div>

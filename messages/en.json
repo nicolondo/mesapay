@@ -5539,6 +5539,7 @@
     "tileTerminalRequested": "📱 Requested terminal",
     "tileCashRequested": "💵 Requested cash",
     "tileTotal": "Total {amount}",
+    "tilePaidFromPhone": "Paid from their phone · {ago}",
     "tileCharge": "Charge",
     "tileRequestedAt": "Requested {ago}",
     "tilePending": "Pending",

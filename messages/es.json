@@ -5539,6 +5539,7 @@
     "tileTerminalRequested": "📱 Pidió datáfono",
     "tileCashRequested": "💵 Pidió efectivo",
     "tileTotal": "Total {amount}",
+    "tilePaidFromPhone": "Pagó desde el celular · {ago}",
     "tileCharge": "Cobrar",
     "tileRequestedAt": "Pedido {ago}",
     "tilePending": "Pendiente",

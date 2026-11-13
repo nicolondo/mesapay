@@ -2291,7 +2291,8 @@
     "terminalNoDevices": "No hay datáfonos activos con serial: agrégalo en Configuración → Datáfonos.",
     "terminalBusinessCode": "Falta el Business-Code de Kushki del comercio para imprimir en el datáfono.",
     "terminalKushkiFailed": "Kushki no aceptó la impresión ({reason}).",
-    "terminalClosed": "No hay nada que imprimir: la cuenta ya se cerró o no tiene consumo."
+    "terminalClosed": "No hay nada que imprimir: la cuenta ya se cerró o no tiene consumo.",
+    "destinationTerminal": "Datáfono"
   },
   "opCartera": {
     "hubCategory": "Comerciales",

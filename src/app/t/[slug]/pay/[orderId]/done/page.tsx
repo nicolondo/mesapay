@@ -8,7 +8,8 @@ import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { DoneLive } from "./DoneLive";
 import { InvoiceRequestPanel } from "./InvoiceRequestPanel";
 import { staffPrintAccessFor } from "@/lib/print/staffPrint";
-import { OPERATOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { staffForRestaurant } from "@/lib/staffAccess";
+import { CHECKOUT_STAFF_ROLES, staffCheckoutRoutes } from "@/lib/payments/staffCheckout";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ const METHOD_LABEL: Record<string, string> = {
   kushki_card_terminal: "methodCardTerminal",
   external_terminal: "methodCardTerminal",
   kushki_pse: "methodPse",
+  kushki_bre_b: "methodBreB",
   reservation_deposit: "methodDeposit",
   voucher: "methodVoucher",
   customer_credit: "methodCustomerCredit",
@@ -68,18 +70,19 @@ export default async function PayDone({
   const tenant = await db.restaurant.findUnique({ where: { slug } });
   if (!tenant) return notFound();
   const session = op === "1"
-    ? await staffForRestaurant(tenant.id, [...OPERATOR_ROLES, "mesero"])
+    ? await staffForRestaurant(tenant.id, [...CHECKOUT_STAFF_ROLES])
     : null;
   const operator = session !== null;
-  const backHref =
-    session?.user?.role === "mesero" ? "/mesero/mesas" : "/operator/tables";
+  // Vuelta a Mesas: la del mesero, «Mesas en vivo» del datáfono o el panel.
+  const staffRoutes = staffCheckoutRoutes(session?.user?.role, { slug, orderId });
+  const backHref = staffRoutes.homeHref;
   // "Imprimir factura" por el agente SÓLO con sesión de staff verificada
   // acá (no por el `op=1` de la URL, que cualquiera puede escribir). El
   // comensal abre la vista para imprimir en su equipo, como siempre.
   const staffPrint = operator ? staffPrintAccessFor(session?.user?.role) : null;
-  const continueHref = session?.user?.role === "mesero"
-    ? `/mesero/cobrar/${orderId}`
-    : `/t/${slug}/pay/${orderId}${operator ? "?op=1" : ""}`;
+  const continueHref = operator
+    ? staffRoutes.checkoutHref
+    : `/t/${slug}/pay/${orderId}`;
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -414,7 +417,10 @@ export default async function PayDone({
             <p className="text-sm text-muted">{t("noPayments")}</p>
           ) : (
             <ul className="divide-y divide-hairline">
-              {order.payments.map((p, idx) => {
+              {/* Sólo lo que entró o está por entrar: un intento rechazado o
+                  cancelado (p. ej. un QR Bre-B que se cambió por otro) no es
+                  un pago de la mesa. */}
+              {order.payments.filter((p) => p.status === "approved" || p.status === "pending").map((p, idx) => {
                 const isMine = myPayment?.id === p.id;
                 const isPending = p.status === "pending";
                 return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -17,9 +18,15 @@ import {
 export function PaymentMethodsPanel({
   restaurantId,
   initialEnabled,
+  breBCredentials = false,
 }: {
   restaurantId: string;
   initialEnabled: PaymentMethodSlug[];
+  /**
+   * El comercio tiene cargadas las llaves de su comercio Bre-B. Sin ellas
+   * Bre-B no se puede prender (el servidor lo rechaza igual).
+   */
+  breBCredentials?: boolean;
 }) {
   const t = useTranslations("opAdmin");
   const router = useRouter();
@@ -58,7 +65,11 @@ export function PaymentMethodsPanel({
     );
     setBusy(false);
     if (!res.ok) {
-      setMsg({ kind: "error", text: t("saveFailedShort") });
+      const j = await res.json().catch(() => ({}));
+      setMsg({
+        kind: "error",
+        text: j.error === "bre_b_credentials_required" ? t("pmBreBNeedsCredentials") : t("saveFailedShort"),
+      });
       return;
     }
     setMsg({ kind: "ok", text: t("savedOk") });
@@ -87,24 +98,48 @@ export function PaymentMethodsPanel({
       <ul className="mt-4 divide-y divide-op-border">
         {PAYMENT_METHOD_CATALOG.map((m) => {
           const on = enabled.has(m.slug);
+          // Los medios nuevos traen sus textos en el catálogo de idiomas
+          // (`opAdmin.pm_<slug>_*`); los de siempre, en PAYMENT_METHOD_CATALOG.
+          const labelKey = `pm_${m.slug}_label`;
+          const descriptionKey = `pm_${m.slug}_description`;
+          // Bre-B exige las llaves de su comercio: sin ellas no se prende
+          // (apagarlo siempre se puede).
+          const locked = m.requires === "bre_b_credentials" && !breBCredentials && !on;
           return (
             <li
               key={m.slug}
               className="py-3 flex items-start justify-between gap-4"
             >
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{m.label}</div>
-                <div className="text-[12px] text-op-muted mt-0.5">
-                  {m.description}
+                <div className="text-sm font-medium flex flex-wrap items-center gap-2">
+                  <span>{t.has(labelKey) ? t(labelKey) : m.label}</span>
+                  {m.defaultOff && (
+                    <span className="px-2 h-5 inline-flex items-center rounded-full bg-[#C98A2E]/20 text-[#8F6828] text-[10px] font-medium">
+                      {t("pmBetaBadge")}
+                    </span>
+                  )}
                 </div>
+                <div className="text-[12px] text-op-muted mt-0.5">
+                  {t.has(descriptionKey) ? t(descriptionKey) : m.description}
+                </div>
+                {m.requires === "bre_b_credentials" && !breBCredentials && (
+                  <div className="text-[12px] text-op-muted mt-1">
+                    {t("pmBreBNeedsCredentials")}{" "}
+                    <Link href={`/admin/restaurants/${restaurantId}/pagos`} className="text-terracotta hover:underline">
+                      {t("pmBreBGoToCredentials")}
+                    </Link>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
                 role="switch"
                 aria-checked={on}
+                aria-label={t.has(labelKey) ? t(labelKey) : m.label}
+                disabled={locked}
                 onClick={() => toggle(m.slug)}
                 className={
-                  "shrink-0 relative inline-flex items-center h-7 w-12 rounded-full transition-colors " +
+                  "shrink-0 relative inline-flex items-center h-7 w-12 rounded-full transition-colors disabled:opacity-40 " +
                   (on ? "bg-ok" : "bg-op-border")
                 }
               >

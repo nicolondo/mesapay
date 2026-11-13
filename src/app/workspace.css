@@ -2587,3 +2587,661 @@ li.is-archived .mp-inv-name {
     font-size: 16px;
   }
 }
+
+/* ─── Conteo físico (hoja de /operator/inventario → Conteos) ──────────────
+   Una línea por insumo (≈44px en escritorio; dos en el celular). La barra
+   de escaneo + buscador y los filtros van pegados arriba DENTRO del área que
+   hace scroll (sticky, no fixed: el teclado de iOS no los descoloca) y el
+   pie de acciones, pegado abajo. La lista se queda con todo el alto. */
+.mp-tally {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--op-surface);
+  color: var(--op-text);
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .mp-tally {
+    max-width: 72rem;
+    height: min(94dvh, 100%);
+    border: 1px solid var(--op-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-3);
+  }
+}
+.mp-tally__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 48px;
+  padding: calc(4px + env(safe-area-inset-top, 0px)) 6px 4px 14px;
+  border-bottom: 1px solid var(--op-border);
+}
+.mp-tally__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Lo que se enfoca no queda debajo de la barra ni del pie pegados. */
+  scroll-padding-top: var(--count-top, 120px);
+  scroll-padding-bottom: var(--count-bottom, 72px);
+}
+.mp-tally__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.mp-tally__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--op-surface);
+  border-bottom: 1px solid var(--op-border);
+}
+.mp-tally__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 6px;
+}
+.mp-tally-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-bg);
+  color: var(--op-muted);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.mp-tally-field:focus-within {
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 3px var(--terracotta-soft);
+  color: var(--op-text);
+}
+.mp-tally-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--op-text);
+}
+.mp-tally-field input::placeholder {
+  color: var(--op-muted);
+}
+.mp-tally-field--scan {
+  flex: 1.3 1 0;
+}
+.mp-tally-field--scan input {
+  font-family: var(--font-mono);
+}
+/* El código leído va en monoespaciada; la pista, en la letra de siempre (cabe entera en el celular). */
+.mp-tally-field--scan input::placeholder {
+  font-family: var(--font-sans);
+}
+.mp-tally-field--search {
+  flex: 1 1 0;
+}
+.mp-tally-field input[type="search"]::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* Filtros con su contador: una sola tira, con scroll lateral en el celular. */
+.mp-tally-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mp-tally-chips::-webkit-scrollbar {
+  display: none;
+}
+.mp-tally-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-surface);
+  color: var(--op-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.mp-tally-chip b {
+  color: var(--op-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.mp-tally-chip:hover {
+  border-color: color-mix(in srgb, var(--op-text) 28%, transparent);
+}
+.mp-tally-chip:focus-visible,
+.mp-tally-rowbtn:focus-visible,
+.mp-tally-partschip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--terracotta-soft), 0 0 0 1px var(--terracotta);
+}
+.mp-tally-chip[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bone);
+}
+.mp-tally-chip[aria-pressed="true"] b {
+  color: var(--bone);
+}
+.mp-tally-chip[data-tone="danger"]:not([aria-pressed="true"]) b {
+  color: var(--danger);
+}
+.mp-tally-chip[data-tone="ok"]:not([aria-pressed="true"]) b {
+  color: var(--ok);
+}
+.mp-tally-stat {
+  flex-shrink: 0;
+  color: var(--op-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.mp-tally-stat b {
+  color: var(--op-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Aviso bajo la barra: código sin dueño, código recién vinculado, error. */
+.mp-tally-note {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warn) 10%, var(--op-surface));
+  font-size: 13px;
+  line-height: 1.4;
+}
+.mp-tally-note.is-ok {
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 8%, var(--op-surface));
+}
+.mp-tally-note.is-error {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 7%, var(--op-surface));
+  color: var(--danger);
+}
+.mp-tally-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Columnas: estado · insumo · cantidad · total · (1.er conteo) · esperado ·
+   diferencia · acciones. La cabecera usa la misma grilla que las filas. */
+.mp-tally-cols,
+.mp-tally-row {
+  --count-grid: 18px minmax(0, 1fr) 11.5rem 5.25rem 5.25rem 6.25rem 4.5rem;
+  display: grid;
+  grid-template-columns: var(--count-grid);
+  align-items: center;
+  column-gap: 10px;
+  padding: 0 12px;
+}
+.mp-tally--prelim :is(.mp-tally-cols, .mp-tally-row) {
+  --count-grid: 18px minmax(0, 1fr) 11.5rem 5.25rem 5.25rem 5.25rem 6.25rem 4.5rem;
+}
+.mp-tally--readonly :is(.mp-tally-cols, .mp-tally-row) {
+  --count-grid: 18px minmax(0, 1fr) 7rem 5.25rem 5.25rem 6.25rem 2.25rem;
+}
+.mp-tally--readonly.mp-tally--prelim :is(.mp-tally-cols, .mp-tally-row) {
+  --count-grid: 18px minmax(0, 1fr) 7rem 5.25rem 5.25rem 5.25rem 6.25rem 2.25rem;
+}
+.mp-tally-cols {
+  height: 22px;
+  border-top: 1px solid var(--op-border);
+  background: var(--op-bg);
+  color: var(--op-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mp-tally-cols > .is-num {
+  text-align: right;
+}
+.mp-tally-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 4px;
+  border-bottom: 1px solid var(--op-border);
+  background: var(--op-bg);
+  color: var(--op-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mp-tally-group b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.mp-tally-row {
+  min-height: 44px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--op-border);
+  font-size: 13px;
+}
+.mp-tally-row.is-hit {
+  background: color-mix(in srgb, var(--terracotta) 7%, var(--op-surface));
+  box-shadow: inset 3px 0 0 var(--terracotta);
+}
+.mp-tally-row__head,
+.mp-tally-row__nums,
+.mp-tally-figs {
+  display: contents;
+}
+.mp-tally-state {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--op-muted);
+}
+.mp-tally-state[data-state="equal"],
+.mp-tally-state[data-state="surplus"] {
+  color: var(--ok);
+}
+.mp-tally-state[data-state="shortage"],
+.mp-tally-state[data-state="invalid"] {
+  color: var(--danger);
+}
+.mp-tally-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.mp-tally-name__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.mp-tally-name__cat {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--op-muted);
+  font-size: 11px;
+}
+.mp-tally-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.mp-tally-input,
+.mp-tally-unit {
+  height: 34px;
+  border: 1px solid var(--op-border-2);
+  border-radius: 8px;
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.mp-tally-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mp-tally-unit {
+  flex: 0 0 auto;
+  width: 3.6rem;
+  padding: 0 2px 0 4px;
+}
+.mp-tally-input:focus,
+.mp-tally-unit:focus {
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 3px var(--terracotta-soft);
+}
+.mp-tally-input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+.mp-tally-input:disabled,
+.mp-tally-unit:disabled {
+  opacity: 0.45;
+}
+.mp-tally-input::placeholder {
+  color: color-mix(in srgb, var(--op-muted) 70%, transparent);
+  font-size: 12px;
+}
+.mp-tally-partschip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 6px 0 9px;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-surface);
+  color: var(--op-text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mp-tally-partschip[aria-expanded="true"] {
+  background: var(--op-bg);
+  border-color: color-mix(in srgb, var(--op-text) 30%, transparent);
+}
+.mp-tally-partschip svg {
+  transition: transform 0.16s ease;
+}
+.mp-tally-partschip[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.mp-tally-num {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mp-tally-num.is-muted {
+  color: var(--op-muted);
+}
+.mp-tally-num.is-strong {
+  font-weight: 600;
+}
+.mp-tally-num[data-tone="ok"] {
+  color: var(--ok);
+  font-weight: 600;
+}
+.mp-tally-num[data-tone="danger"] {
+  color: var(--danger);
+  font-weight: 600;
+}
+.mp-tally-num__label {
+  display: none;
+}
+.mp-tally-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.mp-tally-rowbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--op-muted);
+  cursor: pointer;
+}
+.mp-tally-rowbtn:hover:not(:disabled) {
+  background: var(--op-bg);
+  color: var(--op-text);
+}
+.mp-tally-rowbtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.mp-tally-rowbtn.is-accent {
+  color: var(--terracotta);
+  background: color-mix(in srgb, var(--terracotta) 10%, transparent);
+}
+/* Cantidades parciales de UNA fila (se abre solo esa) y su aviso de error. */
+.mp-tally-parts,
+.mp-tally-row__msg {
+  grid-column: 1 / -1;
+  padding-left: 28px;
+}
+.mp-tally-parts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+.mp-tally-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mp-tally-part__n {
+  min-width: 1.1rem;
+  color: var(--op-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.mp-tally-part .mp-tally-input {
+  width: 5.5rem;
+  flex: 0 0 auto;
+}
+.mp-tally-row__msg {
+  padding-bottom: 2px;
+  color: var(--op-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.mp-tally-row__msg.is-error {
+  color: var(--danger);
+}
+.mp-tally__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: auto;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--op-border);
+  background: var(--op-surface);
+}
+.mp-tally__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Pantallas bajas (celular acostado, teclado abierto): el pie deja de
+   quedarse pegado y le devuelve ese alto a la lista. */
+@media (max-height: 600px) {
+  .mp-tally__foot {
+    position: static;
+  }
+}
+@media (hover: hover) {
+  .mp-tally-row:hover:not(.is-hit) {
+    background: color-mix(in srgb, var(--op-bg) 60%, var(--op-surface));
+  }
+}
+
+/* Celular: dos líneas por insumo — nombre arriba; abajo cantidad + unidad,
+   lo esperado y la diferencia apilados, y las acciones. */
+@media (max-width: 767px) {
+  .mp-tally-cols {
+    display: none;
+  }
+  .mp-tally-row,
+  .mp-tally--prelim .mp-tally-row,
+  .mp-tally--readonly .mp-tally-row,
+  .mp-tally--readonly.mp-tally--prelim .mp-tally-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "head head" "nums actions";
+    column-gap: 6px;
+    row-gap: 2px;
+    padding: 6px 10px 6px 12px;
+  }
+  .mp-tally-row__head {
+    grid-area: head;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .mp-tally-row__nums {
+    grid-area: nums;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .mp-tally-actions {
+    grid-area: actions;
+  }
+  .mp-tally-parts,
+  .mp-tally-row__msg {
+    padding-left: 0;
+  }
+  .mp-tally-qty {
+    flex: 0 0 auto;
+  }
+  .mp-tally-qty .mp-tally-input {
+    width: 5.25rem;
+    flex: 0 0 auto;
+  }
+  .mp-tally-input,
+  .mp-tally-unit {
+    height: 44px;
+    font-size: 16px;
+  }
+  .mp-tally-partschip {
+    height: 40px;
+    font-size: 13px;
+  }
+  /* Con una sola cantidad el total repite el campo: queda solo para lectores. */
+  .mp-tally-total:not(.is-shown) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .mp-tally-total.is-shown {
+    flex: 0 0 auto;
+    font-size: 14px;
+  }
+  .mp-tally-figs {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-width: 0;
+    font-size: 11.5px;
+    line-height: 1.25;
+  }
+  .mp-tally-figs .mp-tally-num {
+    max-width: 100%;
+  }
+  .mp-tally-num__label {
+    display: inline;
+    margin-right: 3px;
+    color: var(--op-muted);
+    font-weight: 400;
+  }
+  .mp-tally-rowbtn {
+    width: 40px;
+    height: 44px;
+  }
+  .mp-tally-field {
+    height: 44px;
+    padding: 0 9px;
+    gap: 6px;
+  }
+  .mp-tally-field input {
+    font-size: 16px;
+  }
+  .mp-tally-field input::placeholder {
+    font-size: 14px;
+  }
+  .mp-tally-chip {
+    height: 34px;
+  }
+  .mp-tally__tools {
+    padding: 6px 10px 6px;
+    gap: 6px;
+  }
+  .mp-tally-chips {
+    padding: 0 10px 6px;
+  }
+  .mp-tally-note {
+    margin: 0 10px 6px;
+  }
+  .mp-tally__actions > .mp-btn {
+    flex: 1 1 auto;
+    padding: 0 12px;
+  }
+}
+/* Hoja compacta sobre el conteo (insumo nuevo, elegir insumo). */
+.mp-tally-pick {
+  max-height: min(46dvh, 22rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--op-border);
+  border-radius: 12px;
+}
+.mp-tally-pick button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--op-border);
+  text-align: left;
+  font-size: 14px;
+}
+.mp-tally-pick li:last-child button {
+  border-bottom: 0;
+}
+.mp-tally-pick button:hover:not(:disabled),
+.mp-tally-pick button:focus-visible {
+  background: var(--op-bg);
+  outline: none;
+}
+.mp-tally-pick button:disabled {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-tally-partschip svg,
+  .mp-tally-field,
+  .mp-tally-input,
+  .mp-tally-unit,
+  .mp-tally-chip {
+    transition: none;
+  }
+}

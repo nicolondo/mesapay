@@ -11,6 +11,7 @@ import {
 } from "@/lib/payments/kushki/webhooks";
 import { getRestaurantWebhookSecret } from "@/lib/payments";
 import { findPendingPaymentLinkByProviderRef } from "@/lib/paymentLinks";
+import { tryHandleBreBWebhook, tryHandleNormalizedBreB } from "@/lib/payments/breB/webhook";
 
 /**
  * Kushki webhook receiver — ÚNICO endpoint para todos los estados de
@@ -31,6 +32,12 @@ import { findPendingPaymentLinkByProviderRef } from "@/lib/paymentLinks";
  * `transactionReference`/`ticketNumber` (= Payment.providerRef /
  * KushkiTransaction.kushkiTxId) o por el último pago pendiente de la orden.
  *
+ * Bre-B: los avisos del comercio Bre-B (otro comercio de Kushki, con su
+ * propia firma) se resuelven ANTES que el camino genérico, en
+ * `lib/payments/breB/webhook.ts`: se casan por el `BreBCharge`, se verifican
+ * con la firma del comercio Bre-B del restaurante y sólo saldan si la
+ * referencia, el monto y la moneda son los del cobro.
+ *
  * ⚠️ Los nombres EXACTOS de los campos del payload real de Kushki no están
  * 100% documentados públicamente: extraemos defensivamente de varios alias y
  * logueamos el body crudo para ajustar con la primera transacción real.
@@ -43,6 +50,8 @@ const KNOWN_KINDS: KushkiWebhookKind[] = [
   "terminal.declined",
   "pse.approved",
   "pse.declined",
+  "bre_b.approved",
+  "bre_b.declined",
   "dispersion.completed",
   "dispersion.failed",
   "merchant.activated",
@@ -75,6 +84,10 @@ async function POSTHandler(req: Request) {
 
   // ── Path A: formato interno normalizado (mock/tests). Igual que antes. ──
   if (isNormalizedPayload(payload)) {
+    // Un pago Bre-B nunca se salda por el camino genérico (otra firma, y
+    // verificación de monto/referencia contra el cobro).
+    const breB = await tryHandleNormalizedBreB(raw, payload, req.headers);
+    if (breB) return breB;
     return handleNormalized(raw, payload, req.headers);
   }
 
@@ -231,6 +244,12 @@ async function handleRealKushki(
     });
     return NextResponse.json({ ok: true, subscription: true });
   }
+
+  // Bre-B: comercio distinto, firma distinta y verificación propia. Si el
+  // aviso es de un cobro Bre-B (o de un comercio Bre-B nuestro), se resuelve
+  // acá y no sigue al camino de tarjeta/PSE.
+  const breB = await tryHandleBreBWebhook(raw, body, headers);
+  if (breB) return breB;
 
   // Sin ninguna referencia → ping de validación de la URL → 200.
   if (!paymentIdHint && !orderIdHint && !txRef) {

@@ -67,7 +67,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "permisos-propinas-y-turnos",
       title: "Define permisos, propinas y turnos del equipo",
       covers:
-        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Sólo el administrador puede iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
+        "\"Políticas operativas\": reparto de propinas, turno único o por mesero, mesero sin turno del local, \"Solo el administrador y el datáfono pueden iniciar el cobro\", quién puede no cobrar, gastos de representación, quién mueve platos entre mesas, riesgo de irse sin pagar y la hora de inicio del día contable.",
     },
     {
       slug: "suscripcion",
@@ -155,7 +155,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-una-cuenta",
       title: "Cobra una cuenta paso a paso",
       covers:
-        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Sólo el administrador puede iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
+        "\"Cobrar la cuenta\" desde la ficha de la mesa o desde \"Acciones\" de la orden, \"Confirma tu pedido\", la propina (\"Sin propina\", 5 a 20 %, 10 % por defecto), el botón de cada medio, la factura y \"Cobro realizado\"; con \"Solo el administrador y el datáfono pueden iniciar el cobro\": \"Pedir la cuenta\", \"El cobro lo hace el administrador\" y el aviso a pantalla completa (\"El mesero avisa\" / \"Pidieron la cuenta\").",
       legacy:
         "Desde Salón o la app del mesero: efectivo, datáfono o cortesía (gastos de representación). Tras el pago se ofrece la factura al cliente.",
     },
@@ -169,7 +169,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "cobrar-con-datafono",
       title: "Cobra con datáfono",
       covers:
-        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono.",
+        "Datáfono Kushki (\"Cobrar con datáfono\", directo al datáfono, eligiendo \"¿A qué datáfono?\" si hay varios, o desde Salón en \"Pidió datáfono\") vs datáfono propio del comercio (\"Cobrar con datáfono del comercio\", \"Aprobado\" / \"Rechazado\"), errores de envío, cobros sin respuesta y la pantalla \"Mesas en vivo\" del usuario Datáfono (su orden, \"Toca para cobrar\" y \"Cobrar\" para empezar el cobro, y lo que no puede hacer).",
     },
     {
       slug: "dividir-la-cuenta",
@@ -419,7 +419,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conteo-de-inventario",
       title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos y varias cantidades por insumo (\"+ Agregar cantidad\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias (principal, \"Quitar\") y asociarlos desde el conteo (\"Agregar código de barras\" / \"Agregar otro código\"), lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\", \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos, una línea por insumo con lo último contado arriba (\"Contados recientemente\") y varias cantidades por insumo (chip \"N cantidades\", \"+\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias y de cada fila del conteo (principal, editar, pasar a otro insumo, \"Quitar\", \"Pasárselo a este insumo\"), qué hacer con un código que no es de ningún insumo o es de uno que no está en el conteo (\"Vincular a un insumo\", \"Crear insumo con este código\", restaurar, \"Deshacer\" / \"Corregir\"), \"Nuevo insumo\" desde el conteo, lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\" (cierra y avisa), \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",

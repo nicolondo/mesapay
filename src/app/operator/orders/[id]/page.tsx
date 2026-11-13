@@ -1,6 +1,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { staffForRestaurant, OPERATOR_ROLES } from "@/lib/staffAccess";
 import { ReconcilePayment } from "./ReconcilePayment";
+import { paymentPill } from "./paymentPill";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -527,20 +528,14 @@ async function StatusPill({ status }: { status: string }) {
 
 async function PaymentPill({ status }: { status: string }) {
   const t = await getTranslations("opOrders");
+  const pill = paymentPill(status);
   const tint =
-    status === "approved"
+    pill.tone === "ok"
       ? "bg-[#2E6B4C]/15 text-[#1E5339]"
-      : status === "failed"
+      : pill.tone === "danger"
         ? "bg-danger/15 text-danger"
         : "bg-paper text-op-muted";
-  const label =
-    status === "approved"
-      ? t("payApproved")
-      : status === "failed"
-        ? t("payFailed")
-        : status === "refunded"
-          ? t("payRefunded")
-          : t("payPending");
+  const label = t(pill.key);
   return (
     <span
       className={

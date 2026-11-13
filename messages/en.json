@@ -1817,7 +1817,7 @@
     "noPayments": "No payments recorded.",
     "splitOf": "1 of {count}",
     "payApproved": "Approved",
-    "payFailed": "Failed",
+    "payDeclined": "Declined",
     "payRefunded": "Refunded",
     "payPending": "Pending",
     "mDemoCard": "Card (demo)",

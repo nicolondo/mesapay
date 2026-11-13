@@ -1817,7 +1817,7 @@
     "noPayments": "Sin pagos registrados.",
     "splitOf": "1 de {count}",
     "payApproved": "Aprobado",
-    "payFailed": "Fallido",
+    "payDeclined": "Rechazado",
     "payRefunded": "Reembolsado",
     "payPending": "Pendiente",
     "mDemoCard": "Tarjeta (demo)",

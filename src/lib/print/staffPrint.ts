@@ -23,7 +23,7 @@
  *
  * «ESTE DISPOSITIVO» (`options.destination = "device"`, ver
  * `printDestination.ts`): ni se intenta el agente. La vista HTML se
- * imprime desde este navegador al ancho del papel DEL EQUIPO (`?w=55`), con
+ * imprime desde este navegador a `DEVICE_PAPER_MM` (55 mm, `?w=55`), con
  * el diálogo de impresión del sistema —en el datáfono Sunmi, su impresora
  * integrada—, y vuelve `{ via: "device" }`. La precuenta igual avisa a su
  * ruta (`{ destination: "device" }`) para que quede el rastro de quién la
@@ -44,10 +44,9 @@ import {
   type PrintInBrowserOrTabOptions,
 } from "@/lib/printInBrowser";
 import {
-  DEFAULT_DEVICE_PAPER_MM,
+  DEVICE_PAPER_MM,
   devicePrintHref,
   withQueryParam,
-  type DevicePaperMm,
   type PrintDestination,
 } from "./printDestination";
 
@@ -141,7 +140,8 @@ export type StaffPrintResult =
       outcome: BrowserPrintOutcome;
       /** La pestaña de respaldo (`?w=55&print=1`), para "abrir a mano". */
       tabUrl: string;
-      paperMm: DevicePaperMm;
+      /** El ancho al que salió (`DEVICE_PAPER_MM`). */
+      paperMm: number;
     }
   | { via: "error"; code: string | null };
 
@@ -176,8 +176,6 @@ export type StaffPrintDeps = {
 /** A dónde imprimir (por defecto, la caja: lo de siempre). */
 export type StaffPrintOptions = {
   destination?: PrintDestination;
-  /** El papel del equipo, para «Este dispositivo». */
-  paperMm?: DevicePaperMm;
 };
 
 /** La ruta que encola en el agente. */
@@ -225,7 +223,7 @@ export async function printAsStaff(
 ): Promise<StaffPrintResult> {
   const doFetch = deps.fetch ?? ((url, init) => fetch(url, init));
   if (options.destination === "device") {
-    return printOnThisDevice(doc, deps, options.paperMm ?? DEFAULT_DEVICE_PAPER_MM, doFetch);
+    return printOnThisDevice(doc, deps, DEVICE_PAPER_MM, doFetch);
   }
   let body: RouteBody | null = null;
   let ok = false;
@@ -279,7 +277,7 @@ export async function printAsStaff(
 async function printOnThisDevice(
   doc: StaffPrintDoc,
   deps: StaffPrintDeps,
-  paperMm: DevicePaperMm,
+  paperMm: number,
   doFetch: NonNullable<StaffPrintDeps["fetch"]>,
 ): Promise<StaffPrintResult> {
   if (notifiesDevicePrint(doc)) {

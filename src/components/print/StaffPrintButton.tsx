@@ -17,7 +17,6 @@ import {
 import {
   devicePrintHelpHref,
   otherDestination,
-  type DevicePaperMm,
   type PrintDestination,
 } from "@/lib/print/printDestination";
 import {
@@ -37,10 +36,10 @@ type Notice = {
   /** Por qué se cayó al navegador (para el aviso de configurar). */
   fallback?: StaffPrintFallbackReason;
   /**
-   * Por «Este dispositivo», con este papel; `opened` cuando el diálogo de
-   * impresión ya salió (ahí va la pista de cómo activar la impresora).
+   * Por «Este dispositivo»; `opened` cuando el diálogo de impresión ya
+   * salió (ahí va la pista de cómo activar la impresora).
    */
-  device?: { paperMm: DevicePaperMm; opened: boolean };
+  device?: { opened: boolean };
   /** A dónde se intentó: para ofrecer «Reintentar» y el otro destino. */
   destination?: PrintDestination;
 };
@@ -173,7 +172,6 @@ export function useStaffPrint(
   async function runAt(destination: PrintDestination) {
     if (busy || !pref.ready) return;
     if (timer.current) clearTimeout(timer.current);
-    const paperMm = pref.paperMm;
     setBusy(true);
     setNotice(null);
     setBrowser(null);
@@ -195,12 +193,12 @@ export function useStaffPrint(
             setNotice({
               tone: "ok",
               text: t("deviceOpening"),
-              device: { paperMm, opened: false },
+              device: { opened: false },
               destination,
             });
           },
         },
-        { destination, paperMm },
+        { destination },
       );
       if (result.via === "agent") {
         const m = agentMessage(result);
@@ -215,14 +213,14 @@ export function useStaffPrint(
           setNotice({
             tone: "ok",
             text: t("deviceOpened", { mm: result.paperMm }),
-            device: { paperMm: result.paperMm, opened: true },
+            device: { opened: true },
             destination,
           });
         } else {
           setNotice({
             tone: result.outcome.kind === "failed" ? "error" : "warn",
             text: "",
-            device: { paperMm: result.paperMm, opened: false },
+            device: { opened: false },
             destination,
           });
           setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));

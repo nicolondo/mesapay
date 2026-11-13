@@ -132,7 +132,6 @@ export function PrintButton({
     try {
       const result = await printAsStaff(agent, deps, {
         destination,
-        paperMm: pref.paperMm,
       });
       if (result.via === "agent") {
         const m = agentMessage(result);

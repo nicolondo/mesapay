@@ -1450,6 +1450,7 @@
     "platformAdminLink": "Platform admin →",
     "signOut": "Sign out",
     "signOutFull": "Sign out",
+    "accountSection": "Your account",
     "suspendedTitle": "Account suspended",
     "suspendedBody": "Access to <b>{name}</b> is paused. Contact MESAPAY to reactivate it.",
     "impGroup": "Group",
@@ -1817,7 +1818,7 @@
     "noPayments": "No payments recorded.",
     "splitOf": "1 of {count}",
     "payApproved": "Approved",
-    "payFailed": "Failed",
+    "payDeclined": "Declined",
     "payRefunded": "Refunded",
     "payPending": "Pending",
     "mDemoCard": "Card (demo)",
@@ -8555,6 +8556,16 @@
     "failed": "The payment was declined. You can choose another method.",
     "back": "Back to the bill"
   },
+  "chargeDecline": {
+    "security_rejected": "The bank or the security system declined the payment. Try another card or a different payment method.",
+    "card_cvv": "The card's security code (CVV) is not valid. Check it or try another card.",
+    "card_funds": "The card has insufficient funds. Try another card or a different payment method.",
+    "card_invalid": "The card is not valid. Check the details or try another card.",
+    "card_blocked": "The card is blocked. Try another card or a different payment method.",
+    "merchant_config": "The business has a problem with its online payment setup. Let the staff know and pay another way.",
+    "charge_failed": "The payment was declined. Try another card or a different payment method.",
+    "uncertain": "We couldn't confirm whether the charge went through. Before trying again, check your card activity or ask the business."
+  },
   "apiErrors": {
     "internal_error": "The operation could not be completed. Try again later.",
     "operation_conflict": "The bill changed or an operation is already pending. Refresh before continuing.",
@@ -8595,6 +8606,10 @@
     "confirmError": "The payment could not be confirmed. Refresh and try again.",
     "inFlightKicker": "Online payment in progress",
     "inFlightBody": "Wait until the provider approves or declines it before charging another way. You can see it in Floor or Payments.",
+    "inFlightReviewKicker": "Online payment not confirmed",
+    "inFlightReviewBody": "The provider never confirmed the result of this payment to MESAPAY, so the bill is still locked. If the outcome is already known (the customer was declined or was charged), it is resolved by reconciling the payment: saved as declined, the bill is free to charge another way; saved as approved, it counts as paid.",
+    "reconcile": "Reconcile payment",
+    "reconcileAskAdmin": "Ask an administrator to reconcile this payment and free the bill.",
     "methods": {
       "cash": "Cash",
       "demo_cash": "Cash",

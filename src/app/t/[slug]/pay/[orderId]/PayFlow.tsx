@@ -83,12 +83,15 @@ export async function PayFlow({
   orderId,
   op,
   declined,
+  declineCode,
   tip,
 }: {
   slug: string;
   orderId: string;
   op?: string;
   declined?: string;
+  /** Código del motivo del rechazo con tarjeta (viene de la URL; se valida al traducir). */
+  declineCode?: string;
   tip?: string;
 }) {
   // Operator-mode pay flow: el staff está cobrando la cuenta en
@@ -309,6 +312,8 @@ export async function PayFlow({
       declinedFlag={declined === "1" || declined === "canceled"}
       // Volvió porque se canceló en el datáfono: no se cobró, aviso propio.
       declinedReason={declined === "canceled" ? "terminal_canceled" : null}
+      // Motivo del rechazo con tarjeta (p. ej. al volver del 3DS).
+      declineCode={declineCode ?? null}
       // La factura se pide ACÁ, durante el cobro. `invoiceIntent` es lo que
       // ya haya pedido en esta cuenta (para mostrar el resumen en vez del
       // formulario) y `invoicePrefillEmail`, el correo del último cobro con

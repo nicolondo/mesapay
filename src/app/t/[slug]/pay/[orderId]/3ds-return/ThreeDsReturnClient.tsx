@@ -109,10 +109,10 @@ export function ThreeDsReturnClient({
         );
         if (cancelled) return;
         const j = await res.json().catch(() => ({}));
+        // Motivo del rechazo como CÓDIGO (lo traduce el checkout).
+        const why = typeof j.reason === "string" ? `&reason=${encodeURIComponent(j.reason)}` : "";
         if (!res.ok) {
-          router.replace(
-            `/t/${tenantSlug}/pay/${orderId}?declined=1${j.message ? `&reason=${encodeURIComponent(j.message)}` : ""}`,
-          );
+          router.replace(`/t/${tenantSlug}/pay/${orderId}?declined=1${why}`);
           return;
         }
         if (j.pending && j.paymentId) {
@@ -122,9 +122,7 @@ export function ThreeDsReturnClient({
             `/t/${tenantSlug}/pay/${orderId}/done?pid=${j.paymentId}`,
           );
         } else {
-          router.replace(
-            `/t/${tenantSlug}/pay/${orderId}?declined=1${j.message ? `&reason=${encodeURIComponent(j.message)}` : ""}`,
-          );
+          router.replace(`/t/${tenantSlug}/pay/${orderId}?declined=1${why}`);
         }
       } catch (e) {
         if (cancelled) return;

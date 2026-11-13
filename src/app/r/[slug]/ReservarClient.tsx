@@ -1,6 +1,7 @@
 "use client";
 import { startTransition } from "react";
 import { useApplePaySupport } from "@/lib/browser/capabilities";
+import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -981,6 +982,8 @@ function DepositCard({
   onApproved: () => void;
 }) {
   const tr = useTranslations("reservar");
+  // Motivo del cobro que no pasó (código del servidor → texto).
+  const declineText = useChargeDeclineText();
   const [number, setNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -1080,12 +1083,13 @@ function DepositCard({
       );
       const cj = await chargeRes.json().catch(() => ({}));
       if (!chargeRes.ok) {
-        setErr(cj.message ?? tr("errChargeDeposit"));
+        // `reason`: código del motivo (rechazo de Kushki o resultado incierto).
+        setErr(declineText(cj.reason) ?? cj.message ?? tr("errChargeDeposit"));
         setBusy(false);
         return;
       }
       if (!cj.approved) {
-        setErr(cj.message ?? tr("errDeclinedCard"));
+        setErr(declineText(cj.reason) ?? cj.message ?? tr("errDeclinedCard"));
         setBusy(false);
         return;
       }
@@ -1207,6 +1211,8 @@ function DepositApplePay({
   onApproved: () => void;
 }) {
   const tr = useTranslations("reservar");
+  // Motivo del cobro que no pasó (código del servidor → texto).
+  const declineText = useChargeDeclineText();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1224,7 +1230,7 @@ function DepositApplePay({
       );
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.approved) {
-        setErr(j.message ?? tr("errDepositApple"));
+        setErr(declineText(j.reason) ?? j.message ?? tr("errDepositApple"));
         setBusy(false);
         return;
       }

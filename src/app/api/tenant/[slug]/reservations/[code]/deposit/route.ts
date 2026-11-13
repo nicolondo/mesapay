@@ -13,6 +13,7 @@ import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { resolveReservationConfig } from "@/lib/reservations";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
 import { appOrigin } from "@/lib/http/publicOrigin";
+import { chargeFailureLogFields, classifyKushkiChargeError } from "@/lib/payments/kushki/chargeError";
 
 /**
  * Cobra el DEPÓSITO de una reserva con un token de tarjeta (Kushki).
@@ -36,22 +37,6 @@ const schema = z.object({
   // Sincrónicos con token: tarjeta tipeada o Apple Pay (wallet).
   method: z.enum(["kushki_card", "kushki_apple_pay"]).default("kushki_card"),
 });
-
-function mapKushkiError(detail: string): string {
-  if (detail.includes('"code":"022"') || detail.includes("(022)"))
-    return "Tarjeta declinada — CVV inválido.";
-  if (detail.includes('"code":"021"') || detail.includes("(021)"))
-    return "Tarjeta declinada — fondos insuficientes.";
-  if (detail.includes('"code":"017"') || detail.includes("(017)"))
-    return "Tarjeta inválida.";
-  if (detail.includes('"code":"023"') || detail.includes("(023)"))
-    return "Tarjeta bloqueada.";
-  if (detail.includes('"code":"577"'))
-    return "El intento anterior expiró. Volvé a ingresar los datos.";
-  if (detail.includes('"code":"K040"'))
-    return "Credenciales del comercio mal configuradas. Avisá al restaurante.";
-  return "El pago falló. Probá con otra tarjeta.";
-}
 
 async function POSTHandler(
   req: Request,
@@ -143,13 +128,19 @@ async function POSTHandler(
       },
     });
   } catch (err) {
-    const detail =
-      err instanceof Error ? err.message.slice(0, 300) : "provider_error";
-    console.error("[reservation-deposit] charge FAILED", { detail });
-    return NextResponse.json(
-      { error: "charge_failed", message: mapKushkiError(detail), detail },
-      { status: 502 },
-    );
+    // La reserva no tiene estado «incierto»: sigue pendiente y se puede
+    // reintentar mientras dure el hold. Por eso NO se dice «falló, prueba con
+    // otra tarjeta» cuando no sabemos si Kushki cobró (red, timeout, 5xx,
+    // token ya usado): el motivo es `uncertain` y la página pide revisar
+    // antes de repetir. El motivo sale como CÓDIGO (lo traduce la página),
+    // nunca como texto en un idioma fijo ni el detalle crudo de Kushki.
+    // Tabla de decisión: lib/payments/kushki/chargeError.ts.
+    const failure = classifyKushkiChargeError(err);
+    console.error("[reservation-deposit] charge FAILED", { reservationId: reservation.id, ...chargeFailureLogFields(failure) });
+    if (failure.outcome === "uncertain") {
+      return NextResponse.json({ error: "charge_uncertain", reason: "uncertain" }, { status: 502 });
+    }
+    return NextResponse.json({ error: "charge_failed", reason: failure.reason }, { status: 502 });
   }
 
   // Espejo KushkiTransaction (sin paymentId — todavía no hay Order).

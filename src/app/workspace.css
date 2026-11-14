@@ -261,26 +261,49 @@
     padding-bottom: 0;
   }
 }
-/* Alto del cajón = lo que el navegador deja ver, para que su pie («Cerrar
-   sesión») quede siempre a la vista. Con barras de navegador (Safari,
-   Chrome) 100dvh se ajusta a ellas. Respaldo para los navegadores sin
-   unidades dinámicas (WebView/Chrome < 108, Safari < 15.4): 100% del bloque
-   contenedor del <dialog> fijo, que es el viewport visible — NO 100vh, que
-   en Chrome mide como si la barra de direcciones estuviera escondida y
-   dejaría el pie debajo de ella. En la PWA instalada, ver más abajo.
-   Cada respaldo va JUSTO antes de su declaración con dvh: así el plugin de
-   respaldos (postcssLegacyFallbacks) no antepone el suyo en vh. */
+/* Cajón de navegación del celular (operador y admin de plataforma): de
+   borde a borde vertical, anclado arriba Y abajo al viewport de los
+   elementos fijos, sin alto propio (ni 100dvh ni 100vh) y sin el
+   max-height del <dialog> modal (calc(100% - 2em - 6px)).
+   Por qué: con el cajón abierto el body queda `position: fixed`
+   (useLockBodyScroll) y TODO pasa a ser contenido fijo. Safari de iOS 26 no
+   pinta contenido fijo más allá de ese viewport, y su 100dvh/100vh puede
+   medir más (barra minimizada, alto desactualizado tras mover la barra, la
+   PWA): el cajón se cortaba —con «Salir»/«Cerrar sesión» adentro— y por
+   debajo asomaba una franja crema (reporte del dueño, 2026-11-14). Anclado
+   con inset, el pie siempre cae dentro de lo que el navegador pinta; si
+   aun así queda pantalla debajo, la pinta el fondo del documento (ver
+   `html:has(...)` más abajo). Sin unidades de viewport: sirve igual en
+   navegadores sin dvh (Chrome/WebView 99, Firefox 107 del datáfono). */
 .mp-navigation-drawer {
+  position: fixed;
   inset: 0 auto 0 0;
   margin: 0;
   width: min(320px, 90vw);
   max-width: 100%;
-  height: 100%;
-  height: 100dvh;
-  max-height: 100%;
-  max-height: 100dvh;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   border: 0;
   overflow: hidden;
+}
+/* Si el navegador deja pantalla por debajo de lo que pinta como fijo (la
+   franja del reporte), lo único que se ve ahí es el fondo del documento:
+   mientras un cajón está abierto ese fondo es el del riel bajo el cajón y
+   el del velo (.mp-dialog::backdrop) sobre la página en el resto, así no
+   queda franja crema. #151109 = `--rail` de WORKSPACE_RAIL_THEME (el riel
+   lo define en línea, no llega a <html>); el ancho, el del cajón. Sin
+   :has() (Firefox 107) no hace falta: el problema es de Safari de iOS. */
+@supports selector(:has(*)) {
+  html:has(dialog.mp-navigation-drawer[open]) {
+    background-color: var(--bone);
+    background-image: linear-gradient(
+      to right,
+      #151109 0,
+      #151109 min(320px, 90vw),
+      rgba(20, 18, 15, 0.5) min(320px, 90vw)
+    );
+  }
 }
 .mp-navigation-drawer .mp-rail {
   padding-top: env(safe-area-inset-top, 0px);
@@ -385,20 +408,13 @@
     margin-top: 8px;
   }
 }
-/* PWA instalada (iOS): 100dvh se queda corto —el viewport dinámico no
-   cubre la pantalla entera— y el cajón, anclado arriba, dejaba una franja
-   del fondo asomando abajo (misma causa que .op-app-shell y
-   .crm-app-shell, que ya miden 100vh en standalone). Con 100vh llega al
-   borde físico y su pie reserva el área segura del indicador de inicio
-   (env(safe-area-inset-bottom)). Las hojas pegadas abajo (.mp-sheet)
-   tienen el problema espejo: el borde inferior del viewport fijo queda por
-   encima del borde de la pantalla; se bajan exactamente esa diferencia
-   (cero en un navegador normal, donde dvh = vh). */
+/* PWA instalada (iOS): las hojas pegadas abajo (.mp-sheet) quedan por
+   encima del borde de la pantalla: el borde inferior del viewport fijo no
+   llega al borde físico. Se bajan exactamente esa diferencia (cero en un
+   navegador normal, donde dvh = vh). El cajón de navegación ya no usa
+   100vh acá: va anclado al viewport fijo (ver .mp-navigation-drawer) y lo
+   que quede debajo lo cubre el fondo del documento. */
 @media all and (display-mode: standalone) {
-  .mp-navigation-drawer {
-    height: 100vh;
-    max-height: 100vh;
-  }
   .mp-sheet {
     bottom: calc(100dvh - 100vh);
   }

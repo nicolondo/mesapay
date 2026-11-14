@@ -22,9 +22,9 @@ import {
 const parse = (qs: string) => parseSalesFilters(new URLSearchParams(qs));
 
 describe("filtros desde la URL", () => {
-  it("sin parámetros: últimos 30 días contra el período anterior, granularidad automática", () => {
+  it("sin parámetros: últimos 30 días contra el período anterior, granularidad automática, por hora del pedido", () => {
     const f = parse("");
-    expect(f).toMatchObject({ period: "30d", compare: "anterior", granularity: "auto", dims: {}, dimOrder: [] });
+    expect(f).toMatchObject({ period: "30d", compare: "anterior", granularity: "auto", axis: "pedido", dims: {}, dimOrder: [] });
     expect(resolveRange(f, "2026-10-31")).toEqual({ from: "2026-10-02", to: "2026-10-31" });
   });
 
@@ -60,6 +60,27 @@ describe("filtros desde la URL", () => {
     expect(methodsForFilter("kushki_card")).toEqual(["kushki_card"]);
     expect(REPORTING_METHODS).not.toContain("demo_cash");
     expect(parse("pago=demo_cash").dims.pago).toBeUndefined();
+  });
+});
+
+describe("eje de tiempo (hora del pedido / hora del pago)", () => {
+  it("por defecto es la hora del pedido y no ensucia la URL", () => {
+    expect(parse("").axis).toBe("pedido");
+    expect(parse("tiempo=pedido").axis).toBe("pedido");
+    expect(salesHref(parse("tiempo=pedido"))).toBe("/operator/reports/ventas");
+  });
+
+  it("la hora del pago queda recordada en la URL y sobrevive a filtros, drill y migas", () => {
+    const f = parse("tiempo=pago&periodo=mes");
+    expect(f.axis).toBe("pago");
+    expect(salesHref(f)).toBe("/operator/reports/ventas?periodo=mes&tiempo=pago");
+    expect(withDimension(f, "hora", 21).axis).toBe("pago");
+    expect(drillToRange(f, { from: "2026-10-14", to: "2026-10-14" }).axis).toBe("pago");
+    expect(breadcrumbs(withDimension(f, "mesero", "u1")).every((c) => c.href.includes("tiempo=pago"))).toBe(true);
+  });
+
+  it("un valor desconocido cae a la hora del pedido", () => {
+    expect(parse("tiempo=cocina").axis).toBe("pedido");
   });
 });
 

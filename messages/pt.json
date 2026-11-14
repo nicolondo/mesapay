@@ -10048,6 +10048,7 @@
     "periodLabel": "Período",
     "compareLabel": "Comparar com",
     "granularityLabel": "Agrupar por",
+    "axisLabel": "Ver vendas por",
     "from": "De",
     "to": "Até",
     "apply": "Aplicar",
@@ -10064,6 +10065,8 @@
     "tableNumber": "Mesa {number}",
     "comparedWith": "comparado com {period}",
     "businessDayHint": "Dias operacionais: cada dia vai das {hour}:00 às {hour}:00 do dia seguinte, pela hora do pagamento.",
+    "businessDayHintOrder": "Dias operacionais: cada dia vai das {hour}:00 às {hour}:00 do dia seguinte, pela hora em que cada pedido foi feito.",
+    "axisNote": "Por isso os totais de um dia podem ser diferentes do fechamento de caixa e da contabilidade, que vão pela hora do pagamento.",
     "itemFilterNotice": "Filtro por produto ou categoria: os valores em dinheiro são só dessas linhas (com sua parte do desconto e do imposto). As contas e os clientes são os das contas que as incluem; gorjetas, comissões, notas de crédito e reembolsos não se aplicam porque são da conta inteira.",
     "deltaNote": "As setas comparam com {period}. Verde = melhor, vermelho = pior (em descontos e devoluções, subir é pior).",
     "vsCompare": "em relação a {period}",
@@ -10107,6 +10110,10 @@
       "dia": "Dia",
       "semana": "Semana",
       "mes": "Mês"
+    },
+    "axis": {
+      "pedido": "Hora do pedido",
+      "pago": "Hora do pagamento"
     },
     "channel": {
       "salon": "Salão",
@@ -10291,7 +10298,9 @@
     "orders": {
       "title": "Contas do dia",
       "subtitle": "{count, plural, one {# conta} other {# contas}}, da mais recente para a mais antiga. Abra qualquer uma para ver o detalhe.",
+      "subtitleOrder": "{count, plural, one {# conta} other {# contas}} com pedidos no período, pela hora de abertura (a mais recente primeiro). Abra qualquer uma para ver o detalhe.",
       "itemFilterNote": "Contas que incluem o produto ou a categoria filtrada; a venda líquida é só dessas linhas.",
+      "placedAt": "Pedido",
       "paidAt": "Pagamento",
       "account": "Conta",
       "where": "Mesa ou canal",
@@ -10314,13 +10323,19 @@
       "modifierGroup": "Grupo",
       "modifierOption": "Opção",
       "productsCount": "Produtos",
-      "payments": "Pagamentos"
+      "payments": "Pagamentos",
+      "placedAtCol": "Hora do pedido",
+      "paidAtCol": "Hora do pagamento"
     },
     "def": {
       "title": "Como cada valor é calculado?",
       "sale": {
         "term": "Venda",
-        "body": "Uma conta paga, contada no dia operacional do pagamento. Uma cortesia de conta inteira fecha em $0: não é venda, vai para cortesias."
+        "body": "Uma conta paga. Conta no dia e na hora do pedido ou do pagamento, conforme o que você escolher em “Ver vendas por”. Uma cortesia de conta inteira fecha em $0: não é venda, vai para cortesias."
+      },
+      "timeAxis": {
+        "term": "Hora do pedido ou hora do pagamento",
+        "body": "Com “Hora do pedido” (a opção padrão) cada prato conta no dia e na hora em que a rodada dele foi feita: uma mesa que pediu às 20h e voltou a pedir às 22h divide a venda entre essas duas horas. O que é da conta (contas, clientes, tíquete, gorjeta, comissão e pagamentos) conta uma só vez, na primeira rodada. Uma conta feita no período e paga depois conta no período do pedido assim que for paga; enquanto estiver aberta, não conta. Com “Hora do pagamento” a conta inteira conta quando foi paga, como no fechamento de caixa e na contabilidade. As notas de crédito e os reembolsos vão sempre pela própria data."
       },
       "net": {
         "term": "Venda líquida",
@@ -10352,15 +10367,15 @@
       },
       "orders": {
         "term": "Contas e clientes",
-        "body": "Contas pagas do período (sem as cortesias completas) e a soma dos clientes registrados em cada uma."
+        "body": "Contas pagas do período (sem as cortesias completas) e a soma dos clientes registrados em cada uma. Cada conta conta uma só vez: com “Hora do pedido”, na primeira rodada."
       },
       "ticket": {
         "term": "Tíquete médio",
-        "body": "Venda líquida dividida pelas contas; o tíquete por cliente, dividida pelos clientes."
+        "body": "Venda líquida dessas contas, cada uma inteira, dividida pelas contas; o tíquete por cliente, dividida pelos clientes."
       },
       "units": {
         "term": "Produtos por conta",
-        "body": "Unidades do cardápio (sem linhas livres) divididas pelas contas."
+        "body": "Unidades do cardápio (sem linhas livres) dessas contas, divididas pelas contas."
       },
       "tableTime": {
         "term": "Tempo de mesa",
@@ -10380,7 +10395,7 @@
       },
       "businessDay": {
         "term": "Dia operacional",
-        "body": "Cada dia vai das {hour}:00 às {hour}:00 do dia seguinte (hora da Colômbia), pela hora do pagamento: o cobrado de madrugada conta para a noite anterior."
+        "body": "Cada dia vai das {hour}:00 às {hour}:00 do dia seguinte (hora da Colômbia), pela hora do pedido ou do pagamento: o que acontece de madrugada conta para a noite anterior."
       }
     }
   },

@@ -7,10 +7,16 @@
 // (`saleFacts`) contra la que se verifica el SQL.
 //
 // ── Universo ───────────────────────────────────────────────────────────────
-// Una venta es una cuenta (`Order`) del comercio con `status = paid`, cuyo
-// `paidAt` cae en el período, agrupada por el DÍA OPERATIVO del `paidAt` con
-// la hora de corte del comercio. Una cortesía de cuenta completa (`compedAt`)
-// se cierra en $0: no es una cuenta vendida y su valor va a «cortesías».
+// Una venta es una cuenta (`Order`) del comercio con `status = paid`. Una
+// cortesía de cuenta completa (`compedAt`) se cierra en $0: no es una cuenta
+// vendida y su valor va a «cortesías».
+//
+// ── Cuándo cae (eje de tiempo, ver `sql.ts`) ───────────────────────────────
+// Por DÍA OPERATIVO (hora de corte del comercio) y hora del reloj de:
+//  · «Hora del pedido» (por defecto): cada línea, el instante en que se montó
+//    su ronda; lo que es de la cuenta (contarla, comensales, propina,
+//    comisión, pagos, ticket), su apertura (primera ronda).
+//  · «Hora del pago»: la cuenta entera, su `paidAt` (como el cierre de caja).
 //
 // ── Definiciones (por cuenta) ──────────────────────────────────────────────
 //  · Venta bruta  = valor de lista de las líneas vivas (no canceladas, de
@@ -196,11 +202,20 @@ export type SalesTotals = {
   /** null = no aplica (filtro por producto/categoría: la propina es de la cuenta). */
   tipCents: number | null;
   compsCents: number;
+  /**
+   * Venta neta y unidades de las cuentas CONTADAS (`orders`), enteras: la
+   * base del ticket y de los productos por cuenta. Con «Hora del pago» son
+   * iguales a `netCents`/`units`; con «Hora del pedido» una cuenta cuenta en
+   * su apertura con todo lo que vendió, aunque parte se haya pedido en otro
+   * período.
+   */
+  accountNetCents: number;
+  accountUnits: number;
 };
 
 export const EMPTY_TOTALS: SalesTotals = {
   orders: 0, diners: 0, units: 0, grossCents: 0, discountCents: 0,
-  taxCents: 0, netCents: 0, tipCents: 0, compsCents: 0,
+  taxCents: 0, netCents: 0, tipCents: 0, compsCents: 0, accountNetCents: 0, accountUnits: 0,
 };
 
 export function sumSaleFacts(facts: readonly SaleFacts[]): SalesTotals {
@@ -214,6 +229,8 @@ export function sumSaleFacts(facts: readonly SaleFacts[]): SalesTotals {
     netCents: t.netCents + f.netCents,
     tipCents: (t.tipCents ?? 0) + f.tipCents,
     compsCents: t.compsCents + f.compsCents,
+    accountNetCents: t.accountNetCents + f.netCents,
+    accountUnits: t.accountUnits + f.units,
   }), { ...EMPTY_TOTALS });
 }
 
@@ -266,11 +283,11 @@ export type Kpis = {
   netAfterReturnsCents: number | null;
   orders: number;
   diners: number;
-  /** Venta neta / cuentas. null sin cuentas. */
+  /** Venta neta de las cuentas contadas / cuentas. null sin cuentas. */
   avgTicketCents: number | null;
-  /** Venta neta / comensales. */
+  /** Venta neta de las cuentas contadas / comensales. */
   avgPerDinerCents: number | null;
-  /** Unidades de carta / cuentas. */
+  /** Unidades de carta de las cuentas contadas / cuentas. */
   unitsPerOrder: number | null;
   medianTableMinutes: number | null;
 };
@@ -285,8 +302,9 @@ export function deriveKpis(
   duration: DurationSummary | null,
 ): Kpis {
   const ratio = (num: number, den: number) => (den > 0 ? num / den : null);
-  const avgTicket = ratio(t.netCents, t.orders);
-  const perDiner = ratio(t.netCents, t.diners);
+  // Lo «por cuenta» usa las cuentas enteras que se contaron (ver `SalesTotals`).
+  const avgTicket = ratio(t.accountNetCents, t.orders);
+  const perDiner = ratio(t.accountNetCents, t.diners);
   return {
     netCents: t.netCents,
     grossCents: t.grossCents,
@@ -301,7 +319,7 @@ export function deriveKpis(
     diners: t.diners,
     avgTicketCents: avgTicket === null ? null : Math.round(avgTicket),
     avgPerDinerCents: perDiner === null ? null : Math.round(perDiner),
-    unitsPerOrder: ratio(t.units, t.orders),
+    unitsPerOrder: ratio(t.accountUnits, t.orders),
     medianTableMinutes: reliableDuration(duration),
   };
 }

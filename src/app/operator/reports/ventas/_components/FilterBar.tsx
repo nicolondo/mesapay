@@ -1,7 +1,8 @@
 "use client";
 
 // Filtros globales en UNA fila sobre todo lo que filtran: período (presets y
-// rango personalizado), comparación, granularidad y dimensiones. Cada cambio
+// rango personalizado), comparación, eje de tiempo (hora del pedido o del
+// pago), granularidad y dimensiones. Cada cambio
 // navega a la URL nueva (todo el estado vive en la URL) y los gráficos se
 // quedan atenuados mientras llega la página.
 import { useState } from "react";
@@ -13,6 +14,7 @@ import {
   DIMENSIONS,
   NO_WAITER,
   REPORTING_METHODS,
+  TIME_AXES,
   normalizeRange,
   parseDimension,
   salesHref,
@@ -120,8 +122,28 @@ export function FilterBar({
             ))}
           </select>
         </label>
+        <div className="mp-sales-field mp-sales-field--seg">
+          <span id="sales-axis">{t("axisLabel")}</span>
+          <div className="mp-seg mp-sales-axis" role="radiogroup" aria-labelledby="sales-axis" data-testid="sales-axis">
+            {TIME_AXES.map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={a === filters.axis}
+                data-active={a === filters.axis || undefined}
+                className="mp-seg__i"
+                onClick={() => {
+                  if (a !== filters.axis) go({ ...filters, axis: a });
+                }}
+              >
+                {t(`axis.${a}`)}
+              </button>
+            ))}
+          </div>
+        </div>
         {allowedGranularities.length > 1 && (
-          <div className="mp-sales-field">
+          <div className="mp-sales-field mp-sales-field--seg">
             <span id="sales-granularity">{t("granularityLabel")}</span>
             <div className="mp-seg" role="radiogroup" aria-labelledby="sales-granularity">
               {allowedGranularities.map((g) => (

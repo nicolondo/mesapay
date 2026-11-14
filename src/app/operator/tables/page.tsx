@@ -18,7 +18,8 @@ import {
 } from "./MesasGrid";
 import { isChargeBlockedForRole } from "@/lib/chargeControl";
 import { isReplaceablePending } from "@/lib/payments/methods";
-import { terminalClaims } from "@/lib/payments/pendingRequests";
+import { terminalAmountViews, terminalClaims } from "@/lib/payments/pendingRequests";
+import { breBPendingViews } from "@/lib/payments/breB/service";
 import { toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { canMoveBetweenTables } from "@/lib/tableMoveControl";
 import {
@@ -274,6 +275,20 @@ export default async function TablesPage({
     allTables.flatMap((t) => t.orders.flatMap((o) => o.payments.filter((p) => p.status === "pending"))),
   );
 
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono o parcial):
+  // la ficha lo avisa. Una sola consulta para todas.
+  const approvedTerminalAmounts = await terminalAmountViews(
+    db,
+    allTables.flatMap((t) => t.orders.flatMap((o) => o.payments.filter((p) => p.status === "approved"))),
+  );
+
+  // Bre-B en curso: en qué va su QR (vigente / sin confirmar), para que la
+  // ficha ofrezca «Ver código», «Consultar estado» y «Cancelar cobro».
+  const breBPending = await breBPendingViews(
+    db,
+    allTables.flatMap((t) => t.orders.flatMap((o) => o.payments.filter((p) => p.status === "pending"))),
+  );
+
   // Facturas emitidas antes de cobrar (raras: se cargan aparte, con su
   // estado DIAN y si una nota crédito ya las anuló).
   const invoiceViews = new Map<string, OrderInvoiceView>();
@@ -348,7 +363,14 @@ export default async function TablesPage({
           reconciliationRequired: p.reconciliationRequired,
           pushedAt: terminalClaimed.get(p.id)?.createdAt.toISOString() ?? null,
           terminalAttempt: toTerminalAttemptView(terminalClaimed.get(p.id), p.reconciliationRequired),
+          breB: breBPending.get(p.id) ?? null,
         })),
+      // Cobros del datáfono aprobados por otro monto: «se registró como
+      // propina» / «quedan $X por cobrar».
+      terminalAmounts: order.payments
+        .filter((p) => p.status === "approved")
+        .map((p) => approvedTerminalAmounts.get(p.id))
+        .filter((a): a is NonNullable<typeof a> => !!a && (a.check === "tip" || a.check === "partial")),
       rounds: order.rounds.map((r) => ({
         id: r.id,
         seq: r.seq,

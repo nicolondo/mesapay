@@ -4,16 +4,19 @@
  * Quien abre un link de pago (o paga desde el QR) ve una lista de medios.
  * El dueño pidió que Apple Pay quede elegido por defecto cuando el aparato
  * lo admite (Safari en iPhone/Mac con Wallet) y el comercio lo tiene
- * configurado; si no, el orden de siempre: tarjeta y después PSE.
+ * configurado; si no, el orden de siempre: tarjeta, después PSE y Bre-B.
  *
  * `applePayAvailable` lo decide el cliente (ApplePaySession.canMakePayments
  * + el botón del SDK de Kushki renderizado, que exige el dominio validado).
  * Acá sólo se cruza con lo que el comercio habilitó.
  */
-export type OnlineMethod = "kushki_apple_pay" | "kushki_card" | "kushki_pse";
+export type OnlineMethod = "kushki_apple_pay" | "kushki_card" | "kushki_pse" | "kushki_bre_b";
 
-/** Orden de preferencia cuando no hay Apple Pay. */
-const FALLBACK_ORDER: OnlineMethod[] = ["kushki_card", "kushki_pse"];
+/**
+ * Orden de preferencia cuando no hay Apple Pay. Bre-B va al final: es el
+ * medio más nuevo y el dueño no pidió que desplace a tarjeta ni a PSE.
+ */
+const FALLBACK_ORDER: OnlineMethod[] = ["kushki_card", "kushki_pse", "kushki_bre_b"];
 
 export type OnlineMethodChoiceInput = {
   /** El navegador puede pagar con Apple Pay y el botón está listo. */

@@ -17,7 +17,7 @@
 import { db } from "@/lib/db";
 import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { brandedInvoiceFrom, invoiceUrlFor } from "@/lib/simpleInvoice";
-import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { formatInvoiceNumber, invoicePayableOf, type InvoiceSnapshot } from "@/lib/invoice";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import {
   attachedDocumentFileName,
@@ -116,6 +116,9 @@ export async function sendDianInvoiceEmail(opts: {
                 locale: true,
                 simpleInvoiceEmail: true,
                 paidAt: true,
+                // Propina REAL de la factura emitida antes de cobrar, para
+                // el TOTAL A PAGAR (ver `invoicePayableOf`).
+                tipCents: true,
               },
             },
           },
@@ -219,7 +222,16 @@ export async function sendDianInvoiceEmail(opts: {
       invoiceNumber,
       issuedAt,
       cufe: doc.cufe,
-      totalCents: inv.totalCents,
+      // `SimpleInvoice.totalCents` es el `totalCents` del snapshot (venta +
+      // propina si se emitió al cobrar; la venta sola si se emitió antes).
+      payable: invoicePayableOf(
+        {
+          totalCents: inv.totalCents,
+          tipCents: snap.tipCents ?? 0,
+          issuedBeforePayment: snap.issuedBeforePayment,
+        },
+        inv.order,
+      ),
       invoiceUrl: invoiceUrlFor(inv.id),
       verifyUrl: dianQrUrl(doc.cufe, envCode),
       attachmentName: attachment?.filename ?? null,

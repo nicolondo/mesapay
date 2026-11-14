@@ -220,7 +220,14 @@ export const FOREIGN_UPLOAD_COLUMNS: readonly { model: string; field: string }[]
  * `passwordHash`/`tokenHash`/`…Enc` de una tabla archivada esté acá.
  */
 export const ARCHIVE_REDACTED_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  Restaurant: ["kushkiPrivateKeyEnc", "kushkiWebhookSecretEnc", "kushkiPayoutPrivateKeyEnc"],
+  Restaurant: [
+    "kushkiPrivateKeyEnc",
+    "kushkiWebhookSecretEnc",
+    "kushkiPayoutPrivateKeyEnc",
+    // Comercio Bre-B de Kushki: su llave privada y su firma de webhooks.
+    "kushkiBreBPrivateKeyEnc",
+    "kushkiBreBWebhookSecretEnc",
+  ],
   User: ["passwordHash"],
   Diner: ["passwordHash"],
   DianConfig: ["certP12Enc", "certPasswordEnc", "softwarePinEnc"],

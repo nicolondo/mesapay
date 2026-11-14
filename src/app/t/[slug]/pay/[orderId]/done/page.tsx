@@ -32,6 +32,7 @@ const METHOD_LABEL: Record<string, string> = {
   kushki_card_terminal: "methodCardTerminal",
   external_terminal: "methodCardTerminal",
   kushki_pse: "methodPse",
+  kushki_bre_b: "methodBreB",
   reservation_deposit: "methodDeposit",
   voucher: "methodVoucher",
   customer_credit: "methodCustomerCredit",
@@ -418,7 +419,10 @@ export default async function PayDone({
             <p className="text-sm text-muted">{t("noPayments")}</p>
           ) : (
             <ul className="divide-y divide-hairline">
-              {order.payments.map((p, idx) => {
+              {/* Sólo lo que entró o está por entrar: un intento rechazado o
+                  cancelado (p. ej. un QR Bre-B que se cambió por otro) no es
+                  un pago de la mesa. */}
+              {order.payments.filter((p) => p.status === "approved" || p.status === "pending").map((p, idx) => {
                 const isMine = myPayment?.id === p.id;
                 const isPending = p.status === "pending";
                 return (

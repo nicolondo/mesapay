@@ -139,6 +139,7 @@ export function InvoiceRequestPanel({
       {issuedInvoiceUrl && staffPrint && (
         <div className="mt-4 space-y-1">
           <StaffPrintButton
+            destinationVariant="pay"
             doc={{
               kind: "invoice",
               orderId,

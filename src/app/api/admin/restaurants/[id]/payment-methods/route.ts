@@ -4,7 +4,9 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import {
+  BRE_B_CREDENTIAL_METHODS,
   PAYMENT_METHOD_SLUGS,
+  hasBreBCredentials,
   resolveEnabledPaymentMethods,
   type PaymentMethodSlug,
 } from "@/lib/paymentMethods";
@@ -33,11 +35,13 @@ async function GETHandler(
   const { id } = await params;
   const r = await db.restaurant.findUnique({
     where: { id },
-    select: { enabledPaymentMethods: true },
+    select: { enabledPaymentMethods: true, kushkiBreBPublicKey: true, kushkiBreBPrivateKeyEnc: true },
   });
   if (!r) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json({
     methods: resolveEnabledPaymentMethods(r.enabledPaymentMethods),
+    // Bre-B no se puede prender sin las llaves de su comercio.
+    breBCredentials: hasBreBCredentials(r),
   });
 }
 
@@ -59,6 +63,20 @@ async function PUTHandler(
 
   // De-dupe defensively in case the client sends repeats.
   const methods = Array.from(new Set(parsed.data.methods));
+
+  // Bre-B cobra con las llaves de SU comercio de Kushki: sin ellas el botón
+  // saldría en el cobro y fallaría. Se rechaza el guardado entero (la lista
+  // es de reemplazo total) y el panel dice qué falta.
+  if (methods.some((m) => BRE_B_CREDENTIAL_METHODS.includes(m))) {
+    const creds = await db.restaurant.findUnique({
+      where: { id },
+      select: { kushkiBreBPublicKey: true, kushkiBreBPrivateKeyEnc: true },
+    });
+    if (!creds) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (!hasBreBCredentials(creds)) {
+      return NextResponse.json({ error: "bre_b_credentials_required" }, { status: 409 });
+    }
+  }
 
   const updated = await db.restaurant.update({
     where: { id },

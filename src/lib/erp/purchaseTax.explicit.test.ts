@@ -82,6 +82,18 @@ describe("documentary purchase amounts", () => {
     expect(purchaseOrderTotals(po, "received")).toMatchObject({ subtotalCents: 4_241_700, taxCents: 212_100, incCents: 2_488_800, retentionsCents: 50, totalCents: 6_942_550 });
   });
 
+  it("adds the printed rounding adjustment to the payable total only, never to a line", () => {
+    const po = { items: [gordons], incCents: 4_977_400, retefuenteCents: 100, roundingCents: -32 };
+    expect(purchaseOrderTotals(po)).toMatchObject({
+      subtotalCents: 8_483_400, taxCents: 424_200, incCents: 4_977_400, retentionsCents: 100,
+      roundingCents: -32, totalCents: 13_885_000 - 100 - 32,
+    });
+    // Partially received: it follows the progress like the other header extras.
+    const half = { ...po, items: [{ ...gordons, receivedCostCents: 4_241_700, receivedQtyBase: 1_000 }] };
+    expect(purchaseOrderTotals(half, "received").roundingCents).toBe(-16);
+    expect(purchaseOrderTotals({ items: [gordons] }).roundingCents).toBe(0);
+  });
+
   it("keeps legacy invoices using the same percentage and header amounts", () => {
     const po = { items: [{ expectedCostCents: 10_000, receivedCostCents: 10_000, qtyOrderedBase: 1_000, receivedQtyBase: 1_000, taxPct: 19 }], incCents: 800, retefuenteCents: 100 };
     expect(purchaseOrderTotals(po, "received")).toMatchObject({ subtotalCents: 10_000, taxCents: 1_900, incCents: 800, totalCents: 12_600 });

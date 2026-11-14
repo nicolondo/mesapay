@@ -45,6 +45,12 @@ export const RESTAURANT_SKIPPED_COLUMNS: ReadonlySet<string> = new Set([
   "kushkiWebhookSecretEnc",
   "kushkiPayoutPublicKey",
   "kushkiPayoutPrivateKeyEnc",
+  // Comercio Bre-B: credenciales de plataforma, como las de arriba.
+  "kushkiBreBMerchantId",
+  "kushkiBreBMerchantName",
+  "kushkiBreBPublicKey",
+  "kushkiBreBPrivateKeyEnc",
+  "kushkiBreBWebhookSecretEnc",
   "cloudTerminalBusinessCode",
   "kushkiMode",
   "kushkiCard3ds",

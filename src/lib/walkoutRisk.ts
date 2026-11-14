@@ -262,6 +262,19 @@ export function tileTokensForRisk(level: RiskLevel): {
  * de Mesas para colorear bg/border/dot/accent. Si `pulse=true`, el
  * dot debe animarse — la decisión de animar el dot vive acá (no en
  * el componente) para que el config sea declarativo.
+ *
+ * Legibilidad en pantallas pobres (datáfono Sunmi, celulares baratos:
+ * poco gamut, poco brillo): los tintes al 5–12 % casi no se distinguían
+ * del fondo. Ahora:
+ *  - los estados que piden acción (por cobrar, listo para servir, sin
+ *    pagar, riesgo de fuga) llevan borde SÓLIDO de 2 px — el borde
+ *    distingue la ficha aunque el tinte se lave;
+ *  - `textAccent` (el monto) cumple AA (≥ 4.5:1) sobre su propio tinte:
+ *    terracotta-2 en vez de terracotta (3.4:1), rojo y ámbar oscurecidos;
+ *  - el estado además va en TEXTO en la ficha (tileStateLabelKey), así
+ *    que el color y el punto ya no son la única señal.
+ * Contrastes medidos sobre --op-bg (#f6f5f1) en el PR de colores del
+ * datáfono.
  */
 export function tileTokensForState(state: TableVisualState): {
   bg: string;
@@ -274,15 +287,15 @@ export function tileTokensForState(state: TableVisualState): {
     case "free":
       return {
         bg: "bg-op-surface",
-        border: "border-op-border",
+        border: "border-op-border-2",
         dot: "bg-op-border-2",
         textAccent: "text-op-text",
         pulse: false,
       };
     case "recently_paid":
       return {
-        bg: "bg-ok/10",
-        border: "border-ok/35",
+        bg: "bg-ok/12",
+        border: "border-ok/60",
         dot: "bg-ok",
         textAccent: "text-[#1E5339]",
         pulse: false,
@@ -290,28 +303,28 @@ export function tileTokensForState(state: TableVisualState): {
     case "cooking":
       // Amber claro — "cocina trabajando, no hay nada que hacer".
       return {
-        bg: "bg-[#C98A2E]/8",
-        border: "border-[#C98A2E]/30",
-        dot: "bg-[#C98A2E]/70",
+        bg: "bg-[#C98A2E]/10",
+        border: "border-[#C98A2E]/45",
+        dot: "bg-[#C98A2E]",
         textAccent: "text-op-text",
         pulse: false,
       };
     case "ready_to_serve":
       // Amber fuerte — ¡acción! comida lista para entregar.
       return {
-        bg: "bg-[#C98A2E]/18",
-        border: "border-[#C98A2E]/55",
+        bg: "bg-[#C98A2E]/20",
+        border: "border-2 border-[#C98A2E]",
         dot: "bg-[#C98A2E]",
-        textAccent: "text-[#7F5A1F]",
+        textAccent: "text-[#6E4D19]",
         pulse: false,
       };
     case "eating":
       // Ink suave — mesa ocupada sin acción urgente. Diferente del
       // "free" pero sin alarma.
       return {
-        bg: "bg-ink/[0.05]",
-        border: "border-ink/20",
-        dot: "bg-ink/50",
+        bg: "bg-ink/[0.06]",
+        border: "border-ink/30",
+        dot: "bg-ink/60",
         textAccent: "text-op-text",
         pulse: false,
       };
@@ -321,7 +334,7 @@ export function tileTokensForState(state: TableVisualState): {
       // sin todavía gritar.
       return {
         bg: "bg-[#C98A2E]/14",
-        border: "border-[#C98A2E]/45",
+        border: "border-2 border-[#C98A2E]",
         dot: "bg-[#C98A2E]",
         textAccent: "text-[#7F5A1F]",
         pulse: false,
@@ -329,28 +342,28 @@ export function tileTokensForState(state: TableVisualState): {
     case "needs_payment":
       // Terracotta — el cliente pidió cobrar (cash/datafono/mesero).
       return {
-        bg: "bg-terracotta/12",
-        border: "border-terracotta/40",
+        bg: "bg-terracotta/14",
+        border: "border-2 border-terracotta",
         dot: "bg-terracotta",
-        textAccent: "text-terracotta",
+        textAccent: "text-terracotta-2",
         pulse: false,
       };
     case "needs_payment_urgent":
       // Cobro pedido + tiempo. Pulsa para forzar la mirada.
       return {
-        bg: "bg-terracotta/20",
-        border: "border-terracotta/60",
-        dot: "bg-terracotta",
-        textAccent: "text-terracotta",
+        bg: "bg-terracotta/22",
+        border: "border-2 border-terracotta-2",
+        dot: "bg-terracotta-2",
+        textAccent: "text-[#8E3519]",
         pulse: true,
       };
     case "danger":
       // Walkout danger — rojo + pulse. La situación más urgente.
       return {
-        bg: "bg-[#C9302C]/12",
-        border: "border-[#C9302C]/45",
+        bg: "bg-[#C9302C]/14",
+        border: "border-2 border-[#C9302C]",
         dot: "bg-[#C9302C]",
-        textAccent: "text-[#C9302C]",
+        textAccent: "text-[#A12622]",
         pulse: true,
       };
   }

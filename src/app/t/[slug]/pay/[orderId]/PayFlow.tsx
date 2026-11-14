@@ -12,7 +12,8 @@ import {
 } from "@/lib/payments/staffCheckout";
 import { PayClient } from "./PayClient";
 import { syncOrderSubtotalFromLiveItems } from "@/lib/orderTotals";
-import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { offerablePaymentMethods } from "@/lib/paymentMethods";
+import { breBPendingViews } from "@/lib/payments/breB/service";
 import { isModuleEnabled } from "@/lib/modules";
 import type { InvoiceIntent } from "@/components/invoice/types";
 import {
@@ -174,8 +175,12 @@ export async function PayFlow({
   // curso, sin acción.
   // `replaceable`: el datáfono Kushki pedido que nadie envió al equipo es una
   // solicitud (se cancela o se reemplaza); ya enviado, es un cobro en curso.
+  const pendingRows = operatorMode ? order.payments.filter((p) => p.status === "pending") : [];
+  // Bre-B en curso: en qué va su QR (vigente, sin confirmar), para ofrecer
+  // «Ver código», «Consultar estado» y «Cancelar cobro».
+  const breBPending = await breBPendingViews(db, pendingRows);
   const pendingPayments = operatorMode
-    ? (await withReplaceable(db, order.payments.filter((p) => p.status === "pending"))).map((p) => ({
+    ? (await withReplaceable(db, pendingRows)).map((p) => ({
         id: p.id,
         method: p.method,
         amountCents: p.amountCents,
@@ -186,6 +191,7 @@ export async function PayFlow({
         reconciliationRequired: p.reconciliationRequired,
         pushedAt: p.pushedAt?.toISOString() ?? null,
         terminalAttempt: p.terminalAttempt,
+        breB: breBPending.get(p.id) ?? null,
       }))
     : [];
   const paidCents = approved.reduce((s, p) => s + p.amountCents, 0);
@@ -213,8 +219,12 @@ export async function PayFlow({
   // todos — aunque casi nadie use PSE. El PseSheet del cliente pide la lista
   // solo cuando el diner abre PSE (GET /pay/pse-banks, ahora con caché),
   // así "Pagar" abre al instante.
-  const enabledMethods = resolveEnabledPaymentMethods(
-    tenant.enabledPaymentMethods,
+  // Habilitados Y ofrecibles: Bre-B sólo si además están cargadas las llaves
+  // de su comercio (otro comercio de Kushki que el de tarjeta/PSE).
+  // El rol también cuenta (staffCheckoutCapabilities.breB): hoy todos los
+  // que cobran pueden mostrar el QR, también el datáfono.
+  const enabledMethods = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant).filter(
+    (m) => m !== "kushki_bre_b" || !operatorMode || capabilities.breB,
   );
   const pseBanks: Array<{ code: string; name: string }> = [];
 
@@ -355,6 +365,7 @@ export async function PayFlow({
       }}
       initialTipPct={payLinkMode ? 0 : parseTipPct(tip)}
       payLinkMode={payLinkMode}
+      manualInvoice={manualInvoice}
       pendingPayments={pendingPayments}
       kushkiTerminalAvailable={kushkiTerminalAvailable}
       // "Resolver cobro" de un datáfono Kushki sin respuesta: sólo el

@@ -34,7 +34,8 @@ vi.mock("@/lib/simpleInvoice", () => ({
   brandedInvoiceFrom: () => "Son y Melona <facturas@mesapay.co>",
   invoiceUrlFor: (id: string) => `https://mesapay.co/factura/${id}`,
 }));
-vi.mock("@/lib/invoice", () => ({
+vi.mock("@/lib/invoice", async (importOriginal) => ({
+  invoicePayableOf: (await importOriginal<typeof import("@/lib/invoice")>()).invoicePayableOf,
   formatInvoiceNumber: () => "FESM6484",
 }));
 vi.mock("@/lib/dian/crypto", () => ({ dianQrUrl: () => "https://dian/qr" }));
@@ -371,5 +372,45 @@ describe("varios correos — la factura sale al principal y en copia a los adici
     m.requestFindFirst.mockResolvedValue(null);
     await send();
     expect(m.sendEmail.mock.calls[0][0]).not.toHaveProperty("cc");
+  });
+});
+
+describe("TOTAL A PAGAR del correo = total factura + propina cobrada", () => {
+  it("emitida al cobrar: la propina del snapshot; la venta es el total sin ella", async () => {
+    const doc = await m.docFindUnique();
+    m.docFindUnique.mockResolvedValueOnce({
+      ...doc,
+      simpleInvoice: {
+        ...doc.simpleInvoice,
+        snapshot: { ...doc.simpleInvoice.snapshot, tipCents: 1_200_000, totalCents: 13_200_000 },
+        totalCents: 13_200_000,
+        order: { ...doc.simpleInvoice.order, tipCents: 1_200_000 },
+      },
+    });
+    await send();
+    expect(m.renderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payable: { invoiceTotalCents: 12_000_000, tipCents: 1_200_000, totalToPayCents: 13_200_000 },
+      }),
+    );
+  });
+
+  it("emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden, no la del snapshot (0)", async () => {
+    const doc = await m.docFindUnique();
+    m.docFindUnique.mockResolvedValueOnce({
+      ...doc,
+      simpleInvoice: {
+        ...doc.simpleInvoice,
+        snapshot: { ...doc.simpleInvoice.snapshot, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
+        totalCents: 12_000_000,
+        order: { ...doc.simpleInvoice.order, tipCents: 1_200_000 },
+      },
+    });
+    await send();
+    expect(m.renderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payable: { invoiceTotalCents: 12_000_000, tipCents: 1_200_000, totalToPayCents: 13_200_000 },
+      }),
+    );
   });
 });

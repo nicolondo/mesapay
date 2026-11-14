@@ -140,6 +140,18 @@ export type InvoiceSnapshot = {
    */
   issuedBeforePayment?: boolean;
   /**
+   * Factura emitida ANTES de cobrar: la propina que el staff tenía elegida
+   * en el cobro al emitirla. Decide la «Propina sugerida (voluntaria)» que
+   * acompaña la factura mientras no se cobra (`print/invoiceDoc.
+   * pendingPaymentOf`):
+   *   · 0 ⇒ «Sin propina»: NINGUNA representación muestra propina sugerida;
+   *   · n > 0 ⇒ la sugerida es el n %;
+   *   · ausente (facturas anteriores, o emitidas desde la ficha de la mesa,
+   *     que no tiene selector) ⇒ el 10 % de siempre (`DEFAULT_TIP_PCT`).
+   * Nunca suma al TOTAL A PAGAR: ése lleva sólo la propina COBRADA.
+   */
+  suggestedTipPct?: number;
+  /**
    * Los `OrderItem` que cubre la factura emitida antes de cobrar. La cuenta
    * queda cerrada a cambios (ver `orders/invoicedOrder.ts`), y el XML de la
    * DIAN se arma SÓLO con estos ítems: si algo se colara después, no
@@ -153,6 +165,96 @@ export function isIssuedBeforePayment(
   snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment"> | null | undefined,
 ): boolean {
   return snapshot?.issuedBeforePayment === true;
+}
+
+/**
+ * Los tres renglones con los que cierra TODA representación de la factura
+ * (tirilla de la caja, `/factura/[id]` y su impresión, correos y datáfono):
+ *
+ *   Total factura        ← `invoiceTotalCents`: la VENTA, lo que declara
+ *                           el XML (`PayableAmount`). Nunca lleva propina.
+ *   Propina voluntaria   ← `tipCents`, sólo si hay.
+ *   TOTAL A PAGAR        ← `totalToPayCents` = factura + propina, el
+ *                           renglón destacado.
+ *
+ * El dueño: «el total a pagar, en negrita y en fuente más grande, [tiene
+ * que ser] el valor total con la propina» (la factura mostraba sólo la
+ * venta y el cliente había pagado más, con la propina).
+ *
+ * De dónde sale la propina:
+ *
+ *   · Factura emitida AL COBRAR: la del snapshot. Se emite cuando la cuenta
+ *     ya quedó saldada, y entonces `Order.tipCents` (= Σ propinas de los
+ *     pagos aprobados, `recomputeOrderTotalsInTx`) ya es la final; el
+ *     `totalCents` del snapshot es `Order.totalCents`, que la INCLUYE, así
+ *     que la venta es `totalCents − tipCents`.
+ *   · Factura emitida ANTES de cobrar (#577): el snapshot no tiene propina
+ *     (se decide al pagar) y `totalCents` es la venta sola. La propina es
+ *     la REAL de la orden (`order.tipCents`): la de los pagos aprobados
+ *     hasta ahora, que con la cuenta saldada es la que dejó el cliente. Sin
+ *     la orden (o sin pagos), 0: «Total a pagar» = «Total factura», y la
+ *     propina sugerida va aparte, sin sumarse (ver `pendingPaymentOf`).
+ *
+ * Pura y sin `Intl`: la comparten todas las superficies, cada una con su
+ * formato de moneda.
+ */
+export type InvoicePayable = {
+  invoiceTotalCents: number;
+  tipCents: number;
+  totalToPayCents: number;
+};
+
+export function invoicePayableOf(
+  snapshot: Pick<InvoiceSnapshot, "totalCents" | "tipCents" | "issuedBeforePayment">,
+  /** La orden HOY. Sólo se lee en la factura emitida antes de cobrar. */
+  order?: { tipCents?: number | null } | null,
+): InvoicePayable {
+  if (isIssuedBeforePayment(snapshot)) {
+    const invoiceTotalCents = Math.max(0, snapshot.totalCents);
+    const tipCents = Math.max(0, order?.tipCents ?? 0);
+    return { invoiceTotalCents, tipCents, totalToPayCents: invoiceTotalCents + tipCents };
+  }
+  const tipCents = Math.max(0, snapshot.tipCents ?? 0);
+  const invoiceTotalCents = Math.max(0, snapshot.totalCents - tipCents);
+  return { invoiceTotalCents, tipCents, totalToPayCents: invoiceTotalCents + tipCents };
+}
+
+/** Etiquetas ya traducidas de `payableRows`. */
+export type PayableRowLabels = {
+  invoiceTotal: string;
+  tip: string;
+  totalToPay: string;
+};
+
+/**
+ * Etiquetas de los renglones finales del catálogo `emailInvoice`. El
+ * comprobante (sin factura electrónica aceptada) dice «Total comprobante»
+ * en vez de «Total factura»: el rótulo del documento manda.
+ */
+export function payableLabelsFrom(
+  t: (key: string, values?: Record<string, string | number>) => string,
+  opts: { einvoice: boolean },
+): PayableRowLabels {
+  return {
+    invoiceTotal: opts.einvoice ? t("invoiceTotal") : t("receiptTotal"),
+    tip: t("tipVoluntary"),
+    totalToPay: t("totalToPay"),
+  };
+}
+
+/** Un renglón final. `strong` = el TOTAL A PAGAR (negrita, más grande). */
+export type PayableRow = { label: string; cents: number; strong?: true };
+
+/**
+ * Los renglones finales en orden: total de la factura, propina (sólo si
+ * hay) y TOTAL A PAGAR, el único `strong`. Ver `invoicePayableOf`.
+ */
+export function payableRows(payable: InvoicePayable, labels: PayableRowLabels): PayableRow[] {
+  return [
+    { label: labels.invoiceTotal, cents: payable.invoiceTotalCents },
+    ...(payable.tipCents > 0 ? [{ label: labels.tip, cents: payable.tipCents }] : []),
+    { label: labels.totalToPay, cents: payable.totalToPayCents, strong: true as const },
+  ];
 }
 
 /**
@@ -423,6 +525,12 @@ export async function renderInvoiceEmail(args: {
    */
   cufe?: string;
   dianQrUrl?: string;
+  /**
+   * La orden HOY, sólo para la factura emitida ANTES de cobrar: su propina
+   * REAL (para el TOTAL A PAGAR, ver `invoicePayableOf`) y si ya se saldó
+   * (si no, el resumen dice "Total a pagar" y no "Total pagado").
+   */
+  order?: { tipCents: number; paid: boolean } | null;
 }): Promise<{ subject: string; html: string; text: string }> {
   const { snapshot, invoiceNumber, invoiceUrl, cufe, dianQrUrl } = args;
   const { t, locale } = await getEmailTranslator(args.locale, "emailInvoice");
@@ -453,6 +561,12 @@ export async function renderInvoiceEmail(args: {
   const dianDateStr = dianDate
     ? dianDate.toLocaleDateString(tag)
     : null;
+  // Total comprobante, propina voluntaria y TOTAL A PAGAR (factura +
+  // propina cobrada). Este correo es el COMPROBANTE: con facturación
+  // electrónica no sale (ver `invoiceDelivery.ts`).
+  const payable = invoicePayableOf(snapshot, args.order);
+  const finalRows = payableRows(payable, payableLabelsFrom(t, { einvoice: false }));
+  const unpaid = isIssuedBeforePayment(snapshot) && args.order?.paid !== true;
 
   // Texto plano fallback — clientes sin HTML support, screen readers.
   const text = [
@@ -478,10 +592,7 @@ export async function renderInvoiceEmail(args: {
     ...summaryRows(snapshot, summaryLabelsFrom(t)).map(
       (r) => `${r.label}: ${r.negative ? "-" : ""}${fmtCOP(r.cents)}`,
     ),
-    snapshot.tipCents > 0
-      ? `${t("tip")}: ${fmtCOP(snapshot.tipCents)}`
-      : "",
-    `${t("total")}: ${fmtCOP(snapshot.totalCents)}`,
+    ...finalRows.map((r) => `${r.label}: ${fmtCOP(r.cents)}`),
     "",
     snapshot.dianResolution
       ? t("dianResolution", { res: snapshot.dianResolution })
@@ -513,6 +624,11 @@ export async function renderInvoiceEmail(args: {
     t,
     locale,
     snapshot,
+    finalRows,
+    summary: {
+      label: unpaid ? t("totalToPay") : t("totalPaid"),
+      cents: payable.totalToPayCents,
+    },
     numberStr,
     merchantName,
     brandName,
@@ -530,6 +646,10 @@ function renderHtml(args: {
   t: Translator;
   locale: string;
   snapshot: InvoiceSnapshot;
+  /** Total comprobante, propina voluntaria y TOTAL A PAGAR (`payableRows`). */
+  finalRows: PayableRow[];
+  /** El monto grande del resumen de arriba: el TOTAL A PAGAR. */
+  summary: { label: string; cents: number };
   numberStr: string;
   merchantName: string;
   brandName: string;
@@ -539,7 +659,7 @@ function renderHtml(args: {
   cufe?: string;
   dianQrUrl?: string;
 }): string {
-  const { t, locale, snapshot, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl } = args;
+  const { t, locale, snapshot, finalRows, summary, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl } = args;
 
   // Items como filas de tabla — más resistente que divs en Outlook. Los
   // repetidos AGRUPADOS ("2× Bretaña"), con los modificadores y la nota
@@ -656,8 +776,8 @@ function renderHtml(args: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5DED1;border-bottom:1px solid #E5DED1;">
               <tr>
                 <td valign="top" style="padding:18px 0;">
-                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">${escapeHtml(t("totalPaid"))}</div>
-                  <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:36px;color:#1A1613;line-height:1;white-space:nowrap;">${fmtCOP(snapshot.totalCents)}</div>
+                  <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 6px 0;">${escapeHtml(summary.label)}</div>
+                  <div style="font-family:'Instrument Serif','Times New Roman',Georgia,serif;font-size:36px;color:#1A1613;line-height:1;white-space:nowrap;">${fmtCOP(summary.cents)}</div>
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;margin-top:8px;white-space:nowrap;">${escapeHtml(fechaStr)}</div>
                 </td>
                 <td valign="top" align="right" style="padding:18px 0;">
@@ -752,15 +872,14 @@ function renderHtml(args: {
                           `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${r.negative ? "-" : ""}${fmtCOP(r.cents)}</td></tr>`,
                       )
                       .join("")}
-                    ${
-                      snapshot.tipCents > 0
-                        ? `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(t("tip"))}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(snapshot.tipCents)}</td></tr>`
-                        : ""
-                    }
-                    <tr>
-                      <td style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${escapeHtml(t("total"))}</td>
-                      <td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${fmtCOP(snapshot.totalCents)}</td>
-                    </tr>
+                    ${finalRows
+                      .map((r) =>
+                        r.strong
+                          ? // El TOTAL A PAGAR: negrita y más grande que el resto.
+                            `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:16px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:16px;font-weight:700;color:#000;padding:8px 0 2px 0;border-top:1px solid #000;white-space:nowrap;">${fmtCOP(r.cents)}</td></tr>`
+                          : `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${escapeHtml(r.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;">${fmtCOP(r.cents)}</td></tr>`,
+                      )
+                      .join("")}
                   </table>
                   ${dianFiscalBlock}
 

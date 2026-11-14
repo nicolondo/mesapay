@@ -63,6 +63,10 @@ const ONLINE_GATEWAY: Record<PaymentMethod, boolean> = {
   kushki_apple_pay: true,
   kushki_google_pay: true,
   kushki_pse: true,
+  // Bre-B: el comensal escanea el QR (o copia el código) y paga desde la app
+  // de su banco. Si el QR lo abrió alguien del equipo en SU dispositivo,
+  // queda con `collectedByUserId` como el resto.
+  kushki_bre_b: true,
   // Rieles de Wompi (históricos): misma naturaleza.
   wompi_card: true,
   wompi_pse: true,
@@ -147,6 +151,12 @@ const PENDING_NATURE: Record<PaymentMethod, PendingNature> = {
   // PSE: el comensal está en la web de su banco; el resultado llega por
   // webhook. Plata en vuelo.
   kushki_pse: "in_flight",
+  // Bre-B: mientras el QR está vivo, alguien puede estar pagándolo desde la
+  // app de su banco. Plata en vuelo: NUNCA se reemplaza. Se libera sólo
+  // cuando Kushki confirma que el QR se canceló, venció o se rechazó (ver
+  // src/lib/payments/breB/service.ts); «Cancelar» y «Consultar estado» del
+  // staff pasan por ahí, no por `cancel-request`.
+  kushki_bre_b: "in_flight",
   // Rieles de Wompi (históricos): pasarela externa, mismo criterio.
   wompi_card: "in_flight",
   wompi_pse: "in_flight",

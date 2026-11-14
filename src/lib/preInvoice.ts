@@ -20,9 +20,10 @@
  *      (`dian/emit.invoicePaymentMeans`). El papel sale cuando la DIAN la
  *      acepta: en esta misma llamada si responde rápido; si no, solo, en
  *      cuanto la acepte (barrido o consulta diferida).
- *   4. El papel: "Pendiente de pago" en vez de la forma de pago, y la
- *      propina sugerida con el TOTAL CON PROPINA de la precuenta
- *      (`print/invoiceDoc.pendingPaymentOf`) — esta hoja la reemplaza.
+ *   4. El papel: "Pendiente de pago" en vez de la forma de pago, el TOTAL
+ *      A PAGAR (= la factura mientras no se cobre) y, aparte y sin sumar,
+ *      la propina sugerida (`print/invoiceDoc.pendingPaymentOf`) — salvo
+ *      que en el cobro se haya elegido «Sin propina» (`suggestedTipPct` 0).
  *
  * Después se cobra con lo que sea (efectivo, datáfono, link, dividida por
  * persona, a crédito): cada riel del cobro termina en `issueInvoiceOnPaid`,
@@ -227,6 +228,11 @@ export async function preIssueInvoice(args: {
   restaurantId: string;
   orderId: string;
   now?: Date;
+  /**
+   * La propina elegida en el cobro al emitir (0 = «Sin propina»: la hoja
+   * no sugiere ninguna). Ausente (la ficha de la mesa) = la de siempre.
+   */
+  suggestedTipPct?: number | null;
 }): Promise<PreInvoiceResult> {
   const order = await db.order.findUnique({
     where: { id: args.orderId },
@@ -288,6 +294,7 @@ export async function preIssueInvoice(args: {
     orderId: order.id,
     email,
     beforePayment: true,
+    suggestedTipPct: args.suggestedTipPct ?? null,
     customer: request
       ? {
           name: request.customerName,

@@ -53,6 +53,8 @@ export type AuditKind =
   | "order.manual_invoice.pay_link.create"
   | "order.manual_invoice.pay_link.email"
   | "order.prebill.print"
+  // Tirilla del cierre de turno (por la impresora de caja o en el equipo)
+  | "shift.close.print"
   | "order_item.cancel"
   | "order_item.comp"
   | "order_item.move"
@@ -88,6 +90,10 @@ export type AuditKind =
   | "restaurant.delete_blocker.payment_links_cancelled"
   | "cash.movement"
   | "cash.shift_base.update"
+  // Contabilidad › Impuestos › Retenciones: conceptos del comercio
+  | "retention_concept.create"
+  | "retention_concept.update"
+  | "retention_concept.delete"
   | "group.legal_entity.create"
   | "group.legal_entity.update"
   | "group.legal_entity.delete"
@@ -144,6 +150,7 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "order.manual_invoice.pay_link.create": "Creó link de pago de factura manual",
   "order.manual_invoice.pay_link.email": "Envió link de pago de factura manual por correo",
   "order.prebill.print": "Imprimió precuenta",
+  "shift.close.print": "Imprimió el cierre de turno",
   "order_item.cancel": "Canceló plato",
   "order_item.comp": "No cobró plato",
   "order_item.move": "Movió plato de mesa",
@@ -168,6 +175,9 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "restaurant.delete_blocker.payment_links_cancelled": "Anuló links de pago para eliminar un comercio",
   "cash.movement": "Movimiento de caja",
   "cash.shift_base.update": "Editó base de turno",
+  "retention_concept.create": "Creó un concepto de retención",
+  "retention_concept.update": "Editó un concepto de retención",
+  "retention_concept.delete": "Borró un concepto de retención",
   "group.legal_entity.create": "Creó razón social",
   "group.legal_entity.update": "Editó razón social",
   "group.legal_entity.delete": "Borró razón social",

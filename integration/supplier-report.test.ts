@@ -108,9 +108,24 @@ beforeAll(async () => {
   });
 
   await purchase({ restaurantId: b.id, supplierId: ids.other, ingredientId: ingB, status: "received", createdAt: "2026-04-01", receivedAt: "2026-04-02", netCents: 9_000_000, receivedNetCents: 9_000_000, receptions: [{ date: "2026-04-02", valueCents: 9_000_000 }] });
+
+  // Notas crédito: sólo las de acuerdo comercial VIGENTES del período suman
+  // en «Recibido por acuerdos comerciales» (por su valor total).
+  const note = (restaurantId: string, supplierId: string, number: string, date: string, kind: string, totalCents: number, extra: { ivaCents?: number; status?: string } = {}) =>
+    db.supplierCreditNote.create({
+      data: { restaurantId, supplierId, number, date: at(date), kind, totalCents, ivaCents: extra.ivaCents ?? 0, status: extra.status ?? "active" },
+    });
+  await note(a.id, ids.s1, "AC-1", "2026-04-10", "agreement", 150_000);
+  await note(a.id, ids.s1, "AC-2", "2026-06-10", "agreement", 119_000, { ivaCents: 19_000 });
+  await note(a.id, ids.s1, "AC-ANULADA", "2026-07-10", "agreement", 500_000, { status: "voided" });
+  await note(a.id, ids.s1, "AC-ANTES", "2025-10-20", "agreement", 700_000);
+  await note(a.id, ids.s1, "DESC-1", "2026-05-10", "discount", 80_000);
+  await note(a.id, ids.s2, "AC-S2", "2026-08-01", "agreement", 50_000);
+  await note(b.id, ids.other, "AC-B", "2026-04-15", "agreement", 3_000_000);
 });
 
 afterAll(async () => {
+  await db.supplierCreditNote.deleteMany({ where: { restaurantId: { in: tenantIds } } });
   await db.stockMovement.deleteMany({ where: { restaurantId: { in: tenantIds } } });
   await db.purchaseOrder.deleteMany({ where: { restaurantId: { in: tenantIds } } });
   await db.expense.deleteMany({ where: { restaurantId: { in: tenantIds } } });
@@ -159,6 +174,20 @@ describe("informe de proveedores contra la base", () => {
     const expected = docs.filter((d) => d.partnerId === ids.s1).reduce((s, d) => s + d.outstandingCents, 0);
     expect(expected).toBe(1_190_000 + 5_000_000 + 200_000);
     expect((await byId(ids.a)).get(ids.s1)?.payableCents).toBe(expected);
+  });
+
+  it("recibido por acuerdos comerciales: notas vigentes del período por su valor total; ni anuladas, ni de antes, ni otros tipos", async () => {
+    const rows = await byId(ids.a);
+    // 150.000 + 119.000 (con su IVA); la anulada, la de antes del período y el descuento no.
+    expect(rows.get(ids.s1)).toMatchObject({ agreementCents: 269_000, totalCents: 1_390_000, invoices: 2 });
+    // Proveedor sin compras que dio un acuerdo: lo recibido sale aunque no haya compras.
+    expect(rows.get(ids.s2)).toMatchObject({ agreementCents: 50_000, totalCents: 0, invoices: 0 });
+    expect(rows.get(ids.s3)).toMatchObject({ agreementCents: 0 });
+    // Un rango que deja por fuera junio: sólo la de abril.
+    const spring = await byId(ids.a, { periodo: "rango", desde: "2026-03", hasta: "2026-05" });
+    expect(spring.get(ids.s1)?.agreementCents).toBe(150_000);
+    // Otro comercio: sólo lo suyo.
+    expect((await byId(ids.b)).get(ids.other)?.agreementCents).toBe(3_000_000);
   });
 
   it("aislamiento por comercio: nada del proveedor homónimo de otro comercio", async () => {

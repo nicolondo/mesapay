@@ -3636,7 +3636,7 @@ function ReceiveSheet({
               className="mt-0.5 h-5 w-5 shrink-0"
             />
             <span>
-              {tCredit("receiveApplyCredit", { amount: formatMoney(supplierCredit, { currency, locale }) })}
+              {tCredit("receiveApplyCredit", { amount: formatMoney(supplierCredit, { currency, locale, fractionDigits: "auto" }) })}
               <span className="block text-[11px] text-op-muted">{tCredit("receiveApplyCreditHint")}</span>
             </span>
           </label>

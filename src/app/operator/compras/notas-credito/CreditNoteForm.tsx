@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
+import { parseDecimalInput, sanitizeDecimalInput } from "@/lib/decimalInput";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { purchaseTaxRates } from "@/lib/erp/purchaseTax";
 import { displayUnitFor, toBaseQty, type MeasureKind } from "@/lib/erp/units";
@@ -123,7 +124,7 @@ export function CreditNoteForm({
 }) {
   const t = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const pre = reading?.prefill ?? null;
 
   const [supplierId, setSupplierId] = useState<string | null>(pre?.supplierId ?? null);
@@ -214,7 +215,7 @@ export function CreditNoteForm({
       const l = returnLines[it.id];
       if (!l) return null;
       const unit = displayUnitFor(it.receivedQtyBase, it.ingredient.measureKind);
-      const qtyBase = toBaseQty(Number(l.qty.replace(",", ".")), it.ingredient.measureKind, unit.symbol);
+      const qtyBase = toBaseQty(parseDecimalInput(l.qty), it.ingredient.measureKind, unit.symbol);
       const valueCents = majorToCents(l.value);
       return { itemId: it.id, ingredientId: it.ingredient.id, qtyBase, valueCents };
     })
@@ -249,12 +250,12 @@ export function CreditNoteForm({
   }
 
   function setReturnQty(itemId: string, qty: string, unitCost: number, displayFactor: number) {
-    const n = Number(qty.replace(",", "."));
+    const n = parseDecimalInput(qty);
     const suggested = Number.isFinite(n) && n > 0 ? Math.round(n * displayFactor * unitCost) : 0;
     setReturnLines((prev) => {
       const cur = prev[itemId];
       // El valor se sugiere al costo de la compra mientras el operador no lo cambie.
-      const touched = cur && cur.value !== "" && majorToCents(cur.value) !== Math.round((Number(cur.qty.replace(",", ".")) || 0) * displayFactor * unitCost);
+      const touched = cur && cur.value !== "" && majorToCents(cur.value) !== Math.round((parseDecimalInput(cur.qty) || 0) * displayFactor * unitCost);
       if (!qty.trim()) {
         const next = { ...prev };
         delete next[itemId];
@@ -566,7 +567,7 @@ export function CreditNoteForm({
                           <input
                             inputMode="decimal"
                             value={l?.qty ?? ""}
-                            onChange={(e) => setReturnQty(it.id, e.target.value, unitCost, unit.factor)}
+                            onChange={(e) => setReturnQty(it.id, sanitizeDecimalInput(e.target.value), unitCost, unit.factor)}
                             className="w-full min-h-[40px] px-2 rounded-lg border border-op-border bg-op-bg text-sm text-right"
                             placeholder="0"
                           />

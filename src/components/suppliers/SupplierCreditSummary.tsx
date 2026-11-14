@@ -33,7 +33,7 @@ export function SupplierCreditSummary({ supplierId, currency }: { supplierId: st
     };
   }, [supplierId]);
   if (!list || list.total === 0) return null;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   return (
     <section className="mb-4" aria-label={t("supplierSectionTitle")}>
       <div className="flex items-center justify-between mb-2">

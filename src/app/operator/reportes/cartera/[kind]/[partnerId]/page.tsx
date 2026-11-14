@@ -208,7 +208,9 @@ export default async function CarteraExtractoPage({
         <div className="min-w-0 rounded-2xl border border-op-border bg-op-surface px-4 py-3 flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-wider text-op-muted">{tCredit("balanceLabel")}</div>
-            <div className="mt-0.5 text-lg font-semibold tabular-nums">{money(credit.availableCents)}</div>
+            <div className="mt-0.5 text-lg font-semibold tabular-nums">
+              {formatMoney(credit.availableCents, { currency: gate.currency, locale: loc, fractionDigits: "auto" })}
+            </div>
             <div className="text-xs text-op-muted">{tCredit("balanceHintCartera", { n: credit.notes })}</div>
           </div>
           <Link

@@ -54,12 +54,13 @@ export function supplierExportHeaders(t: Tr): string[] {
     t("colInvoices"),
     t("colLastPurchase"),
     t("colPayable"),
+    t("colAgreements"),
     t("colStatus"),
   ];
 }
 
 /** Índices (0-based) de las columnas de plata, de enteros y de fecha. */
-const MONEY_COLS = new Set([6, 7, 10]);
+const MONEY_COLS = new Set([6, 7, 10, 11]);
 const INT_COLS = new Set([5, 8]);
 const DATE_COL = 9;
 
@@ -79,6 +80,7 @@ function rowCells(r: SupplierReportRow, t: Tr): Cell[] {
     r.invoices,
     r.lastPurchase ? new Date(`${r.lastPurchase}T00:00:00Z`) : null,
     r.payableCents,
+    r.agreementCents,
     r.active ? t("active") : t("inactive"),
   ];
 }
@@ -96,6 +98,7 @@ function totalCells(totals: SupplierReportTotals, t: Tr): Cell[] {
     totals.invoices,
     null,
     totals.payableCents,
+    totals.agreementCents,
     null,
   ];
 }
@@ -235,6 +238,7 @@ export async function supplierReportXlsx(
     }),
     query.basis === "total" ? t("definitionTotal") : t("definitionCost"),
     query.includeExpenses ? t("definitionAll") : t("definitionPurchases"),
+    t("definitionAgreements"),
     ...(query.period.includesCurrentMonth ? [t("currentMonthWarning")] : []),
     t("note"),
   ];

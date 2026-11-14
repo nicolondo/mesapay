@@ -25,7 +25,7 @@ export async function SupplierCreditBanner({
   return (
     <div role="status" className="mb-4 rounded-2xl border border-[#2F6B4F]/30 bg-[#2F6B4F]/8 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{t("unpaidBannerTitle", { amount: formatMoney(totalCents, { currency, locale }) })}</div>
+        <div className="text-sm font-medium">{t("unpaidBannerTitle", { amount: formatMoney(totalCents, { currency, locale, fractionDigits: "auto" }) })}</div>
         <div className="text-[12px] text-op-muted">{t("unpaidBannerBody", { n: suppliers })}</div>
       </div>
       <Link href={creditNoteListHref({ supplier: supplierId ?? "", status: "with_balance" })} className="mp-btn mp-btn--secondary mp-btn--sm">

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { grantGuestAccess } from "@/lib/guestAccess";
 import { redirectTo } from "@/lib/http/redirect";
 import { manualInvoicePayLinkStatusPath, payLinkState } from "@/lib/manualInvoicePayLink";
+import { refreshReceivablePayLink } from "@/lib/manualInvoiceReceivable";
+import { paymentLinkPath } from "@/lib/paymentLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +20,19 @@ export const dynamic = "force-dynamic";
  * esa pantalla para que vea el comprobante. Anulada o vencido el link, a la
  * página de estado, que lo dice sin cobrar.
  *
+ * Factura EMITIDA POR COBRAR (`creditPaymentId`): la cuenta ya está
+ * cerrada; el mismo link lleva a la página de monto fijo
+ * (/r/[slug]/pago/[token]), que cobra el saldo del cargo o dice que ya se
+ * pagó. Anulada (nota crédito) o vencida, a la página de estado.
+ *
  * El id de la orden jamás viaja en la URL y un token ajeno (de otro
  * comercio, de un link de bonos, de una mesa real) no abre nada: todo lo
  * que no sea un link de factura manual de ESTE comercio termina en la
  * página de estado, que devuelve 404.
+ *
+ * `?l=1` en el checkout: le dice a la página que llegó por el link, para
+ * marcar "abierto" desde el navegador (no acá: este redirect también lo
+ * recorren los antivirus de los correos).
  */
 async function GETHandler(_req: Request, { params }: { params: Promise<{ slug: string; token: string }> }) {
   const { slug, token } = await params;
@@ -29,9 +40,13 @@ async function GETHandler(_req: Request, { params }: { params: Promise<{ slug: s
   const link = await db.paymentLink.findUnique({
     where: { token },
     select: {
+      id: true,
+      restaurantId: true,
       kind: true,
       status: true,
       expiresAt: true,
+      amountCents: true,
+      creditPaymentId: true,
       restaurant: { select: { id: true, slug: true } },
       order: { select: { id: true, status: true, table: { select: { kind: true } } } },
     },
@@ -39,13 +54,18 @@ async function GETHandler(_req: Request, { params }: { params: Promise<{ slug: s
   if (!link || link.kind !== "order" || !link.order || link.restaurant.slug !== slug || link.order.table.kind !== "manual") {
     return redirectTo(statusPath);
   }
+  if (link.creditPaymentId) {
+    const { state } = await refreshReceivablePayLink(link);
+    if (state === "cancelled" || state === "expired") return redirectTo(statusPath);
+    return redirectTo(paymentLinkPath(encodeURIComponent(slug), encodeURIComponent(token)));
+  }
   const state = payLinkState(link, link.order);
   if (state === "cancelled" || state === "expired") return redirectTo(statusPath);
 
   // Alcance mínimo: esta orden y nada más. 12 h, como el QR de una mesa.
   await grantGuestAccess({ restaurantId: link.restaurant.id, orderId: link.order.id });
   const payPath = `/t/${encodeURIComponent(slug)}/pay/${encodeURIComponent(link.order.id)}`;
-  return redirectTo(state === "paid" ? `${payPath}/done` : payPath);
+  return redirectTo(state === "paid" ? `${payPath}/done` : `${payPath}?l=1`);
 }
 
 export const GET = secureApi(GETHandler);

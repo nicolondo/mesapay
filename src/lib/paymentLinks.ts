@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { PaymentLinkKind, PaymentMethod, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { ENGINE } from "@/lib/erp/engineCodes";
 
 /**
  * Links de pago: cobro online de un monto fijo por URL pública
@@ -14,13 +15,16 @@ import { db } from "@/lib/db";
  *   voucher_batch     → el lote de bonos pasa a `paid` (los bonos se
  *                       vuelven redimibles en prepago).
  *   voucher_statement → el corte de bonos a crédito queda pagado (PR B).
- *   order             → NO es un cobro de monto fijo: es la puerta de
- *                       entrada al checkout del comensal de una factura
- *                       manual (src/lib/manualInvoicePayLink.ts). Nunca se
- *                       cobra ni se liquida por acá — `paymentLinkIsOpen`
- *                       lo rechaza para que la página y las rutas de bonos
- *                       no cobren su `amountCents` (que es sólo el saldo
- *                       informativo al crearlo).
+ *   order             → con la cuenta ABIERTA no es un cobro de monto
+ *                       fijo: es la puerta de entrada al checkout del
+ *                       comensal de una factura manual
+ *                       (src/lib/manualInvoicePayLink.ts) y
+ *                       `paymentLinkIsOpen` lo rechaza acá (su
+ *                       `amountCents` es sólo el saldo informativo).
+ *                       Con la factura EMITIDA POR COBRAR
+ *                       (`creditPaymentId`) sí: cobra el saldo del cargo a
+ *                       crédito y, pagado, deja un abono dirigido a ese
+ *                       cargo (src/lib/manualInvoiceReceivable.ts).
  *
  * Idempotente: un link pagado no se vuelve a liquidar (el webhook y la
  * página de retorno pueden llegar los dos).
@@ -142,8 +146,44 @@ export async function settlePaymentLinkInTx(
 
 async function applyPaidEffect(
   tx: Prisma.TransactionClient,
-  link: { kind: PaymentLinkKind; voucherBatchId: string | null; voucherStatementId: string | null },
+  link: {
+    id: string;
+    restaurantId: string;
+    kind: PaymentLinkKind;
+    amountCents: number;
+    voucherBatchId: string | null;
+    voucherStatementId: string | null;
+    creditPaymentId?: string | null;
+  },
 ): Promise<void> {
+  // Factura manual emitida por cobrar: entró la plata del cargo a crédito.
+  // Abono DIRIGIDO a ese cargo, a la pasarela (D 112005 · C 130505 en
+  // "Abonos de clientes"). No es un pago de la orden: la venta y su
+  // impuesto ya se asentaron al emitirla, y no se emite otra factura.
+  if (link.kind === "order" && link.creditPaymentId) {
+    const charge = await tx.payment.findUnique({
+      where: { id: link.creditPaymentId },
+      select: { billingCustomerId: true },
+    });
+    if (!charge?.billingCustomerId) {
+      // El cliente se borró después de emitir: la plata entró igual; queda
+      // a la vista para conciliarla a mano.
+      console.error("[pay-link] link por cobrar pagado sin cliente al que abonar", { linkId: link.id });
+      return;
+    }
+    await tx.customerCreditPayment.create({
+      data: {
+        restaurantId: link.restaurantId,
+        billingCustomerId: charge.billingCustomerId,
+        amountCents: link.amountCents,
+        paidAt: new Date(),
+        accountCode: ENGINE.PASARELA,
+        creditChargeId: link.creditPaymentId,
+        paymentLinkId: link.id,
+      },
+    });
+    return;
+  }
   if (link.kind === "voucher_batch" && link.voucherBatchId) {
     await tx.voucherBatch.updateMany({
       where: { id: link.voucherBatchId, status: "issued" },
@@ -199,11 +239,13 @@ export function paymentLinkIsOpen(link: {
   status: string;
   expiresAt: Date | null;
   kind?: string;
+  creditPaymentId?: string | null;
 }): boolean {
-  // El link de una factura manual entra por /r/[slug]/cuenta/[token] y se
-  // cobra en el checkout de la orden; para la página y las rutas de monto
-  // fijo (bonos) está siempre cerrado, aunque su fila diga `pending`.
-  if (link.kind === "order") return false;
+  // El link de una factura manual ABIERTA entra por /r/[slug]/cuenta/[token]
+  // y se cobra en el checkout de la orden; para la página y las rutas de
+  // monto fijo está cerrado, aunque su fila diga `pending`. Emitida por
+  // cobrar (`creditPaymentId`), sí se cobra acá.
+  if (link.kind === "order" && !link.creditPaymentId) return false;
   if (link.status !== "pending") return false;
   if (link.expiresAt && link.expiresAt.getTime() < Date.now()) return false;
   return true;

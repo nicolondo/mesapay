@@ -101,7 +101,7 @@ export default async function MenuPage({
   const isManualInvoice = table?.kind === "manual";
   const postSendHref =
     isManualInvoice && session?.user?.role !== "mesero"
-      ? `/operator/tables?open=${table?.id}`
+      ? `/operator/facturas-manuales?open=${table?.id}`
       : staffHomeHref;
 
   if (table && !await canAccessTable(tenant.id, table.id)) {

@@ -20,10 +20,11 @@ const charge = (id: string, date: string, amountCents: number, over: Partial<Cre
   refundedCents: 0,
   ...over,
 });
-const abono = (id: string, date: string, amountCents: number): CreditAbono => ({
+const abono = (id: string, date: string, amountCents: number, chargeId?: string): CreditAbono => ({
   id,
   date: new Date(date),
   amountCents,
+  ...(chargeId ? { chargeId } : {}),
 });
 
 describe("customerDebt", () => {
@@ -133,5 +134,41 @@ describe("canChargeOnCredit", () => {
         amountCents: 1,
       }),
     ).toEqual({ ok: false, error: "credit_limit_exceeded", availableCents: 0 });
+  });
+});
+
+describe("allocateFifo — abonos dirigidos (link de pago de una factura manual)", () => {
+  it("el abono dirigido salda SU cargo aunque haya otros más viejos", () => {
+    const r = allocateFifo(
+      [charge("viejo", "2026-09-01", 100_000), charge("factura", "2026-09-10", 50_000)],
+      [abono("link", "2026-09-11", 50_000, "factura")],
+    );
+    expect(r.charges).toEqual([
+      { chargeId: "viejo", totalCents: 100_000, paidCents: 0, outstandingCents: 100_000 },
+      { chargeId: "factura", totalCents: 50_000, paidCents: 50_000, outstandingCents: 0 },
+    ]);
+    expect(r.allocations).toEqual([{ paymentId: "link", chargeId: "factura", cents: 50_000 }]);
+  });
+
+  it("lo que sobra del dirigido sigue FIFO; los generales van después al más viejo con saldo", () => {
+    const r = allocateFifo(
+      [charge("viejo", "2026-09-01", 100_000), charge("factura", "2026-09-10", 50_000)],
+      [abono("general", "2026-09-05", 30_000), abono("link", "2026-09-11", 60_000, "factura")],
+    );
+    expect(r.charges.map((c) => [c.chargeId, c.outstandingCents])).toEqual([
+      ["viejo", 60_000],
+      ["factura", 0],
+    ]);
+    expect(r.allocations).toEqual([
+      { paymentId: "link", chargeId: "factura", cents: 50_000 },
+      { paymentId: "general", chargeId: "viejo", cents: 30_000 },
+      { paymentId: "link", chargeId: "viejo", cents: 10_000 },
+    ]);
+    expect(r.unappliedCents).toBe(0);
+  });
+
+  it("dirigido a un cargo que no está (de otro cliente, o anulado) se aplica FIFO", () => {
+    const r = allocateFifo([charge("c1", "2026-09-01", 10_000)], [abono("a", "2026-09-02", 4_000, "otro")]);
+    expect(r.charges[0].outstandingCents).toBe(6_000);
   });
 });

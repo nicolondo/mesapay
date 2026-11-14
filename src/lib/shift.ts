@@ -12,6 +12,7 @@
 
 import type { Payment, PaymentMethod } from "@prisma/client";
 import { db } from "@/lib/db";
+import { NOT_MANUAL_INVOICE } from "@/lib/manualInvoice";
 import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
 import { shiftCashToNumbers, type CashShift } from "@/lib/shiftCash";
 import { isCashMethod, reportingPaymentMethod } from "@/lib/payments/methods";
@@ -199,6 +200,9 @@ export async function listOpenOrders(restaurantId: string, since: Date) {
     where: {
       restaurantId,
       status: { notIn: ["paid", "cancelled"] },
+      // Una factura manual no es una cuenta del salón: no frena el cierre
+      // (vive en Facturas manuales, puede seguir abierta días).
+      ...NOT_MANUAL_INVOICE,
       // Las del turno… y toda cuenta FACTURADA sin cobrar, aunque venga de
       // un turno anterior: una factura emitida que nadie cobró (el cliente
       // se fue) no puede quedar olvidada en una mesa. Se cobra o se anula

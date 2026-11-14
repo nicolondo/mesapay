@@ -53,6 +53,7 @@ export async function ReportShell({
   children,
   note,
   backHref = "/operator/reportes",
+  backLabel,
 }: {
   title: string;
   description?: string;
@@ -64,6 +65,8 @@ export async function ReportShell({
   children?: ReactNode;
   note?: ReactNode;
   backHref?: string;
+  /** Rótulo del enlace de volver (por defecto «Volver a reportes»). */
+  backLabel?: string;
 }) {
   const t = await getTranslations("opReportes");
   const footer = print
@@ -134,7 +137,7 @@ export async function ReportShell({
           href={backHref}
           className="inline-flex max-w-full items-center gap-1 text-sm text-op-muted hover:text-op-text mb-2 break-words"
         >
-          ← {t("backToReports")}
+          ← {backLabel ?? t("backToReports")}
         </Link>
         <div className="font-display text-2xl sm:text-3xl break-words">{title}</div>
         {description && <p className="text-sm text-op-muted mt-1 break-words">{description}</p>}

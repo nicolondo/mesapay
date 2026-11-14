@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { secureApi } from "@/lib/secureApi";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { billingCustomerSchema, BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 async function PATCHHandler(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const scope = await requireOperatorScope(BILLING_CUSTOMER_WRITE_ROLES);
@@ -13,7 +14,18 @@ async function PATCHHandler(req: Request, { params }: { params: Promise<{ id: st
   if (!parsed.success) return NextResponse.json({ error: "invalid", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
   try {
     // Scope is part of the atomic write, so a foreign id cannot be updated.
-    const customer = await db.billingCustomer.update({ where: { id, restaurantId: scope.restaurantId }, data: parsed.data });
+    // Editado por el personal: deja de ser "de autoservicio" y desde ahí
+    // sólo el personal lo cambia (ver src/lib/invoiceCustomerMemory.ts).
+    const customer = await db.billingCustomer.update({
+      where: { id, restaurantId: scope.restaurantId },
+      data: { ...parsed.data, selfService: false },
+    });
+    await recordAuditEvent({
+      kind: "billing_customer.update",
+      restaurantId: scope.restaurantId,
+      target: { type: "billing_customer", id },
+      diff: { after: { source: "customers" } },
+    });
     return NextResponse.json({ customer });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {

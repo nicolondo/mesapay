@@ -52,7 +52,7 @@ beforeEach(() => {
   });
 });
 
-async function render(searchParams: { print?: string; w?: string } = {}) {
+async function render(searchParams: { print?: string; w?: string; imprimir?: string } = {}) {
   const page = await FacturaPage({ params: Promise.resolve({ id: "inv-1" }), searchParams: Promise.resolve(searchParams) });
   return renderToStaticMarkup(page);
 }
@@ -186,8 +186,14 @@ describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
     const html = await render({ w: "58" });
     expect(html).toContain('data-print-width-mm="58"');
     expect(html).toContain("width:58mm");
-    // El botón sabe a qué ancho está dibujada la página (para imprimirse ella).
-    expect(mocks.printButtonProps).toMatchObject({ paperMm: 58 });
+    // Sin `imprimir=dispositivo`, el botón muestra el selector de siempre.
+    expect(mocks.printButtonProps).toMatchObject({ deviceView: false });
+  });
+
+  it("?w=55&imprimir=dispositivo (desde otra pantalla): la vista llega lista para «Este dispositivo»", async () => {
+    const html = await render({ w: "55", imprimir: "dispositivo" });
+    expect(html).toContain('data-print-width-mm="55"');
+    expect(mocks.printButtonProps).toMatchObject({ deviceView: true });
   });
 
   it("un ?w= fuera de 40–120 mm (o que no es un número) se ignora: el papel del comercio", async () => {

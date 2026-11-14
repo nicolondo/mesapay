@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { findMunicipioByCode } from "@/lib/dane/municipios";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
+import { normalizeExtraEmails } from "@/lib/invoiceEmails";
 
 /** Billing identities are restaurant-owned contacts, never login accounts. */
 export const BILLING_CUSTOMER_WRITE_ROLES = ["operator", "platform_admin", "group_admin"] as const;
@@ -28,6 +29,9 @@ export const billingCustomerSchema = z.object({
   docNumber: z.string().trim().min(4).max(40),
   verificationDigit: z.string().trim().regex(/^\d?$/).nullable().optional(),
   email: z.string().trim().email().max(160).transform((v) => v.toLowerCase()),
+  // Correos adicionales de la factura (ver src/lib/invoiceEmails.ts).
+  // Ausente = no se tocan (formularios viejos); [] = se borran.
+  ccEmails: z.array(z.string().max(160)).max(20).optional(),
   phone: z.string().trim().max(40).nullable().optional(),
   address: optionalText(4, 240, "invalid_address"),
   municipalityCode: optionalText(5, 5, "invalid_municipality").refine(
@@ -63,12 +67,18 @@ export const billingCustomerSchema = z.object({
     ctx.addIssue({ code: "custom", path: [path], message: document.error });
     return z.NEVER;
   }
+  const extras = input.ccEmails === undefined ? null : normalizeExtraEmails(input.email, input.ccEmails);
+  if (extras && !extras.ok) {
+    ctx.addIssue({ code: "custom", path: ["ccEmails", ...(extras.index !== undefined ? [extras.index] : [])], message: extras.error });
+    return z.NEVER;
+  }
   return {
     customerName: input.customerName,
     docType: input.docType,
     docNumber: document.docNumber,
     verificationDigit: document.verificationDigit,
     email: input.email,
+    ccEmails: extras ? extras.emails : undefined,
     phone: input.phone || null,
     address: input.address,
     municipalityCode: municipality?.code ?? null,

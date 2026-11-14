@@ -49,6 +49,11 @@ export const PLATFORM_MODEL_POLICY: Readonly<Record<string, PlatformModelPolicy>
     archive: false,
     reason: "Log de avisos SSE ('cambió una cuenta'): regenerable, sin valor de registro.",
   },
+  InvoiceCustomerLookup: {
+    action: "delete",
+    archive: false,
+    reason: "Tokens de un solo uso de \"Usar estos datos\" en la factura personalizada: vencen en minutos y no son datos del negocio.",
+  },
   PushSubscription: {
     action: "delete",
     archive: false,

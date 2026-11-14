@@ -470,6 +470,7 @@ model Restaurant {
   kushkiWebhookEvents    KushkiWebhookEvent[]
   invoiceRequests        InvoiceRequest[]
   billingCustomers       BillingCustomer[]
+  invoiceCustomerLookups InvoiceCustomerLookup[]
   simpleInvoices         SimpleInvoice[]
   shifts                 Shift[]
   cashMovements          CashMovement[]
@@ -1671,6 +1672,7 @@ model Order {
   rounds          Round[]
   ratings         DishRating[]
   invoiceRequests InvoiceRequest[]
+  invoiceCustomerLookups InvoiceCustomerLookup[]
   simpleInvoice   SimpleInvoice?
   stockMovements  StockMovement[]
   dianDocuments   DianDocument[]
@@ -3619,6 +3621,10 @@ model BillingCustomer {
   docNumber         String
   verificationDigit String?
   email             String
+  // Correos ADICIONALES a los que también sale la factura (además de
+  // `email`, que es el principal y el único que va en el XML de la DIAN).
+  // Normalizados, sin repetir el principal; máximo 4 (ver invoiceEmails.ts).
+  ccEmails          String[]       @default([])
   phone             String?
   // Dirección/municipio: OPCIONALES desde que la factura nominativa dejó
   // de pedirlos (el bloque cac:PhysicalLocation del adquiriente es
@@ -3644,13 +3650,54 @@ model BillingCustomer {
   discountEnabled   Boolean        @default(false)
   discountBps       Int            @default(0)
 
+  // "Recordar mis datos" de la factura personalizada (ver
+  // src/lib/invoiceCustomerMemory.ts). `selfService`: el registro nació de
+  // una solicitud de factura (comensal o mesero, sin permiso de editar
+  // Clientes) y nadie con ese permiso lo ha editado; sólo esos, y sin
+  // beneficios (crédito, descuento, bonos), se dejan actualizar desde el
+  // celular del comensal. Los clientes creados/editados por el personal
+  // quedan en false: sólo los cambia el personal.
+  selfService       Boolean        @default(false)
+  // Prueba de la autorización (Ley 1581, art. 9): la última vez que el
+  // titular marcó "Recordar mis datos" al pedir factura.
+  rememberConsentAt DateTime?
+  // El comensal desmarcó "Recordar mis datos": la búsqueda por documento
+  // del comensal deja de ofrecer este registro (sólo se marca en registros
+  // de autoservicio). La factura y la contabilidad no dependen de esto.
+  rememberOptOutAt  DateTime?
+
   voucherBatches    VoucherBatch[]
   voucherStatements VoucherStatement[]
   creditCharges     Payment[]
   creditPayments    CustomerCreditPayment[]
+  invoiceLookups    InvoiceCustomerLookup[]
 
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])
+}
+
+/**
+ * Token de un solo uso con el que el comensal dice "Usar estos datos"
+ * después de escribir su documento: al comensal nunca le llegan los datos
+ * completos ni el id del cliente, sólo una versión enmascarada y este
+ * token, ligado a la orden y con vencimiento corto. Sólo se guarda el hash.
+ * Ver src/lib/invoiceCustomerMemory.ts.
+ */
+model InvoiceCustomerLookup {
+  id                String          @id @default(cuid())
+  tokenHash         String          @unique
+  restaurantId      String
+  restaurant        Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderId           String
+  order             Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  billingCustomerId String
+  billingCustomer   BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Cascade)
+  expiresAt         DateTime
+  usedAt            DateTime?
+  createdAt         DateTime        @default(now())
+
+  @@index([orderId])
+  @@index([billingCustomerId])
 }
 
 /**
@@ -3706,6 +3753,9 @@ model InvoiceRequest {
   city         String?
   department   String?
   email        String
+  // Correos adicionales de la factura (copia del envío). El XML de la DIAN
+  // sólo lleva `email`; el correo sale a todos. Ver src/lib/invoiceEmails.ts.
+  ccEmails     String[]   @default([])
 
   // For audit + future API integrations — keep the raw Google Place when
   // available so we can re-derive components if our parsing was off.
@@ -3716,6 +3766,17 @@ model InvoiceRequest {
   generatedAt      DateTime?
   generatedByEmail String?
   notes            String?
+
+  // Casilla "Recordar mis datos" de esta solicitud: true/false lo que
+  // eligió quien la pidió; null = no se preguntó (filas viejas o "Usar
+  // estos datos"). Sólo decide si los datos se reutilizan: la factura y la
+  // contabilidad salen igual.
+  rememberCustomer  Boolean?
+  // Los datos salieron de un cliente guardado ("Usar estos datos") sin que
+  // el comensal los escribiera: a quien no es personal se le muestran
+  // enmascarados y no se le entrega el enlace de la factura (llega al
+  // correo guardado).
+  fromSavedCustomer Boolean              @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

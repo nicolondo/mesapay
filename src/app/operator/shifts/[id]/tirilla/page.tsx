@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { loadShiftCloseTicket } from "@/lib/print/shiftCloseQueue";
 import { devicePaperFromParam } from "@/lib/print/printDestination";
+import { isDevicePrintView } from "@/lib/print/devicePrint";
 import { PrintButton } from "@/app/factura/[id]/PrintButton";
 import {
   THERMAL_REPORT_STYLES,
@@ -40,10 +41,10 @@ export default async function ShiftTicketPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string; w?: string }>;
+  searchParams: Promise<{ print?: string; w?: string; imprimir?: string }>;
 }) {
   const { id } = await params;
-  const { print, w } = await searchParams;
+  const { print, w, imprimir } = await searchParams;
   const t = await getTranslations("opShifts");
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
@@ -64,7 +65,7 @@ export default async function ShiftTicketPage({
           <PrintButton
             autoPrint={print === "1"}
             agent={{ kind: "shift", shiftId: id, href: `/operator/shifts/${id}/tirilla` }}
-            paperMm={loaded.paperMm}
+            deviceView={isDevicePrintView(imprimir)}
             viewer={{
               role: session?.user?.role ?? null,
               scope: session?.user?.restaurantId ?? null,

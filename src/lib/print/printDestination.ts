@@ -11,11 +11,12 @@
  *     van al AGENTE de impresión (la térmica de la caja, como las
  *     comandas); sin impresora o con el agente caído, el respaldo de
  *     siempre: imprimir desde el navegador (ver `staffPrint.ts`).
+ *   - `terminal` («Datáfono»): la impresora integrada del Smart POS de
+ *     Kushki, por su Print API cloud (`terminalPrint.ts`);
  *   - `device`: ni se intenta el agente. La tirilla se imprime desde ESTE
- *     navegador, con el diálogo de impresión del sistema (en Android, el
- *     servicio de impresión del equipo; en el Sunmi P3 del datáfono, su
- *     impresora térmica integrada), al ANCHO DEL PAPEL DEL EQUIPO (55, 58,
- *     80 mm u otro), que no tiene por qué ser el de la caja.
+ *     navegador, con el diálogo de impresión del sistema (`devicePrint.ts`),
+ *     SIEMPRE a `DEVICE_PAPER_MM` (55 mm) de ancho, que no tiene por qué
+ *     ser el papel de la caja.
  *
  * QUIÉN elige: el personal que cobra o lleva la cuenta — operador (y los
  * admins que entran como operador), mesero y el usuario Datáfono, que son
@@ -30,67 +31,61 @@
  * al valor por defecto.
  *
  * POR DEFECTO, la primera vez en un equipo:
- *   - usuario Datáfono → `device`: es el Smart POS con la impresora
- *     integrada; mandar a la caja sería caminar hasta ella;
+ *   - usuario Datáfono → `device` (su datáfono, por Kushki): es el Smart
+ *     POS con la impresora integrada; mandar a la caja sería caminar hasta
+ *     ella;
  *   - los demás → `caja`: es lo que hacía el botón hasta hoy, y si el
  *     comercio no tiene impresora de facturas en el agente el respaldo YA
  *     imprime desde este dispositivo, así que nadie se queda sin papel.
- * EL PAPEL DEL EQUIPO es un número en mm (40–120), recordado por equipo,
- * con 55 · 58 · 80 como atajos y «Otro» para lo que haga falta: el ancho
- * que de verdad imprime un equipo se ajusta probando en el equipo, sin
- * esperar un despliegue. Arranca en:
- *   - 55 mm para el usuario Datáfono: el ancho que pidió el dueño para la
- *     tirilla en el Sunmi P3 de Kushki;
- *   - 58 mm para los demás: el rollo de los equipos móviles con impresora
- *     integrada (Sunmi P2/P3/V2, PAX, iMin…).
- * Sólo afecta a «Este dispositivo»: la impresora de caja (el agente) y su
- * respaldo siguen con el papel del comercio.
+ * EL PAPEL de «Este dispositivo» NO se elige: es `DEVICE_PAPER_MM`, 55 mm,
+ * para todos los roles. El dueño: «cuando se ponga imprimir en este
+ * dispositivo, que no se escoja el tamaño del papel sino que
+ * automáticamente sea en 55 mm». Es UNA constante a propósito: cambiar el
+ * ancho es cambiar este número; volverlo configurable (por comercio, por
+ * ejemplo) es leerlo de ahí en vez de la constante. El ancho que alguna
+ * versión anterior guardó por equipo se ignora y se borra
+ * (`parseStoredPrintPreference` / `staleStoredPrintPreference`). La
+ * impresora de caja (el agente) y su respaldo siguen con el papel del
+ * comercio.
  *
  * Archivo sin React ni DOM: lo usan los botones y los tests.
  */
 
 /**
- * Los destinos de «Imprimir en»:
- *   - `caja`: la impresora de caja, por el agente;
- *   - `terminal` («Datáfono»): la impresora integrada del datáfono Kushki
- *     del comercio, por su Print API cloud (`terminalPrint.ts`). Para todo
- *     el personal, sólo si el comercio tiene datáfonos Kushki;
- *   - `device` («Este dispositivo»): este navegador. Para el usuario
- *     Datáfono es su propio datáfono, por Kushki (#622): a él no se le
- *     muestra «Datáfono», que sería lo mismo (`printDestinationsFor`).
+ * Los tres destinos:
+ *   - `caja`: la impresora de caja, por el agente (lo de siempre);
+ *   - `terminal` («Datáfono»): la impresora integrada del Smart POS de
+ *     Kushki, por su Print API cloud (`terminalPrint.ts`). Sólo si el
+ *     comercio tiene datáfonos Kushki configurados;
+ *   - `device` («Este dispositivo»): el diálogo de impresión de este
+ *     navegador (`devicePrint.ts`).
+ * Para el usuario DATÁFONO «Este dispositivo» y «Datáfono» son lo mismo (su
+ * equipo ES el datáfono, y su app instalada no abre la impresión del
+ * sistema): se le muestra sólo «Este dispositivo», que para él imprime en
+ * el datáfono por Kushki (#622, #626), y un `terminal` guardado se lee como
+ * `device`.
  */
 export type PrintDestination = "caja" | "terminal" | "device";
 
-/** Ancho del papel del equipo, en mm enteros (`DEVICE_PAPER_MIN_MM`–`MAX`). */
-export type DevicePaperMm = number;
-
-/** Atajos del selector de papel; cualquier otro entero del rango vale. */
-export const DEVICE_PAPER_PRESETS: readonly DevicePaperMm[] = [55, 58, 80];
+/**
+ * EL ancho de la tirilla de «Este dispositivo», en mm, para todos. El único
+ * lugar donde se decide (ver el encabezado).
+ */
+export const DEVICE_PAPER_MM = 55;
 
 /**
- * El rango aceptado: el mismo que `fitPageToContent` acepta para declarar
- * la página (`paperWidthMmFrom`), así lo pedido y lo impreso coinciden.
+ * El rango que acepta `?w=` en las vistas imprimibles: el mismo que
+ * `fitPageToContent` acepta para declarar la página (`paperWidthMmFrom`),
+ * así lo pedido y lo impreso coinciden.
  */
 export const DEVICE_PAPER_MIN_MM = 40;
 export const DEVICE_PAPER_MAX_MM = 120;
 
-/** El papel de los equipos móviles con impresora integrada. */
-export const DEFAULT_DEVICE_PAPER_MM: DevicePaperMm = 58;
-
-/** El papel del Smart POS del usuario Datáfono (Sunmi P3 de Kushki). */
-export const TERMINAL_DEVICE_PAPER_MM: DevicePaperMm = 55;
-
-/** El papel de la primera vez en un equipo, según el rol. */
-export function defaultDevicePaperMm(role: string | null | undefined): DevicePaperMm {
-  return role === "terminal" ? TERMINAL_DEVICE_PAPER_MM : DEFAULT_DEVICE_PAPER_MM;
-}
-
 export type PrintPreference = {
   destination: PrintDestination;
-  paperMm: DevicePaperMm;
 };
 
-/** Lo que quedó guardado en el equipo (puede faltar cualquiera de los dos). */
+/** Lo que quedó guardado en el equipo. */
 export type StoredPrintPreference = Partial<PrintPreference>;
 
 /** El destino de la primera vez en un equipo (ver el encabezado). */
@@ -124,34 +119,10 @@ export function isPrintDestination(v: unknown): v is PrintDestination {
   return v === "caja" || v === "terminal" || v === "device";
 }
 
-export function isDevicePaperMm(v: unknown): v is DevicePaperMm {
-  return (
-    typeof v === "number" &&
-    Number.isInteger(v) &&
-    v >= DEVICE_PAPER_MIN_MM &&
-    v <= DEVICE_PAPER_MAX_MM
-  );
-}
-
-/**
- * Lo que alguien escribió en «Otro» (texto o número) → mm enteros dentro
- * del rango, o null si no sirve. Redondea ("57,5" → 58).
- */
-export function parseDevicePaperMm(raw: unknown): DevicePaperMm | null {
-  const n =
-    typeof raw === "number"
-      ? raw
-      : typeof raw === "string" && /^\s*\d+([.,]\d+)?\s*$/.test(raw)
-        ? Number(raw.trim().replace(",", "."))
-        : NaN;
-  if (!Number.isFinite(n)) return null;
-  const mm = Math.round(n);
-  return isDevicePaperMm(mm) ? mm : null;
-}
-
 /**
  * Lee lo guardado. Tolerante a todo: almacenamiento que no existe o tira,
- * JSON roto, valores de otra versión. Lo que no sirve se ignora.
+ * JSON roto, valores de otra versión. Lo que no sirve se ignora — también
+ * el ancho de papel (`paperMm`) que guardaba la versión con selector.
  */
 export function parseStoredPrintPreference(raw: string | null | undefined): StoredPrintPreference | null {
   if (!raw) return null;
@@ -165,8 +136,29 @@ export function parseStoredPrintPreference(raw: string | null | undefined): Stor
   const o = parsed as Record<string, unknown>;
   const out: StoredPrintPreference = {};
   if (isPrintDestination(o.destination)) out.destination = o.destination;
-  if (isDevicePaperMm(o.paperMm)) out.paperMm = o.paperMm;
-  return out.destination || out.paperMm ? out : null;
+  return out.destination ? out : null;
+}
+
+/**
+ * ¿Lo guardado tiene algo que ya no se usa (el ancho de papel de la versión
+ * con selector)? Entonces devuelve con qué reemplazarlo —sólo el destino, o
+ * `null` para borrarlo si no queda nada útil—; si está limpio, `undefined`.
+ */
+export function staleStoredPrintPreference(raw: string | null | undefined): string | null | undefined {
+  if (!raw) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const keys = Object.keys(parsed as Record<string, unknown>);
+  if (keys.length === 1 && keys[0] === "destination" && parseStoredPrintPreference(raw)) {
+    return undefined;
+  }
+  const kept = parseStoredPrintPreference(raw);
+  return kept?.destination ? serializePrintPreference({ destination: kept.destination }) : null;
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
@@ -198,7 +190,7 @@ export function writePrintPreference(
 }
 
 export function serializePrintPreference(pref: PrintPreference): string {
-  return JSON.stringify({ destination: pref.destination, paperMm: pref.paperMm });
+  return JSON.stringify({ destination: pref.destination });
 }
 
 /**
@@ -214,13 +206,9 @@ export function resolvePrintPreference(
   let destination = stored?.destination ?? defaultPrintDestination(role);
   // Para el usuario Datáfono, «Datáfono» es su «Este dispositivo».
   if (role === "terminal" && destination === "terminal") destination = "device";
-  // Sin datáfonos Kushki no se puede mandar al datáfono: la caja.
+  // Sin datáfonos Kushki no se puede mandar al datáfono: el de siempre.
   if (destination === "terminal" && terminalAvailable === false) destination = "caja";
-  return {
-    destination,
-    paperMm: stored?.paperMm ?? defaultDevicePaperMm(role),
-    remembered: !!stored?.destination,
-  };
+  return { destination, remembered: !!stored?.destination };
 }
 
 /** El otro destino (para «Reintentar en…»). */
@@ -229,9 +217,9 @@ export function otherDestination(d: PrintDestination): PrintDestination {
 }
 
 /**
- * Parámetro con el que la vista imprimible recibe el ancho del papel DEL
- * EQUIPO (`/factura/[id]?w=55`). Sin él, la vista usa el papel del
- * comercio, como siempre.
+ * Parámetro con el que la vista imprimible recibe el ancho de «Este
+ * dispositivo» (`/factura/[id]?w=55`, de `DEVICE_PAPER_MM`). Sin él, la
+ * vista usa el papel del comercio, como siempre.
  */
 export const DEVICE_PAPER_PARAM = "w";
 
@@ -239,11 +227,11 @@ export const DEVICE_PAPER_PARAM = "w";
  * `?w=` → mm enteros del rango (40–120); cualquier otra cosa, null (el papel
  * del comercio). Sólo dígitos: `?w=55mm` o `?w=5e1` no valen.
  */
-export function devicePaperFromParam(raw: string | string[] | null | undefined): DevicePaperMm | null {
+export function devicePaperFromParam(raw: string | string[] | null | undefined): number | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
   if (typeof v !== "string" || !/^\d{2,3}$/.test(v)) return null;
   const mm = Number(v);
-  return isDevicePaperMm(mm) ? mm : null;
+  return mm >= DEVICE_PAPER_MIN_MM && mm <= DEVICE_PAPER_MAX_MM ? mm : null;
 }
 
 /**
@@ -272,8 +260,8 @@ export function withQueryParam(href: string, name: string, value: string): strin
   return `${path}?${params.toString()}${hash}`;
 }
 
-/** La vista imprimible al ancho del papel del equipo. */
-export function devicePrintHref(href: string, paperMm: DevicePaperMm): string {
+/** La vista imprimible al ancho de «Este dispositivo». */
+export function devicePrintHref(href: string, paperMm: number = DEVICE_PAPER_MM): string {
   return withQueryParam(href, DEVICE_PAPER_PARAM, String(paperMm));
 }
 

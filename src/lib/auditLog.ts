@@ -108,6 +108,14 @@ export type AuditKind =
   | "subscription.card.update"
   | "subscription.charge.recurring"
   | "subscription.charge.failed"
+  // Clientes de facturación: altas y cambios (Clientes y "Recordar mis
+  // datos" de la factura personalizada). Sin valores: sólo qué campos.
+  | "billing_customer.create"
+  | "billing_customer.update"
+  | "billing_customer.self_service.create"
+  | "billing_customer.self_service.update"
+  | "billing_customer.remember_opt_out"
+  | "billing_customer.saved_use"
   // Catch-all para events nuevos no listados (no rompe el type pero
   // empuja a registrar el kind correcto). Usar con moderación.
   | (string & {});
@@ -182,6 +190,12 @@ const AUDIT_KIND_LABEL: Record<string, string> = {
   "subscription.card.update": "Actualizó tarjeta de débito",
   "subscription.charge.recurring": "Cobro recurrente aprobado",
   "subscription.charge.failed": "Cobro recurrente fallido",
+  "billing_customer.create": "Creó cliente de facturación",
+  "billing_customer.update": "Editó cliente de facturación",
+  "billing_customer.self_service.create": "Guardó datos de factura de un cliente (autoservicio)",
+  "billing_customer.self_service.update": "Actualizó datos de factura de un cliente (autoservicio)",
+  "billing_customer.remember_opt_out": "El cliente pidió no recordar sus datos de factura",
+  "billing_customer.saved_use": "Factura con datos guardados del cliente",
 };
 
 export function labelForKind(kind: string): string {

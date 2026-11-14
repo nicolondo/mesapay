@@ -13,6 +13,7 @@ import { OrderInvoiceMenu } from "./OrderInvoiceMenu";
 import { OrdersPeriodNav } from "./OrdersPeriodNav";
 import { OrdersSearchForm } from "./OrdersSearchForm";
 import { OrdersSourceFilters } from "./OrdersSourceFilters";
+import { CreditSaleBadge } from "./CreditSaleBadge";
 import { headers } from "next/headers";
 import { appOrigin } from "@/lib/http/publicOrigin";
 import { loadManualInvoiceSendInfo } from "@/lib/manualInvoiceSendInfo";
@@ -22,6 +23,8 @@ import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
 import { loadOrdersList } from "@/lib/orders/ordersListQuery";
+import { hasCreditSale } from "@/lib/orders/creditSale";
+import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
 import {
   ordersHref,
   ordersPageBounds,
@@ -85,6 +88,12 @@ export default async function OrdersPage({
     db.table.findMany({ where: { restaurantId, kind: "standard" }, select: { id: true, number: true, label: true }, orderBy: { number: "asc" } }),
   ]);
   const view: OrdersView = { ...requested, page: list.page };
+  // «A crédito» / «Crédito pagado»: sólo se consulta Cartera si alguna
+  // cuenta de la página tiene un cobro a crédito.
+  const credits = await loadCreditSales(
+    restaurantId,
+    list.rows.filter((o) => hasCreditSale(o.payments)).map((o) => o.id),
+  );
   const allDates = list.scope === "all";
   const singleDay = !allDates && view.period.desde === view.period.hasta;
   const { from: shownFrom, to: shownTo } = ordersPageBounds(list.page, list.summary.count);
@@ -132,7 +141,7 @@ export default async function OrdersPage({
   // cuenta abierta) · Por cobrar / Vencida (emitida) · Cobrada. Las
   // descartadas siguen con «Cancelada». null = no es manual (va el estado
   // de siempre).
-  const manualChip = (o: { status: string; table: { kind: string } }, info: ManualInvoiceSendInfo | undefined) => {
+  const manualChip = (o: { id: string; status: string; table: { kind: string } }, info: ManualInvoiceSendInfo | undefined) => {
     if (o.table.kind !== "manual" || o.status === "cancelled") return null;
     const r = info?.receivable;
     if (r && r.totalCents > 0) {
@@ -142,6 +151,9 @@ export default async function OrdersPage({
         tint: paid ? "bg-[#2E6B4C]/15 text-[#1E5339]" : r.overdue ? "bg-terracotta/15 text-terracotta" : "bg-[#C9A227]/15 text-[#7A5E0A]",
       };
     }
+    // Cobrada a crédito sin link de cobro: «Pagado» + «A crédito» como
+    // cualquier cuenta (decir «Cobrada» contradiría la deuda).
+    if (o.status === "paid" && credits.has(o.id)) return null;
     if (o.status === "paid") return { label: tManual("stateCollected"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
     return info?.link
       ? { label: tManual("stateSent"), tint: "bg-[#C9A227]/15 text-[#7A5E0A]" }
@@ -152,6 +164,7 @@ export default async function OrdersPage({
   // leen lo mismo.
   const rows = list.rows.map((o) => {
     const invoice = o.simpleInvoice;
+    const receivable = manualChip(o, sendInfos.get(o.id));
     const dianState = einvoicingOn ? invoice?.dianDocument?.state ?? null : null;
     return {
       id: o.id,
@@ -190,11 +203,14 @@ export default async function OrdersPage({
         o.table.kind === "manual" && o.status !== "paid" && o.status !== "cancelled"
           ? `/operator/facturas-manuales?open=${encodeURIComponent(o.tableId)}`
           : null,
-      receivable: manualChip(o, sendInfos.get(o.id)),
+      receivable,
+      // Una factura manual emitida por cobrar YA es una venta a crédito y su
+      // píldora (Por cobrar / Vencida / Cobrada) lo dice: sin segunda etiqueta.
+      creditBadge: receivable ? null : credits.get(o.id) ?? null,
     };
   });
 
-  const filtered = view.status !== "all" || view.q !== "" || view.source !== "all" || view.tableId !== "";
+  const filtered = view.status !== "all" || view.q !== "" || view.source !== "all" || view.tableId !== "" || view.credit;
   const tableOptions = tables.map((table) => ({ id: table.id, name: [table.number === 0 && counterMode ? t("channelCounter") : t("tableNumber", { number: table.number }), table.label].filter(Boolean).join(" · ") }));
 
   return (
@@ -315,6 +331,7 @@ export default async function OrdersPage({
               ...(view.q && !allDates ? [{ href: href({ allDates: true }), label: t("searchAllDates") }] : []),
               ...(view.status !== "all" ? [{ href: href({ status: "all" }), label: t("showAll") }] : []),
               ...(view.source !== "all" || view.tableId ? [{ href: href({ source: "all", tableId: "" }), label: t("sourceClear") }] : []),
+              ...(view.credit ? [{ href: href({ credit: false }), label: t("creditFilterClear") }] : []),
               ...(!filtered && !allDates && !periodIncludes(view.period, today)
                 ? [{ href: href({ period: { desde: today, hasta: today } }), label: t("backToToday") }]
                 : []),
@@ -381,8 +398,9 @@ export default async function OrdersPage({
                     <span className="truncate">{r.place}</span>
                     <span>{open}</span>
                     <span className="hidden text-right tabular xl:block">{r.items}</span>
-                    <span>
+                    <span className="flex min-w-0 flex-col items-start gap-0.5">
                       {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
+                      {r.creditBadge && <CreditSaleBadge sale={r.creditBadge} />}
                     </span>
                     <span className="text-right font-mono tabular">{fmtCOP(r.totalCents)}</span>
                     <span className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -422,7 +440,8 @@ export default async function OrdersPage({
                         {" · "}
                         {t("itemsCount", { count: r.items })}
                       </span>
-                      <span className="shrink-0">
+                      <span className="flex shrink-0 items-center gap-1">
+                        {r.creditBadge && <CreditSaleBadge sale={r.creditBadge} />}
                         {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
                       </span>
                     </div>

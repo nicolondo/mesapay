@@ -73,6 +73,9 @@ export type TileData =
       // Pay, PSE) sin que nadie del equipo cobrara: durante los minutos del
       // comercio la mesa va de primera y en verde fuerte. Ver phonePaid.ts.
       paidFromPhone: boolean;
+      // Cerrada (toda o una parte) a crédito: la mesa quedó libre, pero la
+      // plata no entró; es deuda del cliente en Cartera. Ver creditSale.ts.
+      onCredit?: boolean;
     }
   | {
       id: string;
@@ -847,6 +850,16 @@ function RecentlyPaidTile({
         <div className="text-[10px] text-[#1E5339] font-medium mt-1">
           <span aria-hidden>{"✓ "}</span>
           {minsAgo === 0 ? tr("tileNow") : tr("tileMinutesAgo", { mins: minsAgo })}
+        </div>
+      )}
+      {tile.onCredit && (
+        <div
+          className={
+            "mt-0.5 rounded-full border px-1.5 text-[9px] font-medium leading-4 " +
+            (highlight ? "border-bone/60 text-bone" : "border-[#C98A2E]/60 bg-[#C98A2E]/10 text-[#8F6828]")
+          }
+        >
+          {tr("tileOnCredit")}
         </div>
       )}
       <span

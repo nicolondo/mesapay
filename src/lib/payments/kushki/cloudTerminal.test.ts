@@ -278,11 +278,46 @@ describe("pushPaymentToCloudTerminal: el monto que llega al datáfono", () => {
     expect(await push()).toMatchObject({ status: "approved", providerRef: "tx-3" });
   });
 
-  it("aprobado con OTRO monto autorizado → error (incierto, a conciliar), nunca approved", async () => {
+  it("aprobado con OTRO monto autorizado → approved con lo autorizado en centavos (lo decide settleTerminalApproval), nunca «sin respuesta»", async () => {
     respond(200, { approved: true, rawResponse: { authorized_amount: 6_589_000, transaction_reference: "tx-4" } });
     const result = await push();
-    expect(result).toMatchObject({ status: "error", providerRef: "tx-4" });
-    expect(result.message).toContain("authorized_amount_mismatch");
+    expect(result).toMatchObject({ status: "approved", providerRef: "tx-4", authorizedCents: 658_900_000, approvalConfirmed: false });
+  });
+
+  it("el caso real (2026-11-13): se mandó 5520, Kushki autorizó 5525 con responseCode 00 → approved, 552500 centavos, aprobación inequívoca", async () => {
+    respond(200, {
+      approved: true,
+      rawResponse: {
+        hostRespond: true,
+        approved: true,
+        responseCode: "00",
+        code: "000",
+        authorized_amount: 5525,
+        amount: 0,
+        transaction_reference: "tx-real",
+      },
+    });
+    const result = await pushPaymentToCloudTerminal({
+      serialNumber: "P3F6P624J0139",
+      amountCents: 552_000,
+      reference: "pay-real",
+      businessCode: "bc-test",
+      mode: "production",
+    });
+    expect(result).toMatchObject({ status: "approved", providerRef: "tx-real", authorizedCents: 552_500, approvalConfirmed: true });
+    expect(console.log).toHaveBeenCalledWith("[kushki/cloud-terminal] charge", expect.objectContaining({ amountMinor: 5520 }));
+  });
+
+  it("el código de aprobación también cuenta como aprobación inequívoca", async () => {
+    respond(200, { approved: true, rawResponse: { authorized_amount: 65_895, approval_code: "482913", transaction_reference: "tx-5" } });
+    expect(await push()).toMatchObject({ status: "approved", authorizedCents: 6_589_500, approvalCode: "482913", approvalConfirmed: true });
+  });
+
+  it("un monto autorizado ilegible queda en null (a conciliar), sin monto queda undefined (el aprobado de siempre)", async () => {
+    respond(200, { approved: true, rawResponse: { authorized_amount: "abc", transaction_reference: "tx-6" } });
+    expect((await push()).authorizedCents).toBeNull();
+    respond(200, { approved: true, transaction_reference: "tx-7" });
+    expect((await push()).authorizedCents).toBeUndefined();
   });
 });
 
@@ -335,9 +370,18 @@ describe("searchCloudTerminalCharge: el resultado real cuando el cobro no respon
     expect(await search()).toMatchObject({ status: "declined", transactionReference: "tx-ref-1" });
   });
 
-  it("un aprobado por OTRO monto → unknown (a mano), nunca approved", async () => {
+  it("un aprobado por OTRO monto → approved con lo aprobado en centavos (lo decide settleTerminalApproval)", async () => {
+    respond(200, { items: [item({ approved_transaction_amount: 91_855 })] });
+    expect(await search()).toMatchObject({ status: "approved", authorizedCents: 9_185_500, approvalCode: "482913" });
     respond(200, { items: [item({ approved_transaction_amount: 9_185_000 })] });
-    expect(await search()).toMatchObject({ status: "unknown", reason: "amount_mismatch" });
+    expect(await search()).toMatchObject({ status: "approved", authorizedCents: 918_500_000 });
+  });
+
+  it("el monto de la cuenta, en pesos o (UAT) como se mandó → los centavos de la cuenta", async () => {
+    respond(200, { items: [item()] });
+    expect(await search()).toMatchObject({ status: "approved", authorizedCents: 9_185_000 });
+    respond(200, { items: [item({ approved_transaction_amount: 9_185_000 })] });
+    expect(await search(9_185_000, "sandbox")).toMatchObject({ status: "approved", authorizedCents: 9_185_000 });
   });
 
   it.each(["REVERSE", "VOID", "REFUND"])("una %s del mismo cobro → unknown (reversed)", async (type) => {

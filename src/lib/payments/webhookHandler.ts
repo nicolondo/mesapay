@@ -10,6 +10,7 @@ import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { settlePaymentLinkInTx } from "@/lib/paymentLinks";
 import { releaseOrderFromPaying } from "./orderStatusAfterDecline";
 import { canResolveTerminalCharge } from "./terminalResolve";
+import { adjustedTerminalPayment } from "./terminalAmount";
 
 export type KushkiWebhookKind =
   | "charge.approved"
@@ -37,6 +38,19 @@ export type KushkiWebhookPayload = {
   amountCents?: number;
   message?: string;
   raw?: unknown;
+  /**
+   * Sólo `terminal.approved` del datáfono Kushki: Kushki autorizó OTRO monto
+   * (centavos) y ya se decidió que se liquida solo (propina de más o parcial
+   * de menos, ver terminalAmount.ts / terminalApproval.ts). El pago se aprueba
+   * por ESTE monto y queda marcado para revisión, sin bloquear la cuenta.
+   */
+  authorizedCents?: number;
+  /** Lo que se mandó al datáfono: si el pago ya no lo tiene, no se ajusta. */
+  expectedCents?: number;
+  /** Código de autorización del datáfono, para la auditoría del ajuste. */
+  approvalCode?: string | null;
+  /** De dónde salió el monto autorizado (cobro síncrono, búsqueda, mock). */
+  amountSource?: string;
 };
 
 export type WebhookProcessResult = {
@@ -190,18 +204,51 @@ export async function settleKushkiEventInTx(tx: Prisma.TransactionClient, payloa
   if (payment.status === "refunded" || payment.status === "approved") return null;
   const lateApproval = approved && (payment.status === "declined" || payment.order.status === "cancelled");
   if (!approved && payment.status !== "pending") return null;
+  // El datáfono aprobó otro monto (ya clasificado como propina o parcial): el
+  // pago se aprueba por lo autorizado. Sólo si sigue siendo el cobro que se
+  // mandó; si no, que lo resuelva una persona.
+  const adjust = approved && payload.authorizedCents !== undefined && payload.authorizedCents !== payment.amountCents
+    ? adjustedTerminalPayment(payment, payload.authorizedCents)
+    : null;
+  if (adjust && (payment.method !== "kushki_card_terminal"
+    || (payload.expectedCents !== undefined && payload.expectedCents !== payment.amountCents))) throw new Error("wrong_amount");
+  const chargedCents = adjust?.amountCents ?? payment.amountCents;
   if (payload.providerRef) {
     const ledger = await tx.kushkiTransaction.findUnique({ where: { kushkiTxId: payload.providerRef } });
     if (ledger?.paymentId && ledger.paymentId !== payment.id) throw new Error("reference_in_use");
     await tx.kushkiTransaction.upsert({ where: { kushkiTxId: payload.providerRef }, create: {
       restaurantId: payment.order.restaurantId, paymentId: payment.id, kushkiTxId: payload.providerRef,
-      kind: "charge", status, amountCents: payment.amountCents, raw: (payload.raw ?? {}) as object,
-    }, update: { status, message: payload.message } });
+      kind: "charge", status, amountCents: chargedCents, raw: (payload.raw ?? {}) as object,
+    }, update: { status, message: payload.message, ...(adjust ? { amountCents: chargedCents } : {}) } });
   }
   await tx.payment.update({ where: { id: payment.id }, data: {
-    status, providerRef: payload.providerRef ?? payment.providerRef, reconciliationRequired: lateApproval,
+    status, providerRef: payload.providerRef ?? payment.providerRef,
+    // Otro monto: se liquida, pero alguien lo revisa (Cobros → «Requiere revisión»).
+    reconciliationRequired: lateApproval || !!adjust,
+    ...(adjust ? { amountCents: adjust.amountCents, tipCents: adjust.tipCents } : {}),
     ...(approved ? { settledAt: new Date() } : {}),
   } });
+  if (adjust) {
+    const diffCents = adjust.amountCents - payment.amountCents;
+    await tx.financialOperation.updateMany({
+      where: { key: `terminal:${payment.id}`, paymentId: payment.id },
+      data: { authorizedCents: adjust.amountCents, amountCheck: diffCents > 0 ? "tip" : "partial" },
+    });
+    // Sin datos de tarjeta: montos, código de autorización y referencia.
+    await tx.auditEvent.create({ data: {
+      restaurantId: payment.order.restaurantId, actorEmail: "kushki", actorRole: "system",
+      kind: "payment.terminal_amount_adjusted", targetType: "payment", targetId: payment.id,
+      summary: diffCents > 0
+        ? `El datáfono cobró ${diffCents} centavos más que la cuenta: se registró como propina.`
+        : `El datáfono aprobó ${-diffCents} centavos menos que la cuenta: el saldo queda pendiente.`,
+      diff: {
+        expectedCents: payment.amountCents, authorizedCents: adjust.amountCents, diffCents,
+        tipBefore: payment.tipCents, tipAfter: adjust.tipCents, check: diffCents > 0 ? "tip" : "partial",
+        approvalCode: payload.approvalCode ?? null, providerRef: payload.providerRef ?? null,
+        source: payload.amountSource ?? null, eventId: payload.eventId,
+      },
+    } });
+  }
   await tx.financialOperation.updateMany({ where: { paymentId: payment.id, kind: "terminal", ...(manualReference ? { key: `terminal:${payment.id}` } : { status: { in: ["pending", "uncertain"] } }) }, data: { status: approved ? "completed" : "failed", providerRef: payload.providerRef } });
   let paid = false;
   let fired: AutoFiredRound[] = [];

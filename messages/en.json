@@ -916,7 +916,9 @@
     "backToCheckout": "Back to checkout",
     "terminalCanceledTitle": "Cancelled on the card terminal",
     "terminalCanceledBody": "Nothing was charged. Taking you back so you can choose how to pay…",
-    "terminalRetrying": "Sending the charge to the card terminal again…"
+    "terminalRetrying": "Sending the charge to the card terminal again…",
+    "terminalApprovedTipBody": "The card terminal charged {extra} more than the bill ({expected}): it was recorded as a tip. Total charged: {authorized}.",
+    "terminalApprovedPartialBody": "The card terminal approved only {authorized} of {expected}. {missing} is left to pay another way."
   },
   "pickup": {
     "unavailableTitle": "Pre-orders unavailable",
@@ -9077,7 +9079,23 @@
     "checkDeclined": "Kushki confirmed the charge wasn't approved: the bill is free to charge another way.",
     "checkNotFound": "Kushki doesn't have this charge yet. Check the terminal's screen and whether it printed a receipt before resolving it.",
     "checkUnknown": "Kushki shows a movement that needs a manual review (for example, a reversal or a different amount). Resolve it with the terminal's receipt.",
-    "checkError": "We couldn't check with Kushki. Try again in a moment."
+    "checkError": "We couldn't check with Kushki. Try again in a moment.",
+    "amountTipNote": "The card terminal charged {extra} more than the bill: it was recorded as a tip. Total charged: {authorized}.",
+    "amountPartialNote": "The card terminal approved only {authorized} of {expected}. {missing} is still pending on the bill: collect it another way.",
+    "amountReviewNote": "It was flagged for review in Payments; the table carries on as usual.",
+    "amountMismatchKicker": "Different amount charged",
+    "amountMismatchBody": "Kushki approved the charge for {authorized}, but the bill was {expected}. It was not recorded automatically: check the card terminal receipt (voucher) and resolve the charge.",
+    "amountMismatchUnitsBody": "Kushki approved {authorized} for a bill of {expected}: it looks like a units error (pesos vs. cents). It was not recorded automatically: check the card terminal receipt and the Kushki console before resolving it.",
+    "amountMismatchUnconfirmedBody": "Kushki approved {authorized} for a bill of {expected}, without an approval code. It was not recorded automatically: check the card terminal receipt (voucher) and resolve the charge.",
+    "amountMismatchUnknownBody": "Kushki approved the charge but did not say for how much. Check the card terminal receipt (voucher) and resolve the charge.",
+    "amountTipShort": "Tip added on the card terminal: +{amount}",
+    "amountPartialShort": "Partially approved: {amount} missing",
+    "amountMismatchShort": "Different amount charged: {authorized} (bill {expected})",
+    "amountMismatchShortUnknown": "Different amount charged",
+    "amountTipOutcome": "{place}: the card terminal charged {extra} more than the bill: it was recorded as a tip.",
+    "amountPartialOutcome": "{place}: the card terminal approved only {authorized}. {missing} is left to collect another way.",
+    "amountMismatchOutcome": "{place}: the card terminal approved an amount different from the bill. An administrator must resolve it with the receipt.",
+    "checkAmountMismatch": "Kushki approved the charge for an amount different from the bill. Resolve it with the card terminal receipt."
   },
   "terminalPicker": {
     "question": "Which card terminal?",

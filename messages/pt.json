@@ -916,7 +916,9 @@
     "backToCheckout": "Voltar ao checkout",
     "terminalCanceledTitle": "Cancelada na maquininha",
     "terminalCanceledBody": "Nada foi cobrado. Estamos te levando de volta para você escolher como pagar…",
-    "terminalRetrying": "Enviando a cobrança para a maquininha de novo…"
+    "terminalRetrying": "Enviando a cobrança para a maquininha de novo…",
+    "terminalApprovedTipBody": "A maquininha cobrou {extra} a mais que a conta ({expected}): foi registrado como gorjeta. Total cobrado: {authorized}.",
+    "terminalApprovedPartialBody": "A maquininha aprovou só {authorized} de {expected}. Faltam {missing} para pagar de outra forma."
   },
   "pickup": {
     "unavailableTitle": "Pedido antecipado indisponível",
@@ -9077,7 +9079,23 @@
     "checkDeclined": "A Kushki confirmou que a cobrança não foi aprovada: a conta ficou livre para cobrar de outra forma.",
     "checkNotFound": "A Kushki ainda não registra esta cobrança. Confira a tela da maquininha e se ela imprimiu comprovante antes de resolver.",
     "checkUnknown": "A Kushki mostra um movimento que precisa ser revisado à mão (por exemplo, um estorno ou um valor diferente). Resolva com o comprovante da maquininha.",
-    "checkError": "Não conseguimos consultar a Kushki. Tente de novo em instantes."
+    "checkError": "Não conseguimos consultar a Kushki. Tente de novo em instantes.",
+    "amountTipNote": "A maquininha cobrou {extra} a mais que a conta: foi registrado como gorjeta. Total cobrado: {authorized}.",
+    "amountPartialNote": "A maquininha aprovou só {authorized} de {expected}. Faltam {missing} na conta: cobre de outra forma.",
+    "amountReviewNote": "Ficou marcado para revisão em Cobranças; a mesa segue normalmente.",
+    "amountMismatchKicker": "Valor cobrado diferente",
+    "amountMismatchBody": "A Kushki aprovou a cobrança por {authorized}, mas a conta era {expected}. Não foi registrada automaticamente: confira o comprovante da maquininha e resolva a cobrança.",
+    "amountMismatchUnitsBody": "A Kushki aprovou {authorized} para uma conta de {expected}: parece um erro de unidades (pesos e centavos). Não foi registrada automaticamente: confira o comprovante da maquininha e o console da Kushki antes de resolver.",
+    "amountMismatchUnconfirmedBody": "A Kushki aprovou {authorized} para uma conta de {expected}, sem código de autorização. Não foi registrada automaticamente: confira o comprovante da maquininha e resolva a cobrança.",
+    "amountMismatchUnknownBody": "A Kushki aprovou a cobrança, mas não informou o valor. Confira o comprovante da maquininha e resolva a cobrança.",
+    "amountTipShort": "Gorjeta na maquininha: +{amount}",
+    "amountPartialShort": "Aprovado parcial: faltam {amount}",
+    "amountMismatchShort": "Valor cobrado diferente: {authorized} (conta {expected})",
+    "amountMismatchShortUnknown": "Valor cobrado diferente",
+    "amountTipOutcome": "{place}: a maquininha cobrou {extra} a mais que a conta: foi registrado como gorjeta.",
+    "amountPartialOutcome": "{place}: a maquininha aprovou só {authorized}. Faltam {missing} para cobrar de outra forma.",
+    "amountMismatchOutcome": "{place}: a maquininha aprovou um valor diferente da conta. Um administrador precisa resolver com o comprovante.",
+    "checkAmountMismatch": "A Kushki aprovou a cobrança por um valor diferente da conta. Resolva com o comprovante da maquininha."
   },
   "terminalPicker": {
     "question": "Para qual maquininha?",

@@ -4157,6 +4157,16 @@ model FinancialOperation {
   /// ("not_found", "unknown:reversed", "error"…). Evita consultar de más.
   checkedAt DateTime?
   checkStatus String?
+  /// Sólo kind=terminal: lo que Kushki dice que AUTORIZÓ (centavos), cuando no
+  /// es lo que se mandó (`amountCents`). Null = autorizó lo de la cuenta (o no
+  /// lo dijo). BIGINT: un error de unidades (×100) de una cuenta grande no
+  /// cabe en INT4.
+  authorizedCents BigInt?
+  /// Sólo kind=terminal: qué se hizo con esa diferencia
+  /// (src/lib/payments/terminalAmount.ts): "tip" (de más → propina), "partial"
+  /// (de menos → saldo pendiente), o por qué quedó para conciliar
+  /// ("over_cap", "units", "invalid", "unconfirmed").
+  amountCheck String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])

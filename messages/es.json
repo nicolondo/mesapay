@@ -916,7 +916,9 @@
     "backToCheckout": "Volver al checkout",
     "terminalCanceledTitle": "Se canceló en el datáfono",
     "terminalCanceledBody": "No se cobró nada. Te llevamos de vuelta para que elijas cómo pagar…",
-    "terminalRetrying": "Volviendo a enviar el cobro al datáfono…"
+    "terminalRetrying": "Volviendo a enviar el cobro al datáfono…",
+    "terminalApprovedTipBody": "El datáfono cobró {extra} más que la cuenta ({expected}): se registró como propina. Total cobrado: {authorized}.",
+    "terminalApprovedPartialBody": "El datáfono aprobó solo {authorized} de {expected}. Quedan {missing} por pagar de otra forma."
   },
   "pickup": {
     "unavailableTitle": "Pedido anticipado no disponible",
@@ -9077,7 +9079,23 @@
     "checkDeclined": "Kushki confirmó que el cobro no se aprobó: la cuenta quedó libre para cobrar de otra forma.",
     "checkNotFound": "Kushki todavía no registra este cobro. Revisa la pantalla del datáfono y si imprimió comprobante antes de resolverlo.",
     "checkUnknown": "Kushki muestra un movimiento que hay que revisar a mano (por ejemplo, una reversión o un monto distinto). Resuélvelo con el comprobante del datáfono.",
-    "checkError": "No pudimos consultar a Kushki. Intenta de nuevo en un momento."
+    "checkError": "No pudimos consultar a Kushki. Intenta de nuevo en un momento.",
+    "amountTipNote": "El datáfono cobró {extra} más que la cuenta: se registró como propina. Total cobrado: {authorized}.",
+    "amountPartialNote": "El datáfono aprobó solo {authorized} de {expected}. Quedan {missing} pendientes en la cuenta: cóbralos de otra forma.",
+    "amountReviewNote": "Quedó marcado para revisión en Cobros; la mesa sigue su curso normal.",
+    "amountMismatchKicker": "Monto cobrado distinto",
+    "amountMismatchBody": "Kushki aprobó el cobro por {authorized}, pero la cuenta era {expected}. No se registró solo: revisa el comprobante (voucher) del datáfono y resuelve el cobro.",
+    "amountMismatchUnitsBody": "Kushki aprobó {authorized} para una cuenta de {expected}: parece un error de unidades (pesos y centavos). No se registró solo: revisa el comprobante del datáfono y la consola de Kushki antes de resolverlo.",
+    "amountMismatchUnconfirmedBody": "Kushki aprobó {authorized} para una cuenta de {expected}, sin código de aprobación. No se registró solo: revisa el comprobante (voucher) del datáfono y resuelve el cobro.",
+    "amountMismatchUnknownBody": "Kushki aprobó el cobro, pero no dijo por cuánto. Revisa el comprobante (voucher) del datáfono y resuelve el cobro.",
+    "amountTipShort": "Propina en el datáfono: +{amount}",
+    "amountPartialShort": "Aprobado parcial: faltan {amount}",
+    "amountMismatchShort": "Monto cobrado distinto: {authorized} (cuenta {expected})",
+    "amountMismatchShortUnknown": "Monto cobrado distinto",
+    "amountTipOutcome": "{place}: el datáfono cobró {extra} más que la cuenta: se registró como propina.",
+    "amountPartialOutcome": "{place}: el datáfono aprobó solo {authorized}. Quedan {missing} por cobrar de otra forma.",
+    "amountMismatchOutcome": "{place}: el datáfono aprobó un monto distinto al de la cuenta. Un administrador debe resolverlo con el comprobante.",
+    "checkAmountMismatch": "Kushki aprobó el cobro por un monto distinto al de la cuenta. Resuélvelo con el comprobante del datáfono."
   },
   "terminalPicker": {
     "question": "¿A qué datáfono?",

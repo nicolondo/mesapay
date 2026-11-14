@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { creditNoteListHref } from "@/lib/erp/supplierCreditNoteList";
 import { KIND_LABEL_KEY, SUPPLIER_CREDIT_NOTE_KINDS } from "@/lib/erp/supplierCreditNotes";
 import { todayIso } from "@/lib/erp/reports/period";
@@ -66,7 +66,7 @@ export default async function SupplierCreditReportPage({ searchParams }: { searc
   const kindTotal = (k: (typeof SUPPLIER_CREDIT_NOTE_KINDS)[number]) =>
     report.byKind.find((x) => x.kind === k)?.totalCents ?? 0;
   const monthLabel = (m: string) =>
-    new Intl.DateTimeFormat(loc, { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${m}-01T12:00:00Z`));
+    formatDate(`${m}-01T12:00:00Z`, { locale: loc, dateStyle: undefined, timeStyle: undefined, month: "short", year: "numeric", timeZone: "UTC" });
 
   return (
     <ReportShell

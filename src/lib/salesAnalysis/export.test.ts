@@ -10,22 +10,25 @@ const t = (key: string, values?: Record<string, string | number>) =>
   values ? `${key}(${Object.values(values).join(",")})` : key;
 
 function analysis(patch: Partial<SalesAnalysis> = {}): SalesAnalysis {
-  const totals = { ...EMPTY_TOTALS, orders: 2, diners: 5, units: 3, grossCents: 10_000_000, discountCents: 400_000, taxCents: 0, netCents: 9_600_000, tipCents: 600_000, compsCents: 900_000 };
-  const prevTotals = { ...totals, orders: 1, netCents: 8_000_000 };
+  const totals = {
+    ...EMPTY_TOTALS, orders: 2, diners: 5, units: 3, grossCents: 10_000_000, discountCents: 400_000, taxCents: 0, netCents: 9_600_000,
+    tipCents: 600_000, compsCents: 900_000, accountNetCents: 9_600_000, accountUnits: 3,
+  };
+  const prevTotals = { ...totals, orders: 1, netCents: 8_000_000, accountNetCents: 8_000_000 };
   const period = (range: { from: string; to: string }, net: number) => ({
     range,
     totals: { ...totals, netCents: net },
     returns: null,
     duration: { medianMinutes: null, measured: 0, eligible: 0 },
-    trend: [{ bucket: range.from, netCents: net, orders: 2, diners: 5 }],
+    trend: [{ bucket: range.from, netCents: net, orders: 2, diners: 5, accountNetCents: net }],
     products: [
       { key: "m1", menuItemId: "m1", name: "=HYPERLINK(\"x\")", categoryId: "c1", units: 2, netCents: 6_000_000, grossCents: 6_400_000, orders: 2 },
       { key: "libre:Catering", menuItemId: null, name: "Catering", categoryId: null, units: 1, netCents: net - 6_000_000, grossCents: 3_600_000, orders: 1 },
     ],
     categories: [{ categoryId: "c1", label: "Fuertes", parentLabel: null, units: 2, netCents: 6_000_000, orders: 2 }],
-    waiters: [{ waiterId: "w1", name: "Ana", netCents: net, orders: 2, diners: 5, tipCents: 600_000, commissionCents: 24_000 }],
+    waiters: [{ waiterId: "w1", name: "Ana", netCents: net, orders: 2, accountNetCents: net, diners: 5, tipCents: 600_000, commissionCents: 24_000 }],
     methods: [{ method: "cash" as const, amountCents: 10_200_000, tipCents: 600_000, payments: 3, orders: 2 }],
-    channels: [{ channel: "salon" as const, netCents: net, orders: 2, diners: 5 }],
+    channels: [{ channel: "salon" as const, netCents: net, orders: 2, diners: 5, accountNetCents: net }],
   });
   return {
     filters: parseSalesFilters(new URLSearchParams("periodo=rango&desde=2026-10-14&hasta=2026-10-14&mesero=w1")),
@@ -41,10 +44,11 @@ function analysis(patch: Partial<SalesAnalysis> = {}): SalesAnalysis {
     kpis: deriveKpis(totals, null, null),
     compareKpis: deriveKpis(prevTotals, null, null),
     heat: [{ dow: 3, hour: 20, netCents: 9_600_000, orders: 2 }],
-    tables: [{ tableId: "t1", number: 4, label: null, netCents: 9_600_000, orders: 2, diners: 5 }],
+    tables: [{ tableId: "t1", number: 4, label: null, netCents: 9_600_000, orders: 2, diners: 5, accountNetCents: 9_600_000 }],
     modifiers: [{ group: "Término", option: "Medio", units: 2, products: 1 }],
     orders: [{
-      id: "o1", shortCode: "ABC123", paidAt: new Date("2026-10-15T01:30:00Z"), channel: "salon", tableNumber: 4, tableLabel: null,
+      id: "o1", shortCode: "ABC123", openedAt: new Date("2026-10-15T00:10:00Z"), paidAt: new Date("2026-10-15T01:30:00Z"),
+      channel: "salon", tableNumber: 4, tableLabel: null,
       waiterName: "Ana", diners: 2, units: 2, netCents: 4_800_000, tipCents: 300_000, totalCents: 5_400_000, methods: ["cash"],
     }],
     ordersTruncated: false,
@@ -85,6 +89,32 @@ describe("secciones de la vista actual", () => {
 
   it("la tendencia trae los 24 baldes del día con su comparación", () => {
     expect(sections[1]!.rows).toHaveLength(24);
+  });
+
+  it("el resumen dice con qué hora se ubicaron las ventas (pedido por defecto, o pago)", () => {
+    const axisRow = (a: SalesAnalysis) =>
+      buildExportSections(a, ctx)[0]!.rows.find((r) => r[0]?.kind === "text" && r[0].value === "axisLabel")?.[1];
+    expect(axisRow(analysis())).toEqual({ kind: "text", value: "axis.pedido" });
+    const pago = analysis({ filters: parseSalesFilters(new URLSearchParams("periodo=rango&desde=2026-10-14&hasta=2026-10-14&tiempo=pago")) });
+    expect(axisRow(pago)).toEqual({ kind: "text", value: "axis.pago" });
+    const dayRow = buildExportSections(pago, ctx)[0]!.rows.find((r) => r[0]?.kind === "text" && r[0].value === "export.businessDay")?.[1];
+    expect(dayRow).toEqual({ kind: "text", value: "businessDayHint(05)" });
+  });
+
+  it("las cuentas del día traen la hora del pedido y la del pago", () => {
+    const orders = sections.find((s) => s.key === "orders")!;
+    expect(orders.headers.slice(0, 2)).toEqual(["export.placedAtCol", "export.paidAtCol"]);
+    expect(orders.rows[0]!.slice(0, 2)).toEqual([
+      { kind: "text", value: "2026-10-15T00:10:00.000Z" },
+      { kind: "text", value: "2026-10-15T01:30:00.000Z" },
+    ]);
+  });
+
+  it("el ticket del equipo y de los canales sale de las cuentas contadas, enteras", () => {
+    const a = analysis();
+    a.current.waiters = [{ ...a.current.waiters[0]!, netCents: 400, accountNetCents: 1_000, orders: 2 }];
+    const team = buildExportSections(a, ctx).find((s) => s.key === "team")!;
+    expect(team.rows[0]![3]).toEqual({ kind: "money", cents: 500 });
   });
 });
 

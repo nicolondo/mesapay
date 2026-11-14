@@ -93,7 +93,13 @@ export function SalesAnalysisView({
             <strong>{periodLabel(filters, t, locale)}</strong>
             {filters.period !== "rango" && <span>{` · ${fmtRange(analysis.range, locale)}`}</span>}
             {compareLabel && <span>{` · ${t("comparedWith", { period: compareLabel })}`}</span>}
-            <span className="mp-sales-period-hint">{t("businessDayHint", { hour: String(cutoffHour).padStart(2, "0") })}</span>
+            <span className="mp-sales-period-hint">
+              {t(filters.axis === "pedido" ? "businessDayHintOrder" : "businessDayHint", { hour: String(cutoffHour).padStart(2, "0") })}
+            </span>
+            {/* Con «Hora del pedido» un día no suma lo mismo que su cierre: avisarlo. */}
+            {filters.axis === "pedido" && (
+              <span className="mp-sales-period-hint" data-testid="sales-axis-note">{t("axisNote")}</span>
+            )}
           </p>
           {analysis.itemFilter && <p className="mp-sales-callout" role="note">{t("itemFilterNotice")}</p>}
 
@@ -162,6 +168,7 @@ export function SalesAnalysisView({
               locale={locale}
               counterMode={counterMode}
               itemFilter={analysis.itemFilter}
+              axis={filters.axis}
             />
           )}
 

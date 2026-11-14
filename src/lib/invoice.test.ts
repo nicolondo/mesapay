@@ -4,6 +4,8 @@ import {
   embeddedTaxOf,
   formatInvoiceNumber,
   frozenSalesTax,
+  invoicePayableOf,
+  payableRows,
   renderInvoiceEmail,
   summaryRows,
   taxRows,
@@ -325,15 +327,44 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
       "Subtotal",
       "Base gravable",
       "Incl. impoconsumo 8%",
-      "TOTAL",
+      "Total factura",
     ]);
-    expect(labels(snap({ subtotalCents: 3_000_000 }))).toEqual(["Subtotal", "TOTAL"]);
+    expect(labels(snap({ subtotalCents: 3_000_000 }))).toEqual(["Subtotal", "Total factura"]);
   });
 
   it("datáfono sin traductor cae al catálogo en español, como siempre", () => {
     const labels = buildInvoiceCommands(snap({ ...INC_8, tipCents: 10_000 }), 1, invoiceUrl)
       .flatMap((c) => (c.type === "columns" ? [c.columns[0].text] : []));
-    expect(labels).toEqual(["Subtotal", "Base gravable", "Incl. impoconsumo 8%", "Propina", "TOTAL"]);
+    expect(labels).toEqual(["Subtotal", "Base gravable", "Incl. impoconsumo 8%", "Total factura", "Propina voluntaria"]);
+  });
+
+  it("datáfono: el TOTAL A PAGAR = factura + propina, en negrita y más grande, al final", () => {
+    // Emitida al cobrar: el total del snapshot ya incluye la propina.
+    const commands = buildInvoiceCommands(
+      snap({ subtotalCents: 12_000_000, tipCents: 1_200_000, totalCents: 13_200_000 }),
+      1,
+      invoiceUrl,
+    );
+    const texts = commands.flatMap((c) => (c.type === "text" ? [c] : []));
+    const label = texts.findIndex((c) => c.text === "TOTAL A PAGAR\n");
+    expect(label).toBeGreaterThan(-1);
+    expect(texts[label]).toMatchObject({ bold: true, size: 28 });
+    expect(texts[label + 1]).toMatchObject({ text: "$ 132.000\n", bold: true, size: 32, align: "RIGHT" });
+    const rows = commands.flatMap((c) => (c.type === "columns" ? [`${c.columns[0].text} ${c.columns[1].text}`] : []));
+    expect(rows).toContain("Total factura $ 120.000");
+    expect(rows).toContain("Propina voluntaria $ 12.000");
+  });
+
+  it("datáfono, factura emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden", () => {
+    const pre = snap({ subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true });
+    const totalToPay = (order?: { tipCents: number }) => {
+      const texts = buildInvoiceCommands(pre, 1, invoiceUrl, undefined, order).flatMap((c) =>
+        c.type === "text" ? [c.text] : [],
+      );
+      return texts[texts.indexOf("TOTAL A PAGAR\n") + 1];
+    };
+    expect(totalToPay({ tipCents: 1_200_000 })).toBe("$ 132.000\n");
+    expect(totalToPay()).toBe("$ 120.000\n");
   });
 });
 
@@ -402,8 +433,8 @@ describe("summaryRows — el descuento del cliente y el impuesto, en el orden de
       "Descuento 20%",
       "Base gravable",
       "Incl. impoconsumo 8%",
-      "Propina",
-      "TOTAL",
+      "Total factura",
+      "Propina voluntaria",
     ]);
   });
 });
@@ -525,5 +556,100 @@ describe("invoice payment time", () => {
     const result = await renderInvoiceEmail({ snapshot: snap({ paidAtIso: "2026-09-29T01:30:00.000Z" }), invoiceNumber: 1, invoiceUrl: "https://mesapay.co/factura/test", locale: "es" });
     expect(result.text).toContain("28/09/26 · 20:30");
     expect(result.html).toContain("28/09/26 · 20:30");
+  });
+});
+
+
+// El caso del dueño: consumo $ 120.000 con impoconsumo incluido y $ 12.000
+// de propina; el cliente pagó $ 132.000 y la factura decía TOTAL
+// $ 120.000. Desde ahora: «Total factura» (la venta, lo del XML), «Propina
+// voluntaria» y el TOTAL A PAGAR destacado = factura + propina cobrada.
+describe("invoicePayableOf — total factura + propina = TOTAL A PAGAR", () => {
+  it("emitida al cobrar: la propina del snapshot; la venta es el total sin ella", () => {
+    expect(invoicePayableOf({ totalCents: 13_200_000, tipCents: 1_200_000 })).toEqual({
+      invoiceTotalCents: 12_000_000,
+      tipCents: 1_200_000,
+      totalToPayCents: 13_200_000,
+    });
+    // La orden no se mira: la del snapshot ya es la final.
+    expect(invoicePayableOf({ totalCents: 13_200_000, tipCents: 1_200_000 }, { tipCents: 1 }).tipCents).toBe(1_200_000);
+  });
+
+  it("sin propina, el TOTAL A PAGAR es el total de la factura", () => {
+    expect(invoicePayableOf({ totalCents: 5_000_000, tipCents: 0 })).toEqual({
+      invoiceTotalCents: 5_000_000,
+      tipCents: 0,
+      totalToPayCents: 5_000_000,
+    });
+  });
+
+  it("emitida ANTES de cobrar: la propina REAL de la orden, no la del snapshot (0)", () => {
+    const pre = { totalCents: 12_000_000, tipCents: 0, issuedBeforePayment: true };
+    expect(invoicePayableOf(pre, { tipCents: 1_200_000 })).toEqual({
+      invoiceTotalCents: 12_000_000,
+      tipCents: 1_200_000,
+      totalToPayCents: 13_200_000,
+    });
+    // Sin cobrar (o sin la orden): nada que sumar; la sugerida va aparte.
+    expect(invoicePayableOf(pre, { tipCents: 0 }).totalToPayCents).toBe(12_000_000);
+    expect(invoicePayableOf(pre, null).totalToPayCents).toBe(12_000_000);
+    expect(invoicePayableOf(pre).totalToPayCents).toBe(12_000_000);
+  });
+
+  it("payableRows: total, propina sólo si hay, y el TOTAL A PAGAR como único renglón fuerte", () => {
+    const labels = { invoiceTotal: "Total factura", tip: "Propina voluntaria", totalToPay: "TOTAL A PAGAR" };
+    expect(payableRows({ invoiceTotalCents: 100, tipCents: 10, totalToPayCents: 110 }, labels)).toEqual([
+      { label: "Total factura", cents: 100 },
+      { label: "Propina voluntaria", cents: 10 },
+      { label: "TOTAL A PAGAR", cents: 110, strong: true },
+    ]);
+    expect(payableRows({ invoiceTotalCents: 100, tipCents: 0, totalToPayCents: 100 }, labels)).toEqual([
+      { label: "Total factura", cents: 100 },
+      { label: "TOTAL A PAGAR", cents: 100, strong: true },
+    ]);
+  });
+});
+
+describe("correo del comprobante — total, propina voluntaria y TOTAL A PAGAR", () => {
+  const fesm = snap({ ...INC_8, subtotalCents: 12_000_000, tipCents: 1_200_000, totalCents: 13_200_000 });
+
+  it.each([
+    ["es", ["Total comprobante: $120.000", "Propina voluntaria: $12.000", "TOTAL A PAGAR: $132.000"]],
+    ["en", ["Receipt total: $120.000", "Voluntary tip: $12.000", "TOTAL TO PAY: $132.000"]],
+    ["pt", ["Total do comprovante: $120.000", "Gorjeta voluntária: $12.000", "TOTAL A PAGAR: $132.000"]],
+  ])("%s: los tres renglones seguidos y el resumen de arriba con el total a pagar", async (locale, rows) => {
+    const email = await renderInvoiceEmail({ snapshot: fesm, invoiceNumber: 77, invoiceUrl, locale });
+    const lines = email.text.split("\n");
+    const first = lines.indexOf(rows[0]!);
+    expect(first).toBeGreaterThan(-1);
+    expect(lines.slice(first, first + 3)).toEqual(rows);
+    // En el HTML, el TOTAL A PAGAR va en negrita y a 16px (el resto a 12px).
+    expect(email.html).toMatch(/font-size:16px;font-weight:700;[^"]*">[^<]*<\/td><td[^>]*font-size:16px;font-weight:700;[^>]*>\$132\.000/);
+    expect(email.html).not.toMatch(/>TOTAL<\/td>/);
+  });
+
+  it("emitida ANTES de cobrar: sin pagar dice «TOTAL A PAGAR» arriba; cobrada, «Total pagado» con la propina de la orden", async () => {
+    const pre = snap({ ...INC_8, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true });
+    const unpaid = await renderInvoiceEmail({ snapshot: pre, invoiceNumber: 77, invoiceUrl, locale: "es", order: { tipCents: 0, paid: false } });
+    expect(unpaid.text).toContain("TOTAL A PAGAR: $120.000");
+    expect(unpaid.text).not.toContain("Propina voluntaria");
+    expect(unpaid.html).not.toContain("Total pagado");
+    const paid = await renderInvoiceEmail({ snapshot: pre, invoiceNumber: 77, invoiceUrl, locale: "es", order: { tipCents: 1_200_000, paid: true } });
+    expect(paid.text).toContain("Propina voluntaria: $12.000");
+    expect(paid.text).toContain("TOTAL A PAGAR: $132.000");
+    expect(paid.html).toContain("Total pagado");
+    expect(paid.html).toMatch(/Total pagado<\/div>\s*<div[^>]*>\$132\.000/);
+  });
+});
+
+describe("emitida con «Sin propina»: el datáfono tampoco sugiere propina", () => {
+  it("sin cobrar, sólo Total factura y TOTAL A PAGAR = la factura", () => {
+    const pre = snap({ subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true, suggestedTipPct: 0 });
+    const texts = buildInvoiceCommands(pre, 1, invoiceUrl, undefined, { tipCents: 0 }).flatMap((c) =>
+      c.type === "text" ? [c.text] : c.type === "columns" ? [c.columns.map((col) => col.text).join(" ")] : [],
+    );
+    expect(texts.join("\n")).not.toContain("Propina sugerida");
+    expect(texts.join("\n")).not.toContain("Propina voluntaria");
+    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$ 120.000\n");
   });
 });

@@ -9,7 +9,10 @@ import { fmtCOP, formatDate, localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
+  invoicePayableOf,
   itemDetailText,
+  payableLabelsFrom,
+  payableRows,
   summaryLabelsFrom,
   summaryRows,
   type InvoiceSnapshot,
@@ -107,8 +110,12 @@ export default async function FacturaPage({
       order: {
         select: {
           shortCode: true,
-          // Factura emitida ANTES de cobrar: lo cobrado decide si todavía
-          // dice "Pendiente de pago" (ver `pendingPaymentOf`).
+          // Factura emitida ANTES de cobrar: la propina REAL que se cobró
+          // (la del snapshot es 0, se decidió después), para el TOTAL A
+          // PAGAR (ver `invoicePayableOf`).
+          tipCents: true,
+          // Y lo cobrado decide si todavía dice "Pendiente de pago" (ver
+          // `pendingPaymentOf`).
           payments: {
             where: { status: "approved" },
             select: { method: true, amountCents: true, tipCents: true },
@@ -208,9 +215,17 @@ export default async function FacturaPage({
       : null,
   ].filter((l): l is string => !!l);
 
+  // Total factura (la venta, sin propina), la propina cobrada y el TOTAL A
+  // PAGAR destacado = factura + propina, como en el papel de la caja.
+  const finalRows = payableRows(
+    invoicePayableOf(snap, inv.order),
+    payableLabelsFrom(t, { einvoice }),
+  );
+
   // Emitida antes de cobrar y sin saldar: "Pendiente de pago" y la propina
-  // sugerida, como en el papel de la caja (`print/invoiceDoc.ts`).
-  const pending = pendingPaymentOf(snap, inv.order.payments);
+  // sugerida (aparte, sin sumar), como en el papel de la caja
+  // (`print/invoiceDoc.ts`).
+  const pending = pendingPaymentOf(snap, inv.order.payments ?? []);
   const showPending = !!pending && pending.outstandingCents > 0;
 
   const customerWhere = snap.customer
@@ -351,37 +366,38 @@ export default async function FacturaPage({
                 <span className="right">{(r.negative ? "− " : "") + fmtCOP(r.cents)}</span>
               </div>
             ))}
-            {snap.tipCents > 0 && (
-              <div className="row">
-                <span>{t("tip")}</span>
-                <span className="right">{fmtCOP(snap.tipCents)}</span>
+            {/* Total factura, propina voluntaria (si hay) y el TOTAL A
+                PAGAR en negrita y más grande: factura + propina cobrada. */}
+            {finalRows.map((r) => (
+              <div
+                // Papel angosto (menos de 80 mm): el TOTAL A PAGAR un punto
+                // menor, para que rótulo y monto quepan en un renglón.
+                className={r.strong ? (paperMm < 80 ? "row to-pay narrow" : "row to-pay") : "row"}
+                key={r.label}
+                data-total-to-pay={r.strong ? r.cents : undefined}
+              >
+                <span>{r.label}</span>
+                <span className="right">{fmtCOP(r.cents)}</span>
               </div>
-            )}
-            <div className="row grand">
-              <span>{t("total")}</span>
-              <span className="right">{fmtCOP(snap.totalCents)}</span>
-            </div>
+            ))}
             {showPending && pending && (
-              <div className="row grand">
+              <div className="row pending">
                 <span>{t("paymentPending")}</span>
                 <span className="right">{fmtCOP(pending.outstandingCents)}</span>
               </div>
             )}
           </div>
 
+          {/* La propina SUGERIDA, aparte y sin sumar: todavía nadie la
+              decidió. El TOTAL A PAGAR de arriba lleva sólo la cobrada. */}
           {showPending && pending && pending.suggestedTipCents > 0 && (
             <>
               <hr className="dashed" />
               <div className="totals">
                 <div className="row">
-                  <span>{t("prebillSuggestedTip", { pct: pending.suggestedTipPct })}</span>
+                  <span>{t("suggestedTipVoluntary", { pct: pending.suggestedTipPct })}</span>
                   <span className="right">{fmtCOP(pending.suggestedTipCents)}</span>
                 </div>
-                <div className="row grand">
-                  <span>{t("prebillTotalWithTip")}</span>
-                  <span className="right">{fmtCOP(pending.totalWithTipCents)}</span>
-                </div>
-                <div className="small">{t("prebillTipVoluntary")}</div>
               </div>
             </>
           )}
@@ -541,13 +557,25 @@ ${PRINT_DESTINATION_STYLES}
     padding-left: 3ch;
     overflow-wrap: anywhere;
   }
-  .receipt .totals .grand {
+  /* El TOTAL A PAGAR: negrita y más grande que todo lo demás (12px). En
+     papel angosto (58, 55… mm: el contenido mide ~48 mm), un punto menos y
+     apenas más apretado para que rótulo y monto (hasta $999.999) quepan en
+     un renglón; si no entra, el monto baja entero al renglón de abajo,
+     alineado a la derecha: nunca se parte. */
+  .receipt .totals .to-pay {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 16px;
+    line-height: 1.2;
     margin-top: 2px;
     padding-top: 2px;
     border-top: 1px solid #000;
   }
+  .receipt .totals .to-pay.narrow {
+    font-size: 14px;
+    letter-spacing: -0.03em;
+    column-gap: 4px;
+  }
+  .receipt .totals .pending { font-weight: 700; }
   .receipt .dian-fiscal { text-align: center; }
   .receipt .dian-fiscal .dian-qr {
     display: block;

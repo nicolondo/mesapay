@@ -13,6 +13,7 @@
 import { getEmailTranslator } from "@/lib/emailIntl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
+import type { InvoicePayable } from "@/lib/invoice";
 
 // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,12 @@ export type DianInvoiceEmailArgs = {
   /** Momento del cobro (se muestra como fecha de la factura). */
   issuedAt: Date;
   cufe: string;
-  totalCents: number;
+  /**
+   * Total factura (la venta: lo que declara el XML), propina voluntaria y
+   * TOTAL A PAGAR = factura + propina cobrada (`invoicePayableOf`). El XML
+   * adjunto no cambia: la propina nunca va en él.
+   */
+  payable: InvoicePayable;
   /** Representación gráfica ya existente: /factura/[id]. */
   invoiceUrl: string;
   /** Enlace al catálogo de la DIAN para validar el CUFE. */
@@ -104,10 +110,15 @@ export async function renderDianInvoiceEmail(
   // Moneda fija en COP a propósito: el documento DIAN se emite en COP
   // (el XML lleva currencyID="COP" hardcodeado). El locale sólo decide el
   // idioma y la agrupación de miles.
-  const totalStr = formatMoney(args.totalCents, {
-    currency: "COP",
-    locale: lang,
-  });
+  const money = (cents: number) => formatMoney(cents, { currency: "COP", locale: lang });
+  // Total factura, propina voluntaria (sólo si hay) y el TOTAL A PAGAR.
+  const totals: Array<{ label: string; value: string; strong?: true }> = [
+    { label: t("labelInvoiceTotal"), value: money(args.payable.invoiceTotalCents) },
+    ...(args.payable.tipCents > 0
+      ? [{ label: t("labelTip"), value: money(args.payable.tipCents) }]
+      : []),
+    { label: t("labelTotalToPay"), value: money(args.payable.totalToPayCents), strong: true as const },
+  ];
   const dateStr = formatDate(args.issuedAt, { locale: lang });
   const intro = t("intro", { brand: args.brandName });
 
@@ -121,7 +132,7 @@ export async function renderDianInvoiceEmail(
     "",
     `${t("labelNumber")}: ${args.invoiceNumber}`,
     `${t("labelDate")}: ${dateStr}`,
-    `${t("labelTotal")}: ${totalStr}`,
+    ...totals.map((r) => `${r.label}: ${r.value}`),
     "",
     `${t("labelCufe")}: ${args.cufe}`,
     t("cufeLead"),
@@ -143,6 +154,12 @@ export async function renderDianInvoiceEmail(
     `<tr>` +
     `<td style="padding:10px 0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>` +
     `<td align="right" style="padding:10px 0;border-bottom:1px solid #EAE1D0;font-size:${mono ? "11px" : "15px"};${mono ? "font-family:'SF Mono','Menlo',monospace;word-break:break-all;" : "font-family:'Instrument Serif',Georgia,serif;"}color:#1A1613;">${escapeHtml(value)}</td>` +
+    `</tr>`;
+  // El TOTAL A PAGAR: en negrita y más grande que el resto de las filas.
+  const strongRow = (label: string, value: string) =>
+    `<tr>` +
+    `<td style="padding:12px 0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#1A1613;white-space:nowrap;vertical-align:middle;">${escapeHtml(label)}</td>` +
+    `<td align="right" style="padding:12px 0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:20px;font-weight:700;color:#1A1613;white-space:nowrap;">${escapeHtml(value)}</td>` +
     `</tr>`;
 
   const html = `<!doctype html>
@@ -174,7 +191,7 @@ export async function renderDianInvoiceEmail(
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #EAE1D0;">
           ${row(t("labelNumber"), args.invoiceNumber)}
           ${row(t("labelDate"), dateStr)}
-          ${row(t("labelTotal"), totalStr)}
+          ${totals.map((r) => (r.strong ? strongRow(r.label, r.value) : row(r.label, r.value))).join("")}
           ${row(t("labelCufe"), args.cufe, true)}
         </table>
         <p style="font-size:12px;line-height:1.5;color:#8B7B65;margin:12px 0 0 0;">${escapeHtml(t("cufeLead"))}<br/><a href="${escapeHtml(args.verifyUrl)}" style="color:#C9532E;word-break:break-all;">${escapeHtml(t("verifyCta"))}</a></p>

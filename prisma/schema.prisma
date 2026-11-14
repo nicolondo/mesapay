@@ -2420,6 +2420,11 @@ model PurchaseOrder {
   /// siguen el avance de la recepción— cuenta completa en la cuenta por pagar
   /// desde la entrega en que se practicó. Ver `purchaseOrderTotals`.
   receptionRetentionCents Int @default(0)
+  /// «Ajustes» / ajuste al peso impreso en la factura del proveedor, CON
+  /// signo. Suma al total a pagar (la CxP queda igual al Total impreso) pero a
+  /// ninguna línea: no es costo de inventario ni impuesto. Lo fija la
+  /// importación con IA al confirmar. Ver `purchaseOrderTotals`.
+  roundingCents Int @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)

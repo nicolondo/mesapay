@@ -52,7 +52,7 @@ export function MoneyInput({
       (String(value) !== "" && Number(draft) === Number(value)));
   const raw = sameValue ? draft : String(value);
   const display = formatMoneyInput(raw, locale, fractionDigits);
-  const { group, decimal } = moneySeparators(locale);
+  const { group, decimal } = moneySeparators();
   useLayoutEffect(() => {
     if (cursor.current !== null && ref.current === document.activeElement)
       ref.current?.setSelectionRange(cursor.current, cursor.current);

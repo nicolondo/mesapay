@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fmtCOP,
+  fmtCOPauto,
   fmtCOPlong,
   formatDate,
   formatMoney,
@@ -53,6 +54,13 @@ describe("convención de números: miles «,» y decimales «.» en todos los id
     expect(flat(formatMoney(123456, { currency: "COP", locale: "es", fractionDigits: "auto" }))).toBe("$1,234.56");
     expect(flat(formatMoney(-50, { currency: "COP", locale: "es", fractionDigits: "auto" }))).toBe("-$0.50");
     expect(flat(formatMoney(123400, { currency: "USD", locale: "en", fractionDigits: "auto" }))).toBe("$1,234.00");
+  });
+
+  it("fmtCOPauto: centavos solo si los hay", () => {
+    expect(fmtCOPauto(123400)).toBe("$1,234");
+    expect(fmtCOPauto(123456)).toBe("$1,234.56");
+    expect(fmtCOPauto(5)).toBe("$0.05");
+    expect(fmtCOPauto(-123456)).toBe("$-1,234.56");
   });
 
   it("fmtCOP / fmtCOPlong / groupThousands", () => {

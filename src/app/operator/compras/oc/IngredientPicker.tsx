@@ -85,7 +85,7 @@ export function IngredientPicker({
   const hasSupplierGroup = ranked.length > 0 && ranked[0]!.fromSupplier;
 
   const text = query ?? value?.name ?? "";
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
 
   // En una hoja recién abierta, `showModal()` enfoca el primer [autofocus]
   // (así el teclado del celular sube con el toque); si la hoja ya estaba

@@ -97,6 +97,18 @@ export function fmtCOP(cents: number): string {
   return "$" + groupInteger(Math.round(cents / 100));
 }
 
+/** Como `fmtCOP`, pero con los centavos cuando el valor los tiene
+ * («$1,234» / «$1,234.56»): para montos que se digitan con 2 decimales
+ * (cargos libres, facturas manuales) y no deben verse redondeados. */
+export function fmtCOPauto(cents: number): string {
+  const rounded = Math.round(cents);
+  if (rounded % 100 === 0) return fmtCOP(rounded);
+  return (
+    "$" +
+    numberFormatter(defaultLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded / 100)
+  );
+}
+
 export function fmtCOPlong(cents: number): string {
   return "$" + groupInteger(Math.round(cents / 100)) + " COP";
 }
@@ -111,11 +123,7 @@ export function pesosToCents(pesos: number): number {
  * sea dígito, recorta a 12 cifras (evita perder precisión de Number) y
  * quita ceros a la izquierda. "" → "".
  */
-export function groupThousands(
-  digits: string,
-  // El idioma ya no cambia los separadores; se conserva por compatibilidad.
-  _locale: Locale = defaultLocale,
-): string {
+export function groupThousands(digits: string): string {
   const clean = digits.replace(/\D/g, "").slice(0, 12);
   if (clean === "") return "";
   return groupInteger(Number(clean));

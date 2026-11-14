@@ -4,7 +4,7 @@ import type { Locale } from "@/i18n/config";
 
 /** Separadores de los campos de plata: la convención de MESAPAY (miles «,»,
  * decimales «.») en todos los idiomas — ver `@/lib/format`. */
-export function moneySeparators(_locale?: Locale) {
+export function moneySeparators() {
   return { group: NUMBER_SEPARATORS.group, decimal: NUMBER_SEPARATORS.decimal };
 }
 
@@ -18,7 +18,7 @@ export function formatMoneyInput(
   if (!/^-?\d*(?:\.\d*)?$/.test(raw)) return "";
   const negative = raw.startsWith("-");
   const [integer, fraction] = raw.replace(/^-/, "").split(".");
-  const { group, decimal } = moneySeparators(locale);
+  const { group, decimal } = moneySeparators();
   const grouped = integer
     .replace(/^0+(?=\d)/, "")
     .replace(/\B(?=(\d{3})+(?!\d))/g, group);
@@ -39,7 +39,7 @@ export function parseMoneyInput(
   fractionDigits = 0,
   allowNegative = false,
 ): string | null {
-  const { group, decimal } = moneySeparators(locale);
+  const { group, decimal } = moneySeparators();
   let text = raw.split(group).join("").replace(/\s/g, "");
   if (decimal !== ".") text = text.replace(decimal, ".");
   if (

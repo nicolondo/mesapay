@@ -233,7 +233,7 @@ export function ExpenseSheet({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
 
   // Proveedores creados inline en esta sesión del sheet: se muestran en el
   // select de inmediato (el prop `suppliers` solo se refresca en el padre).
@@ -820,6 +820,7 @@ export function ExpenseSheet({
                 <MoneyInput
                   value={amountRaw}
                   onChange={setAmountRaw}
+                  fractionDigits={2}
                   className={inputCls}
                 />
               </Field>
@@ -983,18 +984,19 @@ export function ExpenseSheet({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field label={t("fieldDiscount")} hint={t("fieldDiscountHint")}>
-                <MoneyInput value={discountRaw} onChange={setDiscountRaw} className={inputCls} />
+                <MoneyInput value={discountRaw} onChange={setDiscountRaw} fractionDigits={2} className={inputCls} />
               </Field>
               <Field label={t("fieldIvaPrinted")} hint={t("fieldIvaPrintedHint")}>
                 <MoneyInput
                   value={ivaPrintedRaw}
                   onChange={setIvaPrintedRaw}
-                  placeholder={pre.ivaCents > 0 && printedIva == null ? String(Math.round(pre.ivaCents / 100)) : undefined}
+                  fractionDigits={2}
+                  placeholder={pre.ivaCents > 0 && printedIva == null ? String(pre.ivaCents / 100) : undefined}
                   className={inputCls}
                 />
               </Field>
               <Field label={t("fieldInc")} hint={t("fieldIncHint")}>
-                <MoneyInput value={incRaw} onChange={setIncRaw} className={inputCls} />
+                <MoneyInput value={incRaw} onChange={setIncRaw} fractionDigits={2} className={inputCls} />
               </Field>
             </div>
             {amounts.ivaCents > 0 && (
@@ -1047,6 +1049,7 @@ export function ExpenseSheet({
                           </div>
                           <MoneyInput
                             value={String(lineAmount(l) / 100)}
+                            fractionDigits={2}
                             onChange={(raw) =>
                               editLines((cur) =>
                                 cur.map((x, j) => (j === i ? { ...x, amount: rawToCents(raw) } : x)),
@@ -1518,12 +1521,12 @@ function ExpensePaymentPanel({
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium">{t("expensePayTitle")}</span>
         <span className="text-[11px] text-op-muted tabular-nums">
-          {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale }) })}
+          {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale, fractionDigits: "auto" }) })}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <Field label={t("expensePayAmount")} required>
-        <MoneyInput value={amountRaw} onChange={setAmountRaw} className={inputCls} />
+        <MoneyInput value={amountRaw} onChange={setAmountRaw} fractionDigits={2} className={inputCls} />
       </Field>
       <Field label={t("expensePayDate")} required>
         <input

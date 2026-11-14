@@ -1101,6 +1101,7 @@ function ItemForm({
         <MoneyInput
           value={price}
           onChange={setPrice}
+          fractionDigits={2}
           className={inputCls}
         />
       </Field>

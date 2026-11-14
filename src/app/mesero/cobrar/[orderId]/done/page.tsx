@@ -77,6 +77,7 @@ export default async function MeseroCobradoPage({
       docType: true,
       docNumber: true,
       email: true,
+      ccEmails: true,
     },
   });
 

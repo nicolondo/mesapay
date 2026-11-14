@@ -869,6 +869,8 @@ export async function loadPurchasesBook(
     retefuenteCents: o.retefuenteCents,
     reteIvaCents: o.reteIvaCents,
     reteIcaCents: o.reteIcaCents,
+    // Ajuste al peso de la factura (con signo): parte de la CxP, no del costo.
+    roundingCents: purchaseOrderTotals(o, "received").roundingCents,
   }));
   // Misma suma que el asiento «Compras del día» hace sobre las filas de cada
   // día (`sumPurchaseBookRows`): Σ días == mes al centavo.

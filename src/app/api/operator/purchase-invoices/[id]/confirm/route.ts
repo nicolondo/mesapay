@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { InvoiceAliasError, rememberInvoiceAliases } from "@/lib/erp/invoiceAliases";
 import { discountsReproduceNet } from "@/lib/erp/purchaseDiscount";
+import { ROUNDING_MAX_CENTS } from "@/lib/erp/invoiceReconcile";
+import { lineTaxCents } from "@/lib/erp/purchaseTax";
 import {
   createPurchaseOrder,
   receivePurchaseOrder,
@@ -66,10 +68,20 @@ const confirmSchema = z.object({
   // Descuento sobre el total de la factura, prorrateado entre las líneas.
   discountPct: z.number().int().min(0).max(100).nullish(),
   discountCents: z.number().int().min(0).max(2_000_000_000).nullish(),
+  // «Ajustes» / ajuste al peso de la factura, con signo: solo un redondeo.
+  roundingCents: z.number().int().min(-ROUNDING_MAX_CENTS).max(ROUNDING_MAX_CENTS).optional(),
+  // El operador vio el resumen «Factura vs MESAPAY» con diferencias y decidió guardar así.
+  acknowledgedDifferences: z.boolean().optional(),
   // Factura sin número parecida a otra (proveedor + día + total): "check"
   // pide la advertencia; "allow" = el operador la vio y guarda igual.
   possibleDuplicate: z.enum(POSSIBLE_DUPLICATE_MODES).optional(),
 });
+
+/** Total impreso que la lectura guardó en la carga (null si no se leyó). */
+function printedTotalCents(extraction: unknown): number | null {
+  const value = (extraction as { invoiceTotalCents?: unknown } | null)?.invoiceTotalCents;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
 
 async function POSTHandler(
   req: Request,
@@ -107,7 +119,7 @@ async function POSTHandler(
 
   const upload = await db.purchaseInvoiceUpload.findUnique({
     where: { id },
-    select: { id: true, restaurantId: true, status: true },
+    select: { id: true, restaurantId: true, status: true, extraction: true },
   });
   if (!upload || upload.restaurantId !== ctx.restaurantId) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -115,6 +127,17 @@ async function POSTHandler(
   if (upload.status !== "pending") {
     return NextResponse.json({ error: "not_pending" }, { status: 409 });
   }
+  // Lo que queda por pagar debe ser el Total impreso de la factura. Si no lo
+  // es, solo se guarda con la confirmación explícita del operador (la
+  // revisión le mostró la diferencia renglón por renglón). Se exige DENTRO de
+  // la transacción, después de validar proveedor e insumos: un error de
+  // validación o de otro comercio (400) nunca queda tapado por este 409.
+  const printedTotal = printedTotalCents(upload.extraction);
+  const payableCents = b.lines.reduce((sum, line) => sum + line.expectedCostCents
+    + (line.expectedTaxCents ?? lineTaxCents(line.expectedCostCents, line.taxPct ?? 0)), 0)
+    + invoiceIncCents - (b.retefuenteCents ?? 0) - (b.reteIvaCents ?? 0) - (b.reteIcaCents ?? 0)
+    + (b.roundingCents ?? 0);
+  const totalsUnconfirmed = printedTotal != null && payableCents !== printedTotal && b.acknowledgedDifferences !== true;
   const session = await auth();
   const createdById = session?.user?.id ?? null;
   // Ajuste del comercio para valorar el inventario al recibir (neto/bruto).
@@ -200,6 +223,10 @@ async function POSTHandler(
         });
       }
 
+      // 2b. Con todo validado: el total a pagar ≠ Total impreso exige la
+      // confirmación explícita. Revierte también lo creado arriba.
+      if (totalsUnconfirmed) throw new PurchasingError("totals_unconfirmed");
+
       // 3. La OC (reusa A2).
       const po = await createPurchaseOrder(tx, {
         restaurantId: ctx.restaurantId,
@@ -219,7 +246,8 @@ async function POSTHandler(
         invoiceIncCents ||
         b.retefuenteCents ||
         b.reteIvaCents ||
-        b.reteIcaCents
+        b.reteIcaCents ||
+        b.roundingCents
       ) {
         await tx.purchaseOrder.update({
           where: { id: po.id },
@@ -228,6 +256,8 @@ async function POSTHandler(
             retefuenteCents: b.retefuenteCents ?? 0,
             reteIvaCents: b.reteIvaCents ?? 0,
             reteIcaCents: b.reteIcaCents ?? 0,
+            // Ajuste al peso: a la CxP, no a las líneas (purchaseOrderTotals).
+            roundingCents: b.roundingCents ?? 0,
           },
         });
       }
@@ -296,7 +326,8 @@ async function POSTHandler(
       return NextResponse.json({ error: err.code }, { status: 400 });
     }
     if (err instanceof PurchasingError) {
-      return NextResponse.json({ error: err.code }, { status: err.code === "not_pending" ? 409 : 400 });
+      const conflict = err.code === "not_pending" || err.code === "totals_unconfirmed";
+      return NextResponse.json({ error: err.code }, { status: conflict ? 409 : 400 });
     }
     throw err;
   }

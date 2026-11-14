@@ -6,32 +6,55 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import { getAccountingConfig } from "@/lib/erp/cierre";
 import {
   computeRetentions,
+  conceptErrorStatus,
+  loadRetentionAccounts,
   loadRetentionConcepts,
+  loadRetentionConceptsWithUsage,
+  updateRetentionConcept,
 } from "@/lib/erp/retenciones";
+import { auditConceptChange } from "@/lib/erp/retencionesAudit";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
 
 const GATE: ModuleSlug[] = ["accounting"];
 
-/** Conceptos de retención del comercio + valor UVT vigente. */
+/**
+ * Conceptos de retención del comercio (con cuántos gastos usa cada uno: uno
+ * usado no se borra), valor UVT vigente y las cuentas que puede llevar un
+ * concepto (2365xx / 2367xx / 2368xx imputables del plan).
+ */
 async function GETHandler() {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const [concepts, cfg] = await Promise.all([
-    loadRetentionConcepts(ctx.restaurantId),
+  const [concepts, cfg, accounts] = await Promise.all([
+    loadRetentionConceptsWithUsage(ctx.restaurantId),
     getAccountingConfig(ctx.restaurantId),
+    loadRetentionAccounts(ctx.restaurantId),
   ]);
-  return NextResponse.json({ concepts, uvtCents: cfg.uvtCents });
+  return NextResponse.json({ concepts, uvtCents: cfg.uvtCents, accounts });
+}
+
+/** Respuesta tras un cambio: la lista (con uso) y la UVT, como el GET. */
+async function listResponse(restaurantId: string) {
+  const [concepts, cfg] = await Promise.all([
+    loadRetentionConceptsWithUsage(restaurantId),
+    getAccountingConfig(restaurantId),
+  ]);
+  return NextResponse.json({ ok: true, concepts, uvtCents: cfg.uvtCents });
 }
 
 const patchSchema = z.object({
-  // Actualiza un concepto (toggle/tarifa/umbral) o el valor UVT del comercio.
+  // Actualiza un concepto (activo/tarifa/umbral/nombre) o el valor UVT del
+  // comercio. La edición completa vive en /retenciones/conceptos/[id]; esto
+  // sigue sirviendo al botón Activo/Inactivo y a la UVT.
   conceptId: z.string().optional(),
   active: z.boolean().optional(),
-  rateBps: z.number().int().min(0).max(10_000).optional(),
+  /** Tarifa en bps enteros (versión anterior de la pantalla). */
+  rateBps: z.number().int().min(1).max(10_000).optional(),
+  ratePpm: z.number().int().min(1).max(1_000_000).optional(),
   thresholdUvt: z.number().int().min(0).max(100_000).optional(),
   name: z.string().min(2).max(120).optional(),
   uvtCents: z.number().int().min(100_000).max(100_000_000).optional(),
@@ -58,29 +81,20 @@ async function PATCHHandler(req: Request) {
   }
 
   if (b.conceptId) {
-    const concept = await db.retentionConcept.findFirst({
-      where: { id: b.conceptId, restaurantId: ctx.restaurantId },
-      select: { id: true },
+    const ratePpm = b.ratePpm ?? (b.rateBps != null ? b.rateBps * 100 : undefined);
+    const result = await updateRetentionConcept(ctx.restaurantId, b.conceptId, {
+      ...(b.active != null && { active: b.active }),
+      ...(ratePpm != null && { ratePpm }),
+      ...(b.thresholdUvt != null && { thresholdUvt: b.thresholdUvt }),
+      ...(b.name != null && { name: b.name }),
     });
-    if (!concept) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: conceptErrorStatus(result.error) });
     }
-    await db.retentionConcept.update({
-      where: { id: concept.id },
-      data: {
-        ...(b.active != null && { active: b.active }),
-        ...(b.rateBps != null && { rateBps: b.rateBps }),
-        ...(b.thresholdUvt != null && { thresholdUvt: b.thresholdUvt }),
-        ...(b.name != null && { name: b.name }),
-      },
-    });
+    await auditConceptChange(ctx.restaurantId, "update", result);
   }
 
-  const [concepts, cfg] = await Promise.all([
-    loadRetentionConcepts(ctx.restaurantId),
-    getAccountingConfig(ctx.restaurantId),
-  ]);
-  return NextResponse.json({ ok: true, concepts, uvtCents: cfg.uvtCents });
+  return listResponse(ctx.restaurantId);
 }
 
 const previewSchema = z.object({

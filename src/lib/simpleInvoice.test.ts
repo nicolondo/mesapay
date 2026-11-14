@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   restaurantUpdate: vi.fn(),
   invoiceCreate: vi.fn(),
   invoiceFindUnique: vi.fn(),
+  invoiceUpdate: vi.fn(async () => ({})),
+  sendEmail: vi.fn(async () => true),
   enqueue: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
@@ -15,14 +17,14 @@ vi.mock("@/lib/db", () => ({
   db: {
     order: { findUnique: m.orderFindUnique },
     restaurant: { update: m.restaurantUpdate },
-    simpleInvoice: { create: m.invoiceCreate, findUnique: m.invoiceFindUnique },
+    simpleInvoice: { create: m.invoiceCreate, findUnique: m.invoiceFindUnique, update: m.invoiceUpdate },
   },
 }));
 vi.mock("@/lib/env", () => ({ env: { APP_PUBLIC_BASE_URL: "https://mesapay.co" } }));
-vi.mock("@/lib/mailer", () => ({ sendEmail: vi.fn() }));
+vi.mock("@/lib/mailer", () => ({ sendEmail: m.sendEmail }));
 vi.mock("@/lib/print/invoiceQueue", () => ({ enqueueInvoicePrintSafe: m.enqueue }));
 
-import { issueSimpleInvoice } from "./simpleInvoice";
+import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "./simpleInvoice";
 import type { InvoiceSnapshot } from "./invoice";
 
 function order() {
@@ -388,5 +390,43 @@ describe("issueSimpleInvoice — descuento del cliente dentro de las líneas", (
     const s = await issuedSnapshot();
     expect(s.discountInLines).toBeUndefined();
     expect(s.embeddedTaxCents! + s.embeddedBaseCents!).toBe(6_600_000);
+  });
+});
+
+
+describe("sendSimpleInvoiceEmail — el TOTAL A PAGAR del correo", () => {
+  const base = {
+    restaurantName: "Restaurante de muestra", logoUrl: null, legalName: null, taxId: null, legalAddress: null,
+    legalPhone: null, dianResolution: null, dianResolutionFrom: null, dianResolutionTo: null,
+    dianResolutionDate: null, invoicePrefix: "FESM", shortCode: "A4F2", tableLabel: "Mesa 7",
+    paidAtIso: "2026-11-04T23:10:00.000Z", items: [], subtotalCents: 12_000_000,
+  };
+  const send = (snapshot: InvoiceSnapshot) =>
+    sendSimpleInvoiceEmail({
+      invoiceId: "inv-1", snapshot, invoiceNumber: 77,
+      invoiceUrl: "https://mesapay.co/factura/inv-1", email: "c@example.test", locale: "es",
+    });
+  const text = () => (m.sendEmail.mock.calls.at(-1) as unknown as [{ text: string }])[0].text;
+
+  beforeEach(() => {
+    m.sendEmail.mockClear();
+    m.invoiceFindUnique.mockReset();
+  });
+
+  it("emitida al cobrar: la propina del snapshot, sin leer la orden", async () => {
+    await send({ ...base, tipCents: 1_200_000, totalCents: 13_200_000 });
+    expect(m.invoiceFindUnique).not.toHaveBeenCalled();
+    expect(text()).toContain("Propina voluntaria: $12.000");
+    expect(text()).toContain("TOTAL A PAGAR: $132.000");
+  });
+
+  it("emitida ANTES de cobrar: la propina REAL de la orden ya cobrada", async () => {
+    m.invoiceFindUnique.mockResolvedValue({ order: { tipCents: 1_200_000, status: "paid" } });
+    await send({ ...base, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true });
+    expect(m.invoiceFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "inv-1" } }),
+    );
+    expect(text()).toContain("Total comprobante: $120.000");
+    expect(text()).toContain("TOTAL A PAGAR: $132.000");
   });
 });

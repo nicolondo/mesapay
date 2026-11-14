@@ -17,8 +17,9 @@
  *     renglón y el nombre usando todo el ancho (`itemRow`);
  *   · modificadores y nota JUNTOS en un renglón en fuente B (la chica,
  *     1/3 más de columnas), separados por " · " y con sangría;
- *   · filas de totales de a una, y la FUERTE (TOTAL, pendiente) en
- *     negrita a doble ALTO con el ancho normal (`totalRowChunks`);
+ *   · filas de totales de a una, y la FUERTE (el TOTAL A PAGAR de la
+ *     factura, lo pendiente de la precuenta) en negrita a doble ALTO con
+ *     el ancho normal (`totalRowChunks`);
  *   · textos legales en fuente B;
  *   · un margen superior después del reset (`compactStart`).
  *
@@ -180,9 +181,14 @@ export function withLineSpacingFor(size: TextSize, body: Buffer[]): Buffer[] {
  * columnas efectivas de ese tamaño y con el interlineado de su letra.
  */
 export function totalRowChunks(
-  row: { label: string; amount: string; strong?: boolean },
+  row: { label: string; amount: string; strong?: boolean; bold?: boolean },
   cols: number,
 ): Buffer[] {
+  // `bold` sin `strong`: negrita al tamaño normal ("Pendiente de pago" de
+  // la factura emitida antes de cobrar). Sólo el TOTAL A PAGAR se agranda.
+  if (!row.strong && row.bold) {
+    return [bold(true), ...padRow(row.label, row.amount, cols).map(line), bold(false)];
+  }
   if (!row.strong) return padRow(row.label, row.amount, cols).map(line);
   return [
     bold(true),

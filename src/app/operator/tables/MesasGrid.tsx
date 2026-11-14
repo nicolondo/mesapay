@@ -22,9 +22,11 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
+import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
 import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import type { RestaurantTax } from "@/lib/salesTax";
 
 /**
@@ -117,6 +119,8 @@ export type ActiveOrder = {
   rounds: Round[];
   /** Pagos `pending` (solicitudes del comensal y pagos en línea en curso). */
   pendingPayments: PendingPaymentView[];
+  /** Datáfono aprobado por otro monto (propina del datáfono o parcial). */
+  terminalAmounts?: TerminalAmountView[];
 };
 
 type Round = {
@@ -362,7 +366,7 @@ export function MesasGrid({
                 type="button"
                 onClick={openManualInvoice}
                 disabled={openingManual}
-                className="h-8 px-3 inline-flex items-center gap-1 rounded-full text-xs font-medium border border-terracotta/50 text-terracotta bg-op-surface hover:bg-terracotta/10 transition-colors disabled:opacity-60"
+                className="h-8 px-3 inline-flex items-center gap-1 rounded-full text-xs font-medium border border-terracotta/50 text-terracotta-2 bg-op-surface hover:bg-terracotta/10 transition-colors disabled:opacity-60"
               >
                 <span aria-hidden>{"+"}</span>
                 <span>
@@ -704,7 +708,7 @@ function Chip({
       <span
         className={
           "font-mono tabular text-[10px] " +
-          (active ? "opacity-80" : "text-op-muted")
+          (active ? "" : "text-op-muted")
         }
       >
         {count}
@@ -823,7 +827,7 @@ function RecentlyPaidTile({
         <div
           className={
             "font-mono text-[9px] mt-0.5 truncate w-full " +
-            (highlight ? "text-bone/80" : "text-op-muted")
+            (highlight ? "text-bone" : "text-op-muted")
           }
         >
           {tile.label}
@@ -835,7 +839,7 @@ function RecentlyPaidTile({
             <span aria-hidden>{"✓ "}</span>
             {tr("tilePaidFromPhone")}
           </div>
-          <div className="text-[10px] text-bone/85 leading-tight">
+          <div className="text-[10px] text-bone leading-tight">
             {minsAgo === 0 ? tr("tileNow") : tr("elapsedAgo", { mins: minsAgo })}
           </div>
         </>
@@ -900,6 +904,12 @@ function ActiveTile({
       ? tr("tableFullWithLabel", { number: tile.number, label: tile.label })
       : tr("tableFull", { number: tile.number });
   const pulse = tokens.pulse;
+  // El estado también en texto: el color y el punto no alcanzan en pantallas
+  // pobres (datáfono) ni para quien no distingue bien los colores.
+  const stateKey = tileStateLabelKey(tile.visualState, {
+    needsWaiter: tile.order.needsWaiter,
+    pendingMethods: tile.order.pendingPayments.map((p) => p.method),
+  });
   // Combinamos age + items en una sola linea compacta. Si nada
   // que mostrar, dejamos en blanco para que el layout no salte.
   const metaLine =
@@ -946,6 +956,11 @@ function ActiveTile({
         {metaLine && (
           <div className="font-mono text-[9px] text-op-muted mt-0.5">
             {metaLine}
+          </div>
+        )}
+        {stateKey && (
+          <div className={"mp-tile-state " + tokens.textAccent}>
+            {tr(stateKey)}
           </div>
         )}
 
@@ -1005,6 +1020,7 @@ function ActiveTile({
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
+          terminalAmounts={tile.order.terminalAmounts}
           counterMode={counterMode}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}

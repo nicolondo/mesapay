@@ -51,8 +51,12 @@ export async function sendDianCreditNoteEmail(
     const money = (cents: number) => formatMoney(cents, { locale, currency: 'COP', fractionDigits: 2 });
     // La propina devuelta con la anulación va como línea INFORMATIVA del
     // correo: no hace parte de la nota electrónica (PDF/XML no cambian).
+    // Con propina devuelta, el renglón final suma las dos (como «Total a
+    // devolver al cliente» de la revisión), en negrita: es lo que el
+    // cliente recibe, igual que el TOTAL A PAGAR de la factura.
     const tipRefund = note.tipRefundCents ?? 0;
-    const paragraphs = [t('intro'), t('reference', { number: note.snapshot.original.invoiceNumber }), t('total', { amount: money(note.totalCents) }), ...(tipRefund > 0 ? [t('tipRefund', { amount: money(tipRefund) })] : []), t('attachments')];
+    const refundTotal = tipRefund > 0 ? t('totalToRefund', { amount: money(note.totalCents + tipRefund) }) : null;
+    const paragraphs = [t('intro'), t('reference', { number: note.snapshot.original.invoiceNumber }), t('total', { amount: money(note.totalCents) }), ...(tipRefund > 0 ? [t('tipRefund', { amount: money(tipRefund) })] : []), ...(refundTotal ? [refundTotal] : []), t('attachments')];
     const from = brandedInvoiceFrom(note.snapshot.brandName);
     claim = `sending:${Date.now()}`;
     const acquired = await db.dianDocument.updateMany({
@@ -66,7 +70,7 @@ export async function sendDianCreditNoteEmail(
       to: recipient, ...(from ? { from } : {}),
       subject: t('subject', { number: note.documentNumber, name: note.snapshot.brandName }),
       text: [...paragraphs, `${t('open')}: ${url}`].join('\n\n'),
-      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#262522"><h1>${escape(note.snapshot.brandName)}</h1>${paragraphs.map((p) => `<p>${escape(p)}</p>`).join('')}<p><a href="${escape(url)}">${escape(t('open'))}</a></p></div>`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#262522"><h1>${escape(note.snapshot.brandName)}</h1>${paragraphs.map((p) => (p === refundTotal ? `<p style="font-size:17px"><strong>${escape(p)}</strong></p>` : `<p>${escape(p)}</p>`)).join('')}<p><a href="${escape(url)}">${escape(t('open'))}</a></p></div>`,
       attachments: [
         { filename: creditNoteFileName(note, 'pdf'), content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
         { filename: creditNoteFileName(note, 'xml'), content: Buffer.from(xml).toString('base64'), contentType: 'application/xml' },

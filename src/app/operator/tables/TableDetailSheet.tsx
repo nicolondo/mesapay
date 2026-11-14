@@ -19,6 +19,8 @@ import {
   PendingPaymentNotice,
   type PendingPaymentView,
 } from "@/components/payments/PendingPaymentNotice";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import { roleLabelKey } from "@/lib/orders/placedBy";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import type { CompPolicyView } from "@/lib/staffPolicies";
@@ -159,6 +161,7 @@ export function TableDetailSheet({
   invoiceIntent = null,
   invoice = null,
   pendingPayments = [],
+  terminalAmounts = [],
   counterMode = false,
   sendInfo = null,
 }: {
@@ -249,6 +252,9 @@ export function TableDetailSheet({
   // comercio, efectivo) la ficha lo muestra ARRIBA con "Confirmar pago
   // recibido"; un pago en línea en curso se muestra sin acción.
   pendingPayments?: PendingPaymentView[];
+  // Cobros del datáfono Kushki aprobados por OTRO monto (propina del
+  // datáfono o parcial): el aviso va arriba, con lo pendiente.
+  terminalAmounts?: TerminalAmountView[];
   // Modo mostrador: el cobro en efectivo titula "Orden X" en vez de "Mesa N".
   counterMode?: boolean;
   // Lo que ya se pidió de factura en la cuenta: la hoja de "Imprimir
@@ -849,6 +855,14 @@ export function TableDetailSheet({
                 />
               )}
 
+            {/* El datáfono aprobó otro monto: «se registró como propina» o
+                «quedan $X por cobrar». Ya está liquidado; queda para revisión. */}
+            {terminalAmounts.map((amount, i) => (
+              <div key={i} className="rounded-xl border border-op-border bg-op-bg px-3 py-2">
+                <TerminalAmountNote amount={amount} />
+              </div>
+            ))}
+
             {/* Factura emitida ANTES de cobrar: va arriba, es lo primero
                 que hay que saber de esta cuenta (cerrada, pendiente de
                 pago, se cobra con cualquier medio). */}
@@ -1247,6 +1261,7 @@ export function TableDetailSheet({
                       canConfigurePrinters={!isMeseroView}
                       onPrintPrebill={() => void prebillPrint.run()}
                       onIssued={() => startTx(() => router.refresh())}
+                      manualInvoice={manual}
                     />
                   )}
                   {canMove && (

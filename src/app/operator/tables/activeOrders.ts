@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { isReplaceablePending } from "@/lib/payments/methods";
-import { terminalClaims } from "@/lib/payments/pendingRequests";
+import { terminalAmountViews, terminalClaims } from "@/lib/payments/pendingRequests";
 import { breBPendingViews } from "@/lib/payments/breB/service";
 import { toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import {
@@ -77,6 +77,7 @@ export type ActiveOrderRow = Prisma.OrderGetPayload<{ include: typeof ACTIVE_ORD
 
 export type ActiveOrderContext = {
   terminalClaimed: Awaited<ReturnType<typeof terminalClaims>>;
+  approvedTerminalAmounts: Awaited<ReturnType<typeof terminalAmountViews>>;
   breBPending: Awaited<ReturnType<typeof breBPendingViews>>;
   invoiceViews: Map<string, OrderInvoiceView>;
 };
@@ -88,6 +89,12 @@ export async function loadActiveOrderContext(orders: readonly ActiveOrderRow[]):
   // `terminal:<id>`): la ficha los muestra como cobro en curso; los que no,
   // como solicitud que se puede cancelar. Una sola consulta para todas.
   const terminalClaimed = await terminalClaims(db, pending);
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono o parcial):
+  // la ficha lo avisa. Una sola consulta para todas.
+  const approvedTerminalAmounts = await terminalAmountViews(
+    db,
+    orders.flatMap((o) => o.payments.filter((p) => p.status === "approved")),
+  );
   // Bre-B en curso: en qué va su QR (vigente / sin confirmar), para que la
   // ficha ofrezca «Ver código», «Consultar estado» y «Cancelar cobro».
   const breBPending = await breBPendingViews(db, pending);
@@ -102,7 +109,7 @@ export async function loadActiveOrderContext(orders: readonly ActiveOrderRow[]):
         if (view) invoiceViews.set(o.id, view);
       }),
   );
-  return { terminalClaimed, breBPending, invoiceViews };
+  return { terminalClaimed, approvedTerminalAmounts, breBPending, invoiceViews };
 }
 
 /**
@@ -169,6 +176,12 @@ export function summarizeActiveOrder(order: ActiveOrderRow, ctx: ActiveOrderCont
         terminalAttempt: toTerminalAttemptView(ctx.terminalClaimed.get(p.id), p.reconciliationRequired),
         breB: ctx.breBPending.get(p.id) ?? null,
       })),
+    // Cobros del datáfono aprobados por otro monto: «se registró como
+    // propina» / «quedan $X por cobrar».
+    terminalAmounts: order.payments
+      .filter((p) => p.status === "approved")
+      .map((p) => ctx.approvedTerminalAmounts.get(p.id))
+      .filter((a): a is NonNullable<typeof a> => !!a && (a.check === "tip" || a.check === "partial")),
     rounds: order.rounds.map((r) => ({
       id: r.id,
       seq: r.seq,

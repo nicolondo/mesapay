@@ -11,6 +11,7 @@ import {
   otherDestination,
   parseDevicePaperMm,
   parseStoredPrintPreference,
+  printDestinationsFor,
   printPreferenceStorageKey,
   receiptSidePaddingMm,
   readPrintPreference,
@@ -212,3 +213,39 @@ describe("«Reintentar en…» y la guía", () => {
     expect(devicePrintHelpHref(null)).toBeNull();
   });
 });
+
+describe("«Impresora de caja · Datáfono · Este dispositivo»", () => {
+  it("«Datáfono» para el personal sólo con datáfonos Kushki; el usuario Datáfono conserva su «Este dispositivo»", () => {
+    expect(printDestinationsFor("operator", true)).toEqual(["caja", "terminal", "device"]);
+    expect(printDestinationsFor("mesero", true)).toEqual(["caja", "terminal", "device"]);
+    expect(printDestinationsFor("mesero", false)).toEqual(["caja", "device"]);
+    expect(printDestinationsFor("terminal", true)).toEqual(["caja", "device"]);
+  });
+
+  it("«Datáfono» se recuerda como los demás destinos", () => {
+    expect(parseStoredPrintPreference('{"destination":"terminal","paperMm":58}')).toEqual({
+      destination: "terminal",
+      paperMm: 58,
+    });
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", true)).toMatchObject({
+      destination: "terminal",
+      remembered: true,
+    });
+  });
+
+  it("sin datáfonos, un «Datáfono» guardado vuelve a la caja; mientras no se sabe, se respeta", () => {
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero", false)).toMatchObject({ destination: "caja" });
+    expect(resolvePrintPreference({ destination: "terminal" }, "mesero")).toMatchObject({ destination: "terminal" });
+  });
+
+  it("para el usuario Datáfono, «Datáfono» es su «Este dispositivo»", () => {
+    expect(resolvePrintPreference({ destination: "terminal" }, "terminal", true)).toMatchObject({
+      destination: "device",
+    });
+  });
+
+  it("si «Datáfono» falla, se ofrece la caja", () => {
+    expect(otherDestination("terminal")).toBe("caja");
+  });
+});
+

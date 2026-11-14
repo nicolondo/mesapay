@@ -189,7 +189,9 @@ describe("factura manual emitida por cobrar", () => {
     expect(mail.sent[0].html).toContain(`/r/${(await db.restaurant.findUniqueOrThrow({ where: { id: scope.restaurantId } })).slug}/cuenta/${link.token}`);
 
     // Cartera: por cobrar.
-    const today = new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10);
+    // Corte de Cartera: rangos por día UTC (periodToUtcRange). Se usa el día
+    // UTC de ahora para que la prueba no dependa de la hora en que corre.
+    const today = new Date().toISOString().slice(0, 10);
     const cartera = await loadReceivableDocs(scope.restaurantId, today);
     expect(cartera.docs).toEqual([expect.objectContaining({ id: charge.id, source: "customer_credit", totalCents: 10_800_000, outstandingCents: 10_800_000 })]);
 
@@ -230,7 +232,9 @@ describe("factura manual emitida por cobrar", () => {
     expect(fresh.state).toBe("paid");
 
     // Cartera: la factura pagada sale; la vieja sigue entera.
-    const today = new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10);
+    // Corte de Cartera: rangos por día UTC (periodToUtcRange). Se usa el día
+    // UTC de ahora para que la prueba no dependa de la hora en que corre.
+    const today = new Date().toISOString().slice(0, 10);
     const cartera = await loadReceivableDocs(scope.restaurantId, today);
     expect(cartera.docs.map((d) => [d.id, d.outstandingCents])).toEqual([[olderCharge.id, 10_800_000]]);
 
@@ -291,7 +295,9 @@ describe("factura manual emitida por cobrar", () => {
     await db.payment.update({ where: { id: charge.id }, data: { creditNoteCents: 10_800_000 } });
     const link = await db.paymentLink.findUniqueOrThrow({ where: { orderId: order.id } });
     expect((await refreshReceivablePayLink(link)).state).toBe("cancelled");
-    const today = new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10);
+    // Corte de Cartera: rangos por día UTC (periodToUtcRange). Se usa el día
+    // UTC de ahora para que la prueba no dependa de la hora en que corre.
+    const today = new Date().toISOString().slice(0, 10);
     expect((await loadReceivableDocs(scope.restaurantId, today)).docs).toEqual([]);
   });
 

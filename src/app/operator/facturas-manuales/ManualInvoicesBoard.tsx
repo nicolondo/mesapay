@@ -167,7 +167,7 @@ export function ManualInvoiceTile({
         onClick={() => onOpenChange(true)}
         className="aspect-[4/3] rounded-xl border border-terracotta/40 bg-terracotta/5 hover:bg-terracotta/10 p-2 flex flex-col items-center justify-center text-center transition-colors relative"
       >
-        <div className="font-mono text-[9px] tracking-wider uppercase text-terracotta">
+        <div className="font-mono text-[9px] tracking-wider uppercase text-terracotta-2">
           {tr("manualInvoiceLabel")}
         </div>
         <div className="font-mono text-[10px] text-op-muted truncate w-full mt-0.5" title={tile.order.shortCode}>
@@ -216,6 +216,7 @@ export function ManualInvoiceTile({
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}
           pendingPayments={tile.order.pendingPayments}
+          terminalAmounts={tile.order.terminalAmounts}
           sendInfo={tile.sendInfo}
           tenantSlug={tenantSlug}
           qrToken={tile.qrToken}

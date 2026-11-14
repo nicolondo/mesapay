@@ -216,8 +216,8 @@ function Rail({
   /** Nombre accesible del bloque de cuenta (usuario + idioma + salir). */
   accountLabel: string;
   /**
-   * `true` en el cajón del celular: el bloque de cuenta va ARRIBA, debajo de
-   * la marca, en vez de al pie. Ver `account` más abajo.
+   * `true` en el cajón del celular: el bloque de cuenta es el pie FIJO del
+   * cajón, en versión compacta. Ver `account` más abajo.
    */
   inDrawer?: boolean;
 }) {
@@ -234,15 +234,14 @@ function Rail({
       (it.href !== "/operator" && !(it.href in BOARD_BY_HREF)),
   );
 
-  // Cuenta: quién soy + idioma + cerrar sesión. Nunca dentro del área que
-  // hace scroll. En escritorio es el pie del riel. En el cajón del celular va
-  // arriba, pegado a la marca: el dueño reportó que en el celular no
-  // encontraba cómo cerrar sesión, y el pie del cajón es justo la franja que
-  // el navegador puede tapar (barra de Safari, indicador de inicio; WebKit a
-  // veces mide `100dvh` más alto que lo visible con la barra desplegada, y
-  // acá no hay scroll que rescate lo que quede debajo). Arriba se ve apenas
-  // se abre el menú y no depende de cómo mida el viewport cada navegador —
-  // igual que «Salir» en los demás shells, que vive en la cabecera.
+  // Cuenta: quién soy + idioma + cerrar sesión. Es el PIE del riel, en
+  // escritorio y en el cajón del celular (pedido del dueño: «debe aparecer en
+  // la parte de abajo»), y nunca entra al área que hace scroll: la lista de
+  // navegación es la única que se desplaza, por encima de él.
+  // En el cajón el pie es compacto (quién soy en una fila; idioma y «Cerrar
+  // sesión» en otra) y reserva él mismo la franja del indicador de inicio.
+  // Que la barra del navegador no lo tape depende del ALTO del cajón, no de
+  // dónde está el bloque: ver `.mp-navigation-drawer` en workspace.css.
   // El selector de idioma comparte fila con «Cerrar sesión» (en su propia
   // fila dejaba una franja vacía del ancho del cajón).
   const account = (
@@ -251,18 +250,20 @@ function Rail({
       aria-label={accountLabel}
       className={
         inDrawer
-          ? "mp-rail-footer mp-rail-account mp-rail-account--top"
+          ? "mp-rail-footer mp-rail-account mp-rail-account--drawer"
           : "mp-rail-footer mp-rail-account"
       }
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="mp-rail-identity flex items-center gap-3 min-w-0">
         <div className="mp-user-avatar">
           {(userEmail[0] || "?").toUpperCase()}
         </div>
-        <div className="min-w-0">
-          <div className="text-sm font-medium truncate">{tenantName}</div>
+        <div className="mp-rail-identity-text min-w-0">
+          <div className="mp-rail-tenant text-sm font-medium truncate">
+            {tenantName}
+          </div>
           <div
-            className="text-xs truncate"
+            className="mp-rail-email text-xs truncate"
             style={{ color: "var(--rail-muted)" }}
           >
             {userEmail}
@@ -306,9 +307,7 @@ function Rail({
         </div>
       </div>
 
-      {inDrawer && account}
-
-      {/* Scroll de nav */}
+      {/* Scroll de nav: lo único que se desplaza del riel. */}
       <div className="mp-rail-nav min-h-0 flex-1 overflow-y-auto px-3 pt-4 pb-3">
         {/* Pulso: tableros en vivo */}
         <div
@@ -368,7 +367,8 @@ function Rail({
         </nav>
       </div>
 
-      {!inDrawer && account}
+      {/* Pie fijo: cuenta, idioma y «Cerrar sesión». */}
+      {account}
     </div>
   );
 }

@@ -261,12 +261,23 @@
     padding-bottom: 0;
   }
 }
+/* Alto del cajón = lo que el navegador deja ver, para que su pie («Cerrar
+   sesión») quede siempre a la vista. Con barras de navegador (Safari,
+   Chrome) 100dvh se ajusta a ellas. Respaldo para los navegadores sin
+   unidades dinámicas (WebView/Chrome < 108, Safari < 15.4): 100% del bloque
+   contenedor del <dialog> fijo, que es el viewport visible — NO 100vh, que
+   en Chrome mide como si la barra de direcciones estuviera escondida y
+   dejaría el pie debajo de ella. En la PWA instalada, ver más abajo.
+   Cada respaldo va JUSTO antes de su declaración con dvh: así el plugin de
+   respaldos (postcssLegacyFallbacks) no antepone el suyo en vh. */
 .mp-navigation-drawer {
   inset: 0 auto 0 0;
   margin: 0;
   width: min(320px, 90vw);
   max-width: 100%;
+  height: 100%;
   height: 100dvh;
+  max-height: 100%;
   max-height: 100dvh;
   border: 0;
   overflow: hidden;
@@ -275,10 +286,10 @@
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
-  /* El cajón mide 100dvh con overflow hidden: el riel es el que scrollea.
-     Con «Negocio» desplegado la lista supera la pantalla; sin esto el pie
-     tapaba «Cierre» y el gesto, al no tener nada que mover acá, se iba a la
-     página de atrás. overscroll-behavior: al llegar al tope no se encadena. */
+  /* La lista (.mp-rail-nav) es la que scrollea; esto es la red de
+     seguridad si marca + pie no cupieran (no pasa ni en horizontal). Sin
+     nada que mover acá el gesto se iba a la página de atrás;
+     overscroll-behavior: al llegar al tope no se encadena. */
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -299,62 +310,87 @@
 .mp-navigation-drawer .mp-rail-brand {
   padding-right: 60px;
 }
-/* Cajón del operador en el celular: el bloque de cuenta va ARRIBA, debajo
-   de la marca, y no al pie. El dueño reportó que en el celular no encontraba
-   «Cerrar sesión»: el pie del cajón es la franja que el navegador puede
-   tapar (barra de Safari, indicador de inicio; WebKit a veces mide 100dvh
-   más alto que lo visible con la barra desplegada, y acá no hay scroll de
-   página que lo corrija). Arriba se ve apenas se abre el menú y no depende
-   de cómo mida el viewport cada navegador. */
-.mp-navigation-drawer .mp-rail-account--top {
-  padding: 14px 16px 16px;
-  border-top: 0;
-  border-bottom: 1px solid var(--rail-line);
-}
-.mp-navigation-drawer .mp-rail-account--top .mp-rail-session {
-  margin-top: 14px;
-}
-.mp-navigation-drawer .mp-rail-signout {
-  font-size: 14px;
-}
-/* Sin pie, la lista llega hasta el borde inferior: la franja del indicador
-   de inicio se reserva DENTRO del scroll (mismo patrón que `.op-app-shell
-   main`) y no como padding del riel. La cola deja subir los últimos ítems
-   («Configuración», «Ayuda») por encima de la barra del navegador si ésta
-   llega a tapar el fondo del cajón; en la PWA instalada no hay barra y
-   basta con el área segura. overscroll-behavior: al llegar al tope el gesto
-   no se encadena. */
+/* Cajón del operador en el celular: el bloque de cuenta (quién soy, idioma
+   y «Cerrar sesión») es el PIE FIJO del cajón, como en escritorio. La lista
+   hace scroll por encima de él; el pie nunca se mueve. Compacto para no
+   robarle alto a la lista: quién soy en una fila, idioma + «Cerrar sesión»
+   en otra. El pie reserva él mismo la franja del indicador de inicio
+   (env() es cero con la barra de Safari a la vista y 34px sin ella o en la
+   PWA). La sombra marca que la lista sigue por debajo. */
 .mp-navigation-drawer .mp-rail--drawer {
   padding-bottom: 0;
 }
 .mp-navigation-drawer .mp-rail-nav {
-  padding-bottom: 112px;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-@media all and (display-mode: standalone) {
-  .mp-navigation-drawer .mp-rail-nav {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
-  }
+.mp-navigation-drawer .mp-rail-account--drawer {
+  position: relative;
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--rail);
+  box-shadow: 0 -12px 16px -14px rgba(0, 0, 0, 0.9);
+}
+.mp-navigation-drawer .mp-rail-account--drawer .mp-rail-identity {
+  gap: 10px;
+}
+.mp-navigation-drawer .mp-rail-account--drawer .mp-user-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+.mp-navigation-drawer .mp-rail-account--drawer .mp-rail-tenant {
+  font-size: 13px;
+  line-height: 1.3;
+}
+.mp-navigation-drawer .mp-rail-account--drawer .mp-rail-email {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.mp-navigation-drawer .mp-rail-account--drawer .mp-rail-session {
+  margin-top: 10px;
+}
+.mp-navigation-drawer .mp-rail-signout {
+  font-size: 14px;
 }
 /* Pantallas bajas (iPhone SE con las barras de Safari, celular en
-   horizontal): marca y cuenta más compactas para dejarle alto a la lista. */
+   horizontal): marca y pie más compactos para dejarle alto a la lista. En
+   el pie, sin avatar y con comercio y correo en una sola línea. */
 @media (max-height: 600px) {
   .mp-navigation-drawer .mp-rail-brand {
     padding-top: 14px;
     padding-bottom: 12px;
   }
-  .mp-navigation-drawer .mp-rail-account--top {
-    padding: 10px 16px 12px;
+  .mp-navigation-drawer .mp-rail-account--drawer {
+    padding-top: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
-  .mp-navigation-drawer .mp-rail-account--top .mp-rail-session {
-    margin-top: 10px;
+  .mp-navigation-drawer .mp-rail-account--drawer .mp-user-avatar {
+    display: none;
+  }
+  .mp-navigation-drawer .mp-rail-account--drawer .mp-rail-identity-text {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+  }
+  .mp-navigation-drawer .mp-rail-account--drawer .mp-rail-tenant {
+    flex: 0 1 auto;
+    max-width: 55%;
+  }
+  .mp-navigation-drawer .mp-rail-account--drawer .mp-rail-email {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .mp-navigation-drawer .mp-rail-account--drawer .mp-rail-session {
+    margin-top: 8px;
   }
 }
 /* PWA instalada (iOS): 100dvh se queda corto —el viewport dinámico no
    cubre la pantalla entera— y el cajón, anclado arriba, dejaba una franja
-   del fondo asomando abajo (misma causa que .op-app-shell y .crm-app-shell,
-   que ya miden 100vh en standalone). Las hojas pegadas abajo (.mp-sheet)
+   del fondo asomando abajo (misma causa que .op-app-shell y
+   .crm-app-shell, que ya miden 100vh en standalone). Con 100vh llega al
+   borde físico y su pie reserva el área segura del indicador de inicio
+   (env(safe-area-inset-bottom)). Las hojas pegadas abajo (.mp-sheet)
    tienen el problema espejo: el borde inferior del viewport fijo queda por
    encima del borde de la pantalla; se bajan exactamente esa diferencia
    (cero en un navegador normal, donde dvh = vh). */

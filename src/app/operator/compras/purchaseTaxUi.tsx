@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   decodeLineTax,
@@ -235,11 +235,9 @@ const KIND_LABEL_KEYS: Record<PurchaseRetentionKind, string> = {
   reteica: "invTaxReteIca",
 };
 
-/** Tarifa en bps → "2,5" (separador del idioma). */
+/** Tarifa en bps → "2,5" (separador del idioma; reteICA 41,4 bps → "0,414"). */
 function fmtRate(bps: number, locale: Locale): string {
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : locale === "pt" ? "pt-BR" : "es-CO", {
-    maximumFractionDigits: 2,
-  }).format(bps / 100);
+  return formatNumber(bps / 100, { locale, maximumFractionDigits: 4 });
 }
 
 /**

@@ -4,6 +4,10 @@ import { getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 import { AdminPagosConfig } from "./AdminPagosConfig";
+import { AdminBreBConfig } from "./AdminBreBConfig";
+import { getRestaurantKushkiMode } from "@/lib/platformConfig";
+import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
+import { maskEncryptedTail, maskKeyTail } from "@/lib/payments/breB/credentials";
 
 function fmtFull(d: Date): string {
   const f = fmtBogotaDateTime(d);
@@ -144,6 +148,24 @@ export default async function AdminPagosPage({
             // "" = heredar el modo global de plataforma.
             kushkiMode: rest.kushkiMode ?? "",
             card3ds: rest.kushkiCard3ds,
+          }}
+        />
+      </section>
+
+      {/* Bre-B: otro comercio de Kushki, con sus propias llaves. Sólo viajan
+          al navegador los últimos 4 de cada una. */}
+      <section className="mb-6">
+        <AdminBreBConfig
+          restaurantId={id}
+          kushkiMode={await getRestaurantKushkiMode(rest)}
+          initial={{
+            configured: !!rest.kushkiBreBPublicKey && !!rest.kushkiBreBPrivateKeyEnc,
+            merchantId: rest.kushkiBreBMerchantId,
+            merchantName: rest.kushkiBreBMerchantName,
+            publicKeyTail: maskKeyTail(rest.kushkiBreBPublicKey),
+            privateKeyTail: maskEncryptedTail(rest.kushkiBreBPrivateKeyEnc),
+            webhookSecretTail: maskEncryptedTail(rest.kushkiBreBWebhookSecretEnc),
+            enabled: resolveEnabledPaymentMethods(rest.enabledPaymentMethods).includes("kushki_bre_b"),
           }}
         />
       </section>

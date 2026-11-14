@@ -18,6 +18,17 @@ const unit = (page: Page, item: Ingredient, part = 1) => page.getByLabel(
   part === 1 ? `Unidad de ${item.name}` : `Unidad de cantidad ${part} de ${item.name}`, { exact: true },
 );
 const total = (page: Page, item: Ingredient) => page.getByRole("status", { name: `Total contado de ${item.name}`, exact: true });
+// Con varias cantidades la fila muestra el total y el chip «N cantidades»; las partes se despliegan al tocarlo.
+const partsChip = (page: Page, item: Ingredient) => page.getByRole("button", { name: new RegExp(`^\\d+ cantidades de ${item.name}`) });
+async function openParts(page: Page, item: Ingredient) {
+  const chip = partsChip(page, item);
+  if (await chip.getAttribute("aria-expanded") !== "true") await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+}
+async function reopenCount(page: Page, size: number) {
+  // Escritorio: «Continuar» (nombre «Abrir el conteo del …»); celular: la tarjeta entera.
+  await page.locator("#inv-panel-counts").getByRole("button", { name: new RegExp(`Abrir el conteo|${size} insumos`) }).filter({ visible: true }).first().click();
+}
 
 async function fixture(size: number) {
   const token = randomUUID();
@@ -104,8 +115,13 @@ test("each repeated or alias scan adds an editable quantity and explicit save pr
     await scan(page, scanner, "PART-ALIAS", quantity(page, item, 3));
     await enterQuantity(quantity(page, item, 3), scanner, "5");
     await expect(total(page, item)).toContainText("20 un");
+    // Counted in three parts: one line with the total and a «3 cantidades» chip, collapsed after Enter.
+    await expect(partsChip(page, item)).toHaveText(/3 cantidades/);
+    await expect(partsChip(page, item)).toHaveAttribute("aria-expanded", "false");
+    await expect(quantity(page, item)).toHaveCount(0);
 
     // Correcting or removing a previous amount recalculates, rather than adding it twice.
+    await openParts(page, item);
     await quantity(page, item).fill("10");
     await expect(total(page, item)).toContainText("18 un");
     await page.getByRole("button", { name: `Quitar cantidad 2 de ${item.name}`, exact: true }).click();
@@ -118,9 +134,9 @@ test("each repeated or alias scan adds an editable quantity and explicit save pr
     await scanner.focus();
     await scan(page, scanner, "PART-ALIAS", quantity(page, item, 3));
     await expect(quantity(page, item, 4)).toHaveCount(0);
+    await expect(quantity(page, item, 3)).toHaveAccessibleDescription("Pulsa Enter para escanear el siguiente código.");
     await enterQuantity(quantity(page, item, 3), scanner, "2");
     await expect(total(page, item)).toContainText("17 un");
-    await expect(quantity(page, item, 3)).toHaveAccessibleDescription("Pulsa Enter para escanear el siguiente código.");
     await expect.poll(async () => Math.abs((await scanner.boundingBox())!.y - scanTop)).toBeLessThan(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("separate-quantities-and-total.png"), fullPage: true });
@@ -132,14 +148,19 @@ test("each repeated or alias scan adds an editable quantity and explicit save pr
     await expect.poll(async () => (await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: item.id } })).countedQty).toBe(17000);
     expect(mutations).toEqual(["PATCH"]);
     expect(await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: item.id } })).toMatchObject({ countedQty: 17000, countedParts: [10000, 5000, 2000] });
+    // The saved draft closed the sheet; it is resumed from the list.
+    await expect(scanner).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "Borrador guardado." })).toBeVisible();
     await page.reload();
     await page.getByRole("tab", { name: "Conteos", exact: true }).click();
-    // Escritorio: «Continuar» (nombre «Abrir el conteo del …»); celular: la tarjeta entera.
-    await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|40 insumos/ }).filter({ visible: true }).first().click();
+    await reopenCount(page, 40);
+    await expect(scanner).toBeFocused();
+    await expect(partsChip(page, item)).toHaveText(/3 cantidades/);
+    await openParts(page, item);
     await expect(quantity(page, item)).toHaveValue("10");
     await expect(quantity(page, item, 2)).toHaveValue("5");
     await expect(quantity(page, item, 3)).toHaveValue("2");
-    await expect(scanner).toBeFocused();
+    await scanner.focus();
     await scan(page, scanner, "PART-ALIAS", quantity(page, item, 4));
     await enterQuantity(quantity(page, item, 4), scanner, "1");
     await expect(total(page, item)).toContainText("18 un");
@@ -176,6 +197,11 @@ test("mixed units, zero and blank counts persist distinctly while an overflowing
     expect(await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: zero.id } })).toMatchObject({ countedQty: 0, countedParts: [0] });
     expect(await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: blank.id } })).toMatchObject({ countedQty: null, countedParts: [] });
 
+    // Saved → the sheet closed. Resume the draft to keep counting.
+    await expect(scanner).toHaveCount(0);
+    await reopenCount(page, 3);
+    await expect(scanner).toBeFocused();
+    await expect(quantity(page, zero)).toHaveValue("0");
     await enterQuantity(quantity(page, zero), scanner, "1999999");
     await scan(page, scanner, zero.barcode!, quantity(page, zero, 2));
     await quantity(page, zero, 2).fill("2");
@@ -183,8 +209,10 @@ test("mixed units, zero and blank counts persist distinctly while an overflowing
     await expect(quantity(page, zero, 2)).toBeFocused();
     await expect(quantity(page, zero, 2)).toHaveAttribute("aria-invalid", "true");
     await expect(scanner).not.toBeFocused();
+    // An invalid total keeps the sheet OPEN with the error: nothing is saved.
     await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
     await expect(page.getByText("Hay cantidades contadas inválidas: revisa los valores marcados.", { exact: true })).toBeVisible();
+    await expect(scanner).toBeVisible();
     expect((await db.stockCountItem.findFirstOrThrow({ where: { countId: count.id, ingredientId: zero.id } })).countedQty).toBe(0);
     expect(await db.stockMovement.count({ where: { restaurantId: seed.restaurant.id } })).toBe(0);
     await page.screenshot({ path: testInfo.outputPath("overflow-keeps-count-unsaved.png"), fullPage: true });

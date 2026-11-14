@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { lockStock } from "@/lib/orderLock";
 import { applyStockMovement } from "@/lib/erp/stock";
 import { effectiveCountParts, isValidCountParts, isValidCountQuantity } from "@/lib/erp/stockCountParts";
+import { recountReasons, type RecountReason } from "@/lib/erp/recountPlan";
 
 export const stockCountInclude = {
   createdBy: { select: { name: true } },
@@ -25,9 +26,22 @@ export class StockCountError extends Error {
 }
 
 type Count = Prisma.StockCountGetPayload<{ include: typeof stockCountInclude }>;
-type Snapshot = { movementCount: number; ingredients: { id: string; trackInventory: boolean; measureKind: string; qtyBase: number; totalValueCents: number }[] };
+// `recount`/`full` son el plan del definitivo (ver recountPlan.ts): qué se
+// pidió recontar y por qué. No participan en la comparación de inventario.
+type Snapshot = {
+  movementCount: number;
+  ingredients: { id: string; trackInventory: boolean; measureKind: string; qtyBase: number; totalValueCents: number }[];
+  recount?: Record<string, RecountReason[]>;
+  full?: boolean;
+};
 export type StockCountAction = "save" | "preliminary" | "recount" | "review" | "close" | "delete";
-export type StockCountInput = { revision: number; items?: { itemId: string; countedQty: number | null; countedParts?: number[] }[]; reviewToken?: string };
+export type StockCountInput = {
+  revision: number;
+  items?: { itemId: string; countedQty: number | null; countedParts?: number[] }[];
+  reviewToken?: string;
+  /** Solo `recount`: «Recontar todo» — nada se arrastra del preliminar. */
+  full?: boolean;
+};
 
 /** Snapshots are scoped to this count's ingredients, so unrelated stock moves
  * do not interrupt a recount. Movement count also detects net-zero changes. */
@@ -48,10 +62,78 @@ export function sameStockSnapshot(stored: unknown, live: unknown): boolean {
   if (!stored || !live || typeof stored !== "object" || typeof live !== "object") return false;
   const a = stored as Snapshot; const b = live as Snapshot;
   if (!Array.isArray(a.ingredients) || !Array.isArray(b.ingredients) || a.movementCount !== b.movementCount || a.ingredients.length !== b.ingredients.length) return false;
-  return a.ingredients.every((item, index) => {
-    const other = b.ingredients[index];
-    return item.id === other.id && item.trackInventory === other.trackInventory && item.measureKind === other.measureKind && item.qtyBase === other.qtyBase && item.totalValueCents === other.totalValueCents;
+  // By id, not by position: an item appended during the recount is stored at
+  // the end, while the live query returns ids in database order.
+  const live_ = new Map(b.ingredients.map((item) => [item.id, item]));
+  if (live_.size !== b.ingredients.length) return false;
+  return a.ingredients.every((item) => {
+    const other = live_.get(item.id);
+    return !!other && item.trackInventory === other.trackInventory && item.measureKind === other.measureKind && item.qtyBase === other.qtyBase && item.totalValueCents === other.totalValueCents;
   });
+}
+
+/**
+ * Suma un insumo a un conteo en BORRADOR (alta desde la pantalla del conteo:
+ * se creó, se restauró o quedó por fuera al abrirlo). Mismo lock de stock y
+ * la misma revisión optimista que el resto de escrituras.
+ *
+ * Solo en las etapas editables —conteo inicial o definitivo—, nunca sobre el
+ * informe preliminar ni con la revisión final pendiente. El teórico es la
+ * existencia de ESE momento (0 para un insumo recién creado). En el conteo
+ * definitivo también entra a `recountSnapshot`, con su saldo y sus
+ * movimientos de ahora, para que el cierre no lo confunda con un cambio de
+ * inventario y siga detectando los cambios de los demás.
+ */
+export async function appendStockCountItem(restaurantId: string, id: string, input: { revision: number; ingredientId: string }) {
+  return db.$transaction(async (tx) => {
+    await lockStock(tx, restaurantId);
+    const count = await tx.stockCount.findFirst({ where: { id, restaurantId }, include: stockCountInclude });
+    if (!count) throw new StockCountError("not_found", 404);
+    if (count.status === "closed") throw new StockCountError("already_closed");
+    if (count.revision !== input.revision) throw new StockCountError("count_changed");
+    if (count.preliminaryAt && !count.recountStartedAt) throw new StockCountError("recount_required");
+    if (count.finalReview) throw new StockCountError("count_not_editable");
+
+    const ingredient = await tx.ingredient.findFirst({
+      where: { id: input.ingredientId, restaurantId },
+      select: { id: true, active: true, trackInventory: true, measureKind: true, stockLevel: { select: { qtyBase: true, totalValueCents: true } } },
+    });
+    if (!ingredient) throw new StockCountError("ingredient_not_found", 404);
+    if (!ingredient.active) throw new StockCountError("ingredient_inactive");
+    if (!ingredient.trackInventory) throw new StockCountError("ingredient_not_tracked");
+
+    const existing = count.items.find((item) => item.ingredientId === ingredient.id);
+    if (existing) return { count, itemId: existing.id, added: false };
+
+    const qtyBase = ingredient.stockLevel?.qtyBase ?? 0;
+    const recount = !!count.recountStartedAt;
+    const item = await tx.stockCountItem.create({
+      data: { countId: id, ingredientId: ingredient.id, expectedQty: qtyBase, ...(recount ? { finalExpectedQty: qtyBase } : {}) },
+    });
+    let recountSnapshot: Snapshot | undefined;
+    if (recount) {
+      const stored = count.recountSnapshot as Snapshot | null;
+      if (stored && Array.isArray(stored.ingredients) && typeof stored.movementCount === "number") {
+        const movements = await tx.stockMovement.count({ where: { restaurantId, ingredientId: ingredient.id } });
+        recountSnapshot = {
+          ...stored,
+          movementCount: stored.movementCount + movements,
+          ingredients: [...stored.ingredients, {
+            id: ingredient.id, trackInventory: ingredient.trackInventory, measureKind: ingredient.measureKind,
+            qtyBase, totalValueCents: ingredient.stockLevel?.totalValueCents ?? 0,
+          }],
+          // Entró después del primer conteo: hay que contarlo.
+          ...(stored.recount ? { recount: { ...stored.recount, [ingredient.id]: ["uncounted"] } } : {}),
+        };
+      }
+    }
+    await tx.stockCount.update({
+      where: { id },
+      data: { revision: count.revision + 1, finalReview: Prisma.DbNull, ...(recountSnapshot ? { recountSnapshot } : {}) },
+    });
+    const updated = await tx.stockCount.findUniqueOrThrow({ where: { id }, include: stockCountInclude });
+    return { count: updated, itemId: item.id, added: true };
+  }, { timeout: 30_000 });
 }
 
 /** Every writer uses the same restaurant lock as stock movements. This makes
@@ -95,8 +177,33 @@ export async function mutateStockCount(restaurantId: string, id: string, action:
       const snapshot = await stockSnapshot(tx, restaurantId, count);
       if (!snapshot.ingredients.some((i) => i.trackInventory)) throw new StockCountError("empty_count", 400);
       const levels = new Map(snapshot.ingredients.map((i) => [i.id, i.qtyBase]));
-      for (const item of count.items) await tx.stockCountItem.update({ where: { id: item.id }, data: { countedQty: null, countedParts: [], finalExpectedQty: levels.get(item.ingredientId) ?? 0 } });
-      await tx.stockCount.update({ where: { id }, data: { ...common, recountStartedAt: new Date(), recountSnapshot: snapshot } });
+      const tracked = new Set(snapshot.ingredients.filter((i) => i.trackInventory).map((i) => i.id));
+      // Insumos con algún movimiento desde que se abrió el conteo. Los
+      // movimientos y la apertura del conteo se serializan con el mismo lock,
+      // así que `>=` nunca deja por fuera uno posterior (un empate en el mismo
+      // milisegundo solo pide recontar de más).
+      const moved = new Set((await tx.stockMovement.findMany({
+        where: { restaurantId, ingredientId: { in: count.items.map((item) => item.ingredientId) }, createdAt: { gte: count.createdAt } },
+        select: { ingredientId: true }, distinct: ["ingredientId"],
+      })).map((movement) => movement.ingredientId));
+      const full = input.full === true;
+      const recount: Record<string, RecountReason[]> = {};
+      for (const item of count.items) {
+        const liveQty = levels.get(item.ingredientId) ?? 0;
+        const reasons = tracked.has(item.ingredientId) ? recountReasons(item, { liveQty, movedSince: moved.has(item.ingredientId) }) : [];
+        if (reasons.length) recount[item.ingredientId] = reasons;
+        // Se arrastra el primer conteo solo si cuadró y nada se movió: su
+        // ajuste es cero por construcción (contado = esperado = saldo de hoy).
+        const carried = !full && tracked.has(item.ingredientId) && reasons.length === 0;
+        await tx.stockCountItem.update({
+          where: { id: item.id },
+          data: carried
+            ? { countedQty: item.preliminaryQty, countedParts: effectiveCountParts(item.preliminaryQty, item.preliminaryParts), finalExpectedQty: liveQty }
+            : { countedQty: null, countedParts: [], finalExpectedQty: liveQty },
+        });
+      }
+      const plan: Snapshot = { ...snapshot, recount, full };
+      await tx.stockCount.update({ where: { id }, data: { ...common, recountStartedAt: new Date(), recountSnapshot: plan } });
     } else {
       if (!count.preliminaryAt) throw new StockCountError("preliminary_required");
       if (!count.recountStartedAt || !count.recountSnapshot) throw new StockCountError("recount_required");

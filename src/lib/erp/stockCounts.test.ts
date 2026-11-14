@@ -22,7 +22,7 @@ vi.mock("@/lib/db", () => {
     },
     stockCountItem: { update: vi.fn(async ({ where, data }: { where: { id: string }; data: Partial<TestItem> }) => { Object.assign(m.count.items.find((item) => item.id === where.id)!, data); }) },
     ingredient: { findMany: vi.fn(async () => structuredClone(m.ingredients)) },
-    stockMovement: { count: vi.fn(async () => m.movements) },
+    stockMovement: { count: vi.fn(async () => m.movements), findMany: vi.fn(async () => []) },
   };
   return { db: { $transaction: (cb: (t: unknown) => unknown) => cb(tx) } };
 });

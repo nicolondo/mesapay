@@ -7,6 +7,7 @@ import {
 } from "crypto";
 import { env } from "../../env";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
+import { pesosToCents } from "../terminalAmount";
 
 /**
  * Cliente del Kushki ONE — Payment API (Cloud) para datáfonos SmartPOS.
@@ -178,6 +179,21 @@ export type CloudTerminalChargeResult = {
    * puede cerrar el intento sin esperar. Ver `isTerminalDeviceAnswer`.
    */
   deviceAnswered?: boolean;
+  /**
+   * Sólo `approved`: lo que Kushki dice que autorizó (`authorized_amount`,
+   * en PESOS en UAT y en producción), pasado a centavos. `undefined` = no lo
+   * dijo; `null` = lo dijo pero no es un monto legible. Si no es el de la
+   * cuenta, NO se decide acá: lo decide `settleTerminalApproval`
+   * (propina, parcial o conciliar).
+   */
+  authorizedCents?: number | null;
+  /** Sólo `approved`: el código de aprobación del adquirente, si vino. */
+  approvalCode?: string;
+  /**
+   * Sólo `approved`: aprobación inequívoca (código de aprobación o
+   * `responseCode` 00/000 del adquirente), además de `approved: true`.
+   */
+  approvalConfirmed?: boolean;
   raw?: unknown;
 };
 
@@ -269,6 +285,13 @@ export function terminalAnswerCode(answer: CloudTerminalAnswer | null | undefine
  * de red NO están: ahí no se sabe si el equipo cobró.
  */
 export const CLOUD_TERMINAL_VALIDATION_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404, 409, 422]);
+
+/** Dónde puede venir el código de aprobación (número de autorización). */
+const APPROVAL_CODE_KEYS = ["approval_code", "approvalCode", "authorization_code", "authorizationCode"];
+/** Dónde puede venir el código de respuesta del adquirente (ISO 8583). */
+const RESPONSE_CODE_KEYS = ["responseCode", "response_code"];
+/** "00" = aprobada (ISO 8583); Kushki ONE también manda "000". */
+const APPROVED_RESPONSE_CODES: ReadonlySet<string> = new Set(["00", "000"]);
 
 function asObj(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
@@ -412,26 +435,24 @@ export async function pushPaymentToCloudTerminal(
   // process"}) y SIN approved/transaction_status. Nunca asumir aprobado.
   const approvedOk =
     res.ok && (obj.approved === true || txStatus === "APPROVAL");
-  // El banco autorizó OTRO monto (`authorized_amount` viene en pesos, en
-  // UAT y en producción): no se salda la cuenta. Queda incierto para que
-  // alguien lo concilie contra el comprobante del datáfono.
-  const authorized = rawResp?.authorized_amount;
-  const expectedPesos = Math.round(args.amountCents) / 100;
-  if (approvedOk && typeof authorized === "number" && authorized !== expectedPesos) {
-    console.error("[kushki/cloud-terminal] monto autorizado distinto al de la cuenta", {
-      reference: args.reference,
-      authorized,
-      expectedPesos,
-    });
-    return {
-      status: "error",
-      providerRef,
-      message: `authorized_amount_mismatch: ${authorized} != ${expectedPesos}`,
-      httpStatus: res.status,
-      raw: json,
-    };
-  }
   if (approvedOk) {
+    // Lo que el banco AUTORIZÓ (`authorized_amount` viene en pesos, en UAT y
+    // en producción). Si no es la cuenta, ya no se deja "sin respuesta": el
+    // cobro SÍ salió. `settleTerminalApproval` decide si es propina, parcial
+    // o algo para conciliar (2026-11-13: se mandó 5520 y autorizó 5525).
+    const authorizedRaw = rawResp?.authorized_amount ?? obj.authorized_amount;
+    const authorizedCents = authorizedRaw === undefined || authorizedRaw === null ? undefined : pesosToCents(authorizedRaw);
+    const approvalCode = pick(rawResp, APPROVAL_CODE_KEYS) || pick(obj, APPROVAL_CODE_KEYS);
+    const responseCode = pick(rawResp, RESPONSE_CODE_KEYS) || pick(obj, RESPONSE_CODE_KEYS);
+    const approvalConfirmed = !!approvalCode || APPROVED_RESPONSE_CODES.has(responseCode ?? "");
+    if (authorizedCents !== undefined && authorizedCents !== Math.round(args.amountCents)) {
+      console.warn("[kushki/cloud-terminal] monto autorizado distinto al de la cuenta", {
+        reference: args.reference,
+        authorized: authorizedRaw,
+        expectedPesos: Math.round(args.amountCents) / 100,
+        approvalConfirmed,
+      });
+    }
     return {
       status: "approved",
       providerRef,
@@ -439,6 +460,9 @@ export async function pushPaymentToCloudTerminal(
         pick(obj, ["message"]) ||
         pick(asObj(rawResp)?.kushki_response, ["message"]),
       httpStatus: res.status,
+      authorizedCents,
+      ...(approvalCode ? { approvalCode } : {}),
+      approvalConfirmed,
       raw: json,
     };
   }
@@ -553,16 +577,20 @@ export type CloudTerminalSearchArgs = {
 };
 
 export type CloudTerminalSearchResult =
-  /** El adquirente registró la venta APROBADA por el monto de la cuenta. */
-  | { status: "approved"; transactionReference: string; approvalCode?: string; raw: unknown }
+  /**
+   * El adquirente registró la venta APROBADA. `authorizedCents` es lo que
+   * aprobó, en centavos: si no es la cuenta, lo decide
+   * `settleTerminalApproval` (propina, parcial o conciliar).
+   */
+  | { status: "approved"; transactionReference: string; approvalCode?: string; authorizedCents: number; raw: unknown }
   /** El adquirente registró la venta RECHAZADA (y nada aprobado). */
   | { status: "declined"; transactionReference?: string; raw: unknown }
   /** Kushki no tiene (todavía) ninguna transacción con ese id. */
   | { status: "not_found" }
   /**
    * Hay algo, pero no se puede decidir solo: una reversión/anulación del
-   * mismo cobro, un monto aprobado distinto al de la cuenta, o un estado que
-   * no conocemos. Lo resuelve una persona con el comprobante.
+   * mismo cobro, un aprobado sin monto legible, o un estado que no
+   * conocemos. Lo resuelve una persona con el comprobante.
    */
   | { status: "unknown"; reason: "reversed" | "amount_mismatch" | "unrecognized"; raw: unknown }
   /** La consulta misma falló (red, 5xx, cuerpo ilegible). */
@@ -666,22 +694,23 @@ export async function searchCloudTerminalCharge(
   const sales = mine.filter((i) => type(i) === "SALE");
   const approved = sales.find((i) => txStatus(i) === "APPROVAL");
   if (approved) {
-    // Lo autorizado tiene que ser la cuenta: en pesos (como `authorized_amount`)
-    // o, en UAT, lo que se mandó. Sin monto u otro monto → a mano: un
-    // aprobado recuperado nunca salda sin comprobar cuánto se cobró.
+    // Cuánto se aprobó: en pesos (como `authorized_amount`) o, en UAT, lo que
+    // se mandó (centavos). Sin monto legible → a mano: un aprobado recuperado
+    // nunca salda sin saber cuánto se cobró. Otro monto → lo decide
+    // `settleTerminalApproval` (propina, parcial o conciliar).
     const authorized = approved.approved_transaction_amount;
-    const pesos = Math.round(args.amountCents) / 100;
     const sent = cloudTerminalAmount(args.amountCents, mode);
-    if (typeof authorized !== "number" || (authorized !== pesos && authorized !== sent)) {
-      console.error("[kushki/cloud-terminal] search: monto aprobado distinto al de la cuenta", {
+    const authorizedCents =
+      typeof authorized === "number" && authorized === sent ? Math.round(args.amountCents) : pesosToCents(authorized);
+    if (typeof authorized !== "number" || authorizedCents == null) {
+      console.error("[kushki/cloud-terminal] search: aprobado sin monto legible", {
         clientTransactionId: args.clientTransactionId,
         authorized,
-        pesos,
       });
       return { status: "unknown", reason: "amount_mismatch", raw: json };
     }
     const transactionReference = pick(approved, ["transaction_reference"]) ?? args.clientTransactionId;
-    return { status: "approved", transactionReference, approvalCode: pick(approved, ["approval_code"]), raw: json };
+    return { status: "approved", transactionReference, approvalCode: pick(approved, ["approval_code"]), authorizedCents, raw: json };
   }
   if (sales.length > 0 && sales.every((i) => txStatus(i) === "DECLINED")) {
     return { status: "declined", transactionReference: pick(sales[0], ["transaction_reference"]), raw: json };

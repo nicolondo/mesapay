@@ -9,7 +9,10 @@ import { fmtCOP, formatDate, localeTag } from "@/lib/format";
 import { type Locale } from "@/i18n/config";
 import {
   formatInvoiceNumber,
+  invoicePayableOf,
   itemDetailText,
+  payableLabelsFrom,
+  payableRows,
   summaryLabelsFrom,
   summaryRows,
   type InvoiceSnapshot,
@@ -27,6 +30,8 @@ import {
 } from "@/lib/print/staffPrint";
 import { PrintButton } from "./PrintButton";
 import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
+import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
+import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
 export const dynamic = "force-dynamic";
 
@@ -77,17 +82,25 @@ export async function generateMetadata({
  *    modificadores y nota en un renglón chico.
  *
  * Cuando la mira el STAFF del comercio, "Imprimir" manda la factura al
- * agente, como las comandas (ver `PrintButton`).
+ * agente, como las comandas, o la imprime en su propio dispositivo (ver
+ * `PrintButton`).
+ *
+ * `?w=55` (cualquier ancho entero de 40 a 120 mm): el papel DEL EQUIPO que
+ * imprime, cuando no es el de la caja — «Este dispositivo» desde el
+ * datáfono (55 mm) en un comercio cuya caja usa 80 (ver
+ * `lib/print/printDestination.ts`). Es la misma tirilla, a otro ancho: el
+ * relleno lateral sale de `receiptSidePaddingMm` y el QR no pasa del 60 %
+ * del ancho.
  */
 export default async function FacturaPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string }>;
+  searchParams: Promise<{ print?: string; w?: string }>;
 }) {
   const { id } = await params;
-  const { print } = await searchParams;
+  const { print, w } = await searchParams;
   const t = await getTranslations("emailInvoice");
   const locale = (await getLocale()) as Locale;
   const tag = localeTag(locale);
@@ -97,8 +110,12 @@ export default async function FacturaPage({
       order: {
         select: {
           shortCode: true,
-          // Factura emitida ANTES de cobrar: lo cobrado decide si todavía
-          // dice "Pendiente de pago" (ver `pendingPaymentOf`).
+          // Factura emitida ANTES de cobrar: la propina REAL que se cobró
+          // (la del snapshot es 0, se decidió después), para el TOTAL A
+          // PAGAR (ver `invoicePayableOf`).
+          tipCents: true,
+          // Y lo cobrado decide si todavía dice "Pendiente de pago" (ver
+          // `pendingPaymentOf`).
           payments: {
             where: { status: "approved" },
             select: { method: true, amountCents: true, tipCents: true },
@@ -126,9 +143,11 @@ export default async function FacturaPage({
   const dianDate = snap.dianResolutionDate
     ? new Date(snap.dianResolutionDate)
     : null;
-  // El ancho del papel del comercio: el recibo mide eso en pantalla y en
-  // papel, y la página que se pide al imprimir también.
-  const paperMm = (inv.restaurant.printPaperWidthMm ?? 80) <= 58 ? 58 : 80;
+  // El ancho del papel del comercio (o el del equipo, con `?w=`): el recibo
+  // mide eso en pantalla y en papel, y la página que se pide al imprimir
+  // también.
+  const paperMm =
+    devicePaperFromParam(w) ?? ((inv.restaurant.printPaperWidthMm ?? 80) <= 58 ? 58 : 80);
 
   // ¿La mira el STAFF de este comercio? Entonces "Imprimir" va al agente.
   // Se decide acá, con la sesión: el comensal (sin sesión, o de otro
@@ -196,9 +215,17 @@ export default async function FacturaPage({
       : null,
   ].filter((l): l is string => !!l);
 
+  // Total factura (la venta, sin propina), la propina cobrada y el TOTAL A
+  // PAGAR destacado = factura + propina, como en el papel de la caja.
+  const finalRows = payableRows(
+    invoicePayableOf(snap, inv.order),
+    payableLabelsFrom(t, { einvoice }),
+  );
+
   // Emitida antes de cobrar y sin saldar: "Pendiente de pago" y la propina
-  // sugerida, como en el papel de la caja (`print/invoiceDoc.ts`).
-  const pending = pendingPaymentOf(snap, inv.order.payments);
+  // sugerida (aparte, sin sumar), como en el papel de la caja
+  // (`print/invoiceDoc.ts`).
+  const pending = pendingPaymentOf(snap, inv.order.payments ?? []);
   const showPending = !!pending && pending.outstandingCents > 0;
 
   const customerWhere = snap.customer
@@ -210,7 +237,16 @@ export default async function FacturaPage({
       <style>{POS_STYLES}</style>
       <div className="factura-shell">
         <div className="factura-controls">
-          <PrintButton autoPrint={print === "1"} agent={agentDoc} />
+          <PrintButton
+            autoPrint={print === "1"}
+            agent={agentDoc}
+            paperMm={paperMm}
+            viewer={
+              agentDoc
+                ? { role: session?.user?.role ?? null, scope: session?.user?.restaurantId ?? null }
+                : null
+            }
+          />
           <Link href="/" className="secondary">
             {"MESAPAY"}
           </Link>
@@ -220,7 +256,7 @@ export default async function FacturaPage({
           className="receipt"
           data-print-document="factura"
           data-print-width-mm={paperMm}
-          style={{ width: `${paperMm}mm`, paddingInline: `${paperMm === 80 ? 4 : 5}mm` }}
+          style={{ width: `${paperMm}mm`, paddingInline: `${receiptSidePaddingMm(paperMm)}mm` }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -330,37 +366,38 @@ export default async function FacturaPage({
                 <span className="right">{(r.negative ? "− " : "") + fmtCOP(r.cents)}</span>
               </div>
             ))}
-            {snap.tipCents > 0 && (
-              <div className="row">
-                <span>{t("tip")}</span>
-                <span className="right">{fmtCOP(snap.tipCents)}</span>
+            {/* Total factura, propina voluntaria (si hay) y el TOTAL A
+                PAGAR en negrita y más grande: factura + propina cobrada. */}
+            {finalRows.map((r) => (
+              <div
+                // Papel angosto (menos de 80 mm): el TOTAL A PAGAR un punto
+                // menor, para que rótulo y monto quepan en un renglón.
+                className={r.strong ? (paperMm < 80 ? "row to-pay narrow" : "row to-pay") : "row"}
+                key={r.label}
+                data-total-to-pay={r.strong ? r.cents : undefined}
+              >
+                <span>{r.label}</span>
+                <span className="right">{fmtCOP(r.cents)}</span>
               </div>
-            )}
-            <div className="row grand">
-              <span>{t("total")}</span>
-              <span className="right">{fmtCOP(snap.totalCents)}</span>
-            </div>
+            ))}
             {showPending && pending && (
-              <div className="row grand">
+              <div className="row pending">
                 <span>{t("paymentPending")}</span>
                 <span className="right">{fmtCOP(pending.outstandingCents)}</span>
               </div>
             )}
           </div>
 
+          {/* La propina SUGERIDA, aparte y sin sumar: todavía nadie la
+              decidió. El TOTAL A PAGAR de arriba lleva sólo la cobrada. */}
           {showPending && pending && pending.suggestedTipCents > 0 && (
             <>
               <hr className="dashed" />
               <div className="totals">
                 <div className="row">
-                  <span>{t("prebillSuggestedTip", { pct: pending.suggestedTipPct })}</span>
+                  <span>{t("suggestedTipVoluntary", { pct: pending.suggestedTipPct })}</span>
                   <span className="right">{fmtCOP(pending.suggestedTipCents)}</span>
                 </div>
-                <div className="row grand">
-                  <span>{t("prebillTotalWithTip")}</span>
-                  <span className="right">{fmtCOP(pending.totalWithTipCents)}</span>
-                </div>
-                <div className="small">{t("prebillTipVoluntary")}</div>
               </div>
             </>
           )}
@@ -457,6 +494,7 @@ const POS_STYLES = `
   }
   .factura-controls .print-note.warn { color: #8f6828; }
   .factura-controls .print-note.error { color: #b3261e; }
+${PRINT_DESTINATION_STYLES}
   .receipt {
     background: #fff;
     color: #000;
@@ -519,19 +557,33 @@ const POS_STYLES = `
     padding-left: 3ch;
     overflow-wrap: anywhere;
   }
-  .receipt .totals .grand {
+  /* El TOTAL A PAGAR: negrita y más grande que todo lo demás (12px). En
+     papel angosto (58, 55… mm: el contenido mide ~48 mm), un punto menos y
+     apenas más apretado para que rótulo y monto (hasta $999.999) quepan en
+     un renglón; si no entra, el monto baja entero al renglón de abajo,
+     alineado a la derecha: nunca se parte. */
+  .receipt .totals .to-pay {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 16px;
+    line-height: 1.2;
     margin-top: 2px;
     padding-top: 2px;
     border-top: 1px solid #000;
   }
+  .receipt .totals .to-pay.narrow {
+    font-size: 14px;
+    letter-spacing: -0.03em;
+    column-gap: 4px;
+  }
+  .receipt .totals .pending { font-weight: 700; }
   .receipt .dian-fiscal { text-align: center; }
   .receipt .dian-fiscal .dian-qr {
     display: block;
     margin: 2px auto;
     width: 28mm;
-    height: 28mm;
+    max-width: 60%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     image-rendering: pixelated;
   }
   .receipt .dian-fiscal .dian-cufe {

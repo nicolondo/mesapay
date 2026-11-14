@@ -88,6 +88,10 @@ const h = vi.hoisted(() => {
         { method: "cash", amountCents: 5_500_000, tipCents: 600_000 },
       ]),
     },
+    order: {
+      // La orden HOY: su propina es la suma de las de los pagos aprobados.
+      findUnique: vi.fn(async () => ({ tipCents: 600_000 })),
+    },
     printJob: {
       createMany: vi.fn(
         async (args: { data: Array<Record<string, unknown>> }) => {
@@ -345,6 +349,31 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     // contada una sola vez (antes la sumaba otra vez encima).
     expect(doc.paymentRows[0].amount).toContain("55.000");
     expect(doc.paymentRows[0].amount).toBe(doc.totals.find((r) => r.strong)!.amount);
+    // Emitida al cobrar: la propina ya está en el snapshot, no se lee la orden.
+    expect(h.db.order.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("emitida ANTES de cobrar y reimpresa ya cobrada: el TOTAL A PAGAR lleva la propina REAL de la orden", async () => {
+    const { enqueueInvoicePrint } = await import("./invoiceQueue");
+    await enqueueInvoicePrint({
+      ...args,
+      trigger: "reprint",
+      // La factura es la venta ($49.000); la propina se decidió al pagar.
+      snapshot: { ...snapshot, tipCents: 0, totalCents: 4_900_000, issuedBeforePayment: true },
+    });
+    expect(h.db.order.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "order-1" }, select: { tipCents: true } }),
+    );
+    const doc = parseInvoicePayload(h.state.created[0].payload)!;
+    expect(doc.totals.slice(-3).map((r) => [r.label, r.amount.replace(/\s/g, " ")])).toEqual([
+      ["Total comprobante", "$ 49.000"],
+      ["Propina voluntaria", "$ 6.000"],
+      ["TOTAL A PAGAR", "$ 55.000"],
+    ]);
+    expect(doc.totals.at(-1)?.strong).toBe(true);
+    // Saldada: nada pendiente (el payload guardado ni lo trae).
+    expect(doc.pendingRow ?? null).toBeNull();
+    expect(doc.paymentRows[0].amount).toBe(doc.totals.at(-1)!.amount);
   });
 });
 

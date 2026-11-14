@@ -21,7 +21,7 @@ async function quantities(page: Page, a: string, b: string, c: string) {
 }
 
 for (const width of [390, 1440]) {
-  test(`preliminary differences and confirmed recount at ${width}px`, async ({ page }) => {
+  test(`preliminary differences and confirmed recount at ${width}px`, async ({ page }, testInfo) => {
     test.setTimeout(120_000); await page.setViewportSize({ width, height: 1000 });
     await page.route(/^https?:\/\//, (route) => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
     const token = randomUUID(), password = `Count-${token}`;
@@ -39,12 +39,27 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Crear conteo", exact: true }).click();
       await expect(page.getByLabel("Conteo de Botellas", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Conteo de Servicio no inventariable", { exact: true })).toHaveCount(0);
-      await page.getByRole("button", { name: "Pendientes", exact: true }).click();
+      // Los filtros llevan su contador: «Pendientes 3».
+      await page.getByRole("button", { name: /^Pendientes \d+$/ }).click();
       const firstQuantity = page.getByLabel("Conteo de Botellas", { exact: true });
       await firstQuantity.pressSequentially("18");
       await expect(firstQuantity).toBeVisible(); await expect(firstQuantity).toHaveValue("18");
       await quantities(page, "8", "6", "3");
-      await page.getByRole("button", { name: "Todos", exact: true }).last().click();
+      await page.getByRole("button", { name: /^Todos \d+$/ }).click();
+
+      // «Guardar borrador» guarda, CIERRA la hoja y avisa en la página; el
+      // borrador se retoma con «Continuar» con lo guardado y sin preguntar nada.
+      let asked = 0;
+      page.on("dialog", (dialog) => { asked++; void dialog.accept(); });
+      await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Conteo físico", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("status").filter({ hasText: "Borrador guardado." })).toBeVisible();
+      expect(asked).toBe(0);
+      expect((await db.stockCountItem.findFirstOrThrow({ where: { ingredientId: ingredients[0].id } })).countedQty).toBe(8000);
+      expect(await db.stockMovement.count({ where: { restaurantId: restaurant.id } })).toBe(0);
+      await page.locator("#inv-panel-counts").getByRole("button", { name: /Abrir el conteo|3 insumos/ }).filter({ visible: true }).first().click();
+      await expect(page.getByLabel("Conteo de Botellas", { exact: true })).toHaveValue("8");
+      await expect(page.getByLabel("Conteo de Vasos", { exact: true })).toHaveValue("6");
       await page.getByRole("button", { name: "Ver preliminar", exact: true }).click();
       await expect(page.getByRole("button", { name: "Iniciar conteo definitivo", exact: true })).toBeVisible();
       for (const label of ["Faltantes", "Sobrantes", "Sin diferencias", "Pendientes"]) await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
@@ -53,7 +68,7 @@ for (const width of [390, 1440]) {
       const count = await db.stockCount.findFirstOrThrow({ where: { restaurantId: restaurant.id }, include: { items: true } });
       expect(count.preliminaryAt).not.toBeNull();
       expect(count.items.find((item) => item.ingredientId === ingredients[0].id)?.preliminaryQty).toBe(8000);
-      await page.screenshot({ path: `/Users/nicolas/Documents/Codex/2026-09-08/files-mentioned-by-the-user-scr/UI-UX-MESAPAY/conteo-preliminar-${width}.png`, fullPage: true });
+      await page.screenshot({ path: testInfo.outputPath(`conteo-preliminar-${width}.png`), fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
       // Resume a persisted preliminary report after navigating away.
@@ -62,7 +77,16 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Iniciar conteo definitivo", exact: true }).click();
       await expect(page.getByLabel("Conteo de Botellas", { exact: true })).toHaveValue("");
       await expect(page.getByLabel("Conteo de Vasos", { exact: true })).toHaveValue("");
-      await quantities(page, "9", "0", "3");
+      // Solo se recuenta lo que tuvo diferencia: Cucharas cuadró (3 = 3) y no se
+      // movió, así que queda confirmada con su cantidad, plegada al final.
+      await expect(page.getByRole("heading", { name: "Por recontar 2", exact: true })).toBeVisible();
+      const confirmedGroup = page.getByRole("button", { name: /^Confirmados del preliminar 1/ });
+      await expect(confirmedGroup).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByLabel("Conteo de Cucharas", { exact: true })).toHaveCount(0);
+      await confirmedGroup.click();
+      await expect(page.getByLabel("Conteo de Cucharas", { exact: true })).toHaveValue("3");
+      await page.getByLabel("Conteo de Botellas", { exact: true }).fill("9");
+      await page.getByLabel("Conteo de Vasos", { exact: true }).fill("0");
       await page.getByRole("button", { name: "Revisar ajuste definitivo", exact: true }).click();
       await expect(page.getByRole("button", { name: "Confirmar y ajustar inventario", exact: true })).toBeVisible();
       expect(await balances()).toEqual([10000, 5000, 3000]);
@@ -74,7 +98,7 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Revisar ajuste definitivo", exact: true }).click();
       await expect(page.getByRole("button", { name: "Confirmar y ajustar inventario", exact: true })).toBeVisible();
       expect(await balances()).toEqual([10000, 5000, 3000]);
-      await page.screenshot({ path: `/Users/nicolas/Documents/Codex/2026-09-08/files-mentioned-by-the-user-scr/UI-UX-MESAPAY/conteo-definitivo-${width}.png`, fullPage: true });
+      await page.screenshot({ path: testInfo.outputPath(`conteo-definitivo-${width}.png`), fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await page.getByRole("button", { name: "Confirmar y ajustar inventario", exact: true }).click();
       await expect.poll(async () => (await db.stockCount.findUniqueOrThrow({ where: { id: count.id } })).status).toBe("closed");

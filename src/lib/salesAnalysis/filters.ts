@@ -53,6 +53,7 @@ const REPORTING_METHOD: Record<PaymentMethod, boolean> = {
   kushki_card_terminal: true,
   external_terminal: true,
   kushki_pse: true,
+  kushki_bre_b: true,
   kushki_card: true,
   reservation_deposit: true,
   voucher: true,

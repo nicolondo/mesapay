@@ -50,7 +50,7 @@ async function CocinaLayoutContent({
   }
 
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="mp-staff-board min-h-screen bg-paper">
       <LandscapeLock />
       {/* Same safe-area pattern as the mesero layout — pushes the
           header below the iOS status bar so the title doesn't sit

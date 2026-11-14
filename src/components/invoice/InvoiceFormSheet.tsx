@@ -236,6 +236,7 @@ export function InvoiceFormSheet({
               {staffPrint ? (
                 <div className="space-y-1">
                   <StaffPrintButton
+                    destinationVariant="pay"
                     doc={{
                       kind: "invoice",
                       orderId,

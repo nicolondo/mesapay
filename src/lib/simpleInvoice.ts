@@ -388,6 +388,8 @@ export async function sendSimpleInvoiceEmail(opts: {
   invoiceNumber: number;
   invoiceUrl: string;
   email: string;
+  /** Correos adicionales de la factura: van en copia (ver invoiceEmails.ts). */
+  cc?: string[];
   locale: string | null;
 }): Promise<void> {
   try {
@@ -414,6 +416,7 @@ export async function sendSimpleInvoiceEmail(opts: {
     const from = brandedInvoiceFrom(opts.snapshot.restaurantName);
     const ok = await sendEmail({
       to: opts.email,
+      ...(opts.cc?.length ? { cc: opts.cc } : {}),
       subject,
       html,
       text,

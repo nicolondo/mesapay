@@ -28,6 +28,7 @@ import {
   staffPrintAccessFor,
   type StaffPrintDoc,
 } from "@/lib/print/staffPrint";
+import { isDevicePrintView } from "@/lib/print/devicePrint";
 import { PrintButton } from "./PrintButton";
 import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
 import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
@@ -97,10 +98,10 @@ export default async function FacturaPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ print?: string; w?: string }>;
+  searchParams: Promise<{ print?: string; w?: string; imprimir?: string }>;
 }) {
   const { id } = await params;
-  const { print, w } = await searchParams;
+  const { print, w, imprimir } = await searchParams;
   const t = await getTranslations("emailInvoice");
   const locale = (await getLocale()) as Locale;
   const tag = localeTag(locale);
@@ -240,7 +241,7 @@ export default async function FacturaPage({
           <PrintButton
             autoPrint={print === "1"}
             agent={agentDoc}
-            paperMm={paperMm}
+            deviceView={isDevicePrintView(imprimir)}
             viewer={
               agentDoc
                 ? { role: session?.user?.role ?? null, scope: session?.user?.restaurantId ?? null }

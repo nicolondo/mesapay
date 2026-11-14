@@ -64,7 +64,12 @@ export default async function ProveedoresSettingsPage() {
       <div className="font-display text-3xl mt-2 mb-1">
         {t("proveedoresTitle")}
       </div>
-      <p className="text-sm text-op-muted mb-6">{t("proveedoresIntro")}</p>
+      <p className="text-sm text-op-muted mb-6">
+        {t("proveedoresIntro")}{" "}
+        <Link href="/operator/reportes/proveedores" className="whitespace-nowrap text-op-accent hover:underline">
+          {t("supplierReportLink")} →
+        </Link>
+      </p>
 
       <ProveedoresClient initial={suppliers} currency={currency} />
     </div>

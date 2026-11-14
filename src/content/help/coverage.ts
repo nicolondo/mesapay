@@ -183,14 +183,16 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "conteo-de-inventario",
     "archivar-o-eliminar-un-insumo",
   ],
-  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra"],
+  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra", "documento-soporte"],
 
   /* ── Facturación ── */
   "/operator/settings/impuestos": ["impuesto-de-ventas"],
   "/operator/settings/facturacion-dian": [
     "resolucion-de-facturacion",
     "activar-la-facturacion-electronica",
+    "documento-soporte",
   ],
+  "/operator/documento-soporte/[id]": ["documento-soporte"],
   "/operator/facturas": [
     "solicitudes-de-factura",
     "emision-automatica-de-facturas",
@@ -202,6 +204,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/contabilidad": [
     "como-funciona-la-contabilidad",
     "registrar-gastos",
+    "documento-soporte",
     "pyg-y-libros-del-mes",
     "plan-de-cuentas",
     "cerrar-el-mes-contable",

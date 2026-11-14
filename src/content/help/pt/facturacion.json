@@ -316,6 +316,43 @@
         }
       ],
       "updated": "2026-11-04"
+    },
+    {
+      "slug": "documento-soporte",
+      "title": "Gere o documento de suporte de compras e despesas",
+      "summary": "Quando você compra de alguém que não é obrigado a emitir fatura, o MESAPAY gera o documento de suporte eletrônico a partir da compra ou da despesa, envia à DIAN e, se for preciso corrigi-lo, emite a nota de ajuste.",
+      "keywords": [
+        "documento de suporte",
+        "documento soporte",
+        "não obrigado a faturar",
+        "fornecedor sem fatura",
+        "resolução 167",
+        "cuds",
+        "nota de ajuste",
+        "anular documento de suporte",
+        "conjunto de testes",
+        "testsetid",
+        "faixa de numeração",
+        "formulário 1876",
+        "retenção na fonte",
+        "reteiva",
+        "pessoa física"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Quando você compra de uma pessoa ou empresa que **não é obrigada a emitir fatura** (por exemplo, uma pessoa física não contribuinte de IVA, um agricultor ou um prestador do exterior), a DIAN exige que você gere o **documento de suporte em aquisições de não obrigados a faturar** (Resolução 000167 de 2021). É ele que respalda o custo, a dedução e o IVA descontável dessa compra. O MESAPAY o gera a partir da compra ou da despesa, assina com o seu certificado e envia à DIAN.\n\n> Se o fornecedor entrega fatura eletrônica, não é preciso documento de suporte.\n\n## O que você faz no portal da DIAN\n\nO dono ou o contador faz isto uma única vez, com o usuário do estabelecimento na DIAN:\n\n1. No portal de faturamento eletrônico, entre em **Registro y habilitación** › **Documentos electrónicos** › **Documento soporte para no obligados a facturar** e escolha o modo de operação **Software propio** (software próprio). Anote o **Software ID** e o **PIN** que você registrar.\n2. Se você já emite fatura eletrônica, a DIAN pode marcá-lo como **Habilitado** de imediato, sem conjunto de testes. Se pedir conjunto de testes, copie o **TestSetId**: o conjunto exige 2 documentos de suporte e 1 nota de ajuste aceitos.\n3. Solicite a **autorização de numeração** no MUISCA (**Numeración de facturación**, Formulário 1876) com o tipo **Documento soporte**: um prefixo de até 4 caracteres, a faixa e a validade. É diferente da das suas faturas.\n4. No portal, vincule essa faixa ao software (**Configuración** › **Rangos de numeración**). Ao passar para produção, se o modo de operação não aparecer, use **Sincronizar a Producción**.\n\n## Configure no MESAPAY\n\n1. Entre em [Configurações › Faturamento DIAN](/operator/settings/facturacion-dian) e desça até **Documento de suporte eletrônico**.\n2. Marque **Gerar documento de suporte a partir de Compras e Despesas**.\n3. Digite o **Software ID** e o **PIN do software** do documento de suporte.\n4. Escolha o **Ambiente**. Em **Habilitação (testes)** digite também o **TestSetId**.\n5. Carregue a **Autorização de numeração do documento de suporte**: número, prefixo, de, até e validade.\n6. Toque em **Salvar**.\n\nEle é assinado com o mesmo certificado digital do faturamento eletrônico. As notas de ajuste usam numeração interna (prefixo NAS por padrão): a DIAN não a autoriza.\n\n> ⚠ Na habilitação tudo vai para o conjunto de testes da DIAN e não tem validade fiscal. Passe para **Produção** quando a DIAN mostrar o documento de suporte como **Habilitado**.\n\n## Marque o fornecedor como não obrigado\n\nNa compra recebida ou na despesa aparece o painel **Documento de suporte DIAN**. Na primeira vez com um fornecedor, toque em **Sim, gerar documento de suporte para ele** e preencha os dados. Eles ficam salvos no fornecedor para as próximas compras e despesas:\n\n- **Nome ou razão social** e **Tipo de pessoa**.\n- **Número do documento**, sem dígito verificador. A DIAN identifica o vendedor que mora na Colômbia pelo NIT: para uma pessoa física é o número da cédula, e o MESAPAY calcula o dígito.\n- Se mora na Colômbia: **Município**, **Código postal** (6 dígitos) e **Endereço**.\n- Se mora no exterior: **País** e **Cidade**.\n\n## Gere o documento\n\n1. Abra a despesa já salva em [Contabilidade › Despesas](/operator/contabilidad) ou a compra totalmente recebida em [Compras](/operator/compras).\n2. No painel **Documento de suporte DIAN**, toque em **Gerar documento de suporte**.\n\nO MESAPAY numera, assina e envia no mesmo passo. Cada despesa ou compra tem um único documento de suporte vigente.\n\n- **Prazo:** no mesmo dia da compra ele sai como «Por operación» (por operação); até 6 dias depois, como «Acumulado semanal». Depois disso a DIAN o rejeita (regra DSFC02c) e o MESAPAY não deixa gerá-lo.\n- **Valores:** copia a base, o IVA e as retenções da despesa ou da compra. A retenção na fonte e o ReteIVA são informados à DIAN; o ReteICA não, porque o anexo do documento de suporte não o prevê. O imposto ao consumo não é aceito.\n- Os modelos de despesas recorrentes não recebem documento de suporte: ele é gerado em cada despesa do mês.\n\n## Status, rejeições e reenvio\n\n- **Em validação na DIAN**: a DIAN ainda está processando. Toque em **Consultar status** ou espere: o MESAPAY consulta sozinho.\n- **Aceito**: tem validade fiscal (em produção).\n- **Rejeitado**: o painel mostra as regras que a DIAN respondeu. Corrija o dado (quase sempre do vendedor) e toque em **Reenviar à DIAN**: ele sai com o **mesmo número**.\n- **Erro de envio**: a DIAN não respondeu. O MESAPAY tenta de novo sozinho e, antes de reenviar, pergunta se a DIAN já o tinha.\n\n## Representação gráfica e XML\n\n**Ver representação gráfica** mostra o documento com o CUDS e o código QR, pronto para **Imprimir**. **Baixar XML** baixa o arquivo assinado exatamente como foi enviado. Entregar uma cópia ao vendedor é opcional.\n\n## Corrija ou anule com uma nota de ajuste\n\nEm um documento aceito, toque em **Nota de ajuste**:\n\n1. Escolha o **Motivo da correção**: anulação, devolução parcial, abatimento ou desconto, ajuste de preço ou outros.\n2. Se não for anulação, digite o **Valor a ajustar (sem IVA)**. O IVA é ajustado proporcionalmente.\n3. Escreva a **Descrição da correção** (mínimo 20 caracteres) e toque em **Enviar nota de ajuste à DIAN**.\n\nCom a anulação aceita, a despesa ou a compra fica livre para gerar um novo documento de suporte.\n\n> O documento de suporte não cria lançamentos contábeis: a despesa ou a compra já registraram o custo, os impostos, as retenções e a conta a pagar. Se a compra mudou, corrija também a despesa ou a compra.",
+      "links": [
+        {
+          "label": "Ir para Faturamento DIAN",
+          "href": "/operator/settings/facturacion-dian"
+        },
+        {
+          "label": "Ir para Compras",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-11-13"
     }
   ]
 }

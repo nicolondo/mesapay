@@ -146,6 +146,8 @@ export const UNRELATED_MODELS: Readonly<Record<string, string>> = {
   CreditNoteSeries:
     "Consecutivo de notas crédito por NIT y ambiente: los números ya usados quedan quemados, nunca se reinicia.",
   CreditNoteFileSeries: "Consecutivo de nombres de archivo DIAN por NIT: ídem.",
+  SupportDocumentSeries:
+    "Consecutivo del documento soporte y de su nota de ajuste por NIT y ambiente: los números usados quedan quemados.",
   CrmContact: "Cuelga de CrmLead, que se conserva.",
   CrmActivity: "CRM de ventas de la plataforma (cuelga del lead).",
   CrmAppointment: "CRM de ventas de la plataforma (cuelga del lead).",
@@ -225,7 +227,7 @@ export const ARCHIVE_REDACTED_FIELDS: Readonly<Record<string, readonly string[]>
   ],
   User: ["passwordHash"],
   Diner: ["passwordHash"],
-  DianConfig: ["certP12Enc", "certPasswordEnc", "softwarePinEnc"],
+  DianConfig: ["certP12Enc", "certPasswordEnc", "softwarePinEnc", "supportDocSoftwarePinEnc"],
   PrintAgent: ["tokenHash"],
   PaymentLink: ["token"],
   Payout: ["webhookSecretEnc"],

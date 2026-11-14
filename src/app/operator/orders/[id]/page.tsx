@@ -24,6 +24,10 @@ import { headers } from "next/headers";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
+import { hasCreditSale } from "@/lib/orders/creditSale";
+import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
+import { customerListHref } from "@/lib/billingCustomerList";
+import { CreditSaleBadge } from "../CreditSaleBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +99,11 @@ export default async function OperatorOrderDetail({
     },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Cobrada (toda o una parte) a crédito: deuda del cliente en Cartera, no
+  // plata que entró. «Crédito pagado» si el cliente ya la pagó (FIFO).
+  const credit = hasCreditSale(order.payments)
+    ? (await loadCreditSales(restaurantId, [order.id])).get(order.id) ?? null
+    : null;
   // Datáfono Kushki aprobado por OTRO monto (propina del datáfono, parcial o
   // «monto cobrado distinto»): el aviso bajo el pago, junto a «Conciliar».
   const amountById = await terminalAmountViews(db, order.payments);
@@ -196,9 +205,16 @@ export default async function OperatorOrderDetail({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <StatusPill status={order.status} />
-          {sendInfo?.receivable && <ReceivableChip info={sendInfo} />}
+          {/* Factura manual emitida por cobrar: su píldora ya dice que es una
+              venta a crédito (Por cobrar / Vencida / Cobrada); si no, el
+              distintivo «A crédito» / «Crédito pagado». Nunca los dos. */}
+          {sendInfo?.receivable && sendInfo.receivable.totalCents > 0 ? (
+            <ReceivableChip info={sendInfo} />
+          ) : (
+            credit && <CreditSaleBadge sale={credit} size="md" />
+          )}
         </div>
       </div>
 
@@ -456,6 +472,36 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {credit && p.method === "customer_credit" && p.status === "approved" && (
+                      // A quién se le cargó y cuánto falta; los abonos se
+                      // registran en Clientes (estado de cuenta).
+                      <div className="mt-0.5 text-[11px]">
+                        <span className={credit.status === "credit_paid" ? "text-[#1E5339]" : "text-[#8F6828]"}>
+                          {t(
+                            credit.status === "credit_paid"
+                              ? "creditPaymentPaid"
+                              : credit.outstandingCents > 0
+                                ? "creditPaymentOwed"
+                                : "creditPaymentNoBalance",
+                            {
+                              customer: credit.customerName ?? t("creditNoCustomer"),
+                              amount: fmtCOP(credit.outstandingCents),
+                            },
+                          )}
+                        </span>
+                        {credit.customerName && (
+                          <>
+                            <span aria-hidden className="text-op-muted">{" · "}</span>
+                            <Link
+                              href={customerListHref({ q: credit.customerName })}
+                              className="whitespace-nowrap underline underline-offset-2 hover:text-op-text"
+                            >
+                              {t("creditOpenCustomer")}
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {amountById.get(p.id) && (
                       <TerminalAmountNote amount={amountById.get(p.id)!} className="mt-1 max-w-md" />
                     )}

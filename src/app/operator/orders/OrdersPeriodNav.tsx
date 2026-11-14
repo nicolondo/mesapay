@@ -218,6 +218,7 @@ export function OrdersPeriodNav({ view, today }: { view: OrdersView; today: stri
           {view.source !== "all" && <input type="hidden" name="source" value={view.source} />}
           {view.source === "tables" && view.tableId && <input type="hidden" name="tableId" value={view.tableId} />}
           {view.q && <input type="hidden" name="q" value={view.q} />}
+          {view.credit && <input type="hidden" name="credito" value="1" />}
           <label className="min-w-0">
             <span className={hintCls}>{t("rangeFrom")}</span>
             <input

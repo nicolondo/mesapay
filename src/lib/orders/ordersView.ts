@@ -11,6 +11,8 @@
  *  · `status` — all | open | paid | cancelled.
  *  · `q` — búsqueda por código de la cuenta o número de factura.
  *  · `source` — all | tables | manual; `tableId` — mesa física concreta.
+ *  · `credito=1` — sólo las cuentas cobradas (toda o una parte) a crédito:
+ *    un cobro `customer_credit` aprobado (ver `creditSale.ts`).
  *  · `fechas=todas` — sin filtro de fecha (búsqueda global de la barra de
  *    arriba, «Buscar en todas las fechas», enlaces viejos `period=all`).
  *  · `page` — página de 50, desde 1.
@@ -24,6 +26,9 @@ import type { HistoryRange } from "./history";
 
 export const ORDERS_PAGE_SIZE = 50;
 
+/** El cobro que marca una cuenta «A crédito» (mismo criterio que `creditSale.ts`). */
+const CREDIT_SALE_PAYMENT = { method: "customer_credit", status: "approved" } satisfies Prisma.PaymentWhereInput;
+
 export type OrdersStatusFilter = "all" | "open" | "paid" | "cancelled";
 export type OrdersSourceFilter = "all" | "tables" | "manual";
 
@@ -31,6 +36,8 @@ export type OrdersView = {
   status: OrdersStatusFilter;
   source: OrdersSourceFilter;
   tableId: string;
+  /** Sólo las cuentas cobradas a crédito. */
+  credit: boolean;
   q: string;
   period: ReportPeriod;
   /** Sin filtro de fecha. */
@@ -66,6 +73,7 @@ export function parseOrdersView(sp: RawParams, today: string): OrdersView {
   const rawSource = first(sp.source);
   const tableId = rawSource === "manual" ? "" : first(sp.tableId).trim().slice(0, 100);
   const source: OrdersSourceFilter = rawSource === "manual" ? "manual" : rawSource === "tables" || tableId ? "tables" : "all";
+  const credit = first(sp.credito) === "1";
   const rawPage = first(sp.page);
   const page = /^\d{1,6}$/.test(rawPage) && Number(rawPage) >= 1 ? Number(rawPage) : 1;
 
@@ -86,7 +94,7 @@ export function parseOrdersView(sp: RawParams, today: string): OrdersView {
       allDates = allDates || legacy.allDates;
     }
   }
-  return { status, source, tableId, q, period, allDates, page };
+  return { status, source, tableId, credit, q, period, allDates, page };
 }
 
 /**
@@ -112,6 +120,7 @@ export function ordersHref(
   if (next.allDates) qs.set("fechas", "todas");
   if (next.source !== "all") qs.set("source", next.source);
   if (next.source === "tables" && next.tableId) qs.set("tableId", next.tableId);
+  if (next.credit) qs.set("credito", "1");
   if (next.page > 1) qs.set("page", String(next.page));
   const s = qs.toString();
   return s ? `/operator/orders?${s}` : "/operator/orders";
@@ -162,7 +171,7 @@ export function ordersStatusWhere(filter: OrdersStatusFilter): Prisma.OrderWhere
  */
 export function ordersWhere(
   restaurantId: string,
-  view: Pick<OrdersView, "status" | "q" | "period" | "allDates"> & Partial<Pick<OrdersView, "source" | "tableId">>,
+  view: Pick<OrdersView, "status" | "q" | "period" | "allDates"> & Partial<Pick<OrdersView, "source" | "tableId" | "credit">>,
   cutoffHour: number,
   documentOrderIds: readonly string[] = [],
 ): {
@@ -179,11 +188,15 @@ export function ordersWhere(
 } {
   // All branches (including pinned invoice-number matches) use the same
   // source scope. A foreign/nonstandard table ID deliberately matches nothing.
-  const sourceScope: Prisma.OrderWhereInput = view.source === "manual"
-    ? { table: { restaurantId, kind: "manual" } }
-    : view.source === "tables" || view.tableId
-      ? { table: { restaurantId, kind: "standard" }, ...(view.tableId ? { tableId: view.tableId } : {}) }
-      : {};
+  const sourceScope: Prisma.OrderWhereInput = {
+    ...(view.source === "manual"
+      ? { table: { restaurantId, kind: "manual" } }
+      : view.source === "tables" || view.tableId
+        ? { table: { restaurantId, kind: "standard" }, ...(view.tableId ? { tableId: view.tableId } : {}) }
+        : {}),
+    // «A crédito»: igual en la lista, los contadores y las facturas buscadas.
+    ...(view.credit ? { payments: { some: CREDIT_SALE_PAYMENT } } : {}),
+  };
   const countWhere: Prisma.OrderWhereInput = { restaurantId, ...sourceScope };
   const byDocument = view.q !== "" && documentOrderIds.length > 0;
   if (view.q) {

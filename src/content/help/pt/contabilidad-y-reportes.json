@@ -535,6 +535,45 @@
       "updated": "2026-10-31"
     },
     {
+      "slug": "informe-de-proveedores",
+      "title": "Tire o relatório de fornecedores",
+      "summary": "Veja de cada fornecedor o documento, a média mensal de compras, a condição de pagamento, o total do período, as notas, a última compra e o saldo, e baixe em Excel.",
+      "keywords": [
+        "fornecedores",
+        "relatorio de fornecedores",
+        "media de compras",
+        "compras mensais",
+        "condicao de pagamento",
+        "prazo",
+        "a prazo",
+        "a vista",
+        "documento",
+        "referencias comerciais",
+        "excel",
+        "csv",
+        "compras por fornecedor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "O relatório de fornecedores mostra, para cada fornecedor, o documento fiscal, quanto você compra dele em média por mês e a condição de pagamento, com o total do período, o número de notas, a última compra e o saldo a pagar. Serve, por exemplo, para preencher referências comerciais ou negociar com seus fornecedores.\n\n> Fica no menu **Relatórios** se você tem o módulo de contabilidade, ou junto de **Compras** se tem só o de compras. Você também chega pelo link **Relatório de fornecedores** de Compras e de Fornecedores.\n\n## Consulte o relatório\n\n1. Acesse [Relatório de fornecedores](/operator/reportes/proveedores).\n2. Escolha o **Período**: **Últimos 12 meses** (o padrão), **Últimos 6 meses**, **Ano corrente** ou **Intervalo de meses**, com **De (mês)** e **Até (mês)**.\n3. Em **Valores**, escolha **Custo (sem IVA dedutível)** ou **Total faturado (com IVA)**.\n4. Em **Inclui**, escolha **Compras e despesas** ou **Somente compras**.\n5. Se quiser, digite em **Buscar** um nome ou documento (com ou sem pontos) e filtre por **Condição de pagamento**: **À vista** ou **A prazo**.\n6. Toque em **Aplicar**.\n7. Toque no título de uma coluna para ordenar por ela; toque de novo para inverter a ordem. No celular, use **Ordenar por** e **Ordem**.\n\nNo topo você vê **Fornecedores**, **Total comprado**, **Média mensal** e **Saldo a pagar hoje** dos fornecedores que ficam depois de buscar e filtrar. Se houver mais de 50, mude de página com **Anterior** e **Próxima**.\n\n## Como a média é calculada\n\n**Média mensal** = total comprado no período ÷ número de meses do período, mesmo que em algum mês você não tenha comprado nada desse fornecedor. Nos últimos 12 meses, uma única compra de $1,200,000 dá uma média de $100,000.\n\n- O período é sempre de meses completos. **Últimos 12 meses** e **Últimos 6 meses** terminam no mês anterior ao atual; **Ano corrente** vai de janeiro ao mês anterior.\n- Se o período inclui o mês corrente (um intervalo até este mês, ou o ano corrente em janeiro), aparece um aviso: esse mês ainda não terminou e a média pode ficar baixa.\n- **Custo (sem IVA dedutível)**: o valor sem o IVA que você deduz, mais o imposto sobre o consumo e o IVA que não é deduzido. É o que a compra custa para o negócio.\n- **Total faturado (com IVA)**: valor + IVA + imposto sobre o consumo, antes das retenções. É o número que as referências comerciais costumam pedir.\n\nA tela lembra isso em **Como a média é calculada**, com os meses exatos do período.\n\n## O que conta como compra\n\n- As notas e ordens de compra **recebidas**, total ou parcialmente, pelo que foi recebido e na data de recebimento. Rascunhos, ordens enviadas ainda não recebidas e canceladas não contam.\n- Com **Compras e despesas**, também as despesas com fornecedor, na data delas. Despesas sem fornecedor não aparecem.\n- **Notas** é quantas compras (e despesas, se incluídas) o fornecedor teve no período.\n- **Última compra** é a mais recente até hoje, mesmo que seja anterior ao período.\n- **Saldo a pagar** é o que você deve hoje: o mesmo saldo de [Contas a receber e a pagar](/operator/reportes/cartera). Com **Somente compras**, não soma as despesas.\n- **Condição de pagamento** vem de **Condições de pagamento (dias)** do fornecedor: vazio ou 0 é **À vista**; senão, **A prazo** com os dias.\n- O documento aparece com o tipo e o dígito verificador (DV) quando o fornecedor os tem.\n\nFornecedores ativos aparecem sempre, mesmo sem compras. Os inativos só aparecem se tiveram compras no período ou têm saldo.\n\n## Baixe o relatório\n\nToque em **Baixar Excel**: baixa todos os fornecedores do filtro (não só a página que você vê), com o documento em colunas (tipo, número e DV), o prazo em dias e uma aba **Informações** com o período, os meses usados na média e os filtros. Na setinha ao lado está **Baixar CSV**. Você também pode **Imprimir** a página.\n\n## Casos frequentes\n\n- **Um fornecedor aparece sem documento ou sem tipo**: complete em [Fornecedores](/operator/settings/proveedores).\n- **A condição de pagamento está errada**: altere **Condições de pagamento (dias)** no fornecedor.\n- **A média parece baixa**: confira se o período não inclui o mês corrente e se as compras foram recebidas.\n- **Uma despesa não aparece**: confira se ela tem fornecedor e se **Inclui** está em **Compras e despesas**.",
+      "links": [
+        {
+          "label": "Ir ao relatório de fornecedores",
+          "href": "/operator/reportes/proveedores"
+        },
+        {
+          "label": "Ir a Fornecedores",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Ir a Compras",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "analizar-las-ventas",
       "title": "Analise suas vendas",
       "summary": "Veja quanto, quando e o que você vendeu em um período, comparado com outro: venda líquida, indicadores, tendência, dia e hora, produtos e margem, equipe e pagamentos. Toque em qualquer valor para filtrar e exporte para Excel ou CSV.",

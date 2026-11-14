@@ -537,6 +537,46 @@
       "updated": "2026-10-31"
     },
     {
+      "slug": "informe-de-proveedores",
+      "title": "Saca el informe de proveedores",
+      "summary": "Consulta por proveedor su NIT, el promedio de compras mensuales, la condición de pago, el total del período, las facturas, la última compra y el saldo, y descárgalo a Excel.",
+      "keywords": [
+        "proveedores",
+        "informe de proveedores",
+        "reporte de proveedores",
+        "promedio de compras",
+        "compras mensuales",
+        "condicion de pago",
+        "plazo",
+        "credito",
+        "contado",
+        "nit",
+        "referencias comerciales",
+        "excel",
+        "csv",
+        "compras por proveedor"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "El informe de proveedores muestra, para cada proveedor, su NIT, cuánto le compras en promedio cada mes y su condición de pago, con el total del período, el número de facturas, la última compra y el saldo por pagar. Sirve, por ejemplo, para llenar referencias comerciales o para negociar con tus proveedores.\n\n> Está en el menú **Reportes** si tienes el módulo de contabilidad, o junto a **Compras** si solo tienes el de compras. También llegas desde el enlace **Informe de proveedores** de Compras y de Proveedores.\n\n## Consulta el informe\n\n1. Entra a [Informe de proveedores](/operator/reportes/proveedores).\n2. Elige el **Período**: **Últimos 12 meses** (el que sale de entrada), **Últimos 6 meses**, **Año en curso** o **Rango de meses**, con **Desde (mes)** y **Hasta (mes)**.\n3. En **Valores** elige **Costo (sin IVA descontable)** o **Total facturado (con IVA)**.\n4. En **Incluye** elige **Compras y gastos** o **Solo compras**.\n5. Si quieres, escribe en **Buscar** un nombre o un NIT (con o sin puntos) y filtra por **Condición de pago**: **Contado** o **Crédito**.\n6. Toca **Aplicar**.\n7. Toca el título de una columna para ordenar por ella; tócalo otra vez para invertir el orden. En el celular usa **Ordenar por** y **Orden**.\n\nArriba ves **Proveedores**, **Total comprado**, **Promedio mensual** y **Saldo por pagar hoy** de los proveedores que quedan después de buscar y filtrar. Si hay más de 50, pasa de página con **Anterior** y **Siguiente**.\n\n## Cómo se calcula el promedio\n\n**Promedio mensual** = total comprado en el período ÷ número de meses del período, aunque algún mes no le hayas comprado nada a ese proveedor. Con los últimos 12 meses, una sola compra de $1,200,000 da un promedio de $100,000.\n\n- El período siempre son meses completos. **Últimos 12 meses** y **Últimos 6 meses** terminan en el mes anterior al actual; **Año en curso** va de enero al mes anterior.\n- Si el período incluye el mes en curso (un rango hasta este mes, o el año en curso en enero), verás un aviso: ese mes aún no termina y el promedio puede quedar bajo.\n- **Costo (sin IVA descontable)**: el valor sin el IVA que descuentas, más el impuesto al consumo y el IVA que no se descuenta. Es lo que la compra le cuesta al negocio.\n- **Total facturado (con IVA)**: valor + IVA + impuesto al consumo, antes de retenciones. Es la cifra que suelen pedir las referencias comerciales.\n\nLa pantalla lo recuerda en **Cómo se calcula el promedio**, con los meses exactos del período.\n\n## Qué cuenta como compra\n\n- Las facturas y órdenes de compra **recibidas**, total o parcialmente, por lo recibido y en la fecha de recepción. Los borradores, las órdenes enviadas que aún no recibes y las anuladas no cuentan.\n- Con **Compras y gastos**, también los gastos con proveedor, en su fecha. Los gastos sin proveedor no aparecen.\n- **Facturas** es cuántas compras (y gastos, si los incluyes) tuvo el proveedor en el período.\n- **Última compra** es la más reciente hasta hoy, aunque sea anterior al período.\n- **Saldo por pagar** es lo que le debes hoy: el mismo saldo de [Cartera](/operator/reportes/cartera). Con **Solo compras** no suma los gastos.\n- **Condición de pago** sale de **Condiciones de pago (días)** del proveedor: vacío o 0 es **Contado**; si no, **Crédito** con los días.\n- El NIT sale con su tipo y su dígito de verificación (DV) cuando lo tiene.\n\nLos proveedores activos salen siempre, aunque no tengan compras. Los inactivos solo salen si tuvieron compras en el período o tienen saldo.\n\n## Descarga el informe\n\nToca **Descargar Excel**: baja todos los proveedores del filtro (no solo la página que ves), con el documento en columnas (tipo, número y DV), el plazo en días y una hoja **Información** con el período, los meses que se usaron para el promedio y los filtros. En la flechita de al lado está **Descargar CSV**. También puedes **Imprimir** la página.\n\n## Casos frecuentes\n\n- **Un proveedor sale sin NIT o sin tipo de documento**: complétalo en [Proveedores](/operator/settings/proveedores).\n- **La condición de pago no es la real**: cambia **Condiciones de pago (días)** en la ficha del proveedor.\n- **El promedio se ve bajo**: revisa que el período no incluya el mes en curso y que las compras estén recibidas.\n- **No ves un gasto**: revisa que tenga proveedor y que **Incluye** esté en **Compras y gastos**.",
+      "links": [
+        {
+          "label": "Ir al informe de proveedores",
+          "href": "/operator/reportes/proveedores"
+        },
+        {
+          "label": "Ir a Proveedores",
+          "href": "/operator/settings/proveedores"
+        },
+        {
+          "label": "Ir a Compras",
+          "href": "/operator/compras"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "analizar-las-ventas",
       "title": "Analiza tus ventas",
       "summary": "Mira cuánto, cuándo y qué vendiste en un período, comparado con otro: venta neta, indicadores, tendencia, día y hora, productos y margen, equipo y pagos. Toca cualquier cifra para filtrar y exporta a Excel o CSV.",

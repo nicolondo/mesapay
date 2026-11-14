@@ -33,6 +33,7 @@ export function OrdersSearchForm({ view, today }: { view: OrdersView; today: str
       {view.status !== "all" && <input type="hidden" name="status" value={view.status} />}
       {view.source !== "all" && <input type="hidden" name="source" value={view.source} />}
       {view.source === "tables" && view.tableId && <input type="hidden" name="tableId" value={view.tableId} />}
+      {view.credit && <input type="hidden" name="credito" value="1" />}
       {customPeriod && (
         <>
           <input type="hidden" name="desde" value={view.period.desde} />

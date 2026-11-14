@@ -23,6 +23,12 @@ export type EmailAttachment = {
 
 type SendArgs = {
   to: string;
+  /**
+   * Copia (opcional): los correos adicionales de una factura (ver
+   * src/lib/invoiceEmails.ts). Aditivo como `attachments`: sin copia la
+   * clave ni se serializa y el body sale igual que antes.
+   */
+  cc?: string[];
   subject: string;
   html: string;
   text: string;
@@ -45,7 +51,7 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   const from = args.from ?? process.env.MAIL_FROM ?? "MESAPAY <hola@mesapay.co>";
   if (!key) {
-    console.log(`[mailer] skipped (no RESEND_API_KEY) → ${args.to} — ${args.subject}`);
+    console.log(`[mailer] skipped (no RESEND_API_KEY) → ${args.to}${args.cc?.length ? ` (+${args.cc.length} cc)` : ""} — ${args.subject}`);
     return false;
   }
   try {
@@ -60,6 +66,7 @@ export async function sendEmail(args: SendArgs): Promise<boolean> {
       body: JSON.stringify({
         from,
         to: args.to,
+        ...(args.cc?.length ? { cc: args.cc } : {}),
         subject: args.subject,
         html: args.html,
         text: args.text,

@@ -64,6 +64,8 @@ export const ACTIVE_ORDER_INCLUDE = {
       docType: true,
       docNumber: true,
       email: true,
+      // Correos adicionales: "Corregir datos" los conserva (ver invoiceEmails.ts).
+      ccEmails: true,
     },
   },
   // Factura emitida ANTES de cobrar: la ficha muestra "Facturada ·

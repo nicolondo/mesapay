@@ -13,6 +13,14 @@ export type InvoiceRequestSummary = {
   docType: DocType;
   docNumber: string;
   email: string;
+  /** Correos adicionales (copia del envío). Ver src/lib/invoiceEmails.ts. */
+  ccEmails?: string[];
+  /**
+   * Armada con un cliente guardado ("Usar estos datos") y vista por quien
+   * no es personal: nombre y correos llegan ENMASCARADOS. "Corregir datos"
+   * empieza otra vez por el documento, sin precargar nada de esto.
+   */
+  masked?: true;
 };
 
 /**

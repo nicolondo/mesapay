@@ -50,6 +50,10 @@ export type InvoiceReviewLine = {
   discountUnmatched?: boolean;
   /** El IVA impreso de la línea se calculó antes del descuento; se conserva. */
   taxBeforeDiscount?: boolean;
+  /** Cantidad × unitario no da el total impreso (total − cantidad × unitario). */
+  arithmeticDiffCents?: number | null;
+  /** Valor impreso en la columna de consumo (sin interpretar), para mostrar la cuenta. */
+  incCellCents?: number | null;
 };
 
 export function reviewPriceQuantity(line: InvoiceReviewLine): number {

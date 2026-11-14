@@ -419,7 +419,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "conteo-de-inventario",
       title: "Haz un conteo físico con lector de código de barras",
       covers:
-        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos, una línea por insumo con lo último contado arriba (\"Contados recientemente\") y varias cantidades por insumo (chip \"N cantidades\", \"+\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias y de cada fila del conteo (principal, editar, pasar a otro insumo, \"Quitar\", \"Pasárselo a este insumo\"), qué hacer con un código que no es de ningún insumo o es de uno que no está en el conteo (\"Vincular a un insumo\", \"Crear insumo con este código\", restaurar, \"Deshacer\" / \"Corregir\"), \"Nuevo insumo\" desde el conteo, lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\" (cierra y avisa), \"Ver preliminar\", \"Iniciar conteo definitivo\", \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
+        "\"Nuevo conteo\" (\"Qué contar\"), etapas \"Conteo inicial\", \"Preliminar\", \"Conteo definitivo\" y \"Revisión final\", lector de códigos, una línea por insumo con lo último contado arriba (\"Contados recientemente\") y varias cantidades por insumo (chip \"N cantidades\", \"+\"), administrar códigos en la hoja \"Códigos de barras\" del menú ⋯ de Existencias y de cada fila del conteo (principal, editar, pasar a otro insumo, \"Quitar\", \"Pasárselo a este insumo\"), qué hacer con un código que no es de ningún insumo o es de uno que no está en el conteo (\"Vincular a un insumo\", \"Crear insumo con este código\", restaurar, \"Deshacer\" / \"Corregir\"), \"Nuevo insumo\" desde el conteo, lista de conteos (\"Continuar\", \"Ver\", \"Cargar más\"), \"Guardar borrador\" (cierra y avisa), \"Ver preliminar\", \"Iniciar conteo definitivo\" (solo pide recontar lo que tuvo diferencia, no se contó o tuvo movimientos; \"Confirmados del preliminar\", \"Recontar todo\"), \"Confirmar y ajustar inventario\", \"Borrar conteo\" y \"Reiniciar conteo definitivo\" si el inventario cambió.",
     },
     {
       slug: "ordenes-de-compra",
@@ -557,7 +557,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuestos-y-retenciones",
       title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (resumen para la DIAN con semáforo contra el libro y tendencia, despliegue por impuesto → origen y tarifa / tipo de asiento → auxiliares con documento y asiento, exportar a Excel, \"Revisar antes de declarar\"); «Impuestos detallados» quedó dentro; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención —crear desde el catálogo del año o personalizados, editar, desactivar, borrar los no usados— y UVT, \"Registrar pago\"), \"Impuestos del período\" (resumen para la DIAN con semáforo contra el libro y tendencia, despliegue por impuesto → origen y tarifa / tipo de asiento → auxiliares con documento y asiento, exportar a Excel, \"Revisar antes de declarar\"); «Impuestos detallados» quedó dentro; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",
@@ -696,6 +696,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       title: "Qué hacer cuando no sale una comanda o una factura",
       covers:
         "Diagnóstico por el bloque Estado del programa, sin conexión, token rechazado, impresora sin papel o en otra red, IP cambiada, todo en cero (categorías sin estación), servicio detenido y el archivo de registro para soporte.",
+    },
+    {
+      slug: "imprimir-en-este-dispositivo",
+      title: "Imprime en la impresora de caja o en este dispositivo",
+      covers:
+        "«Imprimir en: Impresora de caja · Este dispositivo» en la factura, la precuenta, el cierre de turno y el datáfono (Mesas en vivo), el papel del equipo (55 mm por defecto en el datáfono, 58, 80 u «Otro» con el ancho exacto), que cada equipo recuerda la última opción por comercio, el valor de la primera vez (Datáfono → este dispositivo), qué pasa en cada opción, reintentar o cambiar de destino, y activar una vez el servicio de impresión de Android para la impresora integrada (Sunmi P3).",
     },
     {
       slug: "datafonos",

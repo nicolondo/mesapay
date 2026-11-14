@@ -206,6 +206,76 @@ describe("retenciones", () => {
   });
 });
 
+describe("retenciones con conceptos creados por el comercio", () => {
+  // «Nuevo concepto»: la retención del 1 % (transporte de carga, 2 UVT) y la
+  // reteICA de 4,14 ‰ (41,4 bps efectivos).
+  const uno: RetentionConceptFull = { kind: "retefuente", name: "Transporte de carga", rateBps: 100, base: "subtotal", thresholdUvt: 2, active: true, catalogKey: "transporte_carga" };
+  const compras: RetentionConceptFull = { kind: "retefuente", name: "Compras generales (declarantes)", rateBps: 250, base: "subtotal", thresholdUvt: 10, active: true, catalogKey: "compras_declarante" };
+  const ica: RetentionConceptFull = { kind: "reteica", name: "ReteICA Bogotá", rateBps: 41.4, base: "subtotal", thresholdUvt: 0, active: true };
+  const line = (netCents: number) => [{ netCents, taxPct: 0, taxCents: null, nonDeductibleTaxCents: 0 }];
+
+  it("la del 1 % es la única retefuente activa: omitida si no se practicó desde 2 UVT", () => {
+    const input = base({
+      concepts: [uno],
+      purchases: [purchase("p1", { lines: line(1_000_000_00) }), purchase("p2", { lines: line(2 * UVT - 1) })],
+    });
+    const c = get(input, "retencionOmitida");
+    expect(c.rows.map((r) => r.docId)).toEqual(["p1"]);
+    expect(c.amountCents).toBe(1_000_000); // 1 % de $1.000.000
+    expect(c.rows[0]!.conceptName).toBe("Transporte de carga");
+  });
+
+  it("bajo el umbral: retuvo el 1 % en una compra de menos de 2 UVT", () => {
+    const input = base({ concepts: [uno], purchases: [purchase("p1", { lines: line(2 * UVT - 1), retefuenteCents: 1_047 })] });
+    const c = get(input, "retencionBajoUmbral");
+    expect(c.rows.map((r) => r.docId)).toEqual(["p1"]);
+    expect(c.rows[0]!.conceptName).toBe("Transporte de carga");
+  });
+
+  it("con «compras» y la del 1 % activas, la compra espera UNA retefuente (la de compras), no la suma", () => {
+    const input = base({ concepts: [uno, compras], purchases: [purchase("p1", { lines: line(1_000_000_00) })] });
+    const c = get(input, "retencionOmitida");
+    expect(c.amountCents).toBe(2_500_000);
+    expect(c.rows[0]!.conceptName).toBe("Compras generales (declarantes)");
+  });
+
+  it("reteICA por mil con decimales: 4,14 ‰ de $1.000.000 = $4.140", () => {
+    const input = base({ concepts: [ica], purchases: [purchase("p1", { lines: line(1_000_000_00) })] });
+    const c = get(input, "retencionOmitida");
+    expect(c.amountCents).toBe(414_000);
+    expect(c.taxes).toEqual(["reteica"]);
+  });
+
+  it("gastos: el concepto nuevo también se revisa (por la categoría del gasto)", () => {
+    const input = base({
+      concepts: [uno],
+      purchases: [],
+      expenses: [
+        {
+          expenseId: "e1",
+          document: "CC-1",
+          dateIso: "2026-10-06T15:00:00.000Z",
+          category: "Fletes",
+          documentType: "charge_account",
+          supplierName: "Transportes",
+          supplierTaxId: "900123456-8",
+          baseCents: 50_000_000,
+          ivaPct: 0,
+          ivaCents: 0,
+          nonDeductibleIvaCents: 0,
+          incCents: 0,
+          retefuenteCents: 0,
+          reteIvaCents: 0,
+          reteIcaCents: 0,
+          href: "/operator/contabilidad?tab=expenses",
+        },
+      ],
+    });
+    const c = get(input, "retencionOmitida");
+    expect(c.rows.map((r) => [r.docId, r.amountCents, r.conceptName])).toEqual([["e1", 500_000, "Transporte de carga"]]);
+  });
+});
+
 describe("IVA descontable sin ser responsable", () => {
   const withIva = [purchase("p1", { lines: [{ netCents: 100_000, taxPct: 19, taxCents: null, nonDeductibleTaxCents: 0 }] })];
   it("comercio configurado como NO descontable", () => {

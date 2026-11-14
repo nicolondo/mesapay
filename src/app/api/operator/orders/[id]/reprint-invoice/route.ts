@@ -51,10 +51,12 @@ export const dynamic = "force-dynamic";
  * la versión del navegador (/factura/[id]) como respaldo. Con impresora
  * responde además `printerName` ("Enviada a Caja").
  *
- * Quién: el staff que cobra — roles de operador y el MESERO (que cobra la
- * mesa y entrega la factura desde su pantalla de "listo"), del comercio
- * activo. El COMENSAL nunca: su sesión (o la falta de ella) da 401 acá,
- * así que desde su celular no se puede disparar papel en el local.
+ * Quién: el staff que cobra — roles de operador, el MESERO (que cobra la
+ * mesa y entrega la factura desde su pantalla de "listo") y el usuario
+ * DATÁFONO (que cobra desde el Smart POS y puede mandarla a la caja con
+ * «Impresora de caja»), del comercio activo. El COMENSAL nunca: su sesión
+ * (o la falta de ella) da 401 acá, así que desde su celular no se puede
+ * disparar papel en el local.
  */
 const PRINT_ROLES = STAFF_PRINT_ROLES;
 async function POSTHandler(

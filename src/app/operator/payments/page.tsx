@@ -11,6 +11,8 @@ import { PaymentDetailSheet, type PaymentDetail } from "./PaymentDetailSheet";
 import { CreditSaleBadge } from "../orders/CreditSaleBadge";
 import { CREDIT_SALE_METHOD } from "@/lib/orders/creditSale";
 import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
+import { terminalAmountViews } from "@/lib/payments/pendingRequests";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +85,9 @@ export default async function PaymentsPage({
   ]);
   const payments = paymentRows.slice(0, 50);
   const hasNext = paymentRows.length > 50;
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono, parcial o
+  // «monto cobrado distinto»): una línea bajo el estado.
+  const amountById = await terminalAmountViews(db, payments);
   const counterMode = tenant?.serviceMode === "counter";
   // Un cobro a crédito «Aprobado» no es plata que entró: lleva «A crédito»
   // o «Crédito pagado» (si el cliente ya lo pagó en Cartera).
@@ -232,6 +237,9 @@ export default async function PaymentsPage({
                         {ux("needsReview")}
                       </Link>
                     )}
+                    {amountById.get(p.id) && (
+                      <TerminalAmountNote amount={amountById.get(p.id)!} variant="short" className="mt-1 max-w-56" />
+                    )}
                   </Td>
                   <Td className="text-right font-mono tabular">
                     {fmtCOP(p.amountCents)}
@@ -292,6 +300,9 @@ export default async function PaymentsPage({
                   {fmtTime(p.createdAt, locale)}
                 </span>
               </div>
+              {amountById.get(p.id) && (
+                <TerminalAmountNote amount={amountById.get(p.id)!} variant="short" className="mt-2" />
+              )}
               {p.reconciliationRequired && (
                 <Link
                   href={`/operator/orders/${p.orderId}`}

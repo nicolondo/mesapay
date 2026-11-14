@@ -11,6 +11,7 @@ import {
   type TerminalAttemptView,
 } from "@/lib/payments/terminalAttempt";
 import { TerminalResolveAction } from "./TerminalResolveAction";
+import { terminalAmountText, terminalChargeResponseText } from "./TerminalAmountNote";
 
 /**
  * En qué estado está AHORA un intento enviado al datáfono. Lo que sale de
@@ -131,7 +132,8 @@ export function TerminalAttemptActions({
   // Sin datos del intento (pantalla vieja o dato incompleto): como antes.
   if (!attempt || !state) return resolve;
 
-  const money = formatMoney(amountCents, { locale, currency, fractionDigits: amountCents % 100 ? 2 : 0 });
+  const moneyOf = (cents: number) => formatMoney(cents, { locale, currency, fractionDigits: cents % 100 ? 2 : 0 });
+  const money = moneyOf(amountCents);
   const blocked = disabled || busy !== null;
 
   /** Un resultado que puede llegar con la tarjeta ya desmontada. */
@@ -199,6 +201,7 @@ export function TerminalAttemptActions({
       if (json.status === "approved") report(t("checkApproved"), "notice");
       else if (json.status === "declined") report(t("checkDeclined"), "notice");
       else if (json.result === "not_found") report(t("checkNotFound"), "notice");
+      else if (json.result === "unknown:amount_mismatch") report(t("checkAmountMismatch"), "notice");
       else if (typeof json.result === "string" && json.result.startsWith("unknown")) report(t("checkUnknown"), "notice");
       else report(t("checkError"), "error");
       if (json.status === "approved" || json.status === "declined") onChanged();
@@ -242,7 +245,10 @@ export function TerminalAttemptActions({
         body: JSON.stringify({ paymentId: nextId, deviceId }),
       });
       const pj = (await push.json().catch(() => ({}))) as Record<string, unknown>;
+      // El datáfono aprobó otro monto: se dice qué pasó con la diferencia.
+      const amountOutcome = terminalChargeResponseText(pj, t, moneyOf);
       if (!push.ok) report(apiError(pj, t("retryFailed")), "error");
+      else if (amountOutcome) report(amountOutcome, "notice");
       else if (pj.status === "approved") report(t("retryApproved"), "notice");
       onChanged();
     } catch {
@@ -328,9 +334,13 @@ export function TerminalAttemptActions({
   }
 
   // Consulta remota y resolución manual son alternativas. La consulta no bloquea el diálogo.
+  // Kushki SÍ aprobó, por otro monto: no es "sin respuesta", es «monto cobrado
+  // distinto» (con los dos montos); se resuelve igual, con el comprobante.
   return (
     <div className="space-y-2">
-      <p className="text-[12px] leading-snug">{t("noAnswerBody")}</p>
+      <p className="text-[12px] leading-snug">
+        {attempt.amountMismatch ? terminalAmountText(attempt.amountMismatch, "full", t, moneyOf) : t("noAnswerBody")}
+      </p>
       <button
         type="button"
         onClick={check}

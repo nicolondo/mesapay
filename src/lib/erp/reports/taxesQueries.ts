@@ -63,6 +63,7 @@ import type {
   SaleTaxInput,
 } from "./taxesDocuments";
 import { expenseBaseCents, expenseHref } from "../expenseTax";
+import { conceptRateBps } from "../retencionesCore";
 
 export { expenseHref };
 import { centsToNumber, type StoredCents } from "../ledgerCents";
@@ -281,7 +282,7 @@ export async function loadExpenseTaxDocs(
       reteIcaCents: true,
       retentions: {
         orderBy: { createdAt: "asc" },
-        select: { kind: true, name: true, rateBps: true, baseCents: true, amountCents: true },
+        select: { kind: true, name: true, rateBps: true, ratePpm: true, baseCents: true, amountCents: true },
       },
       supplier: { select: { name: true, taxId: true } },
     },
@@ -302,7 +303,8 @@ export async function loadExpenseTaxDocs(
     retefuenteCents: e.retefuenteCents,
     reteIvaCents: e.reteIvaCents,
     reteIcaCents: e.reteIcaCents,
-    retentions: e.retentions,
+    // Tarifa efectiva (con decimales finos si la foto trae ratePpm).
+    retentions: e.retentions.map(({ ratePpm, ...r }) => ({ ...r, rateBps: conceptRateBps({ rateBps: r.rateBps, ratePpm }) })),
     href: expenseHref(e.id, e.date),
   }));
 }

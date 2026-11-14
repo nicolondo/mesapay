@@ -19,13 +19,16 @@
 //    («1,234.00» en un campo entero) se descartan, no cambian el valor.
 //  - Cualquier otra cosa (letras, «1e6», agrupación rota «12,34,567») → null.
 
-const CURRENCY_NOISE = /\b(?:COP|MXN|BRL|USD|EUR)\b|R\$|[$€£\s  ]/gi;
+// `\s` ya cubre los espacios duros (U+00A0, U+202F) que mete Intl.
+const CURRENCY_NOISE = /\b(?:COP|MXN|BRL|USD|EUR)\b|R\$|[$€£\s]/gi;
 
+/** «1,234,567»: el primer grupo de 1 a 3 cifras SIN cero a la izquierda
+ * («0,002» no es de miles: es 0.002) y los demás de exactamente 3. */
 function groupsOfThree(text: string, separator: string): boolean {
   const parts = text.split(separator);
   return (
     parts.length > 1 &&
-    /^\d{1,3}$/.test(parts[0]) &&
+    /^[1-9]\d{0,2}$/.test(parts[0]) &&
     parts.slice(1).every((p) => /^\d{3}$/.test(p))
   );
 }

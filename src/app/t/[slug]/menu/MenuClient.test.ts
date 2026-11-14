@@ -16,7 +16,7 @@ describe("public menu browsing", () => {
   it("shows dishes and prices without ordering or waiter actions", () => {
     const html = renderToStaticMarkup(createElement(MenuClient, { ...props, readOnly: true }));
     expect(html).toContain("Water");
-    expect(html).toContain("5.000");
+    expect(html).toContain("5,000");
     expect(html).not.toContain('aria-label="addToOrder"');
     expect(html).toContain("browseOnlyLabel");
     expect(html).not.toContain("/order/");

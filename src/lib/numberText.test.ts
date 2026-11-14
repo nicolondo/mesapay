@@ -24,6 +24,8 @@ describe("normalizeNumberText — convención nueva, sin adivinar", () => {
     ["12,5", "12.5"],
     ["0,05", "0.05"],
     ["12,", "12."],
+    ["0,002", "0.002"],
+    ["0.002", "0.002"],
   ])("formato viejo sin ambigüedad «%s» → %s", (raw, expected) => {
     expect(normalizeNumberText(raw)).toBe(expected);
   });

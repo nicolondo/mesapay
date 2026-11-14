@@ -13,6 +13,12 @@ import { StockError } from "@/lib/erp/stock";
 import type { ModuleSlug } from "@/lib/modules";
 import type { PurchaseOrderStatus } from "@prisma/client";
 import { PURCHASE_LINE_AMOUNTS_SELECT, purchaseOrderTotals } from "@/lib/erp/purchaseTax";
+import { POSSIBLE_DUPLICATE_MODES } from "@/lib/erp/documentNumber";
+import {
+  assertNotDuplicatePurchase,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +68,9 @@ const createSchema = z.object({
       reteIcaCents: cents,
     })
     .optional(),
+  // Compra recibida sin número de factura y parecida a otra (proveedor +
+  // día + total): "check" pide la advertencia; "allow" guarda igual.
+  possibleDuplicate: z.enum(POSSIBLE_DUPLICATE_MODES).optional(),
 });
 
 function purchasingErrorResponse(err: PurchasingError) {
@@ -173,19 +182,30 @@ async function POSTHandler(req: Request) {
           },
           createdById: session?.user?.id ?? null,
         });
-        return tx.purchaseOrder.update({
+        const updated = await tx.purchaseOrder.update({
           where: { id: created.id },
           data: {
             supplierInvoiceNumber: receive.supplierInvoiceNumber || null,
             ...(receive.invoiceDueAt ? { invoiceDueAt: new Date(receive.invoiceDueAt) } : {}),
           },
         });
+        // Es una factura ya recibida: ¿estaba registrada? (bajo candado; si
+        // choca, se deshace la compra entera y se responde 409).
+        await assertNotDuplicatePurchase(tx, {
+          restaurantId: ctx.restaurantId,
+          purchaseOrderId: created.id,
+          supplierId: b.supplierId,
+          number: receive.supplierInvoiceNumber,
+          possibleDuplicate: b.possibleDuplicate,
+        });
+        return updated;
       },
       // Compras grandes (muchas líneas) — margen holgado, como la recepción.
       { timeout: 30_000 },
     );
     return NextResponse.json({ order }, { status: 201 });
   } catch (err) {
+    if (err instanceof DuplicateDocumentError) return duplicateDocumentResponse(err);
     if (err instanceof PurchasingError) return purchasingErrorResponse(err);
     if (err instanceof StockError) {
       return NextResponse.json({ error: err.code }, { status: 400 });

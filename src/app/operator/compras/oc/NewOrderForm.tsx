@@ -8,6 +8,8 @@ import { moneySeparators } from "@/lib/moneyInput";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { Icon } from "@/components/ui/Icon";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
+import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
+import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
 import { purchaseTaxRates } from "@/lib/erp/purchaseTax";
 import { DEFAULT_INC_PCT, type LineTaxChoice } from "@/lib/erp/purchaseLineTax";
 import { retentionTotalCents } from "@/lib/erp/purchaseRetentions";
@@ -158,6 +160,15 @@ export function NewOrderForm({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Factura ya registrada (sólo «Ya recibí»: una orden por pedir no es una
+  // factura): aviso temprano mientras se digita y el 409 al guardar. Sin
+  // número, el servidor advierte y «Guardar de todas formas» reenvía.
+  const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
+  const allowPossibleDuplicate = useRef(false);
+  const earlyDuplicate = useDuplicateDocumentCheck({
+    supplierId: supplier?.id ?? null,
+    number: receivedNow ? invoiceNumber : null,
+  });
 
   /* ── Cálculos (los mismos del servidor) ── */
   const resolved = useMemo(() => resolveLines(lines), [lines]);
@@ -465,6 +476,7 @@ export function NewOrderForm({
     if (busy || !supplier) return;
     setSubmitted(true);
     setErr(null);
+    setConflict(null);
     if (resolved.invalidKeys.length > 0) {
       setErr(t("ocErrFixLines", { count: resolved.invalidKeys.length }));
       const first = lines.find((l) => l.key === resolved.invalidKeys[0]);
@@ -499,13 +511,20 @@ export function NewOrderForm({
         invoiceDueAt,
         retentions: retentions.totals,
       });
+      const possibleDuplicate = allowPossibleDuplicate.current ? "allow" : "check";
+      allowPossibleDuplicate.current = false;
       const r = await fetch("/api/operator/purchase-orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(receivedNow ? { ...body, possibleDuplicate } : body),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
+        const dup = parseDuplicateConflict(j);
+        if (dup) {
+          setConflict(dup);
+          return;
+        }
         const key = API_CREATE_ERROR_KEYS[(j as { error?: string }).error as string];
         setErr(key ? t(key) : t("errSaveFailed"));
         return;
@@ -620,14 +639,31 @@ export function NewOrderForm({
     </>
   );
 
-  const message = (err || (confirmDiscard && !desktop)) && (
+  const duplicate = conflict ?? (earlyDuplicate ? { code: "early" as const, existing: earlyDuplicate } : null);
+  const message = (err || duplicate || (confirmDiscard && !desktop)) && (
     <div className="px-4 lg:px-6 pt-3">
       {confirmDiscard && !desktop ? (
         <p className="text-sm font-medium">{t("ocDiscardTitle", { count: filledCount })}</p>
       ) : (
-        <p role="alert" className="text-sm text-danger">
-          {err}
-        </p>
+        <>
+          {err && (
+            <p role="alert" className="text-sm text-danger">
+              {err}
+            </p>
+          )}
+          {duplicate && (
+            <DuplicateDocumentAlert
+              code={duplicate.code}
+              existing={duplicate.existing}
+              currency={currency}
+              busy={busy}
+              onConfirm={() => {
+                allowPossibleDuplicate.current = true;
+                void submit();
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );

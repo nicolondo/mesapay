@@ -96,7 +96,9 @@ export async function loadCreditSales(
         }),
         db.customerCreditPayment.findMany({
           where: { restaurantId, billingCustomerId: { in: customerIds } },
-          select: { id: true, billingCustomerId: true, paidAt: true, amountCents: true },
+          // creditChargeId: el abono DIRIGIDO a un cargo (link de pago de una
+          // factura manual) va a ése antes que al FIFO, como en Cartera.
+          select: { id: true, billingCustomerId: true, paidAt: true, amountCents: true, creditChargeId: true },
         }),
       ])
     : [[], []];
@@ -111,6 +113,7 @@ export async function loadCreditSales(
     billingCustomerId: a.billingCustomerId,
     date: a.paidAt,
     amountCents: a.amountCents,
+    chargeId: a.creditChargeId,
   }));
 
   const sales = creditSalesByOrder(orderIds, all, credits);

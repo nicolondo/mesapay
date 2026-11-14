@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   receivePurchaseOrder: vi.fn(),
   poUpdate: vi.fn(),
   restaurant: vi.fn(),
+  assertPurchase: vi.fn(),
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "user-1", role: "operator" } }) }));
@@ -20,6 +21,12 @@ vi.mock("@/lib/erp/purchasing", async (importOriginal) => ({
   createPurchaseOrder: m.createPurchaseOrder,
   receivePurchaseOrder: m.receivePurchaseOrder,
 }));
+// La detección de facturas repetidas se prueba contra PostgreSQL en
+// integration/supplier-document-duplicates.test.ts; aquí sólo el cableado.
+vi.mock("@/lib/erp/duplicateDocuments", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/erp/duplicateDocuments")>()),
+  assertNotDuplicatePurchase: m.assertPurchase,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.restaurant },
@@ -28,6 +35,7 @@ vi.mock("@/lib/db", () => ({
 }));
 import { POST } from "./route";
 import { PurchasingError } from "@/lib/erp/purchasing";
+import { DuplicateDocumentError } from "@/lib/erp/duplicateDocuments";
 
 const post = (body: Record<string, unknown>) =>
   POST(
@@ -49,6 +57,7 @@ beforeEach(() => {
   });
   m.receivePurchaseOrder.mockResolvedValue({ purchaseOrder: { id: "po-1" }, complete: true });
   m.poUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "po-1", status: "received", ...data }));
+  m.assertPurchase.mockResolvedValue(undefined);
 });
 
 describe("POST /purchase-orders", () => {
@@ -87,6 +96,36 @@ describe("POST /purchase-orders", () => {
       data: { supplierInvoiceNumber: "FE-123", invoiceDueAt: new Date("2026-12-04T17:00:00.000Z") },
     });
     expect((await res.json()).order).toMatchObject({ id: "po-1", supplierInvoiceNumber: "FE-123" });
+    // Ya escrita, se revisa que esa factura del proveedor no esté registrada.
+    expect(m.assertPurchase).toHaveBeenCalledWith(expect.anything(), {
+      restaurantId: "r1",
+      purchaseOrderId: "po-1",
+      supplierId: "s1",
+      number: "FE-123",
+      possibleDuplicate: undefined,
+    });
+  });
+
+  it("una orden que sólo se pide (sin «Ya recibí») no es una factura: no se revisa", async () => {
+    await post({ supplierId: "s1", lines: [line] });
+    expect(m.assertPurchase).not.toHaveBeenCalled();
+  });
+
+  it("factura repetida → 409 con el documento existente (la transacción se revierte)", async () => {
+    const existing = {
+      kind: "purchase" as const, id: "po-0", number: "FE-0123", purchaseNumber: 3, date: "2026-11-01T17:00:00.000Z",
+      totalCents: 240_000, supplierName: "Distribuidora", href: "/operator/compras?oc=po-0",
+    };
+    m.assertPurchase.mockRejectedValue(new DuplicateDocumentError("duplicate_document", existing));
+    const res = await post({ supplierId: "s1", lines: [line], receive: { supplierInvoiceNumber: "FE 123" } });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "duplicate_document", duplicate: existing });
+  });
+
+  it("sin número pasa la advertencia que pidió el cliente (check / allow)", async () => {
+    await post({ supplierId: "s1", lines: [line], receive: {}, possibleDuplicate: "check" });
+    expect(m.assertPurchase.mock.calls[0]![1]).toMatchObject({ number: undefined, possibleDuplicate: "check" });
+    expect((await post({ supplierId: "s1", lines: [line], receive: {}, possibleDuplicate: "otro" })).status).toBe(400);
   });
 
   it("rechaza retenciones negativas o no enteras", async () => {

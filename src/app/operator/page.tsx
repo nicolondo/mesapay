@@ -11,11 +11,9 @@ import { buildCashSnapshot } from "@/lib/cashBox";
 import { resolveShiftPolicy } from "@/lib/staffPolicies";
 import { bogotaBusinessTodayIso, bogotaDayRange } from "@/lib/bogota";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
+import { summarizeDashboardSales } from "@/lib/reports/dashboardSales";
 import {
-  DASHBOARD_OPEN_ORDER_STATUSES,
-  summarizeDashboardSales,
-} from "@/lib/reports/dashboardSales";
-import {
+  dashboardOpenOrdersWhere,
   loadDashboardSales,
   loadDashboardUncollected,
 } from "@/lib/reports/dashboardSalesQuery";
@@ -77,10 +75,8 @@ export default async function OperatorHome() {
     openOrders,
   ] = await Promise.all([
     db.order.count({
-      where: {
-        restaurantId,
-        status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
-      },
+      // Las del salón: nunca una factura manual.
+      where: dashboardOpenOrdersWhere(restaurantId),
     }),
     loadDashboardSales(restaurantId, { from: weekStart, to: tomorrow }, currentTax),
     // Lo que falta cobrar de las cuentas abiertas de la jornada, con la misma
@@ -98,10 +94,8 @@ export default async function OperatorHome() {
       take: 5,
     }),
     db.order.findMany({
-      where: {
-        restaurantId,
-        status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
-      },
+      // Las del salón: nunca una factura manual.
+      where: dashboardOpenOrdersWhere(restaurantId),
       orderBy: { createdAt: "asc" },
       take: 10,
       include: {

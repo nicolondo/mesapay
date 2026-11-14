@@ -14,6 +14,11 @@ import { OrdersPeriodNav } from "./OrdersPeriodNav";
 import { OrdersSearchForm } from "./OrdersSearchForm";
 import { OrdersSourceFilters } from "./OrdersSourceFilters";
 import { CreditSaleBadge } from "./CreditSaleBadge";
+import { headers } from "next/headers";
+import { appOrigin } from "@/lib/http/publicOrigin";
+import { loadManualInvoiceSendInfo } from "@/lib/manualInvoiceSendInfo";
+import { ManualInvoiceSendButton } from "@/components/manualInvoice/ManualInvoiceSend";
+import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 
 import type { Locale } from "@/i18n/config";
 import { historyDate } from "@/lib/orders/history";
@@ -113,10 +118,53 @@ export default async function OrdersPage({
     return { day, time };
   };
 
+  // Facturas manuales abiertas o emitidas por cobrar: la fila ofrece
+  // "Emitir y enviar" / "Reenviar link" y dice si sigue por cobrar. Pocas
+  // por página (sólo las manuales), una lectura cada una.
+  const sendInfos = new Map<string, ManualInvoiceSendInfo>();
+  const manualRows = list.rows.filter(
+    (o) =>
+      o.table.kind === "manual" &&
+      ((o.status !== "paid" && o.status !== "cancelled") || !!o.payLink?.creditPaymentId),
+  );
+  const origin = manualRows.length > 0 ? appOrigin(await headers()) : "";
+  await Promise.all(
+    manualRows
+      .map(async (o) => {
+        const info = await loadManualInvoiceSendInfo({ restaurantId, orderId: o.id, origin });
+        if (info) sendInfos.set(o.id, info);
+      }),
+  );
+  const tSend = await getTranslations("manualInvoiceSend");
+  const tManual = await getTranslations("manualInvoices");
+  // Estado de una FACTURA MANUAL en la lista: Borrador / Enviada (con link,
+  // cuenta abierta) · Por cobrar / Vencida (emitida) · Cobrada. Las
+  // descartadas siguen con «Cancelada». null = no es manual (va el estado
+  // de siempre).
+  const manualChip = (o: { id: string; status: string; table: { kind: string } }, info: ManualInvoiceSendInfo | undefined) => {
+    if (o.table.kind !== "manual" || o.status === "cancelled") return null;
+    const r = info?.receivable;
+    if (r && r.totalCents > 0) {
+      const paid = r.outstandingCents <= 0;
+      return {
+        label: paid ? tSend("chipPaidByLink") : r.overdue ? tSend("chipOverdue") : tSend("chipReceivable"),
+        tint: paid ? "bg-[#2E6B4C]/15 text-[#1E5339]" : r.overdue ? "bg-terracotta/15 text-terracotta" : "bg-[#C9A227]/15 text-[#7A5E0A]",
+      };
+    }
+    // Cobrada a crédito sin link de cobro: «Pagado» + «A crédito» como
+    // cualquier cuenta (decir «Cobrada» contradiría la deuda).
+    if (o.status === "paid" && credits.has(o.id)) return null;
+    if (o.status === "paid") return { label: tManual("stateCollected"), tint: "bg-[#2E6B4C]/15 text-[#1E5339]" };
+    return info?.link
+      ? { label: tManual("stateSent"), tint: "bg-[#C9A227]/15 text-[#7A5E0A]" }
+      : { label: tManual("stateDraft"), tint: "bg-paper text-op-muted" };
+  };
+
   // Derivados una sola vez: la fila (escritorio) y la tarjeta (celular)
   // leen lo mismo.
   const rows = list.rows.map((o) => {
     const invoice = o.simpleInvoice;
+    const receivable = manualChip(o, sendInfos.get(o.id));
     const dianState = einvoicingOn ? invoice?.dianDocument?.state ?? null : null;
     return {
       id: o.id,
@@ -125,7 +173,6 @@ export default async function OrdersPage({
       code: displayOrderCode(o.shortCode),
       shortCode: o.shortCode,
       status: o.status,
-      credit: credits.get(o.id) ?? null,
       when: fmtWhen(historyDate(o)),
       items: o.items.reduce((s, i) => s + i.qty, 0),
       // Pagada: lo cobrado (`totalCents`, con impuestos y propina: lo mismo
@@ -149,6 +196,17 @@ export default async function OrdersPage({
           : counterMode
             ? t("channelCounter")
             : t("tableNumber", { number: o.table.number }),
+      send: sendInfos.get(o.id) ?? null,
+      // Factura manual abierta (borrador o enviada con link): se sigue
+      // editando en su ficha, en Facturas manuales (no está en Mesas).
+      editHref:
+        o.table.kind === "manual" && o.status !== "paid" && o.status !== "cancelled"
+          ? `/operator/facturas-manuales?open=${encodeURIComponent(o.tableId)}`
+          : null,
+      receivable,
+      // Una factura manual emitida por cobrar YA es una venta a crédito y su
+      // píldora (Por cobrar / Vencida / Cobrada) lo dice: sin segunda etiqueta.
+      creditBadge: receivable ? null : credits.get(o.id) ?? null,
     };
   });
 
@@ -341,16 +399,27 @@ export default async function OrdersPage({
                     <span>{open}</span>
                     <span className="hidden text-right tabular xl:block">{r.items}</span>
                     <span className="flex min-w-0 flex-col items-start gap-0.5">
-                      <StatusPill status={r.status} />
-                      {r.credit && <CreditSaleBadge sale={r.credit} />}
+                      {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
+                      {r.creditBadge && <CreditSaleBadge sale={r.creditBadge} />}
                     </span>
                     <span className="text-right font-mono tabular">{fmtCOP(r.totalCents)}</span>
-                    <span className="min-w-0">
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                       {r.invoice ? (
                         <InvoiceChip number={r.invoice.number} dian={r.invoice.dian} />
                       ) : (
                         <span className="text-op-muted">{"—"}</span>
                       )}
+                      {r.editHref && (
+                        // Carga completa (no navegación del cliente): la ficha
+                        // abre al cargar con `?open=` (ver ManualInvoicesBoard).
+                        <a
+                          href={r.editHref}
+                          className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
+                        >
+                          {tManual("rowEdit")}
+                        </a>
+                      )}
+                      {r.send && <ManualInvoiceSendButton info={r.send} />}
                     </span>
                     <span className="flex justify-end">{menu}</span>
                   </div>
@@ -372,14 +441,27 @@ export default async function OrdersPage({
                         {t("itemsCount", { count: r.items })}
                       </span>
                       <span className="flex shrink-0 items-center gap-1">
-                        {r.credit && <CreditSaleBadge sale={r.credit} />}
-                        <StatusPill status={r.status} />
+                        {r.creditBadge && <CreditSaleBadge sale={r.creditBadge} />}
+                        {r.receivable ? <ReceivablePill {...r.receivable} /> : <StatusPill status={r.status} />}
                       </span>
                     </div>
                     {r.invoice && (
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <InvoiceChip number={r.invoice.number} dian={r.invoice.dian} />
                         {menu}
+                      </div>
+                    )}
+                    {(r.send || r.editHref) && (
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        {r.editHref && (
+                          <a
+                            href={r.editHref}
+                            className="relative z-10 inline-flex h-8 items-center rounded-full border border-op-border px-3 text-xs font-medium hover:bg-op-bg"
+                          >
+                            {tManual("rowEdit")}
+                          </a>
+                        )}
+                        {r.send && <ManualInvoiceSendButton info={r.send} />}
                       </div>
                     )}
                   </div>
@@ -510,6 +592,15 @@ async function InvoiceChip({ number, dian }: { number: string; dian: string | nu
           <span className="truncate text-op-muted">{state.label}</span>
         </>
       )}
+    </span>
+  );
+}
+
+/** Factura manual emitida por cobrar: por cobrar / vencida / cobrada (en vez de "Pagada"). */
+function ReceivablePill({ label, tint }: { label: string; tint: string }) {
+  return (
+    <span className={"px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium whitespace-nowrap " + tint}>
+      {label}
     </span>
   );
 }

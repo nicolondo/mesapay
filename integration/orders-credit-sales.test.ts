@@ -79,6 +79,22 @@ describe("ventas a crédito en Órdenes con PostgreSQL", () => {
     expect([...(await loadCreditSales(restaurantId, [ids["CR-FULL"]])).keys()]).toEqual([ids["CR-FULL"]]);
   });
 
+  it("un abono dirigido (link de factura manual) salda su cuenta antes que la deuda vieja", async () => {
+    const gamma = await db.billingCustomer.create({ data: { restaurantId, customerName: "Fixture Gamma", docType: "NIT", docNumber: "900000003", email: "900000003@example.test" } });
+    const table = await db.table.findFirstOrThrow({ where: { restaurantId } });
+    const mk = async (shortCode: string, at: string, cents: number) => {
+      const o = await db.order.create({ data: { restaurantId, tableId: table.id, shortCode, status: "paid", subtotalCents: cents, totalCents: cents, createdAt: new Date(at), paidAt: new Date(at) } });
+      const p = await db.payment.create({ data: { orderId: o.id, method: "customer_credit", status: "approved", amountCents: cents, settledAt: new Date(at), billingCustomerId: gamma.id } });
+      return { orderId: o.id, paymentId: p.id };
+    };
+    const old = await mk("DIR-OLD", "2026-10-01T18:00:00Z", 100_000);
+    const inv = await mk("DIR-INVOICE", "2026-11-09T18:00:00Z", 50_000);
+    await db.customerCreditPayment.create({ data: { restaurantId, billingCustomerId: gamma.id, amountCents: 50_000, paidAt: new Date("2026-11-10T15:00:00Z"), accountCode: "112005", creditChargeId: inv.paymentId } });
+    const sales = await loadCreditSales(restaurantId, [old.orderId, inv.orderId]);
+    expect(sales.get(inv.orderId)).toMatchObject({ status: "credit_paid", outstandingCents: 0 });
+    expect(sales.get(old.orderId)).toMatchObject({ status: "on_credit", outstandingCents: 100_000 });
+  });
+
   it("no cruza comercios", async () => {
     expect((await loadCreditSales(otherRestaurantId, [ids["CR-FULL"]])).size).toBe(0);
     expect((await loadCreditSales(restaurantId, [])).size).toBe(0);

@@ -11,7 +11,15 @@ const m = vi.hoisted(() => ({
   supplierFind: vi.fn(),
   restaurantFind: vi.fn(),
   concepts: vi.fn(),
+  assertDocument: vi.fn(),
   accounts: new Map<string, string>([["111005", "acc-banco"]]),
+  numberPending: vi.fn(),
+}));
+// El consecutivo (G-0001) tiene sus propios tests (expenseNumber.test.ts y
+// integration/expense-number.test.ts); acá sólo se verifica que el alta lo pida.
+vi.mock("@/lib/erp/expenseNumber", () => ({
+  numberPendingExpenses: m.numberPending,
+  ensureExpenseNumbers: async () => undefined,
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "u1" } }) }));
@@ -23,6 +31,11 @@ vi.mock("@/lib/erp/ledger", () => ({
   loadAccountMap: async () => m.accounts,
   loadAccountIndex: async () =>
     new Map(["236505", "236705", "236805"].map((c) => [c, { id: c, postable: true, active: true }])),
+}));
+// La detección contra la base vive en integration/supplier-document-duplicates.test.ts.
+vi.mock("@/lib/erp/duplicateDocuments", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/erp/duplicateDocuments")>()),
+  assertNotDuplicateDocument: m.assertDocument,
 }));
 vi.mock("@/lib/db", () => {
   const tx = {
@@ -41,6 +54,7 @@ vi.mock("@/lib/db", () => {
 });
 
 import { POST } from "./route";
+import { DuplicateDocumentError } from "@/lib/erp/duplicateDocuments";
 
 const post = (body: unknown) =>
   (POST as unknown as (r: Request) => Promise<Response>)(
@@ -56,6 +70,8 @@ beforeEach(() => {
   m.expenseCreate.mockResolvedValue({ id: "e1" });
   m.expenseFind.mockResolvedValue({ id: "e1" });
   m.paymentCreate.mockResolvedValue({ id: "p1" });
+  m.numberPending.mockResolvedValue(new Map([["e1", 1]]));
+  m.assertDocument.mockResolvedValue(undefined);
   m.concepts.mockResolvedValue([
     { id: "serv", restaurantId: "r1", kind: "retefuente", name: "Servicios (4%)", rateBps: 400, base: "subtotal", thresholdUvt: 4, accountCode: "236505", active: true },
   ]);
@@ -75,6 +91,9 @@ describe("POST /api/operator/expenses", () => {
     });
     expect(m.expenseCreate.mock.calls[0]![0].data.retentions).toBeUndefined();
     expect(m.paymentCreate.mock.calls[0]![0].data).toMatchObject({ amountCents: 250_000, accountCode: "111005" });
+    // El consecutivo se asigna dentro de la MISMA transacción del alta.
+    expect(m.numberPending).toHaveBeenCalledTimes(1);
+    expect(m.numberPending.mock.calls[0]![1]).toBe("r1");
   });
 
   it("factura con IVA descontable y retefuente: guarda costo, IVA, retención del concepto y paga el total a pagar", async () => {
@@ -109,6 +128,36 @@ describe("POST /api/operator/expenses", () => {
       expect.objectContaining({ conceptId: "serv", kind: "retefuente", rateBps: 400, accountCode: "236505", baseCents: 1_000_000, amountCents: 40_000 }),
     ]);
     expect(m.paymentCreate.mock.calls[0]![0].data.amountCents).toBe(1_150_000);
+    // Antes del abono, ya escrito el gasto: ¿ese documento ya estaba registrado?
+    expect(m.assertDocument).toHaveBeenCalledWith(expect.anything(), {
+      restaurantId: "r1",
+      supplierId: "s1",
+      number: "FE-901",
+      date: new Date(BASE.date),
+      totalCents: 1_150_000,
+      exclude: { kind: "expense", id: "e1" },
+      possibleDuplicate: undefined,
+    });
+  });
+
+  it("documento repetido → 409 con el existente y sin abono", async () => {
+    const existing = {
+      kind: "purchase" as const, id: "po-9", number: "FE 0901", purchaseNumber: 9, date: "2026-10-08T17:00:00.000Z",
+      totalCents: 1_150_000, supplierName: "Proveedor", href: "/operator/compras?oc=po-9",
+    };
+    m.assertDocument.mockRejectedValue(new DuplicateDocumentError("duplicate_document", existing));
+    const res = await post({ ...BASE, supplierId: "s1", amountCents: 1_150_000, documentNumber: "FE-901", payFromAccountCode: "111005" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "duplicate_document", duplicate: existing });
+    expect(m.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("la advertencia sin número se pide explícitamente; una plantilla no se revisa", async () => {
+    await post({ ...BASE, supplierId: "s1", amountCents: 5_000, possibleDuplicate: "check" });
+    expect(m.assertDocument.mock.calls[0]![1]).toMatchObject({ number: undefined, possibleDuplicate: "check", totalCents: 5_000 });
+    m.assertDocument.mockClear();
+    await post({ ...BASE, supplierId: "s1", amountCents: 5_000, recurring: true, recurringDay: 3, documentNumber: "FE-1" });
+    expect(m.assertDocument).not.toHaveBeenCalled();
   });
 
   it("comercio que NO descuenta IVA: el IVA es costo del gasto (foto en el gasto)", async () => {
@@ -131,6 +180,8 @@ describe("POST /api/operator/expenses", () => {
   it("la plantilla recurrente guarda su configuración de impuestos pero no se paga", async () => {
     await post({ ...BASE, supplierId: "s1", subtotalCents: 1_000_000, ivaPct: 19, recurring: true, recurringDay: 5, payFromAccountCode: "111005" });
     expect(m.expenseCreate.mock.calls[0]![0].data).toMatchObject({ recurring: true, recurringDay: 5, ivaCents: 190_000, paidCents: 0 });
+    // Una plantilla no es un gasto: no lleva consecutivo.
+    expect(m.numberPending).not.toHaveBeenCalled();
     expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 });

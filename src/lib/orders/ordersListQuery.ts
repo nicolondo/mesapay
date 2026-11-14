@@ -30,6 +30,8 @@ const ROW_INCLUDE = {
       dianDocument: { select: { id: true, state: true } },
     },
   },
+  // Factura manual emitida por cobrar: la fila dice si sigue por cobrar.
+  payLink: { select: { creditPaymentId: true } },
 } satisfies Prisma.OrderInclude;
 
 export type OrdersListRow = Prisma.OrderGetPayload<{ include: typeof ROW_INCLUDE }> & {

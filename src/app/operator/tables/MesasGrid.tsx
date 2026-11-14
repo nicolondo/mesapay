@@ -1,5 +1,4 @@
 "use client";
-import { displayOrderCode } from "@/lib/orderCode";
 import { useClock } from "@/lib/browser/clock";
 
 import { useMemo, useState } from "react";
@@ -49,10 +48,10 @@ import type { RestaurantTax } from "@/lib/salesTax";
  * la vez. Tap fuera o tap en el mismo tile lo cierra.
  *
  * FACTURAS MANUALES: cuentas sin mesa física (mesas ocultas
- * `kind = manual`, ver src/lib/manualInvoice.ts). Van en su propia
- * sección, fuera de los chips y del conteo de libres, y abren la misma
- * ficha en modo `manual` (sin mover, sin cocina). El botón "Factura
- * manual" junto a los chips abre una nueva y la despliega al toque.
+ * `kind = manual`, ver src/lib/manualInvoice.ts). NUNCA se dibujan acá:
+ * viven en /operator/facturas-manuales (su ficha) y en Órdenes. El botón
+ * "Factura manual" junto a los chips crea una y va a su ficha; al lado,
+ * el acceso a las pendientes.
  */
 
 export type TileData =
@@ -152,14 +151,6 @@ type ItemDetail = {
   notes: string | null;
 };
 
-/** Factura manual abierta: una mesa oculta con su única cuenta viva. */
-export type ManualTile = {
-  id: string;
-  number: number;
-  qrToken: string;
-  order: ActiveOrder;
-};
-
 type FreeTable = { id: string; number: number; label: string | null };
 
 // Todas las mesas (libres y ocupadas) para "Mover un plato".
@@ -175,7 +166,7 @@ type FilterChip = "all" | "by_pay" | "recent" | "free";
 export function MesasGrid({
   initialTime,
   tiles,
-  manualTiles,
+  manualPendingCount,
   canOpenManual,
   initialOpenTileId = null,
   tenantSlug,
@@ -193,9 +184,10 @@ export function MesasGrid({
 }: {
   initialTime: number;
   tiles: TileData[];
-  // Facturas manuales abiertas. Vacío para el mesero (no las ve) y
-  // cuando no hay ninguna (la sección no se dibuja).
-  manualTiles: ManualTile[];
+  // Facturas manuales pendientes (borrador o enviadas con link): NO se
+  // dibujan acá — viven en /operator/facturas-manuales. Sólo el número,
+  // para el acceso. 0 para el mesero.
+  manualPendingCount: number;
   // Si se muestra el botón "Factura manual" — caja, no el mesero.
   canOpenManual: boolean;
   // Mesa cuya ficha abre al cargar (`?open=<tableId>`): así "Nueva
@@ -226,7 +218,6 @@ export function MesasGrid({
   phonePaidHighlightMinutes: number;
 }) {
   const tr = useTranslations("opTables");
-  const router = useRouter();
   const [filter, setFilter] = useState<FilterChip>("all");
   // Reloj del cliente (tick de 10 s): el refresh de la grilla es por SSE y
   // nada avisa cuando VENCE un resalte, así que "ahora" se reevalúa acá para
@@ -245,9 +236,8 @@ export function MesasGrid({
   const [openingManual, setOpeningManual] = useState(false);
 
   /**
-   * Abre una factura manual nueva y despliega su ficha. Se fija el tile
-   * ANTES del refresh: el estado del cliente sobrevive al router.refresh,
-   * así que cuando la grilla vuelve con la mesa nueva, ya está abierta.
+   * Abre una factura manual nueva y va a su ficha, en Facturas manuales:
+   * una factura manual no es una mesa y nunca se dibuja en Mesas.
    */
   async function openManualInvoice() {
     setOpeningManual(true);
@@ -260,9 +250,9 @@ export function MesasGrid({
         return;
       }
       const j = (await res.json()) as { tableId: string };
-      setEditMode(false);
-      setOpenTileId(j.tableId);
-      router.refresh();
+      // Carga completa: su ficha abre al cargar con `?open=` (una
+      // navegación del cliente la cerraba con el historial de la ficha).
+      window.location.assign(`/operator/facturas-manuales?open=${encodeURIComponent(j.tableId)}`);
     } catch {
       window.alert(tr("manualInvoiceOpenFailed"));
     } finally {
@@ -389,6 +379,16 @@ export function MesasGrid({
                 </span>
               </button>
             )}
+            {canOpenManual && manualPendingCount > 0 && (
+              <Link
+                href="/operator/facturas-manuales"
+                prefetch={false}
+                // Misma altura que los botones de al lado (que crecen en táctil).
+                className="min-h-8 self-stretch px-3 inline-flex items-center rounded-full text-xs font-medium border border-op-border text-op-muted bg-op-surface hover:text-op-text transition-colors"
+              >
+                {tr("manualPendingLink", { count: manualPendingCount })}
+              </Link>
+            )}
             {!isMeseroView && (
               <button
                 type="button"
@@ -409,40 +409,6 @@ export function MesasGrid({
           </div>
         )}
       </div>
-
-      {/* Facturación manual — sólo cuando hay alguna abierta. Fuera de los
-          chips: no son mesas, no cuentan como libres ni como "por cobrar"
-          del salón. En modo edición se esconde (no se renombran ni se
-          borran: son mesas ocultas que el sistema recicla solo). */}
-      {!editMode && manualTiles.length > 0 && (
-        <section className="mb-4">
-          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-            {tr("manualSectionTitle")}
-          </div>
-          <p className="text-[11px] text-op-muted mt-0.5 mb-2">
-            {tr("manualSectionHint")}
-          </p>
-          <div className="mp-table-grid">
-            {manualTiles.map((tile) => (
-              <ManualInvoiceTile
-                key={tile.id}
-                tile={tile}
-                open={openTileId === tile.id}
-                onOpenChange={(next) =>
-                  setOpenTileId(next ? tile.id : null)
-                }
-                tenantSlug={tenantSlug}
-                country={country}
-                salesTax={salesTax}
-                chargeLocked={chargeLocked}
-                moveLocked={moveLocked}
-                compPolicy={compPolicy}
-                viewerRole={viewerRole}
-              />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Grid de tiles compactos */}
       <div className="mp-table-grid">
@@ -904,108 +870,6 @@ function RecentlyPaidTile({
         }
       />
     </Link>
-  );
-}
-
-/**
- * Tile de una factura manual abierta — código, lo que falta por cobrar y
- * el cliente (si se identificó) o la cantidad de ítems. Sin walkout-risk
- * ni estado de cocina: nada se prepara ni se entrega. Tap abre la misma
- * ficha que una mesa, en modo `manual`.
- */
-function ManualInvoiceTile({
-  tile,
-  open,
-  onOpenChange,
-  tenantSlug,
-  country,
-  salesTax,
-  chargeLocked,
-  moveLocked,
-  compPolicy,
-  viewerRole,
-}: {
-  tile: ManualTile;
-  open: boolean;
-  onOpenChange: (next: boolean) => void;
-  tenantSlug: string;
-  country: string | null;
-  salesTax: RestaurantTax | null;
-  chargeLocked: boolean;
-  moveLocked: boolean;
-  compPolicy: CompPolicyView;
-  viewerRole: string | null;
-}) {
-  const tr = useTranslations("opTables");
-  // El cliente de la factura (si ya se identificó) es lo que distingue una
-  // factura manual de otra en la grilla.
-  const who =
-    tile.order.invoiceRequest?.customerName ??
-    tile.order.customer?.name ??
-    (tile.order.itemCount > 0
-      ? tr("tileMetaItems", { count: tile.order.itemCount })
-      : tr("manualTileEmpty"));
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => onOpenChange(true)}
-        className="aspect-[4/3] rounded-xl border border-terracotta/40 bg-terracotta/5 hover:bg-terracotta/10 p-2 flex flex-col items-center justify-center text-center transition-colors relative"
-      >
-        <div className="font-mono text-[9px] tracking-wider uppercase text-terracotta-2">
-          {tr("manualInvoiceLabel")}
-        </div>
-        <div className="font-mono text-[10px] text-op-muted truncate w-full mt-0.5" title={tile.order.shortCode}>
-          {displayOrderCode(tile.order.shortCode)}
-        </div>
-        <div className="font-mono text-[12px] tabular leading-tight mt-1">
-          {fmtCOP(tile.order.outstandingCents)}
-        </div>
-        <div className="font-mono text-[9px] text-op-muted mt-0.5 truncate w-full">
-          {who}
-        </div>
-      </button>
-
-      {open && (
-        <TableDetailSheet
-          manual
-          orderId={tile.order.id}
-          shortCode={tile.order.shortCode}
-          tableLabel={tr("manualInvoiceLabel")}
-          tableNumber={tile.number}
-          tableId={tile.id}
-          // Una factura manual no se mueve ni recibe platos de una mesa:
-          // sin destinos, la ficha no ofrece "Mover".
-          freeTables={[]}
-          allTables={[]}
-          initialRounds={tile.order.rounds}
-          open={open}
-          onOpenChange={onOpenChange}
-          hideTrigger
-          orderStatus={tile.order.status}
-          outstandingCents={tile.order.outstandingCents}
-          subtotalCents={tile.order.subtotalCents}
-          grossSubtotalCents={tile.order.grossSubtotalCents}
-          discountCents={tile.order.discountCents}
-          discountPct={tile.order.discountPct}
-          customer={tile.order.customer}
-          invoiceRequest={tile.order.invoiceRequest}
-          invoiceIntent={tile.order.invoiceIntent}
-          invoice={tile.order.invoice}
-          pendingPayments={tile.order.pendingPayments}
-          terminalAmounts={tile.order.terminalAmounts}
-          tenantSlug={tenantSlug}
-          qrToken={tile.qrToken}
-          isMeseroView={false}
-          country={country}
-          salesTax={salesTax}
-          chargeLocked={chargeLocked}
-          moveLocked={moveLocked}
-          compPolicy={compPolicy}
-          viewerRole={viewerRole}
-        />
-      )}
-    </>
   );
 }
 

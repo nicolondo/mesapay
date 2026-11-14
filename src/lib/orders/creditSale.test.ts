@@ -61,6 +61,19 @@ describe("creditSalesByOrder — qué distintivo lleva cada cuenta", () => {
     expect(sales.get("o1")).toMatchObject({ status: "credit_paid", creditCents: 60_000, outstandingCents: 0 });
   });
 
+  it("un abono dirigido (link de una factura manual) salda ESA cuenta aunque haya deuda más vieja", () => {
+    const charges = [
+      charge("viejo", "o-vieja", "acme", "2026-11-01", 100_000),
+      charge("factura", "o-factura", "acme", "2026-11-10", 50_000),
+    ];
+    const sales = creditSalesByOrder(["o-vieja", "o-factura"], charges, [
+      { ...abono("link", "acme", "2026-11-11", 60_000), chargeId: "factura" },
+    ]);
+    // 50.000 a la factura; los 10.000 que sobran siguen FIFO a la vieja.
+    expect(sales.get("o-factura")).toMatchObject({ status: "credit_paid", outstandingCents: 0 });
+    expect(sales.get("o-vieja")).toMatchObject({ status: "on_credit", outstandingCents: 90_000 });
+  });
+
   it("los abonos de un cliente no pagan la deuda de otro", () => {
     const charges = [charge("c1", "o1", "acme", "2026-11-01", 50_000), charge("c2", "o2", "beta", "2026-11-01", 50_000)];
     const sales = creditSalesByOrder(["o1", "o2"], charges, [abono("a1", "beta", "2026-11-02", 50_000)]);

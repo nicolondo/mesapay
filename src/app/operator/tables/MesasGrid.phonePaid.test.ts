@@ -57,7 +57,7 @@ function render(tiles: TileData[], opts: { now?: number; minutes?: number } = {}
       initialTime: opts.now ?? T0,
       phonePaidHighlightMinutes: opts.minutes ?? 3,
       tiles,
-      manualTiles: [],
+      manualPendingCount: 0,
       canOpenManual: false,
       tenantSlug: "test",
       counterMode: false,

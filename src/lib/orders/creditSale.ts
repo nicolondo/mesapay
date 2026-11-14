@@ -22,6 +22,12 @@
  * cancela primero la deuda más vieja. La consulta (`creditSaleQuery.ts`) los
  * pide sólo para los clientes de las cuentas a la vista: es barato.
  *
+ * Un abono DIRIGIDO (`chargeId`: el link de pago de una factura manual
+ * emitida por cobrar, o «Registrar pago recibido» en su ficha) va primero a
+ * su cargo; lo que sobre sigue el FIFO (también lo resuelve `allocateFifo`).
+ * En Órdenes, esa factura muestra su propia píldora (Por cobrar / Vencida /
+ * Cobrada) en lugar de este distintivo.
+ *
  * Sólo los cargos `approved` marcan la cuenta. Uno devuelto por completo
  * (`refunded`) ya no es una venta a crédito, pero sí entra en el FIFO del
  * cliente (pesa 0), igual que en Cartera.

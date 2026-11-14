@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { isModuleEnabled } from "@/lib/modules";
 import { materializeRecurring, monthRange, recurringCopyDate } from "@/lib/erp/accounting";
 import { templateCopyTaxes } from "@/lib/erp/expenseShared";
+import { numberPendingExpenses } from "@/lib/erp/expenseNumber";
 import { uvtCentsForDate } from "@/lib/erp/expenseTax";
 import { UVT_DEFAULT_CENTS } from "@/lib/erp/retencionesCore";
 
@@ -93,22 +94,26 @@ async function POSTHandler(req: Request) {
     const date = recurringCopyDate(today, t.recurringDay!);
     const uvt = uvtCentsForDate(date, t.restaurant.accountingConfig?.uvtCents ?? UVT_DEFAULT_CENTS);
     const taxes = templateCopyTaxes(t, uvt);
-    await db.expense.create({
-      data: {
-        restaurantId: t.restaurantId,
-        category: t.category,
-        description: t.description,
-        ...taxes.fields,
-        documentType: t.documentType ?? "none",
-        date,
-        supplierId: t.supplierId,
-        // Sin esto la copia caía en la cuenta que adivina la categoría y
-        // sin centro de costos, aunque la plantilla los tuviera fijados.
-        accountCode: t.accountCode,
-        costCenterId: t.costCenterId,
-        templateId: t.id,
-        ...(taxes.retentions.length > 0 ? { retentions: { create: taxes.retentions } } : {}),
-      },
+    // La copia es un gasto: nace con su consecutivo, en la misma transacción.
+    await db.$transaction(async (tx) => {
+      await tx.expense.create({
+        data: {
+          restaurantId: t.restaurantId,
+          category: t.category,
+          description: t.description,
+          ...taxes.fields,
+          documentType: t.documentType ?? "none",
+          date,
+          supplierId: t.supplierId,
+          // Sin esto la copia caía en la cuenta que adivina la categoría y
+          // sin centro de costos, aunque la plantilla los tuviera fijados.
+          accountCode: t.accountCode,
+          costCenterId: t.costCenterId,
+          templateId: t.id,
+          ...(taxes.retentions.length > 0 ? { retentions: { create: taxes.retentions } } : {}),
+        },
+      });
+      await numberPendingExpenses(tx, t.restaurantId);
     });
     created++;
   }

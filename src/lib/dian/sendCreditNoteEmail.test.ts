@@ -35,6 +35,9 @@ describe('credit-note recipient email', () => {
     const args = mocks.send.mock.calls[0][0];
     expect(args.text).toMatch(/Propina devuelta: \$\s?61\.830,00 \(no hace parte de la nota crédito electrónica\)/);
     expect(args.text).toMatch(/Total acreditado: \$\s?618\.300,00/);
+    // Y el renglón final con las dos sumadas, en negrita: lo que recibe el cliente.
+    expect(args.text).toMatch(/Total a devolver con la propina: \$\s?680\.130,00/);
+    expect(args.html).toMatch(/<strong>Total a devolver con la propina: \$\s?680\.130,00<\/strong>/);
     // El PDF y el XML se generan de la nota, sin la propina.
     expect(mocks.pdf).toHaveBeenCalledWith(expect.objectContaining({ totalCents: 61_830_000 }));
   });
@@ -42,6 +45,7 @@ describe('credit-note recipient email', () => {
     mocks.load.mockResolvedValue({ ...note, tipRefundCents: 0 });
     await sendDianCreditNoteEmail('nc', 'tenant');
     expect(mocks.send.mock.calls[0][0].text).not.toContain('Propina');
+    expect(mocks.send.mock.calls[0][0].text).not.toContain('Total a devolver');
   });
   it('does not send twice when the claim is lost', async () => {
     mocks.update.mockResolvedValue({ count: 0 });

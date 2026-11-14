@@ -51,6 +51,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "pagos-pendientes-del-comensal",
   ],
   "/operator/orders": ["buscar-y-revisar-ordenes", "imprimir-y-enviar-facturas"],
+  "/operator/facturas-manuales": ["factura-manual"],
   "/operator/orders/[id]": [
     "buscar-y-revisar-ordenes",
     "cobrar-una-cuenta",

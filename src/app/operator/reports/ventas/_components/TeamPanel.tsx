@@ -72,7 +72,7 @@ export function TeamPanel({
                       </td>
                       <td className="num">{money(w.netCents)}</td>
                       <td className="num">{fmtNumber(w.orders, locale)}</td>
-                      <td className="num">{w.orders > 0 ? money(Math.round(w.netCents / w.orders)) : t("emptyDash")}</td>
+                      <td className="num">{w.orders > 0 ? money(Math.round(w.accountNetCents / w.orders)) : t("emptyDash")}</td>
                       <td className="num">{fmtNumber(w.diners, locale)}</td>
                       <td className="num">{money(w.tipCents)}</td>
                       <td className="num">{w.commissionCents === null ? t("emptyDash") : money(w.commissionCents)}</td>

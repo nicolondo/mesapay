@@ -1,11 +1,21 @@
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { publishOrderEvent } from "@/lib/events";
 import { preInvoiceStatus, preIssueInvoice } from "@/lib/preInvoice";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Cuerpo opcional: la propina elegida en el cobro al emitir. 0 = «Sin
+ * propina» (la factura no sugiere ninguna). Sin cuerpo (la ficha de la
+ * mesa) = la sugerida de siempre.
+ */
+const bodySchema = z
+  .object({ suggestedTipPct: z.number().int().min(0).max(100).nullish() })
+  .catch({});
 
 /**
  * POST /api/operator/orders/[id]/pre-invoice — "Imprimir factura" ANTES de
@@ -26,7 +36,7 @@ export const dynamic = "force-dynamic";
  * GET — el estado (DIAN, pagada) sin emitir nada, para el "¿ya salió?".
  */
 async function POSTHandler(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const scope = await requireOperatorScope();
@@ -37,7 +47,12 @@ async function POSTHandler(
     );
   }
   const { id: orderId } = await params;
-  const result = await preIssueInvoice({ restaurantId: scope.restaurantId, orderId });
+  const body = bodySchema.parse(await req.json().catch(() => ({})));
+  const result = await preIssueInvoice({
+    restaurantId: scope.restaurantId,
+    orderId,
+    suggestedTipPct: body.suggestedTipPct ?? null,
+  });
   if (!result.ok) {
     const status = result.error === "not_found" ? 404 : 409;
     return NextResponse.json({ error: result.error }, { status });

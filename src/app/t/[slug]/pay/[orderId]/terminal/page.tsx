@@ -5,6 +5,8 @@ import { staffForRestaurant } from "@/lib/staffAccess";
 import { CHECKOUT_STAFF_ROLES, staffCheckoutRoutes } from "@/lib/payments/staffCheckout";
 import { terminalClaimKey } from "@/lib/payments/methods";
 import { TERMINAL_CANCELED_REASON, toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
+import { toTerminalAmountView } from "@/lib/payments/terminalAmount";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { TerminalWait } from "./TerminalWait";
 
@@ -59,10 +61,14 @@ export default async function TerminalPendingPage({
   // reintentó (la pantalla vuelve con su aviso o sigue al pago nuevo) y, sólo
   // para el staff, qué se sabe del cobro enviado (para cancelar en el equipo,
   // reintentar o cobrar de otra forma ahí mismo).
+  // Aprobado por otro monto (propina del datáfono o parcial): la pantalla
+  // dice cuánto se cobró de verdad.
   const claim =
-    payment.method === "kushki_card_terminal" && payment.status !== "approved"
+    payment.method === "kushki_card_terminal"
       ? await db.financialOperation.findUnique({ where: { key: terminalClaimKey(payment.id) } })
       : null;
+  const amountView = payment.status === "approved" ? toTerminalAmountView(claim) : null;
+  const currency = await getCurrencyForCountry(order.restaurant.country);
   const declined = payment.status === "declined";
   const retrySep = checkoutHref.includes("?") ? "&" : "?";
 
@@ -94,6 +100,8 @@ export default async function TerminalPendingPage({
         staff && payment.status === "pending" ? toTerminalAttemptView(claim, payment.reconciliationRequired) : null
       }
       canResolveTerminal={canResolveTerminalCharge(staff?.user.role)}
+      initialAmount={amountView && (amountView.check === "tip" || amountView.check === "partial") ? amountView : null}
+      currency={currency}
     />
   );
 }

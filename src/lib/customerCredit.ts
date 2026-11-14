@@ -39,6 +39,13 @@ export type CreditAbono = {
   id: string;
   date: Date;
   amountCents: number;
+  /**
+   * Cargo al que va dirigido (el pago por link de una factura manual, o el
+   * "registrar pago" de su ficha). Se aplica a ése ANTES que el FIFO; lo
+   * que sobre (pagó de más sobre ese cargo) sigue FIFO. null/ausente =
+   * abono general.
+   */
+  chargeId?: string | null;
 };
 
 export type CreditCustomer = {
@@ -107,6 +114,11 @@ function byDateThenId<T extends { date: Date; id: string }>(a: T, b: T): number 
  * cronológico, consume los cargos (también cronológicos) hasta agotarse;
  * el saldo por cargo es lo que alimenta las edades de cartera. Un abono
  * mayor que la deuda deja `unappliedCents`.
+ *
+ * Los abonos DIRIGIDOS (`chargeId`) van primero a su cargo: el link de
+ * pago de una factura manual salda ESA factura aunque el cliente deba
+ * otras más viejas. Lo que exceda el saldo de su cargo sigue el FIFO como
+ * un abono general.
  */
 export function allocateFifo(
   charges: readonly CreditCharge[],
@@ -119,10 +131,25 @@ export function allocateFifo(
     return { chargeId: c.id, totalCents: total, paidCents: 0, outstandingCents: total };
   });
   const allocations: FifoAllocation[] = [];
+  const byId = new Map(result.map((c) => [c.chargeId, c]));
+  // 1) Dirigidos: cada uno a su cargo, hasta el saldo de ese cargo.
+  const leftover = new Map<string, number>();
+  for (const p of sortedPayments) {
+    const target = p.chargeId ? byId.get(p.chargeId) : undefined;
+    if (!target) continue;
+    const take = Math.min(p.amountCents, target.outstandingCents);
+    if (take > 0) {
+      target.paidCents += take;
+      target.outstandingCents -= take;
+      allocations.push({ paymentId: p.id, chargeId: target.chargeId, cents: take });
+    }
+    leftover.set(p.id, p.amountCents - take);
+  }
+  // 2) Generales (y el sobrante de los dirigidos): FIFO.
   let unappliedCents = 0;
   let cursor = 0;
   for (const p of sortedPayments) {
-    let left = p.amountCents;
+    let left = leftover.get(p.id) ?? p.amountCents;
     while (left > 0 && cursor < result.length) {
       const c = result[cursor];
       if (c.outstandingCents <= 0) {
@@ -180,6 +207,8 @@ export type CreditAbonoRow = CreditAbono & {
   accountCode: string;
   note: string | null;
   createdByName: string | null;
+  /** Lo dejó el pago en línea de un link (no lo registró nadie del staff). */
+  viaPayLink: boolean;
 };
 
 export type CustomerCreditSummary = {
@@ -234,6 +263,8 @@ export async function loadCustomerCreditSummary(
         amountCents: true,
         accountCode: true,
         note: true,
+        creditChargeId: true,
+        paymentLinkId: true,
         createdBy: { select: { name: true, email: true } },
       },
       orderBy: [{ paidAt: "asc" }, { createdAt: "asc" }],
@@ -254,9 +285,11 @@ export async function loadCustomerCreditSummary(
     id: a.id,
     date: a.paidAt,
     amountCents: a.amountCents,
+    chargeId: a.creditChargeId,
     accountCode: a.accountCode,
     note: a.note,
     createdByName: a.createdBy ? a.createdBy.name ?? a.createdBy.email : null,
+    viaPayLink: a.paymentLinkId != null,
   }));
   return {
     customer,

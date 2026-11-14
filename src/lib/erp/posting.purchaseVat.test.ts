@@ -144,4 +144,22 @@ describe("asiento de compras — IVA descontable vs mayor valor del costo", () =
     expect(net.has("24081001")).toBe(false);
     expect(net.get("220505")).toBe(-119_000);
   });
+
+  it("ajuste al peso de la factura: el proveedor queda por el Total impreso y la diferencia va a gastos diversos", async () => {
+    // Factura con licor: neto 100.000, IVA 5.000, ICO al costo 20.000,
+    // retefuente 2.500 y «Ajustes −0,32»: se paga 122.499,68.
+    const less = await purchaseLines([
+      row({ receivedCents: 10_000_000, ivaCents: 500_000, incCents: 2_000_000, retefuenteCents: 250_000, roundingCents: -32 }),
+    ]);
+    expect(less.get("143505")).toBe(12_000_000);
+    expect(less.get("24081001")).toBe(500_000);
+    expect(less.get("519505")).toBe(-32);
+    expect(less.get("220505")).toBe(-(12_500_000 - 250_000 - 32));
+    vi.clearAllMocks();
+    const more = await purchaseLines([
+      row({ receivedCents: 10_000_000, ivaCents: 500_000, nonInventoryReceivedCents: 1_000_000, roundingCents: 45 }),
+    ]);
+    expect(more.get("519505")).toBe(1_000_000 + 45);
+    expect(more.get("220505")).toBe(-(10_500_000 + 45));
+  });
 });

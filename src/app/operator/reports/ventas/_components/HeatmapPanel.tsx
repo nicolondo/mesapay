@@ -27,6 +27,9 @@ export function HeatmapPanel({
 
   const cells: HeatGridCell[][] = heat.cells.map((row) =>
     row.map((c) => {
+      // Con «Hora del pedido» una celda puede tener venta (otra ronda) sin
+      // cuentas abiertas en ella: también se puede entrar.
+      const active = c.orders > 0 || c.netCents > 0;
       const title = `${weekdayName(c.dow, locale, "long")} · ${hourLabel(c.hour)}`;
       const value = formatValue(c.netCents, money);
       return {
@@ -41,9 +44,9 @@ export function HeatmapPanel({
               ? [{ value: fmtPercent(c.netCents / heat.totalNetCents, locale), label: t("shareOfTotal") }]
               : []),
           ],
-          hint: c.orders > 0 ? t("heat.clickHint") : undefined,
+          hint: active ? t("heat.clickHint") : undefined,
         },
-        href: c.orders > 0 ? salesHref(withDimension(withDimension(filters, "dia", c.dow), "hora", c.hour)) : undefined,
+        href: active ? salesHref(withDimension(withDimension(filters, "dia", c.dow), "hora", c.hour)) : undefined,
       };
     }),
   );

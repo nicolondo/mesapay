@@ -1,12 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineAmounts, reviewLineDiscountDetail, reviewLineQtyBase, reviewPriceQuantity, setReviewTaxIncluded, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
+import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineQtyBase, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { prefillInvoiceDiscounts } from "@/lib/erp/invoiceDiscount";
-import { applyInvoiceSupplierMatch, chooseInvoiceIngredient, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
+import { applyInvoiceSupplierMatch, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
 import { initialInvoicePrice, parseInvoiceTaxPct, type InvoiceTaxBasis } from "@/lib/erp/invoiceAmounts";
 import { inferPurchaseInvoiceTaxBases } from "@/lib/erp/invoiceTaxBasis";
-import { InvoiceLineTaxToggle } from "./InvoiceLineTaxToggle";
+import { InvoiceTaxColumns, reviewableTaxColumns } from "./InvoiceTaxColumns";
+import { InvoiceReconcileSummary } from "./InvoiceReconcileSummary";
+import { InvoiceReviewLines, MatchStatusChip } from "./InvoiceReviewLines";
+import {
+  columnLineAmounts,
+  invoiceReconcileRows,
+  ROUNDING_MAX_CENTS,
+  suggestedRoundingCents,
+  taxColumnNeedsReview,
+  type TaxCell,
+  type TaxCellScope,
+  type TaxColumnKey,
+  type TaxColumnResolution,
+} from "@/lib/erp/invoiceReconcile";
 import { DiscountControl } from "./DiscountControl";
 import {
   InvoiceRetentionsEditor,
@@ -35,6 +48,12 @@ import {
   type SupplierRef,
 } from "./shared";
 import { NewOrderForm } from "./oc/NewOrderForm";
+import { ComprasList, type FilterSupplier } from "./ComprasList";
+import { PayStatusChip, StatusChip } from "./chips";
+import { useListNavigation } from "@/components/billingCustomers/ListControls";
+import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
+import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
+import type { PoStatus, PurchaseListPage, PurchaseListParams } from "@/lib/erp/purchaseList";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
@@ -47,7 +66,6 @@ import {
   type InvoiceTaxExtras,
   invoiceGrandTotalCents,
   expectedReceiptCostCents,
-  normalizeTaxPct,
   poTotals,
   purchaseLineAmounts,
   purchaseOrderTotals,
@@ -60,18 +78,11 @@ import { SupportDocumentPanel } from "@/components/supportDocument/SupportDocume
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 
-const PO_STATUSES = [
-  "draft",
-  "sent",
-  "partially_received",
-  "received",
-  "canceled",
-] as const;
-type PoStatus = (typeof PO_STATUSES)[number];
-
 type OrderSummary = Partial<InvoiceTaxExtras> & {
   /** Parte de las retenciones practicada al recibir (no sigue el avance). */
   receptionRetentionCents?: number;
+  /** Ajuste al peso de la factura (con signo). */
+  roundingCents?: number;
   id: string;
   number: number;
   status: PoStatus;
@@ -96,6 +107,7 @@ type OrderSummary = Partial<InvoiceTaxExtras> & {
 
 type OrderDetail = Partial<InvoiceTaxExtras> & {
   receptionRetentionCents?: number;
+  roundingCents?: number;
   id: string;
   number: number;
   status: PoStatus;
@@ -179,19 +191,6 @@ type PaymentAccountRef = { code: string; name: string };
 
 /* ─────────────────────────── Helpers ───────────────────────────────── */
 
-/** Búsqueda sin acentos: minúsculas + tildes fuera ("azucar" → "azúcar"). */
-function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-}
-
-/** "g/kg", "ml/L", "un" — símbolos de unidad, iguales en es/en/pt. */
-function unitSymbols(kind: MeasureKind): string {
-  return DISPLAY_UNITS[kind].map((u) => u.symbol).join("/");
-}
-
 /** Consecutivo legible "0007" — el prefijo (OC/PO) vive en i18n. */
 function padNumber(n: number): string {
   return String(n).padStart(4, "0");
@@ -260,38 +259,6 @@ function orderLineText(it: OrderItem, locale: Locale): string {
   return `${qty} — ${it.ingredient.name}`;
 }
 
-const STATUS_KEYS: Record<PoStatus, string> = {
-  draft: "statusDraft",
-  sent: "statusSent",
-  partially_received: "statusPartial",
-  received: "statusReceived",
-  canceled: "statusCanceled",
-};
-
-// Colores por estado: neutro (borrador), tinta (enviada), ámbar (parcial),
-// ok (recibida), danger (anulada) — mismos tokens del design system.
-const STATUS_CHIP_CLS: Record<PoStatus, string> = {
-  draft: "bg-paper text-op-muted",
-  sent: "bg-ink text-bone",
-  partially_received: "bg-[#C98A2E]/15 text-[#7F5A1F]",
-  received: "bg-ok/10 text-ok",
-  canceled: "bg-danger/10 text-danger",
-};
-
-function StatusChip({ status }: { status: PoStatus }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        STATUS_CHIP_CLS[status]
-      }
-    >
-      {t(STATUS_KEYS[status])}
-    </span>
-  );
-}
-
 /**
  * Desglose Subtotal + IVA + Total de una lista de líneas netas + taxPct.
  * Si el IVA total es 0 solo muestra el Total (no ensucia con "IVA $0"),
@@ -306,6 +273,7 @@ function TaxBreakdown({
   listSubtotalCents,
   incCents = 0,
   retainedCents = 0,
+  roundingCents = 0,
   retentionRows,
 }: {
   lines: { costCents: number; taxPct: number; taxCents?: number | null }[];
@@ -320,6 +288,8 @@ function TaxBreakdown({
   retainedCents?: number;
   /** Retenciones por tipo (si suman `retainedCents`); si no, una sola fila. */
   retentionRows?: { label: string; cents: number }[];
+  /** Ajuste al peso de la factura (con signo): su propia fila, ninguna línea. */
+  roundingCents?: number;
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
@@ -366,12 +336,15 @@ function TaxBreakdown({
           <span>{r.label}</span><span>{`− ${money(r.cents)}`}</span>
         </div>
       ))}
+      {roundingCents !== 0 && <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-op-muted">
+        <span>{t("invRecAdjustment")}</span><span>{`${roundingCents > 0 ? "+" : "−"} ${money(Math.abs(roundingCents))}`}</span>
+      </div>}
       <div className="flex items-center justify-between px-3 py-2">
         <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
           {totalLabel ?? t("totalLabel")}
         </span>
         <span className="text-sm font-medium tabular-nums">
-          {money(totalCents + incCents - retainedCents)}
+          {money(totalCents + incCents - retainedCents + roundingCents)}
         </span>
       </div>
     </div>
@@ -380,233 +353,80 @@ function TaxBreakdown({
 
 /* ───────────────────────────── Lista ───────────────────────────────── */
 
-type Filter = "all" | PoStatus;
-type Tab = "orders" | "unpaid";
+/** Lo que necesitan «Registrar pago» y «Editar factura» de una fila de «Por pagar». */
+type PayableRef = Pick<OrderSummary, "id" | "number" | "paidCents" | "supplierInvoiceNumber" | "invoiceDueAt"> & {
+  supplier: { id: string; name: string };
+  /** Total recibido (la cuenta por pagar). */
+  receivedTotalCents: number;
+};
 
 export function ComprasClient({
-  initialOrders,
-  initialCursor,
+  list,
+  params,
   suppliers,
+  filterSuppliers,
   currency,
   initialDetailId = null,
 }: {
-  initialOrders: OrderSummary[];
-  initialCursor: string | null;
+  /** Página de compras con los filtros de la URL (paginada y resumida en el servidor). */
+  list: PurchaseListPage;
+  params: PurchaseListParams;
+  /** Proveedores activos (crear orden, revisar factura). */
   suppliers: SupplierRef[];
+  /** Todos los proveedores, también inactivos (filtro de la lista). */
+  filterSuppliers: FilterSupplier[];
   currency: string;
   /** `?oc=<id>`: abre el detalle de esa orden (enlace desde los reportes). */
   initialDetailId?: string | null;
 }) {
   const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-
-  // null = lista invalidada (cambio de filtro u orden nueva) → refetch.
-  const [orders, setOrders] = useState<OrderSummary[] | null>(initialOrders);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialCursor);
-  const [tab, setTab] = useState<Tab>("orders");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [listErr, setListErr] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Los filtros viven en la URL: cada cambio navega y el servidor vuelve a
+  // consultar. Tras crear, recibir o pagar, `refresh` trae la lista al día.
+  const nav = useListNavigation();
   const [createOpen, setCreateOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(initialDetailId);
+  const [payFor, setPayFor] = useState<PayableRef | null>(null);
+  const [invoiceFor, setInvoiceFor] = useState<PayableRef | null>(null);
   // Carga de factura con IA (A2.5): resultado del POST → sheet de revisión.
   const [invoiceResult, setInvoiceResult] = useState<InvoiceUploadResult | null>(
     null,
   );
 
-  useEffect(() => {
-    if (orders !== null || listErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const qs = filter === "all" ? "" : `?status=${filter}`;
-        const r = await fetch(`/api/operator/purchase-orders${qs}`);
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (cancelled) return;
-        setOrders((j.orders ?? []) as OrderSummary[]);
-        setNextCursor(j.nextCursor ?? null);
-      } catch {
-        if (!cancelled) setListErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [orders, listErr, filter]);
-
   function invalidate() {
-    setOrders(null);
-    setNextCursor(null);
-    setListErr(false);
-  }
-
-  function changeFilter(f: Filter) {
-    if (f === filter) return;
-    setFilter(f);
-    invalidate();
-  }
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const params = new URLSearchParams();
-      if (filter !== "all") params.set("status", filter);
-      params.set("cursor", nextCursor);
-      const r = await fetch(`/api/operator/purchase-orders?${params}`);
-      if (!r.ok) throw new Error("load_failed");
-      const j = await r.json();
-      setOrders((prev) => [
-        ...(prev ?? []),
-        ...((j.orders ?? []) as OrderSummary[]),
-      ]);
-      setNextCursor(j.nextCursor ?? null);
-    } catch {
-      setListErr(true);
-    }
-    setLoadingMore(false);
+    nav.refresh();
   }
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Órdenes / Por pagar */}
-      <div className="mp-seg" role="tablist">
-        {(
-          [
-            ["orders", t("tabOrders")],
-            ["unpaid", t("tabUnpaid")],
-          ] as [Tab, string][]
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => setTab(value)}
-            className="mp-seg__i"
-          >
-            {label}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="mp-btn mp-btn--primary mp-btn--block"
+        >
+          {t("newOrder")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSuggestOpen(true)}
+          className="mp-btn mp-btn--secondary mp-btn--block"
+        >
+          {t("suggestedButton")}
+        </button>
+        <InvoiceUploadButton onUploaded={setInvoiceResult} />
       </div>
 
-      {tab === "unpaid" ? (
-        <UnpaidTab currency={currency} onOpenDetail={setDetailId} />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="mp-btn mp-btn--primary mp-btn--block"
-            >
-              {t("newOrder")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSuggestOpen(true)}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {t("suggestedButton")}
-            </button>
-            <InvoiceUploadButton onUploaded={setInvoiceResult} />
-          </div>
-
-          {/* Filtro por estado */}
-          <div className="flex flex-wrap gap-2">
-            {(["all", ...PO_STATUSES] as Filter[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => changeFilter(f)}
-                className={
-                  "min-h-[36px] px-3 rounded-full border text-xs font-medium transition-colors " +
-                  (filter === f
-                    ? "border-ink bg-ink text-bone"
-                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
-                }
-              >
-                {f === "all" ? t("filterAllStatuses") : t(STATUS_KEYS[f])}
-              </button>
-            ))}
-          </div>
-
-          {listErr ? (
-        <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-      ) : orders === null ? (
-        <div className="py-6 text-center text-sm text-op-muted">
-          {t("loading")}
-        </div>
-      ) : orders.length === 0 ? (
-        filter === "all" ? (
-          <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
-            <div className="font-display text-lg mb-1">
-              {t("emptyOrdersTitle")}
-            </div>
-            <p className="text-sm text-op-muted">{t("emptyOrdersBody")}</p>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-            {t("emptyFilteredOrders")}
-          </div>
-        )
-      ) : (
-        <>
-          <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-            {orders.map((o) => {
-              // Bruto (neto + IVA) — lo que se paga con impuestos.
-              const total = purchaseOrderTotals(o).totalCents;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setDetailId(o.id)}
-                  className="w-full text-left px-4 py-2.5 border-b border-op-border last:border-b-0 hover:bg-op-bg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium shrink-0">
-                          {t("poNumber", { number: padNumber(o.number) })}
-                        </span>
-                        <span className="text-sm text-op-muted truncate">
-                          {o.supplier.name}
-                        </span>
-                        <StatusChip status={o.status} />
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {[
-                          formatDate(o.createdAt, { locale }),
-                          t("poLineCount", { count: o._count.items }),
-                        ].join(" · ")}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-medium tabular-nums">
-                        {formatMoney(total, { currency, locale })}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {nextCursor && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {loadingMore ? t("loading") : t("loadMore")}
-            </button>
-          )}
-            </>
-          )}
-        </>
-      )}
+      <ComprasList
+        list={list}
+        params={params}
+        suppliers={filterSuppliers}
+        currency={currency}
+        nav={nav}
+        onOpenDetail={setDetailId}
+        onPay={setPayFor}
+        onEditInvoice={setInvoiceFor}
+      />
 
       {/* El detalle va ANTES del sheet de creación en el DOM para que el
           sheet (hermano posterior, mismo z) pinte encima si conviven. */}
@@ -616,6 +436,30 @@ export function ComprasClient({
           currency={currency}
           onClose={() => setDetailId(null)}
           onChanged={invalidate}
+        />
+      )}
+
+      {payFor && (
+        <RegisterPaymentSheet
+          order={payFor}
+          currency={currency}
+          onClose={() => setPayFor(null)}
+          onDone={() => {
+            setPayFor(null);
+            invalidate();
+          }}
+        />
+      )}
+
+      {invoiceFor && (
+        <InvoiceSheet
+          order={invoiceFor}
+          currency={currency}
+          onClose={() => setInvoiceFor(null)}
+          onSaved={() => {
+            setInvoiceFor(null);
+            invalidate();
+          }}
         />
       )}
 
@@ -1091,6 +935,10 @@ type ExtractionLine = {
   lineTaxCents?: number | null;
   lineIncCents?: number | null;
   lineIncAmbiguous?: boolean;
+  // Celdas de impuesto tal cual impresas (ausentes en lecturas viejas).
+  lineTaxCell?: TaxCell | null;
+  lineIncCell?: TaxCell | null;
+  arithmeticDiffCents?: number | null;
   // Descuento impreso en la línea (ausente en lecturas viejas).
   listUnitPriceCents?: number | null;
   lineDiscountPct?: number | null;
@@ -1150,6 +998,10 @@ type InvoiceUploadResult = {
     retefuenteCents: number | null;
     reteIvaCents: number | null;
     reteIcaCents: number | null;
+    // «Ajustes» del pie, con signo; cómo se leyó cada columna de impuesto.
+    invoiceAdjustmentCents?: number | null;
+    columnHeaders?: string[];
+    taxColumns?: { iva: TaxColumnResolution | null; consumo: TaxColumnResolution | null };
     confidence: number;
     notes?: string;
   };
@@ -1184,6 +1036,7 @@ const API_CONFIRM_ERROR_KEYS: Record<string, string> = {
   not_found: "invReviewErrNotFound",
   not_pending: "invReviewErrNotPending",
   module_disabled: "invUploadErrModuleDisabled",
+  totals_unconfirmed: "invRecAckRequired",
 };
 
 /* ──────────── Cargar factura: botón + spinner de lectura IA ────────── */
@@ -1337,6 +1190,17 @@ function matchReadUnit(kind: MeasureKind, unit: string | null): string | null {
   return DISPLAY_UNITS[kind].find((d) => d.symbol.toLowerCase() === u)?.symbol ?? null;
 }
 
+/**
+ * Consumo del pie que no está en ninguna línea (facturas que solo lo imprimen
+ * abajo). Si las líneas traen su columna de consumo, todo el consumo está en
+ * ellas: una diferencia con el pie es una diferencia, no un saldo por repartir.
+ */
+function unallocatedFooterConsumption(extraction: InvoiceUploadResult["extraction"]): number {
+  if (extraction.lines.some((l) => l.lineIncCell != null)) return 0;
+  return Math.max(0, (extraction.invoiceIncCents ?? 0)
+    - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0));
+}
+
 function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
   const ing = m.ingredient;
   const q = m.line.quantity;
@@ -1376,27 +1240,12 @@ function matchLineToReviewLine(m: MatchLine, index: number): InvoiceReviewLine {
     lowConfidence: m.lowConfidence,
     readUnit: m.line.unit,
     readQty: m.line.quantity,
+    arithmeticDiffCents: m.line.arithmeticDiffCents ?? null,
+    incCellCents: m.line.lineIncCell?.cents ?? null,
   };
 }
 
 const INV_MODE_STORAGE_KEY = "mesapay:invReviewMode";
-
-/** Chip emparejado/nuevo: verde "Ya existe" vs azul "Se creará" (F4). */
-function MatchStatusChip({ existing }: { existing: boolean }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        (existing
-          ? "bg-[#2E7D32]/15 text-[#2E7D32]"
-          : "bg-[#2563EB]/12 text-[#2563EB]")
-      }
-    >
-      {t(existing ? "invReviewStatusExisting" : "invReviewStatusNew")}
-    </span>
-  );
-}
 
 function InvoiceReviewSheet({
   result,
@@ -1461,8 +1310,7 @@ function InvoiceReviewSheet({
     // Only what the printed numbers prove is prefilled; a net price that
     // already contains the discount is never discounted again.
     return prefillInvoiceDiscounts(inferred, built, {
-      incCents: Math.max(0, (extraction.invoiceIncCents ?? 0)
-        - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0)),
+      incCents: unallocatedFooterConsumption(extraction),
       retentionsCents: (extraction.retefuenteCents ?? 0) + (extraction.reteIvaCents ?? 0) + (extraction.reteIcaCents ?? 0),
     });
   });
@@ -1549,6 +1397,17 @@ function InvoiceReviewSheet({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
+  // Factura ya registrada: aviso temprano mientras se revisa (proveedor +
+  // número) y el 409 del servidor al confirmar. Sin número, el servidor
+  // advierte si hay otra igual del día y «Guardar de todas formas» reenvía.
+  const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
+  const allowPossibleDuplicate = useRef(false);
+  const earlyDuplicate = useDuplicateDocumentCheck({
+    supplierId: supplier?.id ?? null,
+    taxId: supplier ? null : newSupplierNit,
+    number: invoiceNumber,
+  });
+  const duplicate = conflict ?? (earlyDuplicate ? { code: "early" as const, existing: earlyDuplicate } : null);
 
   // The supplier the invoice matched stays selectable even if it is not in
   // the active list loaded with the page.
@@ -1563,10 +1422,6 @@ function InvoiceReviewSheet({
     () => resolveReviewInvoice(lines, parseDiscountInput(orderDiscRaw, orderDiscIsPct)),
     [lines, orderDiscRaw, orderDiscIsPct],
   );
-  const breakdownLines = useMemo(
-    () => resolved.lines.map((l) => ({ costCents: l?.netCents ?? 0, taxCents: l?.taxCents ?? 0, taxPct: 0 })),
-    [resolved],
-  );
   const totals = useMemo(
     () => ({ subtotalCents: resolved.netCents, taxCents: resolved.taxCents }),
     [resolved],
@@ -1575,8 +1430,7 @@ function InvoiceReviewSheet({
   // Otros impuestos del documento (ERP A3): INC (impoconsumo) + retenciones,
   // que la IA leyó y el operador verifica. En pesos enteros (MoneyInput).
   const [incPesos, setIncPesos] = useState(() =>
-    centsToPesosDigits(Math.max(0, (extraction.invoiceIncCents ?? 0)
-      - extraction.lines.reduce((sum, l) => sum + (l.lineIncCents ?? 0), 0))),
+    centsToPesosDigits(unallocatedFooterConsumption(extraction)),
   );
   const [retefuentePesos, setRetefuentePesos] = useState(() =>
     centsToPesosDigits(extraction.retefuenteCents),
@@ -1603,11 +1457,105 @@ function InvoiceReviewSheet({
     () => invoiceGrandTotalCents(totals.subtotalCents, totals.taxCents, extras),
     [totals.subtotalCents, totals.taxCents, extras],
   );
+  // «Ajustes» / ajuste al peso impreso: una fila aparte del total a pagar,
+  // nunca repartida entre las líneas. Solo si es un redondeo.
+  const [adjustmentCents, setAdjustmentCents] = useState(() => {
+    const printed = extraction.invoiceAdjustmentCents;
+    return printed != null && Number.isSafeInteger(printed) && Math.abs(printed) <= ROUNDING_MAX_CENTS ? printed : 0;
+  });
+  const payableCents = grandTotalCents + adjustmentCents;
   // Concordancia con el total IMPRESO de la factura (si se leyó).
   const mismatch = useMemo(
-    () => !totalsMatch(grandTotalCents, extraction.invoiceTotalCents),
-    [grandTotalCents, extraction.invoiceTotalCents],
+    () => !totalsMatch(payableCents, extraction.invoiceTotalCents),
+    [payableCents, extraction.invoiceTotalCents],
   );
+
+  // Columnas de impuesto (por unidad / total de la línea / %): la lectura
+  // que dejó la conciliación y si el operador la cambió a mano. Cambiarla
+  // recalcula todas las líneas con la misma cuenta del servidor.
+  const reviewColumns = useMemo(() => reviewableTaxColumns(extraction.taxColumns), [extraction.taxColumns]);
+  const [columnScopes, setColumnScopes] = useState<Record<TaxColumnKey, TaxCellScope | null>>(() => ({
+    iva: extraction.taxColumns?.iva?.scope ?? null,
+    consumo: extraction.taxColumns?.consumo?.scope ?? null,
+  }));
+  const [manualColumns, setManualColumns] = useState<Record<TaxColumnKey, boolean>>({ iva: false, consumo: false });
+  // Encabezado impreso y lectura aplicada de cada columna, para la tabla.
+  const reviewLineColumns = useMemo(() => ({
+    iva: extraction.taxColumns?.iva ? { header: extraction.taxColumns.iva.header, scope: columnScopes.iva } : null,
+    consumo: extraction.taxColumns?.consumo ? { header: extraction.taxColumns.consumo.header, scope: columnScopes.consumo } : null,
+  }), [extraction.taxColumns, columnScopes]);
+
+  function changeColumnScope(key: TaxColumnKey, scope: TaxCellScope) {
+    const amounts = columnLineAmounts(extraction, key, scope);
+    // Re-detect whether each amount includes taxes, with the new consumption/IVA.
+    const reread = inferPurchaseInvoiceTaxBases({ ...extraction, lines: extraction.lines.map((line, index) => key === "consumo"
+      ? { ...line, lineIncCents: line.lineIncCell == null ? line.lineIncCents ?? null : amounts[index] ?? null,
+        lineIncAmbiguous: line.lineIncCell != null && amounts[index] == null }
+      : { ...line, lineTaxCents: line.lineTaxCell == null ? line.lineTaxCents ?? null : amounts[index] ?? null }) });
+    const nextLines = lines.map((line) => {
+      const index = line.sourceLineIndex;
+      const source = index == null ? undefined : extraction.lines[index];
+      if (index == null || !source) return line;
+      const amount = amounts[index];
+      const pesos = amount == null ? "" : String(amount / 100);
+      const changes: Partial<InvoiceReviewLine> = key === "consumo"
+        ? source.lineIncCell == null ? {} : { incAmount: pesos, incNeedsReview: amount == null }
+        : source.lineTaxCell == null ? {} : { taxAmount: pesos };
+      const initial = reread.lines[index] ? initialInvoicePrice(reread.lines[index]!) : null;
+      const basis = initial && !line.taxBasisManual && initial.amountKind === line.amountKind ? { taxBasis: initial.taxBasis } : {};
+      return { ...line, ...changes, ...basis };
+    });
+    setLines(nextLines);
+    setColumnScopes((previous) => ({ ...previous, [key]: scope }));
+    setManualColumns((previous) => ({ ...previous, [key]: true }));
+  }
+
+  // «Factura vs MESAPAY»: cada renglón del pie contra lo que se guardará.
+  const reconcile = useMemo(() => {
+    const printedRetentions = [extraction.retefuenteCents, extraction.reteIvaCents, extraction.reteIcaCents];
+    return invoiceReconcileRows({
+      subtotalCents: extraction.invoiceSubtotalCents,
+      discountCents: extraction.invoiceDiscountCents ?? null,
+      ivaCents: extraction.invoiceTaxCents,
+      incCents: extraction.invoiceIncCents,
+      retentionsCents: printedRetentions.some((v) => v != null)
+        ? printedRetentions.reduce<number>((sum, v) => sum + (v ?? 0), 0) : null,
+      adjustmentCents: extraction.invoiceAdjustmentCents ?? null,
+      totalCents: extraction.invoiceTotalCents,
+    }, {
+      listSubtotalCents: resolved.subtotalCents,
+      netSubtotalCents: resolved.netCents,
+      discountCents: resolved.discountCents,
+      ivaCents: resolved.taxCents,
+      incCents: extras.incCents,
+      retentionsCents: retentionsCents(extras),
+      adjustmentCents,
+      totalCents: payableCents,
+    });
+  }, [extraction, resolved, extras, adjustmentCents, payableCents]);
+  const suggestedRounding = suggestedRoundingCents(extraction.invoiceTotalCents, grandTotalCents);
+  const roundingSuggestion = resolved.complete && suggestedRounding != null && suggestedRounding !== adjustmentCents
+    ? suggestedRounding : null;
+  const reviewReasons = useMemo(() => {
+    const reasons: string[] = [];
+    if (reconcile.hasDifferences) reasons.push(t("invRecReasonDifferences"));
+    for (const key of ["consumo", "iva"] as const) {
+      const column = extraction.taxColumns?.[key];
+      if (column && taxColumnNeedsReview(column) && !manualColumns[key]) {
+        reasons.push(t("invRecReasonColumn", {
+          name: column.header?.trim() || t(key === "iva" ? "invRecColumnIva" : "invRecColumnConsumo"),
+        }));
+      }
+    }
+    const arithmetic = lines.filter((l) => l.arithmeticDiffCents != null && l.arithmeticDiffCents !== 0).length;
+    if (arithmetic > 0) reasons.push(t("invRecReasonLines", { count: arithmetic }));
+    return reasons;
+  }, [reconcile.hasDifferences, extraction.taxColumns, manualColumns, lines, t]);
+  const needsAck = reviewReasons.length > 0;
+  // The acknowledgement is for THESE differences: any new one asks again.
+  const ackKey = JSON.stringify([reconcile.rows.map((r) => [r.key, r.diffCents]), reviewReasons]);
+  const [ackedKey, setAckedKey] = useState<string | null>(null);
+  const acked = ackedKey === ackKey;
   // Descuentos: avisos, nunca recálculos silenciosos del IVA impreso.
   const taxBeforeDiscount = lines.some((l) => l.taxBeforeDiscount);
   const printedTaxCents = extraction.invoiceTaxCents;
@@ -1738,6 +1686,13 @@ function InvoiceReviewSheet({
     if (!busyRef.current) onClose();
   }
 
+  /** "allow" sólo en el reenvío de «Guardar de todas formas». */
+  function possibleDuplicate(): "check" | "allow" {
+    const allow = allowPossibleDuplicate.current;
+    allowPossibleDuplicate.current = false;
+    return allow ? "allow" : "check";
+  }
+
   // A lost response may hide a committed order. Recover that order before retrying.
   async function recoverConfirmedOrder(): Promise<boolean> {
     try {
@@ -1757,6 +1712,7 @@ function InvoiceReviewSheet({
   async function confirm() {
     if (busyRef.current || supplierMatchBusy || supplierMatchError) return;
     setErr(null);
+    setConflict(null);
     // Proveedor: existente o nombre nuevo.
     if (!supplier && (!creatingSupplier || !newSupplierName.trim())) {
       setErr(t("invReviewErrNoSupplier"));
@@ -1768,6 +1724,10 @@ function InvoiceReviewSheet({
     }
     if (unallocatedConsumption) {
       setErr(t("invLineUnallocatedConsumption"));
+      return;
+    }
+    if (needsAck && !acked) {
+      setErr(t("invRecAckRequired"));
       return;
     }
     // Validación por línea: insumo, cantidad y costo.
@@ -1853,12 +1813,15 @@ function InvoiceReviewSheet({
             lines: payloadLines,
             mode,
             supplierInvoiceNumber: invoiceNumber.trim() || null,
+            possibleDuplicate: possibleDuplicate(),
             invoiceDueAt:
               mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
             incCents: extras.incCents,
             retefuenteCents: extras.retefuenteCents,
             reteIvaCents: extras.reteIvaCents,
             reteIcaCents: extras.reteIcaCents,
+            roundingCents: adjustmentCents,
+            acknowledgedDifferences: needsAck && acked,
             ...(withDiscounts
               ? { discountPct: resolved.orderDiscount.pct, discountCents: resolved.orderDiscount.cents }
               : {}),
@@ -1868,6 +1831,11 @@ function InvoiceReviewSheet({
       const j = await r.json().catch(() => null);
       if (!r.ok) {
         if (j?.error === "not_pending" && await recoverConfirmedOrder()) return;
+        const dup = parseDuplicateConflict(j);
+        if (dup) {
+          setConflict(dup);
+          return;
+        }
         const key = API_CONFIRM_ERROR_KEYS[j?.error as string];
         setErr(key ? t(key) : t("errSaveFailed"));
         return;
@@ -1891,7 +1859,7 @@ function InvoiceReviewSheet({
         role="dialog"
         aria-modal="true"
         aria-label={t("invReviewTitle")}
-        className="w-full md:max-w-3xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
+        className="w-full md:max-w-3xl xl:max-w-[1360px] bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border px-5 pt-5 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <fieldset disabled={busy} className="min-w-0">
@@ -1916,7 +1884,7 @@ function InvoiceReviewSheet({
                 <iframe
                   src={fileUrl}
                   title={t("invReviewImageAlt")}
-                  className="w-full h-64 md:h-[70dvh]"
+                  className="w-full h-56 md:h-[min(56dvh,440px)]"
                 />
                 <a
                   href={fileUrl}
@@ -2067,39 +2035,48 @@ function InvoiceReviewSheet({
               </Field>
             </div>
 
-            {/* Líneas */}
-            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
-              {t("invReviewLinesSection")}
-            </div>
+            <InvoiceTaxColumns columns={reviewColumns} scopes={columnScopes} manual={manualColumns}
+              onChange={changeColumnScope} />
 
-            {lines.map((l) => (
-              <InvoiceReviewLineCard
-                key={l.key}
-                line={l}
-                currency={currency}
-                taxRates={taxRates}
-                ingredients={ingredients}
-                ingredientsError={ingredientsError}
-                onRetryIngredients={retryIngredients}
-                onChange={(changes) => updateLine(l.key, changes)}
-                onRemove={() => removeLine(l.key)}
-              />
-            ))}
+          </div>
+        </div>
 
-            <button
-              type="button"
-              onClick={addManualLine}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {t("invReviewAddLine")}
-            </button>
+        {/* Líneas: una fila por ítem (escritorio) o dos líneas (celular), con
+            la cabecera fija; lo secundario en «Detalles» de cada fila. */}
+        <div className="mt-4 space-y-2">
+          {/* Líneas */}
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
+            {t("invReviewLinesSection")}
+          </div>
 
-            {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
+          <InvoiceReviewLines
+            lines={lines}
+            currency={currency}
+            taxRates={taxRates}
+            ingredients={ingredients}
+            ingredientsError={ingredientsError}
+            onRetryIngredients={retryIngredients}
+            onChange={updateLine}
+            onRemove={removeLine}
+            columns={reviewLineColumns}
+          />
 
-            {/* Desglose recomputado en vivo, como el pie de la factura:
-                Subtotal / Descuento / IVA / INC / Retenciones / Total. El
-                descuento del total se prorratea entre las líneas igual que
-                en el servidor, así el IVA mostrado es el que se guarda. */}
+          <button
+            type="button"
+            onClick={addManualLine}
+            className="mp-btn mp-btn--secondary mp-btn--block"
+          >
+            {t("invReviewAddLine")}
+          </button>
+
+          {incompleteAmounts && <p role="status" className="text-xs text-terracotta">{t("invLineReviewAmounts")}</p>}
+
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3 mt-4 items-start">
+          <div className="space-y-3 min-w-0">
+            {/* Descuento del total: se prorratea entre las líneas igual que en
+                el servidor; los totales están en el pie fijo «Factura vs MESAPAY». */}
             <div className="rounded-xl bg-op-bg/50 border border-op-border overflow-hidden">
               <DiscountControl
                 id="inv-order-discount"
@@ -2114,15 +2091,6 @@ function InvoiceReviewSheet({
                 }}
                 hint={orderDiscFromInvoice ? t("invDiscOrderFromInvoice") : undefined}
                 className="px-3 py-2 border-b border-op-border"
-              />
-              <TaxBreakdown
-                lines={breakdownLines}
-                currency={currency}
-                totalLabel={t("invReviewTotalNote")}
-                incCents={extras.incCents}
-                retainedCents={retentionsCents(extras)}
-                discountCents={resolved.discountCents}
-                listSubtotalCents={resolved.subtotalCents}
               />
             </div>
 
@@ -2145,6 +2113,19 @@ function InvoiceReviewSheet({
               </div>
             )}
 
+            {extraction.notes?.trim() && (
+              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
+                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
+                  {t("invReviewNotesLabel")}
+                </div>
+                <div className="text-[11px] text-[#7F5A1F]">
+                  {extraction.notes}
+                </div>
+              </div>
+            )}
+
+          </div>
+          <div className="space-y-3 min-w-0">
             {/* Otros impuestos del documento (ERP A3): INC + retenciones. La IA
                 los prellena; el operador los verifica/corrige. INC suma,
                 retenciones restan al total a pagar. */}
@@ -2209,36 +2190,9 @@ function InvoiceReviewSheet({
               )}
               <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
                 <span>{t("invTaxGrandTotal")}</span>
-                <span>{formatMoney(grandTotalCents, { currency, locale })}</span>
+                <span>{formatMoney(payableCents, { currency, locale })}</span>
               </div>
             </div>
-
-            {/* Concordancia con el total impreso de la factura (no bloquea). */}
-            {mismatch && extraction.invoiceTotalCents != null && (
-              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
-                {t("invTotalMismatch", {
-                  computed: formatMoney(grandTotalCents, {
-                    currency,
-                    locale,
-                  }),
-                  printed: formatMoney(extraction.invoiceTotalCents, {
-                    currency,
-                    locale,
-                  }),
-                })}
-              </div>
-            )}
-
-            {extraction.notes?.trim() && (
-              <div className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3">
-                <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[#7F5A1F] mb-0.5">
-                  {t("invReviewNotesLabel")}
-                </div>
-                <div className="text-[11px] text-[#7F5A1F]">
-                  {extraction.notes}
-                </div>
-              </div>
-            )}
 
             {/* Switch borrador / recibir (D5) */}
             <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted pt-1">
@@ -2280,418 +2234,66 @@ function InvoiceReviewSheet({
           </div>
         </div>
 
-        {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {/* Pie fijo: «Factura vs MESAPAY» siempre a la vista mientras se
+            recorren las líneas, con la confirmación y los botones. Con
+            diferencias, guardar exige confirmarlo explícitamente. */}
+        <div className="sticky bottom-0 z-20 -mx-5 mt-4 px-5 pt-3 pb-4 bg-op-surface border-t border-op-border shadow-[0_-10px_18px_-14px_rgba(0,0,0,0.35)] space-y-2">
+          <InvoiceReconcileSummary
+            rows={reconcile.rows}
+            currency={currency}
+            reasons={reviewReasons}
+            needsAck={needsAck}
+            acked={acked}
+            onAck={(value) => setAckedKey(value ? ackKey : null)}
+            roundingSuggestion={roundingSuggestion}
+            onUseRounding={() => { if (roundingSuggestion != null) setAdjustmentCents(roundingSuggestion); }}
+            adjustmentCents={adjustmentCents}
+            onClearRounding={() => setAdjustmentCents(0)}
+          />
 
-        <div className="flex items-center justify-between gap-3 mt-4">
-          <button
-            type="button"
-            onClick={discard}
-            disabled={busy}
-            className="min-h-[44px] px-4 rounded-full text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
-          >
-            {t("invReviewDiscard")}
-          </button>
-          <div className="flex items-center gap-3">
+          {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+          {duplicate && (
+            <DuplicateDocumentAlert
+              code={duplicate.code}
+              existing={duplicate.existing}
+              currency={currency}
+              busy={busy}
+              onConfirm={() => {
+                allowPossibleDuplicate.current = true;
+                void confirm();
+              }}
+            />
+          )}
+
+          <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={closeReview}
-              className="mp-btn mp-btn--secondary"
+              onClick={discard}
+              disabled={busy}
+              className="min-h-[44px] px-4 rounded-full text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-40"
             >
-              {t("cancel")}
+              {t("invReviewDiscard")}
             </button>
-            <button
-              type="button"
-              onClick={confirm}
-              disabled={busy || supplierMatchBusy || supplierMatchError}
-              className="mp-btn mp-btn--primary"
-            >
-              {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={closeReview}
+                className="mp-btn mp-btn--secondary"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={busy || supplierMatchBusy || supplierMatchError}
+                className="mp-btn mp-btn--primary"
+              >
+                {busy ? t("invReviewConfirming") : t("invReviewConfirm")}
+              </button>
+            </div>
           </div>
         </div>
         </fieldset>
-      </div>
-    </div>
-  );
-}
-
-/** Tarjeta editable de una línea de la factura en revisión. */
-function InvoiceReviewLineCard({
-  line: l,
-  currency,
-  taxRates,
-  ingredients,
-  ingredientsError,
-  onRetryIngredients,
-  onChange,
-  onRemove,
-}: {
-  line: InvoiceReviewLine;
-  currency: string;
-  taxRates: number[];
-  ingredients: IngredientRef[] | null;
-  ingredientsError: boolean;
-  onRetryIngredients: () => void;
-  onChange: (changes: Partial<InvoiceReviewLine>) => void;
-  onRemove: () => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-  const [ingQ, setIngQ] = useState("");
-  const [picking, setPicking] = useState(false);
-
-  const ingMatches = useMemo(() => {
-    const needle = fold(ingQ.trim());
-    return (ingredients ?? [])
-      .filter((i) => !needle || fold(i.name).includes(needle))
-      .slice(0, 8);
-  }, [ingredients, ingQ]);
-
-  const qtyBase = reviewLineQtyBase(l);
-  const amounts = reviewLineAmounts(l);
-  const discountDetail = reviewLineDiscountDetail(l, amounts);
-  const priceQuantity = reviewPriceQuantity(l);
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
-  const readQtyStr = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 3,
-  }).format(l.readQty);
-
-  return (
-    <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
-      <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
-          {/* Insumo: existente o crear nuevo */}
-          {l.ingredientId ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium truncate">
-                {l.ingredientName}
-              </span>
-              <span className="font-mono text-[10px] text-op-muted">
-                {unitSymbols(l.measureKind)}
-              </span>
-            </div>
-          ) : (
-            <div className="text-[11px] font-medium text-op-muted">
-              {l.ingredientName
-                ? t("invReviewCreateIngredient", { name: l.ingredientName })
-                : t("invReviewNewIngredientName")}
-            </div>
-          )}
-        </div>
-        <MatchStatusChip existing={l.ingredientId != null} />
-        {l.lowConfidence && (
-          <span className="px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 bg-[#C98A2E]/15 text-[#7F5A1F]">
-            {t("invReviewLowConfidence")}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={onRemove}
-          className="min-h-[36px] px-2 rounded-full text-[11px] font-medium text-danger hover:bg-danger/10 shrink-0"
-        >
-          {t("invReviewRemoveLine")}
-        </button>
-      </div>
-
-      {l.sourceDescription && (
-        <p className="text-xs text-op-muted break-words">{t("invAliasSource", { name: l.sourceDescription })}</p>
-      )}
-      {l.matchSource === "alias" && (
-        <p className="text-xs text-[#2E7D32]" role="status">{t("invAliasSaved")}</p>
-      )}
-      {l.aliasUnavailable && (
-        <p className="text-xs text-danger" role="alert">{t("invAliasUnavailable")}</p>
-      )}
-
-      {/* Selector de insumo existente / nombre + measureKind del nuevo */}
-      {picking ? (
-        <div>
-          <input
-            type="search"
-            value={ingQ}
-            onChange={(e) => setIngQ(e.target.value)}
-            placeholder={t("ingredientSearchPlaceholder")}
-            aria-label={t("ingredientSearchPlaceholder")}
-            disabled={ingredients === null}
-            className={inputCls}
-          />
-          <div className="mt-1 rounded-lg border border-op-border bg-op-surface overflow-hidden max-h-40 overflow-y-auto">
-            {ingredientsError ? (
-              <div role="alert" className="px-3 py-2 text-xs text-danger">
-                {t("invAliasIngredientsError")}
-                <button type="button" className="mp-btn mp-btn--secondary mp-btn--sm mt-2" onClick={onRetryIngredients}>{t("invAliasRetry")}</button>
-              </div>
-            ) : ingredients === null ? (
-              <p role="status" className="px-3 py-2 text-xs text-op-muted">{t("loading")}</p>
-            ) : ingMatches.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-op-muted">
-                {t("noIngredientMatches")}
-              </div>
-            ) : (
-              ingMatches.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(chooseInvoiceIngredient(l, i));
-                    setPicking(false);
-                    setIngQ("");
-                  }}
-                  className="w-full min-h-[40px] px-3 py-1.5 text-left text-sm hover:bg-op-bg border-b border-op-border last:border-b-0"
-                >
-                  <span>{i.name}</span>
-                  <span className="font-mono text-[10px] text-op-muted ml-2">
-                    {unitSymbols(i.measureKind)}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPicking(false);
-              setIngQ("");
-            }}
-            className="text-[11px] font-medium text-op-muted hover:text-ink mt-1"
-          >
-            {t("cancel")}
-          </button>
-        </div>
-      ) : l.ingredientId ? (
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="text-[11px] font-medium text-op-muted hover:text-ink"
-          >
-            {t("invReviewChangeIngredient")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange(chooseInvoiceIngredient(l, { id: null, name: "", measureKind: l.measureKind }))}
-            className="text-[11px] font-medium text-op-muted hover:text-ink"
-          >
-            {t("invReviewCreateNewIngredient")}
-          </button>
-        </div>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => setPicking(true)}
-            className="mp-btn mp-btn--secondary mp-btn--block"
-          >
-            {t("invReviewUseExistingIngredient")}
-          </button>
-          <Field label={t("invReviewNewIngredientName")} required>
-            <input
-              type="text"
-              value={l.ingredientName}
-              onChange={(e) => onChange({ ingredientName: e.target.value, manuallySelected: true, aliasUnavailable: false })}
-              maxLength={120}
-              className={inputCls}
-            />
-          </Field>
-          <Field label={t("invReviewMeasureKind")}>
-            <select
-              value={l.measureKind}
-              onChange={(e) => {
-                const kind = e.target.value as MeasureKind;
-                onChange(chooseInvoiceIngredient(l, { id: null, name: l.ingredientName, measureKind: kind }));
-              }}
-              className={inputCls}
-            >
-              <option value="mass">{t("invReviewMeasureMass")}</option>
-              <option value="volume">{t("invReviewMeasureVolume")}</option>
-              <option value="count">{t("invReviewMeasureCount")}</option>
-            </select>
-          </Field>
-        </>
-      )}
-
-      {l.ingredientId && l.sourceLineIndex != null && l.matchSource !== "alias" && (
-        <label className="flex items-start gap-2 rounded-xl border border-op-border bg-op-surface p-3 text-xs leading-relaxed">
-          <input type="checkbox" aria-label={t("invAliasRemember")} className="mt-0.5 h-4 w-4 shrink-0 accent-ink" checked={l.rememberMatch === true}
-            onChange={e => onChange({ rememberMatch: e.target.checked, ...(e.target.checked ? { manuallySelected: true } : {}) })} />
-          <span>{t("invAliasRemember")}<span className="block text-op-muted mt-1">{t("invAliasRememberHint")}</span></span>
-        </label>
-      )}
-
-      {/* Cantidad: por presentación (si hay sugerencia) o directa */}
-      {l.suggestedPresentation && (
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ["presentation", t("invReviewQtyModePresentation")],
-              ["direct", t("invReviewQtyModeDirect")],
-            ] as ["presentation" | "direct", string][]
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onChange({ qtyMode: value })}
-              className={
-                "min-h-[40px] px-2 rounded-xl border text-xs font-medium transition-colors " +
-                (l.qtyMode === value
-                  ? "border-ink bg-ink text-bone"
-                  : "border-op-border bg-op-bg hover:bg-op-surface")
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {l.qtyMode === "presentation" && l.suggestedPresentation ? (
-        <Field
-          label={t("invReviewPresentationLabel", {
-            label: l.suggestedPresentation.presentationLabel,
-            qty: formatBaseQty(
-              l.suggestedPresentation.contentQty,
-              l.measureKind,
-              locale,
-            ),
-          })}
-          required
-        >
-          <input
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={l.presentations}
-            onChange={(e) => onChange({ presentations: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-      ) : (
-        <Field label={t("fieldQty")} required>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={l.qty}
-              onChange={(e) => onChange({ qty: sanitizeDecimalInput(e.target.value) })}
-              className={inputCls + " flex-1 min-w-0"}
-            />
-            <select
-              value={l.unit}
-              onChange={(e) => onChange({ unit: e.target.value })}
-              disabled={DISPLAY_UNITS[l.measureKind].length < 2}
-              className="min-h-[44px] w-16 px-2 rounded-lg border border-op-border bg-op-bg text-sm disabled:opacity-40"
-            >
-              {DISPLAY_UNITS[l.measureKind].map((u) => (
-                <option key={u.symbol} value={u.symbol}>
-                  {u.symbol}
-                </option>
-              ))}
-            </select>
-          </div>
-        </Field>
-      )}
-
-      <div className="grid grid-cols-1 gap-2">
-        <Field label={t("invLineAmountKind")}>
-          <select className={inputCls} value={l.amountKind} aria-label={t("invLineAmountKind")}
-            onChange={e => onChange({ amountKind: e.target.value as InvoiceReviewLine["amountKind"] })}>
-            <option value="line">{t("invLineAmount")}</option>
-            <option value="unit">{t("invUnitAmount")}</option>
-          </select>
-        </Field>
-      </div>
-      <div className="flex gap-2">
-        <div className="flex-1 min-w-0">
-          <Field label={`${t(l.amountKind === "line" ? "invLineAmount" : "invUnitAmount")} (${currency})`} required>
-            <MoneyInput
-              value={l.cost}
-              fractionDigits={2}
-              onChange={(d) => onChange({ cost: d })}
-              className={inputCls}
-            />
-          </Field>
-        </div>
-        <div className="shrink-0">
-          <Field label={t("fieldTaxPct")}>
-            <select className={`${inputCls} w-24`} value={l.taxPct ?? ""} aria-label={t("fieldTaxPct")}
-              onChange={e => onChange({ taxPct: e.target.value === "" ? null : normalizeTaxPct(e.target.value) })}>
-              <option value="">{t("invLineChooseRate")}</option>
-              {[...new Set([...taxRates, ...(l.taxPct == null ? [] : [l.taxPct])])].sort((a, b) => a - b).map(pct =>
-                <option key={pct} value={pct}>{t("taxPctOption", { pct })}</option>)}
-            </select>
-          </Field>
-        </div>
-      </div>
-
-      <p className="text-[11px] text-op-muted">{t(l.amountKind === "line" ? "invLineTotalHint" : "invLineUnitHint")}</p>
-      {/* Descuento de la línea: mismo control que en la orden de compra. Se
-          aplica sobre el importe de arriba; el IVA automático va sobre la
-          base ya descontada. */}
-      <div className="rounded-xl border border-op-border bg-op-surface px-3 py-2">
-        <DiscountControl
-          id={`inv-line-discount-${l.key}`}
-          label={t("invDiscLineLabel")}
-          raw={l.discRaw ?? ""}
-          isPct={l.discIsPct ?? true}
-          currency={currency}
-          onChange={(discRaw, discIsPct) => onChange({ discRaw, discIsPct })}
-        />
-        <p className="mt-1 text-[10px] text-op-muted">
-          {t(l.taxBasis === "gross" ? "invDiscLineHintGross" : "invDiscLineHint")}
-        </p>
-        {l.discountFromInvoice && (
-          <p className="mt-1 text-[11px] text-[#2E7D32]" role="status">{t("invDiscLineFromInvoice")}</p>
-        )}
-        {l.discountUnmatched && (
-          <p className="mt-1 text-[11px] text-terracotta" role="status">{t("invDiscLineUnmatched")}</p>
-        )}
-      </div>
-      <InvoiceLineTaxToggle basis={l.taxBasis} manual={l.taxBasisManual}
-        onChange={included => onChange(setReviewTaxIncluded(l, included))} />
-      <div className="grid grid-cols-2 gap-2">
-        <Field label={t("invLineIncAmount")}>
-          <MoneyInput value={l.incAmount} fractionDigits={2} placeholder="0"
-            onChange={incAmount => onChange({ incAmount })} className={inputCls} />
-        </Field>
-        <Field label={t("invLineVatAmount")}>
-          <MoneyInput value={l.taxAmount} fractionDigits={2} placeholder={t("invLineAutomatic")}
-            onChange={taxAmount => onChange({ taxAmount })} className={inputCls} />
-        </Field>
-      </div>
-      {(l.taxBasis === "unknown" || l.taxPct == null || (l.incNeedsReview && !l.incAmount.trim())) &&
-        <p className="text-[11px] text-terracotta">{t("invLineUnknownHint")}</p>}
-      {l.taxBeforeDiscount && <p className="text-[11px] text-[#7F5A1F]" role="status">{t("invDiscLineTaxBeforeDiscount")}</p>}
-      {amounts && <div className="border-t border-op-border pt-2 space-y-1 text-[11px] tabular-nums" data-testid="invoice-line-amounts">
-        {discountDetail && discountDetail.shownDiscountCents > 0 && <>
-          <div className="flex justify-between gap-2 text-op-muted"><span>{t("invDiscLineList")}</span><span>{money(discountDetail.shownListCents)}</span></div>
-          <div className="flex justify-between gap-2 text-op-muted"><span>{t("discountLabel")}</span><span className="text-ok">{`− ${money(discountDetail.shownDiscountCents)}`}</span></div>
-        </>}
-        <div className="flex justify-between gap-2 text-op-muted"><span>{t("invLineNetAmount")}</span><span>{money(amounts.netCents)}</span></div>
-        <div className="flex justify-between gap-2 text-op-muted"><span>{t("taxLabel")}</span><span>{money(amounts.taxCents)}</span></div>
-        {amounts.incCents > 0 && <div className="flex justify-between gap-2 text-op-muted"><span>{t("invTaxInc")}</span><span>{money(amounts.incCents)}</span></div>}
-        <div className="flex justify-between gap-2 text-sm font-medium"><span>{t("invLineFinalAmount")}</span><span>{money(amounts.totalCents)}</span></div>
-        {priceQuantity > 0 && <p className="text-op-muted">{t("invLineUnitFinal", { amount: money(Math.round(amounts.totalCents / priceQuantity)), unit: l.qtyMode === "presentation" && l.suggestedPresentation ? l.suggestedPresentation.presentationLabel : l.unit })}</p>}
-      </div>}
-      {l.amountLabel && <p className="text-[10px] text-op-muted">{t("invLineSourceLabel", { label: l.amountLabel })}</p>}
-
-      {/* Pista de lo leído + cantidad base resultante */}
-      <div className="text-[10px] text-op-muted">
-        {[
-          l.readQty > 0
-            ? l.readUnit
-              ? t("invReviewReadUnitHint", {
-                  qty: readQtyStr,
-                  unit: l.readUnit,
-                })
-              : t("invReviewReadUnitHintNoUnit", { qty: readQtyStr })
-            : null,
-          qtyBase != null
-            ? formatBaseQty(qtyBase, l.measureKind, locale)
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
       </div>
     </div>
   );
@@ -2907,6 +2509,7 @@ function OrderDetailSheet({
       + (printTotals.retentionsCents > 0
         ? detailRetentionRows.map((r) => totalRow(r.label, -r.cents)).join("")
         : "")
+      + (printTotals.roundingCents !== 0 ? totalRow(t("invRecAdjustment"), printTotals.roundingCents) : "")
       + totalRow(t("orderTotalLabel"), printTotals.totalCents);
     const meta = [
       `${t("fieldSupplier")}: ${order.supplier.name}`,
@@ -3157,6 +2760,7 @@ function OrderDetailSheet({
                 totalLabel={t("orderTotalLabel")}
                 incCents={detailTotals.incCents}
                 retainedCents={detailTotals.retentionsCents}
+                roundingCents={detailTotals.roundingCents}
                 retentionRows={detailRetentionRows}
                 discountCents={detailDiscount?.discountCents}
                 listSubtotalCents={detailDiscount?.listSubtotalCents}
@@ -3679,6 +3283,8 @@ function ReceiveSheet({
       incCents: after.incCents - before.incCents,
       // Las de una factura importada como borrador, según el avance.
       retentionsCents: after.retentionsCents - before.retentionsCents,
+      // Ajuste al peso de esa factura: también según el avance.
+      roundingCents: after.roundingCents - before.roundingCents,
     };
   }, [reception, order]);
   // Retenciones de la factura de ESTA entrega, sobre lo que llega en ella.
@@ -3955,6 +3561,7 @@ function ReceiveSheet({
                     listSubtotalCents={reception.subtotalCents}
                     incCents={receptionTotals.incCents}
                     retainedCents={receptionTotals.retentionsCents + retainedNow}
+                    roundingCents={receptionTotals.roundingCents}
                     retentionRows={receptionTotals.retentionsCents === 0 ? retentionRows(retentions.totals) : undefined}
                   />
                 </div>
@@ -3984,291 +3591,6 @@ function ReceiveSheet({
         </div>
       </div>
     </div>
-  );
-}
-
-/* ───────────────────────── Por pagar (CxP, D5) ─────────────────────── */
-
-/** Total recibido de la OC (bruto: neto + IVA del acumulado por línea). */
-function receivedTotal(o: OrderSummary): number {
-  return purchaseOrderTotals(o, "received").totalCents;
-}
-
-/** Saldo pendiente de la OC = total bruto recibido − abonado. */
-function outstandingOf(o: OrderSummary): number {
-  return receivedTotal(o) - o.paidCents;
-}
-
-// Estado de pago de la CxP (por abonos): pagada / parcial / vencida / pendiente.
-type PayStatus = "paid" | "partial" | "overdue" | "pending";
-
-/** Deriva el estado de pago de una OC. `now`=0 (sin fetch aún) ⇒ nunca vencida. */
-function payStatus(o: OrderSummary, now: number): PayStatus {
-  const outstanding = outstandingOf(o);
-  if (outstanding <= 0) return "paid";
-  const overdue =
-    o.invoiceDueAt != null && now > 0 && new Date(o.invoiceDueAt).getTime() < now;
-  if (overdue) return "overdue";
-  if (o.paidCents > 0) return "partial";
-  return "pending";
-}
-
-const PAY_STATUS_KEYS: Record<PayStatus, string> = {
-  paid: "payStatusPaid",
-  partial: "payStatusPartial",
-  overdue: "payStatusOverdue",
-  pending: "payStatusPending",
-};
-
-// Colores por estado de pago — mismos tokens del archivo: ok (pagada), ámbar
-// (parcial), danger (vencida), neutro (pendiente).
-const PAY_STATUS_CLS: Record<PayStatus, string> = {
-  paid: "bg-ok/10 text-ok",
-  partial: "bg-[#C98A2E]/15 text-[#7F5A1F]",
-  overdue: "bg-danger/10 text-danger",
-  pending: "bg-paper text-op-muted",
-};
-
-function PayStatusChip({ status }: { status: PayStatus }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        PAY_STATUS_CLS[status]
-      }
-    >
-      {t(PAY_STATUS_KEYS[status])}
-    </span>
-  );
-}
-
-function UnpaidTab({
-  currency,
-  onOpenDetail,
-}: {
-  currency: string;
-  onOpenDetail: (id: string) => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-
-  const [rows, setRows] = useState<OrderSummary[] | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [listErr, setListErr] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [payFor, setPayFor] = useState<OrderSummary | null>(null);
-  const [invoiceFor, setInvoiceFor] = useState<OrderSummary | null>(null);
-  // "Ahora" congelado al momento del fetch (regla de pureza del render):
-  // suficiente para resaltar vencidas — el corte es por día, no por segundo.
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    if (rows !== null || listErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/operator/purchase-orders?unpaid=1");
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (cancelled) return;
-        setRows((j.orders ?? []) as OrderSummary[]);
-        setNextCursor(j.nextCursor ?? null);
-        setNow(Date.now());
-      } catch {
-        if (!cancelled) setListErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [rows, listErr]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const r = await fetch(
-        `/api/operator/purchase-orders?unpaid=1&cursor=${encodeURIComponent(nextCursor)}`,
-      );
-      if (!r.ok) throw new Error("load_failed");
-      const j = await r.json();
-      setRows((prev) => [
-        ...(prev ?? []),
-        ...((j.orders ?? []) as OrderSummary[]),
-      ]);
-      setNextCursor(j.nextCursor ?? null);
-    } catch {
-      setListErr(true);
-    }
-    setLoadingMore(false);
-  }
-
-  // Refrescar la lista desde cero (tras registrar/borrar un abono): un pago
-  // total saca la OC de "por pagar"; uno parcial actualiza saldo/estado.
-  function reload() {
-    setRows(null);
-    setNextCursor(null);
-    setListErr(false);
-  }
-
-  // Total por pagar = suma de los SALDOS pendientes (no del bruto total).
-  const totalDue = (rows ?? []).reduce((sum, o) => sum + outstandingOf(o), 0);
-
-  return (
-    <>
-      {listErr ? (
-        <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-      ) : rows === null ? (
-        <div className="py-6 text-center text-sm text-op-muted">
-          {t("loading")}
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-          {t(nextCursor ? "unpaidMoreCandidates" : "unpaidEmpty")}
-        </div>
-      ) : (
-        <>
-          <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 bg-op-bg/50 border-b border-op-border">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("unpaidTotalLabel")}
-              </span>
-              <span className="text-sm font-medium tabular-nums">
-                {formatMoney(totalDue, { currency, locale })}
-              </span>
-            </div>
-            {rows.map((o) => {
-              const status = payStatus(o, now);
-              const overdue = status === "overdue";
-              const totals = purchaseOrderTotals(o, "received");
-              const total = totals.totalCents;
-              const outstanding = total - o.paidCents;
-              return (
-                <div
-                  key={o.id}
-                  className="px-4 py-2.5 border-b border-op-border last:border-b-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetail(o.id)}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium shrink-0">
-                          {t("poNumber", { number: padNumber(o.number) })}
-                        </span>
-                        <span className="text-sm text-op-muted truncate">
-                          {o.supplier.name}
-                        </span>
-                        <PayStatusChip status={status} />
-                      </div>
-                      <div className="text-[11px] mt-0.5 truncate">
-                        <span className="text-op-muted">
-                          {o.supplierInvoiceNumber
-                            ? t("invoiceLabel", {
-                                number: o.supplierInvoiceNumber,
-                              })
-                            : t("noInvoiceNumber")}
-                        </span>
-                        {o.invoiceDueAt != null && (
-                          <span
-                            className={
-                              overdue
-                                ? "text-danger font-medium"
-                                : "text-op-muted"
-                            }
-                          >
-                            {" · "}
-                            {t("dueLabel", {
-                              date: formatDate(o.invoiceDueAt, {
-                                locale,
-                                timeStyle: undefined,
-                              }),
-                            })}
-                            {overdue && ` · ${t("overdueLabel")}`}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-medium tabular-nums">
-                        {formatMoney(outstanding, { currency, locale })}
-                      </div>
-                      <div className="text-[10px] text-op-muted tabular-nums mt-0.5">
-                        {t("cxpTotalPaid", {
-                          total: formatMoney(total, { currency, locale }),
-                          paid: formatMoney(o.paidCents, { currency, locale }),
-                        })}
-                      </div>
-                      {totals.retentionsCents > 0 && (
-                        <div className="text-[10px] text-op-muted tabular-nums mt-0.5">
-                          {t("poUnpaidRetained", { amount: formatMoney(totals.retentionsCents, { currency, locale }) })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setInvoiceFor(o)}
-                      className="min-h-[36px] px-3 rounded-full text-[11px] font-medium text-op-muted hover:text-ink"
-                    >
-                      {t("editInvoice")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPayFor(o)}
-                      className="mp-btn mp-btn--sm mp-btn--secondary"
-                    >
-                      {t("registerPayment")}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-      {!listErr && rows !== null && nextCursor && (
-        <button
-          type="button"
-          onClick={loadMore}
-          disabled={loadingMore}
-          className="mp-btn mp-btn--secondary mp-btn--block"
-        >
-          {loadingMore ? t("loading") : t("loadMore")}
-        </button>
-      )}
-
-      {payFor && (
-        <RegisterPaymentSheet
-          order={payFor}
-          currency={currency}
-          onClose={() => setPayFor(null)}
-          onDone={() => {
-            setPayFor(null);
-            reload();
-          }}
-        />
-      )}
-
-      {invoiceFor && (
-        <InvoiceSheet
-          order={invoiceFor}
-          onClose={() => setInvoiceFor(null)}
-          onSaved={(updated) => {
-            setInvoiceFor(null);
-            setRows((prev) =>
-              (prev ?? []).map((r) =>
-                r.id === updated.id ? { ...r, ...updated } : r,
-              ),
-            );
-          }}
-        />
-      )}
-    </>
   );
 }
 
@@ -4503,7 +3825,7 @@ function RegisterPaymentSheet({
   onClose,
   onDone,
 }: {
-  order: OrderSummary;
+  order: PayableRef;
   currency: string;
   onClose: () => void;
   onDone: () => void;
@@ -4539,7 +3861,7 @@ function RegisterPaymentSheet({
 
         <PaymentForm
           orderId={order.id}
-          totalCents={receivedTotal(order)}
+          totalCents={order.receivedTotalCents}
           paidCents={order.paidCents}
           currency={currency}
           onDone={onDone}
@@ -4552,12 +3874,14 @@ function RegisterPaymentSheet({
 /** Nº de factura + vencimiento (PATCH update_invoice). */
 function InvoiceSheet({
   order,
+  currency,
   onClose,
   onSaved,
 }: {
-  order: OrderSummary;
+  order: PayableRef;
+  currency: string;
   onClose: () => void;
-  onSaved: (updated: Partial<OrderSummary> & { id: string }) => void;
+  onSaved: () => void;
 }) {
   const t = useTranslations("opErp");
   const [invoiceNumber, setInvoiceNumber] = useState(
@@ -4570,9 +3894,19 @@ function InvoiceSheet({
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Ese número ya es otra factura registrada del proveedor: aviso mientras
+  // se digita y el 409 del servidor al guardar (que lo bloquea).
+  const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
+  const earlyDuplicate = useDuplicateDocumentCheck({
+    supplierId: order.supplier.id,
+    number: invoiceNumber,
+    excludePurchaseId: order.id,
+  });
+  const duplicate = conflict ?? (earlyDuplicate ? { code: "early" as const, existing: earlyDuplicate } : null);
 
   async function submit() {
     setErr(null);
+    setConflict(null);
     setBusy(true);
     const r = await fetch(`/api/operator/purchase-orders/${order.id}`, {
       method: "PATCH",
@@ -4585,11 +3919,12 @@ function InvoiceSheet({
     });
     setBusy(false);
     if (!r.ok) {
-      setErr(t("errSaveFailed"));
+      const dup = parseDuplicateConflict(await r.json().catch(() => null));
+      if (dup) setConflict(dup);
+      else setErr(t("errSaveFailed"));
       return;
     }
-    const j = await r.json();
-    onSaved(j.order as Partial<OrderSummary> & { id: string });
+    onSaved();
   }
 
   return (
@@ -4640,6 +3975,11 @@ function InvoiceSheet({
         </div>
 
         {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {duplicate && (
+          <div className="mt-3">
+            <DuplicateDocumentAlert code={duplicate.code} existing={duplicate.existing} currency={currency} />
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-3 mt-4">
           <button

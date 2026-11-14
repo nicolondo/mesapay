@@ -43,6 +43,8 @@ export type WaiterRow = {
   name: string | null;
   netCents: number;
   orders: number;
+  /** Venta neta de las cuentas contadas, enteras (base del ticket). */
+  accountNetCents: number;
   diners: number;
   /** null = no aplica (filtro por producto o categoría). */
   tipCents: number | null;
@@ -58,7 +60,14 @@ export type MethodRow = {
   orders: number;
 };
 
-export type ChannelRow = { channel: Channel; netCents: number; orders: number; diners: number };
+export type ChannelRow = {
+  channel: Channel;
+  netCents: number;
+  orders: number;
+  diners: number;
+  /** Venta neta de las cuentas contadas, enteras (base del ticket). */
+  accountNetCents: number;
+};
 
 export type TableRow = {
   tableId: string;
@@ -67,11 +76,15 @@ export type TableRow = {
   netCents: number;
   orders: number;
   diners: number;
+  /** Venta neta de las cuentas contadas, enteras (base del ticket). */
+  accountNetCents: number;
 };
 
 export type OrderListRow = {
   id: string;
   shortCode: string;
+  /** Apertura: primera ronda viva (o la orden montada o creada). */
+  openedAt: Date;
   paidAt: Date;
   channel: Channel;
   tableNumber: number;

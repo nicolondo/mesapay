@@ -31,6 +31,20 @@ export const SALES_EXPORT_PATH = "/api/operator/reports/ventas/export";
 export const DEFAULT_PERIOD: PeriodPreset = "30d";
 export const DEFAULT_COMPARE: CompareMode = "anterior";
 
+/**
+ * Eje de tiempo del análisis (`?tiempo=`):
+ *  · `pedido` (por defecto): cada línea vendida cuenta en el día operativo y
+ *    la hora en que se montó SU ronda (`Round.placedAt`), y cada cuenta
+ *    (cuentas, comensales, ticket, propinas, pagos) en los de su primera
+ *    ronda viva —su apertura—.
+ *  · `pago`: la cuenta entera cuenta en el día y la hora de su pago, como el
+ *    cierre de caja y la contabilidad.
+ * En los dos entran las mismas ventas (cuentas pagadas): sólo cambia cuándo.
+ */
+export const TIME_AXES = ["pedido", "pago"] as const;
+export type TimeAxis = (typeof TIME_AXES)[number];
+export const DEFAULT_TIME_AXIS: TimeAxis = "pedido";
+
 /** Canal de la cuenta: salón (o mostrador), para llevar, o factura manual. */
 export const CHANNELS = ["salon", "llevar", "manual"] as const;
 export type Channel = (typeof CHANNELS)[number];
@@ -85,9 +99,9 @@ export type DimensionFilters = {
   producto?: string;
   pago?: ReportingMethod;
   mesa?: string;
-  /** Día de la semana ISO del día operativo: 1 = lunes … 7 = domingo. */
+  /** Día de la semana ISO del día operativo (del eje elegido): 1 = lunes … 7 = domingo. */
   dia?: number;
-  /** Hora del reloj (Bogotá) del pago, 0–23. */
+  /** Hora del reloj (Bogotá) del eje elegido (pedido o pago), 0–23. */
   hora?: number;
 };
 
@@ -100,6 +114,8 @@ export type SalesFilters = {
   origen: string | null;
   compare: CompareMode;
   granularity: Granularity | "auto";
+  /** Eje de tiempo: hora del pedido (por defecto) u hora del pago. */
+  axis: TimeAxis;
   dims: DimensionFilters;
   /** Orden en que se aplicaron los filtros de dimensión. */
   dimOrder: Dimension[];
@@ -212,6 +228,8 @@ export function parseSalesFilters(input: SearchInput): SalesFilters {
   const granularity = (GRANULARITIES as readonly string[]).includes(rawGran ?? "")
     ? (rawGran as Granularity)
     : "auto";
+  const rawAxis = get("tiempo");
+  const axis = (TIME_AXES as readonly string[]).includes(rawAxis ?? "") ? (rawAxis as TimeAxis) : DEFAULT_TIME_AXIS;
 
   const dims: DimensionFilters = {};
   const dimOrder: Dimension[] = [];
@@ -227,7 +245,7 @@ export function parseSalesFilters(input: SearchInput): SalesFilters {
   const origenToken = get("origen");
   const origen = period === "rango" && parsePeriodToken(origenToken) ? origenToken! : null;
 
-  return { period, desde, hasta, origen, compare, granularity, dims, dimOrder };
+  return { period, desde, hasta, origen, compare, granularity, axis, dims, dimOrder };
 }
 
 /** URL canónica: omite los valores por defecto y respeta el orden de los filtros. */
@@ -243,6 +261,7 @@ export function salesFiltersToSearchParams(f: SalesFilters): URLSearchParams {
   }
   if (f.compare !== DEFAULT_COMPARE) sp.set("comparar", f.compare);
   if (f.granularity !== "auto") sp.set("agrupar", f.granularity);
+  if (f.axis !== DEFAULT_TIME_AXIS) sp.set("tiempo", f.axis);
   const order = [...f.dimOrder, ...DIMENSIONS.filter((d) => !f.dimOrder.includes(d))];
   for (const d of order) {
     const v = f.dims[d];
@@ -324,7 +343,9 @@ export type Crumb = { kind: "root" | "period" | Dimension; href: string; current
 export function breadcrumbs(f: SalesFilters): Crumb[] {
   const crumbs: Crumb[] = [];
   const base: SalesFilters = { ...f, dims: {}, dimOrder: [] };
-  crumbs.push({ kind: "root", href: SALES_ANALYSIS_PATH, current: false });
+  // La raíz olvida período y filtros, pero no el eje de tiempo elegido.
+  const root = f.axis === DEFAULT_TIME_AXIS ? SALES_ANALYSIS_PATH : `${SALES_ANALYSIS_PATH}?tiempo=${f.axis}`;
+  crumbs.push({ kind: "root", href: root, current: false });
   const origin = backToOrigin(base);
   if (origin) crumbs.push({ kind: "period", href: salesHref(origin), current: false });
   crumbs.push({ kind: "period", href: salesHref(base), current: false });

@@ -9,11 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   link: vi.fn(),
   grant: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/db", () => ({ db: { paymentLink: { findUnique: m.link } } }));
 vi.mock("@/lib/guestAccess", () => ({ grantGuestAccess: m.grant }));
+vi.mock("@/lib/manualInvoiceReceivable", () => ({ refreshReceivablePayLink: m.refresh }));
 
 import { GET } from "./route";
 
@@ -40,7 +42,26 @@ describe("GET /r/[slug]/cuenta/[token]", () => {
     expect(m.grant).toHaveBeenCalledWith({ restaurantId: "r1", orderId: "o1" });
     expect(m.grant.mock.calls[0][0]).not.toHaveProperty("tableId");
     expect(res.status).toBe(307);
-    expect(res.headers.get("Location")).toBe("/t/son-y-melona/pay/o1");
+    // `l=1`: la página marca "abierto" desde el navegador.
+    expect(res.headers.get("Location")).toBe("/t/son-y-melona/pay/o1?l=1");
+  });
+
+  it("factura emitida por cobrar: a la página de monto fijo del MISMO token, sin cookie de la orden", async () => {
+    m.link.mockResolvedValue({ ...openLink, creditPaymentId: "pay-credit", order: { ...openLink.order, status: "paid" } });
+    m.refresh.mockResolvedValue({ state: "open", amountCents: 108_000, charge: {} });
+    const res = await call();
+    expect(m.grant).not.toHaveBeenCalled();
+    expect(res.headers.get("Location")).toBe("/r/son-y-melona/pago/tok");
+    // Pagada: la misma página lo dice.
+    m.refresh.mockResolvedValue({ state: "paid", amountCents: 108_000, charge: {} });
+    expect((await call()).headers.get("Location")).toBe("/r/son-y-melona/pago/tok");
+  });
+
+  it.each(["cancelled", "expired"])("factura por cobrar %s: a la página de estado", async (state) => {
+    m.link.mockResolvedValue({ ...openLink, creditPaymentId: "pay-credit", order: { ...openLink.order, status: "paid" } });
+    m.refresh.mockResolvedValue({ state, amountCents: 108_000, charge: null });
+    const res = await call();
+    expect(res.headers.get("Location")).toBe("/r/son-y-melona/cuenta/tok/estado");
   });
 
   it("cuenta ya pagada: al comprobante (done), con acceso a la orden", async () => {

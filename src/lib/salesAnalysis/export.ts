@@ -72,7 +72,11 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
       [text(t("periodLabel")), text(`${periodLabel(a.filters, t, locale)} (${fmtRange(a.range, locale)})`)],
       ...(a.compareRange ? [[text(t("compareLabel")), text(fmtRange(a.compareRange, locale))]] : []),
       [text(t("activeFilters")), text(filtersText || t("all"))],
-      [text(t("export.businessDay")), text(t("businessDayHint", { hour: String(a.cutoffHour).padStart(2, "0") }))],
+      [text(t("axisLabel")), text(t(`axis.${a.filters.axis}`))],
+      [
+        text(t("export.businessDay")),
+        text(t(a.filters.axis === "pedido" ? "businessDayHintOrder" : "businessDayHint", { hour: String(a.cutoffHour).padStart(2, "0") })),
+      ],
       ...kpiRows.map(([key, label, kind]) => {
         const cur = a.kpis[key] as number | null;
         const prev = a.compareKpis ? (a.compareKpis[key] as number | null) : null;
@@ -101,7 +105,7 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
       ...(hasCompare ? [t("trend.compareNet"), t("variation")] : []),
     ],
     rows: points.map((p) => [
-      text(bucketText(p.bucket)), money(p.netCents), int(p.orders), int(p.diners), money(pointTicket(p.netCents, p.orders)),
+      text(bucketText(p.bucket)), money(p.netCents), int(p.orders), int(p.diners), money(pointTicket(p.accountNetCents, p.orders)),
       ...(hasCompare ? [money(p.compareNetCents), pct(variation(p.netCents, p.compareNetCents))] : []),
     ]),
   };
@@ -168,7 +172,7 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
     ],
     rows: a.current.waiters.map((w) => [
       text(w.waiterId ? w.name : t("noWaiter")), money(w.netCents), int(w.orders),
-      money(w.orders > 0 ? Math.round(w.netCents / w.orders) : null), int(w.diners), money(w.tipCents), money(w.commissionCents),
+      money(w.orders > 0 ? Math.round(w.accountNetCents / w.orders) : null), int(w.diners), money(w.tipCents), money(w.commissionCents),
       ...(hasCompare ? [pct(variation(w.netCents, prevWaiter.get(w.waiterId ?? NO_WAITER)?.netCents ?? null))] : []),
     ]),
   };
@@ -190,7 +194,7 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
     headers: [t("dim.canal"), t("kpi.net"), t("products.share"), t("kpi.orders"), t("kpi.diners"), t("kpi.avgTicket")],
     rows: a.current.channels.map((c) => [
       text(channelLabel(c.channel, t, counterMode)), money(c.netCents), pct(share(c.netCents, totalChannels)), int(c.orders), int(c.diners),
-      money(c.orders > 0 ? Math.round(c.netCents / c.orders) : null),
+      money(c.orders > 0 ? Math.round(c.accountNetCents / c.orders) : null),
     ]),
   };
 
@@ -206,7 +210,7 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
     key: "heatmap",
     title: t("heat.title"),
     headers: [t("dim.dia"), t("dim.hora"), t("kpi.net"), t("kpi.orders")],
-    rows: heat.cells.flat().filter((c) => c.orders > 0).map((c) => [
+    rows: heat.cells.flat().filter((c) => c.orders > 0 || c.netCents > 0).map((c) => [
       text(weekdayName(c.dow, locale, "long")), text(hourLabel(c.hour)), money(c.netCents), int(c.orders),
     ]),
   };
@@ -219,10 +223,11 @@ export function buildExportSections(a: SalesAnalysis, ctx: ExportContext): Expor
       key: "orders",
       title: t("orders.title"),
       headers: [
-        t("orders.paidAt"), t("orders.account"), t("orders.where"), t("team.waiter"), t("kpi.diners"), t("units"),
+        t("export.placedAtCol"), t("export.paidAtCol"), t("orders.account"), t("orders.where"), t("team.waiter"), t("kpi.diners"), t("units"),
         t("kpi.net"), t("kpi.tips"), t("orders.collected"), t("dim.pago"),
       ],
       rows: a.orders.map((o) => [
+        text(o.openedAt.toISOString()),
         text(o.paidAt.toISOString()),
         text(o.shortCode),
         text(o.channel === "salon" && !counterMode ? tableName({ number: o.tableNumber, label: o.tableLabel }, t) : channelLabel(o.channel, t, counterMode)),

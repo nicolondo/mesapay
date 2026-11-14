@@ -37,6 +37,10 @@ const MIGRATED = [
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
+  "src/components/suppliers/DuplicateDocumentAlert.tsx",
+  "src/app/operator/compras/ComprasList.tsx",
+  "src/app/operator/compras/chips.tsx",
+  "src/app/operator/compras/page.tsx",
   // Clientes (facturación + comensales registrados, y la ficha del
   // comensal): migrados enteros con el rediseño de la lista, quedan blindados.
   "src/app/operator/clientes/**/*.{ts,tsx}",
@@ -56,6 +60,11 @@ const MIGRATED = [
   // Nació trilingüe, queda blindado.
   "src/components/print/**/*.{ts,tsx}",
   "src/components/SalesTaxConfigEditor.tsx",
+  // Documento soporte DIAN (panel de gastos/compras, configuración y
+  // representación gráfica): nació trilingüe, queda blindado.
+  "src/components/supportDocument/**/*.{ts,tsx}",
+  "src/app/operator/settings/facturacion-dian/SupportDocumentSettings.tsx",
+  "src/app/operator/documento-soporte/**/*.{ts,tsx}",
   // Cuentas de comensal: nacieron trilingües, quedan blindadas de una.
   "src/app/signin/page.tsx",
   "src/app/signup/page.tsx",
@@ -208,6 +217,11 @@ const MIGRATED = [
   // Avisos de pagos pendientes y confirmación de efectivo (ficha de la
   // mesa, cobro del staff y Salón): nacieron trilingües.
   "src/components/payments/**/*.{ts,tsx}",
+  // "Emitir y enviar factura" de la factura manual (ficha en Mesas, ficha
+  // de la orden, fila de Órdenes): nació trilingüe.
+  "src/components/manualInvoice/**/*.{ts,tsx}",
+  // Facturas manuales (su casa, fuera de Mesas): nació trilingüe.
+  "src/app/operator/facturas-manuales/**/*.{ts,tsx}",
   // Autocompletado de municipio DANE: nació trilingüe, queda blindado.
   "src/components/MunicipioAutocomplete.tsx",
   // Autocompletado de proveedor: nació trilingüe, queda blindado.

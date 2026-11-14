@@ -17,6 +17,12 @@ const schema = z.object({
   /** Cuenta de dinero (caja, banco, pasarela) donde entró la plata. */
   accountCode: z.string().trim().min(4).max(10),
   note: z.string().trim().max(300).nullable().optional(),
+  /**
+   * Cargo a crédito al que va el abono (p. ej. "Registrar pago recibido" de
+   * una factura manual emitida por cobrar). Sin él, el abono es general y
+   * se aplica FIFO al cargo más viejo.
+   */
+  creditChargeId: z.string().min(1).max(64).nullable().optional(),
 });
 
 /**
@@ -51,6 +57,14 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
     if (b.amountCents > summary.debtCents) {
       return { error: "exceeds_debt" as const, debtCents: summary.debtCents };
     }
+    if (b.creditChargeId) {
+      // Sólo a un cargo de ESTE cliente, y no más de lo que ese cargo debe.
+      const charge = summary.fifo.charges.find((c) => c.chargeId === b.creditChargeId);
+      if (!charge) return { error: "charge_not_found" as const };
+      if (b.amountCents > charge.outstandingCents) {
+        return { error: "exceeds_debt" as const, debtCents: charge.outstandingCents };
+      }
+    }
     const payment = await tx.customerCreditPayment.create({
       data: {
         restaurantId: scope.restaurantId,
@@ -60,6 +74,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
         accountCode: b.accountCode,
         note: b.note || null,
         createdById: scope.userId,
+        ...(b.creditChargeId ? { creditChargeId: b.creditChargeId } : {}),
       },
     });
     return { payment, debtAfterCents: summary.debtCents - b.amountCents };
@@ -67,6 +82,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
 
   if ("error" in result) {
     if (result.error === "not_found") return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (result.error === "charge_not_found") return NextResponse.json({ error: "charge_not_found" }, { status: 404 });
     return NextResponse.json({ error: result.error, debtCents: result.debtCents }, { status: 400 });
   }
   return NextResponse.json(

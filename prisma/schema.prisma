@@ -9,6 +9,7 @@ datasource db {
 
 model Restaurant {
   creditNotes CreditNote[]
+  supportDocuments SupportDocument[]
 
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -322,6 +323,10 @@ model Restaurant {
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
   invoiceNextNumber       Int       @default(1)
+  /// Próximo consecutivo interno de GASTOS («G-0001»). Sólo crece: un gasto
+  /// borrado no devuelve su número (ver src/lib/erp/expenseNumber.ts) y
+  /// restaurar una copia nunca lo baja (RESTAURANT_MONOTONIC_COLUMNS).
+  expenseNextNumber       Int       @default(1)
 
   // Correo registrado ante la DIAN para la RECEPCIÓN de documentos e
   // instrumentos electrónicos. Viaja en el cac:Contact/cbc:ElectronicMail
@@ -959,6 +964,7 @@ model User {
   // ERP: movimientos de inventario / conteos creados por este usuario.
   stockMovements           StockMovement[]         @relation("StockMovementCreator")
   expensesCreated          Expense[]               @relation("ExpenseCreator")
+  supportDocumentsCreated  SupportDocument[]       @relation("SupportDocumentCreator")
   expensePaymentsCreated   ExpensePayment[]        @relation("ExpensePaymentCreator")
   productionBatchesCreated ProductionBatch[]       @relation("ProductionBatchCreator")
   purchaseInvoiceUploads   PurchaseInvoiceUpload[]
@@ -1975,6 +1981,12 @@ model Payment {
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
   breBCharge         BreBCharge?
+  /// Sólo en method=customer_credit de una FACTURA MANUAL emitida por cobrar:
+  /// el link de pago que cobra este cargo (ver src/lib/manualInvoiceReceivable.ts).
+  receivablePayLink      PaymentLink?            @relation("PaymentLinkCreditCharge")
+  /// Abonos dirigidos a ESTE cargo (link de pago o "registrar pago" de la
+  /// factura). Los abonos sin cargo se aplican FIFO.
+  targetedCreditPayments CustomerCreditPayment[] @relation("CustomerCreditPaymentCharge")
 
   @@index([orderId])
   @@index([shiftId])
@@ -2174,6 +2186,19 @@ model Supplier {
   paymentTermsDays Int? // condiciones de pago en días; null = contado
   notes            String?
   active           Boolean    @default(true)
+
+  // ─── Documento soporte DIAN (Res. 000167/2021) ─────────────────────
+  /// Sujeto NO obligado a expedir factura de venta o documento equivalente:
+  /// a sus compras y gastos se les genera el documento soporte electrónico.
+  notObligatedToInvoice Boolean @default(false)
+  /// Municipio DANE (DIVIPOLA, 5 dígitos) del vendedor residente.
+  cityCode              String?
+  /// Código postal (tabla 16.4.4 del anexo técnico) del vendedor residente.
+  postalCode            String?
+  /// País ISO 3166 alfa-2. null o "CO" = residente en Colombia.
+  countryCode           String?
+  /// Ciudad (texto libre) del vendedor NO residente.
+  foreignCityName       String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -2420,6 +2445,11 @@ model PurchaseOrder {
   /// siguen el avance de la recepción— cuenta completa en la cuenta por pagar
   /// desde la entrega en que se practicó. Ver `purchaseOrderTotals`.
   receptionRetentionCents Int @default(0)
+  /// «Ajustes» / ajuste al peso impreso en la factura del proveedor, CON
+  /// signo. Suma al total a pagar (la CxP queda igual al Total impreso) pero a
+  /// ninguna línea: no es costo de inventario ni impuesto. Lo fija la
+  /// importación con IA al confirmar. Ver `purchaseOrderTotals`.
+  roundingCents Int @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -2431,6 +2461,7 @@ model PurchaseOrder {
   priceHistory   SupplierPriceHistory[]
   invoiceUploads PurchaseInvoiceUpload[]
   payments       PurchasePayment[]
+  supportDocuments SupportDocument[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId, status])
@@ -2824,6 +2855,29 @@ model DianConfig {
   environment String @default("habilitacion") // habilitacion | produccion
   status      String @default("pending") // pending | testing | enabled
 
+  // ─── Documento soporte en adquisiciones a no obligados (Res. 000167/2021)
+  // Va APARTE de la factura: el software se registra en el portal DIAN por
+  // tipo de documento, la autorización de numeración es otra (tipo
+  // "DOCUMENTO SOPORTE") y el ambiente avanza por su cuenta (un comercio que
+  // ya factura en producción puede seguir probando el documento soporte).
+  // El certificado de firma es el mismo de arriba.
+  supportDocEnabled          Boolean   @default(false)
+  supportDocEnvironment      String    @default("habilitacion") // habilitacion | produccion
+  supportDocStatus           String    @default("pending") // pending | testing | enabled
+  supportDocSoftwareId       String?
+  supportDocSoftwarePinEnc   String? // encriptado (entra al CUDS)
+  supportDocTestSetId        String?
+  /// Número de la autorización de numeración (Formato 1876).
+  supportDocResolutionNumber String?
+  supportDocPrefix           String?
+  supportDocFrom             Int?
+  supportDocTo               Int?
+  supportDocValidFrom        DateTime?
+  supportDocValidTo          DateTime?
+  /// Prefijo de la numeración INTERNA de las notas de ajuste (art. 5
+  /// Res. 000167: consecutivo interno de quien la genera).
+  supportDocAdjustmentPrefix String    @default("NAS")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -2931,6 +2985,14 @@ model Expense {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  /// Consecutivo interno por comercio («G-0012», ver expenseNumber.ts). Lo
+  /// asigna el servidor en la transacción del alta, bajo el candado de
+  /// `Restaurant.expenseNextNumber`: sin huecos por carreras y nunca se
+  /// reutiliza. null = plantilla recurrente (no es un gasto) o un gasto que
+  /// creó una versión anterior del código durante un despliegue: el próximo
+  /// alta o la lista lo numeran en orden de creación.
+  number       Int?
+
   category     String
   description  String?
   /// COSTO del gasto que va al PYG y a la cuenta de gasto: base + INC + IVA
@@ -2973,6 +3035,7 @@ model Expense {
   payableCents    Int      @default(0)
 
   retentions ExpenseRetention[]
+  supportDocuments SupportDocument[]
 
   supplierId   String?
   supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
@@ -3010,6 +3073,7 @@ model Expense {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([restaurantId, number])
   @@index([restaurantId, date])
   @@index([restaurantId, recurring])
 }
@@ -3398,9 +3462,20 @@ model CustomerCreditPayment {
   createdById       String?
   createdBy         User?           @relation("CustomerCreditPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt         DateTime        @default(now())
+  /// Cargo a crédito (Payment customer_credit) al que se aplica PRIMERO este
+  /// abono — el de una factura manual pagada por su link o saldada desde su
+  /// ficha. null = abono general: se aplica FIFO al cargo más viejo
+  /// (`customerCredit.allocateFifo`).
+  creditChargeId    String?
+  creditCharge      Payment?        @relation("CustomerCreditPaymentCharge", fields: [creditChargeId], references: [id], onDelete: SetNull)
+  /// El link de pago que originó el abono (pago en línea por Kushki). Único:
+  /// un link se liquida una sola vez.
+  paymentLinkId     String?         @unique
+  paymentLink       PaymentLink?    @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, paidAt])
   @@index([billingCustomerId])
+  @@index([creditChargeId])
 }
 
 model InvoiceRequest {
@@ -4157,6 +4232,16 @@ model FinancialOperation {
   /// ("not_found", "unknown:reversed", "error"…). Evita consultar de más.
   checkedAt DateTime?
   checkStatus String?
+  /// Sólo kind=terminal: lo que Kushki dice que AUTORIZÓ (centavos), cuando no
+  /// es lo que se mandó (`amountCents`). Null = autorizó lo de la cuenta (o no
+  /// lo dijo). BIGINT: un error de unidades (×100) de una cuenta grande no
+  /// cabe en INT4.
+  authorizedCents BigInt?
+  /// Sólo kind=terminal: qué se hizo con esa diferencia
+  /// (src/lib/payments/terminalAmount.ts): "tip" (de más → propina), "partial"
+  /// (de menos → saldo pendiente), o por qué quedó para conciliar
+  /// ("over_cap", "units", "invalid", "unconfirmed").
+  amountCheck String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])
@@ -4695,6 +4780,19 @@ model PaymentLink {
   orderId     String? @unique
   order       Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   emailSentAt DateTime?
+  /// Todos los destinatarios del último envío por correo (`payerEmail` guarda
+  /// el primero, para lo que ya lo leía).
+  emailRecipients String[] @default([])
+  /// Primera vez que el cliente abrió el link en un navegador (no el staff).
+  openedAt        DateTime?
+  /// `kind = order` de una factura manual EMITIDA POR COBRAR: el cargo a
+  /// crédito (Payment customer_credit) que este link salda. Con este campo
+  /// el link deja de abrir el checkout de la orden (ya cerrada) y cobra un
+  /// monto fijo en /r/[slug]/pago/[token]; pagado, deja un abono dirigido
+  /// a ese cargo (CustomerCreditPayment).
+  creditPaymentId String?                @unique
+  creditPayment   Payment?               @relation("PaymentLinkCreditCharge", fields: [creditPaymentId], references: [id], onDelete: SetNull)
+  creditAbono     CustomerCreditPayment?
   breBCharges BreBCharge[]
 
   @@index([restaurantId, status])
@@ -4875,6 +4973,100 @@ model CreditNoteFileSeries {
   lastNumber Int @default(0)
 
   @@id([issuerNit, environment, year])
+}
+
+/// Consecutivo del documento soporte (rango autorizado) y de su nota de
+/// ajuste (numeración interna) por NIT, ambiente y prefijo. Tabla de
+/// PLATAFORMA, igual que CreditNoteSeries: restaurar una copia de un comercio
+/// nunca puede devolver el contador y repetir números ya usados.
+model SupportDocumentSeries {
+  id          String            @id @default(cuid())
+  issuerNit   String
+  /// "1" producción · "2" pruebas (ProfileExecutionID).
+  environment String
+  /// support_document | adjustment_note
+  kind        String
+  prefix      String
+  /// Próximo número a asignar (el DS arranca en el "desde" de la resolución).
+  nextNumber  Int               @default(1)
+  documents   SupportDocument[]
+
+  @@unique([issuerNit, environment, kind, prefix])
+}
+
+/// Documento soporte en adquisiciones efectuadas a sujetos no obligados a
+/// expedir factura (kind = support_document, Invoice tipo 05) y su nota de
+/// ajuste (kind = adjustment_note, CreditNote tipo 95). Resolución DIAN
+/// 000167 de 2021, anexo técnico v1.1. Es un documento FISCAL derivado de un
+/// gasto o de una compra que ya existen: no genera asientos (el gasto o la
+/// compra ya registraron el costo y la cuenta por pagar).
+model SupportDocument {
+  id               String                @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  /// support_document | adjustment_note
+  kind             String
+  /// expense | purchase_order
+  sourceType       String
+  expenseId        String?
+  expense          Expense?              @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  purchaseOrderId  String?
+  purchaseOrder    PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  /// Un solo documento soporte VIGENTE por gasto o compra: "expense:<id>" /
+  /// "purchase_order:<id>". Se libera (null) cuando una nota de ajuste de
+  /// anulación queda aceptada. Las notas de ajuste no lo usan.
+  activeKey        String?               @unique
+  /// Nota de ajuste: el documento soporte que ajusta.
+  adjustsId        String?
+  adjusts          SupportDocument?      @relation("SupportDocumentAdjustment", fields: [adjustsId], references: [id], onDelete: SetNull)
+  adjustments      SupportDocument[]     @relation("SupportDocumentAdjustment")
+  seriesId         String
+  series           SupportDocumentSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  number           Int
+  /// Prefijo + número ("DS1001", "NAS7"): el cbc:ID del XML.
+  documentNumber   String
+  /// "1" producción · "2" pruebas: con "2" nunca tiene validez fiscal.
+  environment      String
+  /// NIT del adquiriente (el comercio) sin DV.
+  issuerNit        String
+  /// Nota de ajuste: concepto (tabla 16.2.4) y descripción (≥ 20 caracteres).
+  reasonCode       String?
+  reasonText       String?
+  /// Foto de lo que se transmite (vendedor, líneas, totales, retenciones,
+  /// resolución, documento ajustado): representación gráfica y reintentos.
+  snapshot         Json
+  subtotalCents    Int
+  taxCents         Int
+  withholdingCents Int                   @default(0)
+  totalCents       Int
+  /// to_send | sent | pending | accepted | rejected | error. `sent` es
+  /// además el RECLAMO del envío (updateMany condicionado por estado).
+  state            String                @default("to_send")
+  /// CUDS (SHA-384) del último XML firmado.
+  cuds             String?
+  issuedAt         DateTime?
+  /// XML firmado, comprimido: lo que se envió a la DIAN.
+  xmlZip           Bytes?
+  submissionFileName String?
+  responseXml      String?
+  /// ZipKey del envío asíncrono (habilitación).
+  trackId          String?
+  errors           Json?
+  attempts         Int                   @default(0)
+  lastError        String?
+  /// Barrido: antes de este instante no se vuelve a consultar.
+  nextAttemptAt    DateTime?
+  createdById      String?
+  createdBy        User?                 @relation("SupportDocumentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([seriesId, number])
+  @@index([restaurantId, createdAt])
+  @@index([expenseId])
+  @@index([purchaseOrderId])
+  @@index([adjustsId])
+  @@index([state, nextAttemptAt])
 }
 
 /// Archivo final de un comercio ELIMINADO (ver src/lib/restaurantDeletion).

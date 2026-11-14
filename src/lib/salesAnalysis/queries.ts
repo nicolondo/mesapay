@@ -3,6 +3,7 @@
 // pruebas. No suma nada en JS: lo que llega ya viene agregado.
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  candidatesSql,
   categoriesSql,
   channelsSql,
   durationSql,
@@ -55,6 +56,17 @@ function toIntOrNull(value: DbInt | undefined): number | null {
   return value === null || value === undefined ? null : toInt(value);
 }
 
+/**
+ * Eje «pedido»: resuelve una vez las cuentas candidatas del período y las
+ * deja en el alcance, así cada consulta parte de una lista que PostgreSQL
+ * estima exacto (ver `SalesScope.candidates`). Con eje «pago», no hace nada.
+ */
+export async function withCandidates(client: SalesDb, scope: SalesScope): Promise<SalesScope> {
+  if (scope.axis !== "pedido" || scope.candidates) return scope;
+  const rows = await client.$queryRaw<{ id: string }[]>(candidatesSql(scope));
+  return { ...scope, candidates: rows.map((r) => r.id) };
+}
+
 export async function loadTotals(client: SalesDb, scope: SalesScope): Promise<SalesTotals> {
   const [row] = await client.$queryRaw<Record<keyof SalesTotals, DbInt>[]>(totalsSql(scope));
   const item = hasItemFilter(scope);
@@ -68,14 +80,22 @@ export async function loadTotals(client: SalesDb, scope: SalesScope): Promise<Sa
     netCents: toInt(row?.netCents),
     tipCents: item ? null : toInt(row?.tipCents),
     compsCents: toInt(row?.compsCents),
+    accountNetCents: toInt(row?.accountNetCents),
+    accountUnits: toInt(row?.accountUnits),
   };
 }
 
 export async function loadTrend(client: SalesDb, scope: SalesScope, granularity: Granularity): Promise<TrendRow[]> {
-  const rows = await client.$queryRaw<{ bucket: string; netCents: DbInt; orders: DbInt; diners: DbInt }[]>(
+  const rows = await client.$queryRaw<{ bucket: string; netCents: DbInt; orders: DbInt; diners: DbInt; accountNetCents: DbInt }[]>(
     trendSql(scope, granularity),
   );
-  return rows.map((r) => ({ bucket: r.bucket, netCents: toInt(r.netCents), orders: toInt(r.orders), diners: toInt(r.diners) }));
+  return rows.map((r) => ({
+    bucket: r.bucket,
+    netCents: toInt(r.netCents),
+    orders: toInt(r.orders),
+    diners: toInt(r.diners),
+    accountNetCents: toInt(r.accountNetCents),
+  }));
 }
 
 export async function loadHeat(client: SalesDb, scope: SalesScope): Promise<HeatRow[]> {
@@ -125,7 +145,7 @@ export async function loadModifiers(client: SalesDb, scope: SalesScope, limit = 
 export async function loadWaiters(client: SalesDb, scope: SalesScope): Promise<WaiterRow[]> {
   const rows = await client.$queryRaw<{
     waiterId: string | null; name: string | null; netCents: DbInt; orders: DbInt; diners: DbInt;
-    tipCents: DbInt; commissionCents: DbInt;
+    tipCents: DbInt; commissionCents: DbInt; accountNetCents: DbInt;
   }[]>(waitersSql(scope));
   const item = hasItemFilter(scope);
   return rows.map((r) => ({
@@ -133,6 +153,7 @@ export async function loadWaiters(client: SalesDb, scope: SalesScope): Promise<W
     name: r.name,
     netCents: toInt(r.netCents),
     orders: toInt(r.orders),
+    accountNetCents: toInt(r.accountNetCents),
     diners: toInt(r.diners),
     tipCents: item ? null : toInt(r.tipCents),
     commissionCents: item ? null : toIntOrNull(r.commissionCents),
@@ -153,13 +174,22 @@ export async function loadMethods(client: SalesDb, scope: SalesScope): Promise<M
 }
 
 export async function loadChannels(client: SalesDb, scope: SalesScope): Promise<ChannelRow[]> {
-  const rows = await client.$queryRaw<{ channel: Channel; netCents: DbInt; orders: DbInt; diners: DbInt }[]>(channelsSql(scope));
-  return rows.map((r) => ({ channel: r.channel, netCents: toInt(r.netCents), orders: toInt(r.orders), diners: toInt(r.diners) }));
+  const rows = await client.$queryRaw<{ channel: Channel; netCents: DbInt; orders: DbInt; diners: DbInt; accountNetCents: DbInt }[]>(
+    channelsSql(scope),
+  );
+  return rows.map((r) => ({
+    channel: r.channel,
+    netCents: toInt(r.netCents),
+    orders: toInt(r.orders),
+    diners: toInt(r.diners),
+    accountNetCents: toInt(r.accountNetCents),
+  }));
 }
 
 export async function loadTables(client: SalesDb, scope: SalesScope, limit = 30): Promise<TableRow[]> {
   const rows = await client.$queryRaw<{
     tableId: string; number: DbInt; label: string | null; netCents: DbInt; orders: DbInt; diners: DbInt;
+    accountNetCents: DbInt;
   }[]>(tablesSql(scope, limit));
   return rows.map((r) => ({
     tableId: r.tableId,
@@ -168,6 +198,7 @@ export async function loadTables(client: SalesDb, scope: SalesScope, limit = 30)
     netCents: toInt(r.netCents),
     orders: toInt(r.orders),
     diners: toInt(r.diners),
+    accountNetCents: toInt(r.accountNetCents),
   }));
 }
 
@@ -182,7 +213,7 @@ export async function loadDuration(client: SalesDb, scope: SalesScope): Promise<
 
 export async function loadOrders(client: SalesDb, scope: SalesScope, limit: number): Promise<OrderListRow[]> {
   const rows = await client.$queryRaw<{
-    id: string; shortCode: string; paidAt: Date; channel: Channel; tableNumber: DbInt; tableLabel: string | null;
+    id: string; shortCode: string; openedAt: Date; paidAt: Date; channel: Channel; tableNumber: DbInt; tableLabel: string | null;
     waiterName: string | null; diners: DbInt; units: DbInt; netCents: DbInt; tipCents: DbInt; totalCents: DbInt;
     methods: string[];
   }[]>(ordersSql(scope, limit));
@@ -190,6 +221,7 @@ export async function loadOrders(client: SalesDb, scope: SalesScope, limit: numb
   return rows.map((r) => ({
     id: r.id,
     shortCode: r.shortCode,
+    openedAt: r.openedAt,
     paidAt: r.paidAt,
     channel: r.channel,
     tableNumber: toInt(r.tableNumber),

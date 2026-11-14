@@ -3,6 +3,7 @@ import type { KushkiMode } from "@/lib/platformConfig";
 import { searchCloudTerminalCharge, type CloudTerminalSearchResult } from "./kushki/cloudTerminal";
 import { terminalClaimKey } from "./methods";
 import { processKushkiWebhook } from "./webhookHandler";
+import { settleTerminalApproval, type TerminalAdjustment } from "./terminalApproval";
 
 /**
  * Cuando el cobro síncrono del datáfono no devuelve respuesta (504 del
@@ -12,15 +13,16 @@ import { processKushkiWebhook } from "./webhookHandler";
  * `client_transaction_id` del cobro) hasta que el equipo ya no pueda
  * responder:
  *
- *   - venta APROBADA por el monto de la cuenta → se salda por el mismo camino
- *     que un aprobado del datáfono (`terminal.approved` → totales, rondas
- *     prepagas, factura e impresión automática, igual que en efectivo);
+ *   - venta APROBADA → se salda por el mismo camino que un aprobado del
+ *     datáfono (`settleTerminalApproval` → totales, rondas prepagas, factura
+ *     e impresión automática, igual que en efectivo), por el monto que de
+ *     verdad se autorizó: de más es propina, de menos queda saldo pendiente;
  *   - venta RECHAZADA → se declina y la cuenta queda libre;
  *   - nada todavía → se vuelve a consultar cada 10 s hasta el final de la
  *     ventana; si sigue sin aparecer, el pago queda incierto como hoy
  *     (administrador + evidencia, "Resolver cobro", sin espera obligatoria);
- *   - algo raro (reversión, otro monto) → se deja incierto de inmediato: lo
- *     resuelve una persona con el comprobante.
+ *   - algo raro (reversión, un monto que no se liquida solo) → se deja
+ *     incierto de inmediato: lo resuelve una persona con el comprobante.
  *
  * Son y Melona, 2026-11-04: dos cobros reales recibieron HTTP 504 con HTML a
  * los ~60 s; el staff esperó 3 minutos, los marcó "no se cobró" y cobró en
@@ -68,7 +70,11 @@ export type TerminalCheckResult = {
   settled: "approved" | "declined" | null;
   /** El resultado era definitivo pero no se pudo registrar (queda incierto). */
   settleFailed?: boolean;
+  /** Aprobado por un monto que no se liquida solo: queda para conciliar. */
+  amountMismatch?: boolean;
   providerRef?: string;
+  /** Aprobado por otro monto (propina o parcial): lo que quedó registrado. */
+  adjustment?: TerminalAdjustment | null;
 };
 
 /**
@@ -89,41 +95,46 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
     console.warn("[terminal-recovery] la consulta a Kushki falló", { paymentId: ctx.paymentId, err });
     search = { status: "error" };
   }
-  await quietly(() =>
-    db.financialOperation.updateMany({
-      where: { key: terminalClaimKey(ctx.paymentId) },
-      data: {
-        checkedAt: new Date(),
-        checkStatus: search.status === "unknown" ? `unknown:${search.reason}` : search.status,
-      },
-    }),
-  );
+  const recordCheck = (checkStatus: string) =>
+    quietly(() =>
+      db.financialOperation.updateMany({
+        where: { key: terminalClaimKey(ctx.paymentId) },
+        data: { checkedAt: new Date(), checkStatus },
+      }),
+    );
 
   if (search.status === "approved") {
     // Mismo eventId que el aprobado del cobro síncrono: si los dos llegan,
-    // cuenta una sola vez.
-    const processed = await processKushkiWebhook({
-      eventId: `cloudterm:${ctx.paymentId}:ok`,
-      type: "terminal.approved",
+    // cuenta una sola vez. El monto lo decide `settleTerminalApproval`.
+    const approval = await settleTerminalApproval({
       restaurantId: ctx.restaurantId,
       paymentId: ctx.paymentId,
+      expectedCents: ctx.amountCents,
       providerRef: search.transactionReference,
+      authorizedCents: search.authorizedCents,
+      approvalCode: search.approvalCode ?? null,
+      // La búsqueda filtra por el client_transaction_id EXACTO y el
+      // adquirente la registró APPROVAL: con código de aprobación es
+      // inequívoca.
+      confirmed: !!search.approvalCode,
+      source: "transaction_search_online",
       message: "transaction_search_online",
       raw: search.raw,
     });
-    if (processed.status === "error" || processed.requiresReview) return { search: search.status, settled: null, settleFailed: true };
-    // El código de aprobación queda donde Cobros lo muestra.
-    if (search.approvalCode) {
-      const approvalCode = search.approvalCode;
-      await quietly(() =>
-        db.kushkiTransaction.updateMany({
-          where: { kushkiTxId: search.transactionReference, paymentId: ctx.paymentId },
-          data: { approvalCode },
-        }),
-      );
+    if (approval.status === "amount_mismatch") {
+      await recordCheck("unknown:amount_mismatch");
+      return { search: "unknown", settled: null, amountMismatch: true };
     }
-    return { search: search.status, settled: "approved", providerRef: search.transactionReference };
+    await recordCheck(search.status);
+    if (approval.status === "settle_failed") return { search: search.status, settled: null, settleFailed: true };
+    return {
+      search: search.status,
+      settled: "approved",
+      providerRef: search.transactionReference,
+      ...(approval.adjustment ? { adjustment: approval.adjustment } : {}),
+    };
   }
+  await recordCheck(search.status === "unknown" ? `unknown:${search.reason}` : search.status);
   if (search.status === "declined") {
     const processed = await processKushkiWebhook({
       eventId: `cloudterm:${ctx.paymentId}:search-declined:${Date.now()}`,
@@ -141,10 +152,10 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
 }
 
 export type TerminalRecoveryOutcome =
-  | { status: "approved"; providerRef?: string }
+  | { status: "approved"; providerRef?: string; adjustment?: TerminalAdjustment | null }
   | { status: "declined" }
   /** Sigue sin saberse: el pago queda incierto. `last` = lo último que dijo Kushki. */
-  | { status: "unresolved"; last: CloudTerminalSearchResult["status"] | "settle_failed" };
+  | { status: "unresolved"; last: CloudTerminalSearchResult["status"] | "settle_failed" | "amount_mismatch" };
 
 /**
  * Consulta el resultado hasta que aparezca algo definitivo o se acabe la
@@ -157,9 +168,12 @@ export async function recoverTerminalOutcome(
   const deadline = ctx.pushedAt.getTime() + TERMINAL_RECOVERY_WINDOW_MS;
   for (;;) {
     const check = await checkTerminalChargeOnce(ctx);
-    if (check.settled === "approved") return { status: "approved", providerRef: check.providerRef };
+    if (check.settled === "approved") {
+      return { status: "approved", providerRef: check.providerRef, ...(check.adjustment ? { adjustment: check.adjustment } : {}) };
+    }
     if (check.settled === "declined") return { status: "declined" };
     if (check.settleFailed) return { status: "unresolved", last: "settle_failed" };
+    if (check.amountMismatch) return { status: "unresolved", last: "amount_mismatch" };
     // Una reversión o un monto distinto no se arreglan esperando.
     if (check.search === "unknown") return { status: "unresolved", last: check.search };
     if (recoveryClock.now() + TERMINAL_RECOVERY_INTERVAL_MS > deadline) {

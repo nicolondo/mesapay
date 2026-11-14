@@ -9,6 +9,7 @@ import { chargeBlockedResponse } from "@/lib/chargeGuard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isManualInvoiceTable } from "@/lib/manualInvoiceReceivable";
 import { secureApi } from "@/lib/secureApi";
 import { staffForRestaurant, COLLECTOR_ROLES } from "@/lib/staffAccess";
 import { amountCentsSchema, tipCentsSchema, validPaymentAmounts } from "@/lib/payments/validation";
@@ -51,6 +52,11 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
   const order = await db.order.findFirst({ where: { id: input.orderId, restaurantId: tenant.id } });
   if (!order) return NextResponse.json({ error: "not_found" }, { status: 404 });
   const isCash = isCashMethod(input.method);
+  // Factura manual pagada por su link: remoto, sólo en línea (el efectivo
+  // es presencial). El staff la cobra en efectivo desde caja (settleNow).
+  if (!staff && isCash && await isManualInvoiceTable(order.tableId)) {
+    return NextResponse.json({ error: "online_only" }, { status: 409 });
+  }
   let amountCents = input.amountCents;
   let tipCents = input.tipCents;
   if (staff && isCash && input.cashTenderCents != null && input.changeGivenCents != null) {

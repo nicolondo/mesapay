@@ -78,7 +78,11 @@ async function GETHandler(
       // Abonos (CxP · F3) — historial de pagos parciales/totales.
       payments: {
         orderBy: { paidAt: "desc" },
-        include: { createdBy: { select: { id: true, name: true } } },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+          // Cruce con una nota crédito del proveedor: la UI lo rotula y no lo borra.
+          supplierCreditNote: { select: { id: true, number: true } },
+        },
       },
       // Facturas subidas (A2.5): la evidencia (PDF/foto) que originó la OC,
       // para poder verla después desde el detalle.

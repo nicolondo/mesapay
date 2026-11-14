@@ -18,6 +18,7 @@ import {
 } from "@/lib/erp/reports/supplierReport";
 import { conditionLabel, monthLabel, periodLabel } from "@/lib/erp/reports/supplierReportLabels";
 import { loadSupplierReportRows } from "@/lib/erp/reports/supplierReportQueries";
+import { SUPPLIER_CREDIT_REPORT_PATH, supplierCreditReportQs } from "@/lib/erp/reports/supplierCreditReportParams";
 import { firstParam, reportGate } from "../_components/gate";
 import { fmtIsoDate } from "../_components/fmt";
 import { PrintButton } from "../_components/PrintButton";
@@ -46,8 +47,9 @@ const COLUMN_KEY: Record<SupplierSortKey, string> = {
   facturas: "colInvoices",
   ultima: "colLastPurchase",
   saldo: "colPayable",
+  acuerdos: "colAgreements",
 };
-const NUMERIC_COLUMNS = new Set<SupplierSortKey>(["promedio", "total", "facturas", "saldo"]);
+const NUMERIC_COLUMNS = new Set<SupplierSortKey>(["promedio", "total", "facturas", "saldo", "acuerdos"]);
 
 function qs(params: Record<string, string>): string {
   const s = new URLSearchParams(params).toString();
@@ -121,6 +123,22 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
     </>
   );
   const lastPurchase = (r: SupplierReportRow) => (r.lastPurchase ? fmtIsoDate(r.lastPurchase, loc) : "—");
+  // Lo recibido por acuerdos lleva al reporte de notas crédito de ese
+  // proveedor, sólo acuerdos y en el mismo período (con Contabilidad).
+  const agreementsHref = (id: string) =>
+    `${SUPPLIER_CREDIT_REPORT_PATH}${supplierCreditReportQs({
+      period: { desde: query.period.desde, hasta: query.period.hasta },
+      supplierId: id,
+      kind: "agreement",
+    })}`;
+  const agreements = (r: SupplierReportRow) =>
+    accounting && r.agreementCents !== 0 ? (
+      <Link href={agreementsHref(r.supplierId)} className="hover:underline">
+        {money(r.agreementCents)}
+      </Link>
+    ) : (
+      money(r.agreementCents)
+    );
 
   const header = (key: SupplierSortKey) => {
     const active = query.sort === key;
@@ -279,6 +297,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
           {query.basis === "total" ? t("definitionTotal") : t("definitionCost")}{" "}
           {query.includeExpenses ? t("definitionAll") : t("definitionPurchases")}
         </p>
+        <p className="mt-1 break-words text-op-muted">{t("definitionAgreements")}</p>
         {query.period.includesCurrentMonth && (
           <p className="mt-2 break-words text-danger">{t("currentMonthWarning")}</p>
         )}
@@ -295,7 +314,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
           )}
           <div className="min-w-0 overflow-hidden rounded-2xl border border-op-border bg-op-surface">
             <ReportTable>
-              <table className="w-full text-sm min-w-[880px]">
+              <table className="w-full text-sm min-w-[980px]">
                 <thead>
                   <tr className="border-b border-op-border text-op-muted">
                     {SUPPLIER_SORT_KEYS.map(header)}
@@ -314,6 +333,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
                       <td className={NUM}>{r.invoices}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{lastPurchase(r)}</td>
                       <td className={NUM}>{money(r.payableCents)}</td>
+                      <td className={NUM}>{agreements(r)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -327,6 +347,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
                     <td className={NUM}>{totals.invoices}</td>
                     <td />
                     <td className={NUM}>{money(totals.payableCents)}</td>
+                    <td className={NUM}>{money(totals.agreementCents)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -346,6 +367,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
                       { label: t("colInvoices"), value: r.invoices },
                       { label: t("colLastPurchase"), value: lastPurchase(r) },
                       { label: t("colPayable"), value: money(r.payableCents) },
+                      { label: t("colAgreements"), value: agreements(r) },
                     ]}
                   />
                 </div>
@@ -357,6 +379,7 @@ export default async function SupplierReportPage({ searchParams }: { searchParam
                   { label: t("colTotal"), value: money(totals.totalCents) },
                   { label: t("colInvoices"), value: totals.invoices },
                   { label: t("colPayable"), value: money(totals.payableCents) },
+                  { label: t("colAgreements"), value: money(totals.agreementCents) },
                 ]}
               />
             </ReportCards>

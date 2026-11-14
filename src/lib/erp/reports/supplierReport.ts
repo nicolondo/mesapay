@@ -33,6 +33,14 @@
  * lo de enero). El período es SIEMPRE de meses calendario completos; por
  * defecto los últimos 12 meses completos. Los límites son UTC, el mismo
  * convenio del resto del ERP (`period.ts`).
+ *
+ * ── Recibido por acuerdos comerciales ───────────────────────────────────
+ * Lo que el proveedor devolvió en el período con notas crédito de tipo
+ * «acuerdo comercial» (bonificaciones, rappels, apoyos): las VIGENTES, por
+ * su fecha y por su valor total — la misma cifra del reporte «Notas
+ * crédito de proveedores» (`supplierCreditReport.ts`). No resta de las
+ * compras: es una columna aparte, porque las referencias comerciales piden
+ * lo comprado y el comercio quiere ver aparte lo que recibió.
  */
 import { computeNitDv } from "@/lib/erp/exogena";
 import { expenseBaseCents } from "@/lib/erp/expenseTax";
@@ -168,6 +176,7 @@ export const SUPPLIER_SORT_KEYS = [
   "facturas",
   "ultima",
   "saldo",
+  "acuerdos",
 ] as const;
 export type SupplierSortKey = (typeof SUPPLIER_SORT_KEYS)[number];
 export type SortDir = "asc" | "desc";
@@ -182,6 +191,7 @@ export const DEFAULT_SORT_DIR: Record<SupplierSortKey, SortDir> = {
   facturas: "desc",
   ultima: "desc",
   saldo: "desc",
+  acuerdos: "desc",
 };
 
 export const DEFAULT_SORT: SupplierSortKey = "promedio";
@@ -405,6 +415,8 @@ export type SupplierReportRow = {
   /** Última compra (ISO) hasta hoy, dentro o fuera del período; null si nunca. */
   lastPurchase: string | null;
   payableCents: number;
+  /** Recibido por acuerdos comerciales en el período (notas crédito vigentes). */
+  agreementCents: number;
 };
 
 export type SupplierReportTotals = {
@@ -414,12 +426,13 @@ export type SupplierReportTotals = {
   averageCents: number;
   invoices: number;
   payableCents: number;
+  agreementCents: number;
 };
 
 /**
  * Una fila por proveedor del comercio: los activos siempre (también sin
- * compras: promedio 0), los inactivos sólo si compraron en el período o
- * se les debe. Los documentos de proveedores ajenos al listado (otro
+ * compras: promedio 0), los inactivos sólo si compraron en el período,
+ * se les debe o dieron algo por acuerdos comerciales en el período. Los documentos de proveedores ajenos al listado (otro
  * comercio) o fuera del período se ignoran.
  */
 export function buildSupplierReport(input: {
@@ -431,6 +444,8 @@ export function buildSupplierReport(input: {
   lastPurchase?: ReadonlyMap<string, string>;
   /** Saldo por pagar de cada proveedor hoy. */
   payables?: ReadonlyMap<string, number>;
+  /** Recibido por acuerdos comerciales de cada proveedor en el período. */
+  agreements?: ReadonlyMap<string, number>;
 }): SupplierReportRow[] {
   const { period, basis } = input;
   const acc = new Map<string, { total: number; invoices: number; last: string | null }>();
@@ -447,7 +462,8 @@ export function buildSupplierReport(input: {
   for (const s of input.suppliers) {
     const a = acc.get(s.id)!;
     const payableCents = input.payables?.get(s.id) ?? 0;
-    if (!s.active && a.invoices === 0 && payableCents === 0) continue;
+    const agreementCents = input.agreements?.get(s.id) ?? 0;
+    if (!s.active && a.invoices === 0 && payableCents === 0 && agreementCents === 0) continue;
     rows.push({
       supplierId: s.id,
       name: s.name,
@@ -459,6 +475,7 @@ export function buildSupplierReport(input: {
       invoices: a.invoices,
       lastPurchase: a.last,
       payableCents,
+      agreementCents,
     });
   }
   return rows;
@@ -474,6 +491,7 @@ export function supplierReportTotals(rows: readonly SupplierReportRow[], months:
     averageCents: Math.round(totalCents / Math.max(1, months)),
     invoices: rows.reduce((s, r) => s + r.invoices, 0),
     payableCents: rows.reduce((s, r) => s + r.payableCents, 0),
+    agreementCents: rows.reduce((s, r) => s + r.agreementCents, 0),
   };
 }
 
@@ -526,6 +544,8 @@ function sortValue(r: SupplierReportRow, key: SupplierSortKey): string | number 
       return r.lastPurchase;
     case "saldo":
       return r.payableCents;
+    case "acuerdos":
+      return r.agreementCents;
   }
 }
 

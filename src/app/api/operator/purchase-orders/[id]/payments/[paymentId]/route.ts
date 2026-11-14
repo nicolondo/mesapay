@@ -24,7 +24,7 @@ async function DELETEHandler(
   const result = await db.$transaction(async (tx) => {
     const payment = await tx.purchasePayment.findUnique({
       where: { id: paymentId },
-      select: { id: true, restaurantId: true, purchaseOrderId: true, amountCents: true },
+      select: { id: true, restaurantId: true, purchaseOrderId: true, amountCents: true, supplierCreditNoteId: true },
     });
     if (
       !payment ||
@@ -33,6 +33,8 @@ async function DELETEHandler(
     ) {
       return { error: "not_found" as const };
     }
+    // El cruce con una nota crédito no es un pago: se deshace anulando la nota.
+    if (payment.supplierCreditNoteId) return { error: "credit_note_payment" as const };
     await tx.purchasePayment.delete({ where: { id: paymentId } });
 
     const po = await tx.purchaseOrder.findUniqueOrThrow({
@@ -56,7 +58,7 @@ async function DELETEHandler(
   });
 
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 404 });
+    return NextResponse.json({ error: result.error }, { status: result.error === "credit_note_payment" ? 409 : 404 });
   }
   return NextResponse.json({ ok: true, ...result });
 }

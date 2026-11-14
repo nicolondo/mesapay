@@ -486,6 +486,51 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "notas-credito-de-proveedores",
+      "title": "Record your suppliers' credit notes",
+      "summary": "Record the trade agreements, discounts, early-payment discounts and returns your suppliers grant with a credit note: they lower what you owe, go into the books, and whatever is left becomes a credit balance.",
+      "keywords": [
+        "credit note",
+        "supplier credit note",
+        "trade discount",
+        "trade agreement",
+        "rebate",
+        "volume rebate",
+        "early payment",
+        "conditional discount",
+        "return to supplier",
+        "merchandise return",
+        "credit balance",
+        "supplier advance",
+        "refund",
+        "CUDE",
+        "credit note without invoice",
+        "613575",
+        "613570",
+        "421040",
+        "133005"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "When a supplier lowers what you owe them —for a discount, a volume rebate, early payment or because you returned merchandise— they send you a **credit note**. Record it in **Purchases › Credit notes**: it lowers the payable, goes into the books and, if anything is left, becomes a **credit balance** with the supplier.\n\n## What kind of note it is\n\n- **Trade agreement**: volume rebate, targets or an agreement with the supplier (for example, “Quarterly beer rebate”). Fill in **Concept or agreement** to group it in the report. In the books it lowers cost of sales in its own account (613575) and shows as a separate line in the income statement.\n- **Trade discount**: a one-off discount or price reduction granted after the invoice. It lowers cost of sales (613570).\n- **Early payment**: a discount for paying on time or in cash (conditional). It is financial income (421040).\n- **Return**: you returned merchandise. Pick the invoice it comes from and enter what you returned and how much: the items leave inventory at the value the note credits.\n\nDiscounts go to cost of sales and not to inventory because, in a restaurant, the invoice's merchandise has almost always been sold already. You can change the default accounts under **Ledger account** (except for returns); **have your accountant validate them**.\n\n## Record a note\n\n1. Go to [Purchases](/operator/compras) and open the **Credit notes** tab.\n2. Tap **Record credit note**. If you have the PDF or photo, tap **Read note with AI**: the supplier, number, date, CUDE, amount and the invoices it cites are filled in. Check everything before saving.\n3. Pick the **Supplier** and enter the **Note number**, the **Date** and, if it's electronic, the **CUDE**.\n4. Choose the type and enter the **Note total**.\n5. If the note **itemizes VAT or consumption tax**, tick the box and check the rate and amount. If it doesn't, leave it unticked: VAT is left untouched and the full amount is the discount. An electronic credit note is valid even if it doesn't reference any invoice.\n6. Optional: link the invoices the note cites.\n7. Review **How it's applied** and tap **Save note**.\n\nIf you upload a document to **Upload invoice** that is actually a credit note, MESAPAY tells you and takes you here to record it without reading it again.\n\n## How it's applied to invoices\n\nWhen you save, the note is applied right away to what you owe the supplier:\n\n- **Automatic**: first to the invoices it references, then whatever is left to the oldest ones (the one due first).\n- **Choose**: you decide how much each invoice or expense goes down.\n- **Credit balance**: nothing is applied yet.\n\nThe preview shows what each invoice owed and what it will owe. In the purchase detail the application shows as “Credit note NC-…” and can't be deleted there: you undo it by voiding the note.\n\n## The credit balance\n\nWhatever isn't applied becomes the **supplier's credit balance**: an asset of yours, not debt. You see it in the notes (filter **With credit balance**), in **Unpaid**, in the supplier detail and in [Receivables & payables](/operator/reportes/cartera) as “Supplier credit balances”. It's used like this:\n\n- When you **receive** the supplier's next purchase, a ticked box applies their credit balance to that invoice, and the detail of a pending purchase shows **Apply**.\n- From the note detail: **Apply balance to invoices**.\n- If the supplier gives the money back: **Record refund** with the cash or bank account it went into.\n\n## Void a note\n\nNotes aren't deleted. In the detail, tap **Void note**: invoices owe again what the note had lowered, returned merchandise goes back into inventory and the books record the reversal on the day it's voided. If the note has refunds, delete them first. It can't be voided if it was applied to invoices in a closed month.\n\n## In the books and the reports\n\n- The note is posted on its date: it debits the credit balance (133005) and credits the type's account and, if the note itemizes VAT and your business deducts it, deductible VAT. Each application to an invoice moves that amount to Suppliers (or to costs and expenses payable, for an expense).\n- In **Taxes for the period** the notes' VAT is subtracted from purchase VAT at its rate; notes without VAT don't affect it.\n- The [Supplier credit notes](/operator/reportes/notas-credito-proveedores) report shows what you received by type, supplier, agreement and month, with an Excel download.\n- You can't record a note dated in a closed month: use the date you received it.",
+      "links": [
+        {
+          "label": "Go to Credit notes",
+          "href": "/operator/compras/notas-credito"
+        },
+        {
+          "label": "View the report",
+          "href": "/operator/reportes/notas-credito-proveedores"
+        },
+        {
+          "label": "Go to Receivables & payables",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Create purchase orders, receive goods and pay your suppliers",
       "summary": "Order goods from your suppliers with a purchase order or record one you already received, with its VAT or consumption tax and your withholdings, receive it in full or in parts and pay until the balance is zero.",

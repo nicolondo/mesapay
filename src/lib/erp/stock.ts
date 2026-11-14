@@ -72,6 +72,17 @@ export function computeMovement(args: {
       signedValueCents: Math.round(qtyBase * avg),
     };
   }
+  // Devolución al proveedor: qtyBase con signo (− sale hacia el proveedor,
+  // + es la anulación de una devolución). Vale lo que acreditó la nota
+  // (`totalCostCents`, magnitud), no el promedio: así el kardex baja lo
+  // mismo que el asiento acredita a 1435. Sin costo, al promedio.
+  if (kind === "purchase_return") {
+    const value =
+      totalCostCents != null && totalCostCents >= 0
+        ? totalCostCents
+        : Math.round(Math.abs(qtyBase) * avg);
+    return { signedQty: qtyBase, signedValueCents: Math.sign(qtyBase) * value };
+  }
   if (IN_KINDS.includes(kind)) {
     const value =
       totalCostCents != null && totalCostCents >= 0
@@ -104,6 +115,8 @@ export type ApplyStockMovementArgs = {
   orderId?: string | null;
   /** A5: producción — batch que originó el production_in/out. */
   productionBatchId?: string | null;
+  /** Devolución a proveedor (purchase_return): la nota crédito. */
+  supplierCreditNoteId?: string | null;
   createdById?: string | null;
 };
 
@@ -160,13 +173,14 @@ export async function applyStockMovement(
     purchaseOrderId,
     orderId,
     productionBatchId,
+    supplierCreditNoteId,
     createdById,
   } = args;
 
   if (
     !Number.isInteger(qtyBase) ||
     qtyBase === 0 ||
-    (kind !== "count_adjust" && qtyBase < 0) ||
+    (kind !== "count_adjust" && kind !== "purchase_return" && qtyBase < 0) ||
     Math.abs(qtyBase) > 2_000_000_000
   ) {
     throw new StockError("qty_invalid");
@@ -233,6 +247,7 @@ export async function applyStockMovement(
       purchaseOrderId: purchaseOrderId ?? null,
       orderId: orderId ?? null,
       productionBatchId: productionBatchId ?? null,
+      ...(supplierCreditNoteId ? { supplierCreditNoteId } : {}),
       createdById: createdById ?? null,
     },
   });

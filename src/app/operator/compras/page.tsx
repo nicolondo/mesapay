@@ -8,6 +8,9 @@ import { isModuleEnabled } from "@/lib/modules";
 import { ComprasClient } from "./ComprasClient";
 import { parsePurchaseListParams } from "@/lib/erp/purchaseList";
 import { loadPurchaseFilterSuppliers, loadPurchaseListPage } from "@/lib/erp/purchaseListQueries";
+import { loadSupplierCreditBalances } from "@/lib/erp/reports/supplierCreditCartera";
+import { todayIso } from "@/lib/erp/reports/period";
+import { SupplierCreditBanner } from "./SupplierCreditBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,10 @@ export default async function ComprasPage({
   const parsed = parsePurchaseListParams(sp);
   const params = allSuppliers.some((s) => s.id === parsed.supplier) ? parsed : { ...parsed, supplier: "" };
   const list = await loadPurchaseListPage(restaurantId, params);
+  // «Por pagar»: el saldo a favor de los proveedores (notas crédito sin
+  // cruzar) se muestra aparte, no como deuda negativa.
+  const credits =
+    params.tab === "unpaid" ? await loadSupplierCreditBalances(restaurantId, todayIso(), params.supplier || undefined) : [];
 
   // `?oc=<id>` (enlace desde Reportes, Cartera o el aviso de factura
   // repetida): abre el detalle de esa orden si es de este comercio; si no,
@@ -82,6 +89,15 @@ export default async function ComprasPage({
         </Link>
       </p>
       <div className="h-4 sm:hidden" />
+
+      {credits.length > 0 && (
+        <SupplierCreditBanner
+          totalCents={credits.reduce((s, c) => s + c.availableCents, 0)}
+          suppliers={credits.length}
+          supplierId={params.supplier || null}
+          currency={currency}
+        />
+      )}
 
       <ComprasClient
         list={list}

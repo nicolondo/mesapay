@@ -12,6 +12,8 @@ import { db } from "@/lib/db";
 import { NO_SUPPLIER_ID } from "./cartera";
 import { cutoffEnd, loadPayablesDocs } from "./carteraQueries";
 import { periodToUtcRange, isoDateUtc } from "./period";
+import { supplierCreditTotalsBySupplier } from "./supplierCreditReport";
+import { loadSupplierCreditReport } from "./supplierCreditReportQueries";
 import {
   PURCHASE_LINE_AMOUNTS_SELECT,
   PURCHASE_ORDER_TAX_SELECT,
@@ -56,7 +58,7 @@ export async function loadSupplierReportRows(
   const todayEnd = cutoffEnd(today);
   const statuses = [...COUNTED_PURCHASE_STATUSES];
 
-  const [suppliers, orders, expenses, lastReceived, undatedOrders, lastExpenses, payableDocs] = await Promise.all([
+  const [suppliers, orders, expenses, lastReceived, undatedOrders, lastExpenses, payableDocs, agreementNotes] = await Promise.all([
     db.supplier.findMany({
       where: { restaurantId },
       select: { id: true, name: true, taxId: true, taxIdType: true, paymentTermsDays: true, active: true },
@@ -118,6 +120,13 @@ export async function loadSupplierReportRows(
         })
       : Promise.resolve([]),
     loadPayablesDocs(restaurantId, today),
+    // Notas crédito vigentes de acuerdos comerciales del período (mismo
+    // criterio y cifra que el reporte «Notas crédito de proveedores»).
+    loadSupplierCreditReport(
+      restaurantId,
+      { desde: query.period.desde, hasta: query.period.hasta },
+      { kind: "agreement" },
+    ),
   ]);
 
   const docs: SupplierPurchaseDoc[] = [];
@@ -146,6 +155,11 @@ export async function loadSupplierReportRows(
     payables.set(d.partnerId, (payables.get(d.partnerId) ?? 0) + d.outstandingCents);
   }
 
+  const agreements = new Map<string, number>();
+  for (const [supplierId, credit] of supplierCreditTotalsBySupplier(agreementNotes)) {
+    if (credit.agreementCents !== 0) agreements.set(supplierId, credit.agreementCents);
+  }
+
   return buildSupplierReport({
     suppliers,
     docs,
@@ -153,5 +167,6 @@ export async function loadSupplierReportRows(
     basis: query.basis,
     lastPurchase,
     payables,
+    agreements,
   });
 }

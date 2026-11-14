@@ -8,6 +8,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({ purchases: vi.fn(), createEntry: vi.fn() }));
+// Notas crédito de proveedores (bloque 9): este test no las ejercita.
+vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),
+  loadSupplierCreditFacts: async () => ({ notes: [], voids: [], applies: [], refunds: [] }),
+  firstSupplierCreditActivity: async () => null,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }) },

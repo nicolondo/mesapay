@@ -14,6 +14,12 @@ const m = vi.hoisted(() => ({
   creditNotes: vi.fn(),
   refunds: vi.fn(),
 }));
+// Notas crédito de proveedores (bloque 9): este test no las ejercita.
+vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),
+  loadSupplierCreditFacts: async () => ({ notes: [], voids: [], applies: [], refunds: [] }),
+  firstSupplierCreditActivity: async () => null,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     // Comercio en INC 8 %: el régimen del mes para las devoluciones sin nota.

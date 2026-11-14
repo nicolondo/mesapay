@@ -494,6 +494,8 @@ model Restaurant {
   dianDocuments          DianDocument[]
   purchaseInvoiceUploads PurchaseInvoiceUpload[]
   purchasePayments       PurchasePayment[]
+  supplierCreditNotes    SupplierCreditNote[]
+  supplierCreditRefunds  SupplierCreditNoteRefund[]
   voucherSettings        VoucherSettings?
   voucherBatches         VoucherBatch[]
   vouchers               Voucher[]
@@ -2148,6 +2150,7 @@ model Ingredient {
   recipeItems         RecipeItem[]
   modifierRecipeItems ModifierRecipeItem[]
   productionBatches   ProductionBatch[]    @relation("BatchOutput")
+  supplierCreditNoteLines SupplierCreditNoteLine[]
 
   @@unique([restaurantId, name])
   @@unique([restaurantId, barcode])
@@ -2208,6 +2211,7 @@ model Supplier {
   invoiceAliases SupplierInvoiceAlias[]
   purchaseOrders PurchaseOrder[]
   expenses       Expense[]
+  creditNotes    SupplierCreditNote[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId, active])
@@ -2281,6 +2285,10 @@ enum StockMovementKind {
   transfer_out // A5
   production_in // A5
   production_out // A5
+  /// Devolución de mercancía al proveedor (nota crédito tipo devolución):
+  /// qtyBase NEGATIVO, valorado al costo que acreditó la nota. Su anulación
+  /// es el mismo kind con signo contrario (el libro es append-only).
+  purchase_return
 }
 
 enum WasteReason {
@@ -2330,6 +2338,9 @@ model StockMovement {
   // A5: producción — batch que originó el production_in/out.
   productionBatchId String?
   productionBatch   ProductionBatch?  @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
+  /// Devolución a proveedor (`purchase_return`): la nota crédito que la originó.
+  supplierCreditNoteId String?
+  supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: SetNull)
   createdById       String?
   createdBy         User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt         DateTime          @default(now())
@@ -2463,6 +2474,7 @@ model PurchaseOrder {
   priceHistory   SupplierPriceHistory[]
   invoiceUploads PurchaseInvoiceUpload[]
   payments       PurchasePayment[]
+  creditNoteRefs SupplierCreditNoteInvoice[]
   supportDocuments SupportDocument[]
 
   @@unique([restaurantId, number])
@@ -2517,6 +2529,8 @@ model PurchaseOrderItem {
   nonInventoryReceivedIncCents Int @default(0)
   receivedCostCents Int @default(0)
 
+  creditNoteLines SupplierCreditNoteLine[]
+
   @@index([purchaseOrderId])
 }
 
@@ -2537,12 +2551,149 @@ model PurchasePayment {
   /// con una heurística sobre `method` (ver erp/paymentAccounts.ts).
   accountCode     String?
   note            String?
+  /// Cruce con una nota crédito del proveedor: este «abono» no es plata que
+  /// salió sino la parte de la nota aplicada a esta compra. No va al asiento
+  /// «Pagos a proveedores» (la nota ya debitó Proveedores) y no se borra
+  /// desde la compra: se deshace anulando la nota.
+  supplierCreditNoteId String?
+  supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
   createdById     String?
   createdBy       User?         @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime      @default(now())
 
   @@index([purchaseOrderId])
   @@index([restaurantId, paidAt])
+  @@index([supplierCreditNoteId])
+
+}
+
+// === Notas crédito de proveedores ==========================================
+// El proveedor DISMINUYE lo que se le debe: descuento comercial puntual,
+// acuerdo comercial (bonificación por volumen/metas/convenio), descuento
+// condicionado (pronto pago) o devolución de mercancía. Una nota electrónica
+// (con CUDE) es válida aunque no relacione factura. Si no discrimina IVA, el
+// IVA no se toca: el valor completo es el descuento. Nunca se borra: se
+// ANULA y el motor asienta su reverso el día de la anulación.
+//
+// Lo que baja la cuenta por pagar de cada factura son sus CRUCES:
+// PurchasePayment / ExpensePayment con `supplierCreditNoteId`. Así el saldo
+// de las compras y gastos, la cartera, la exógena y la lista de Compras
+// salen sin tratamiento especial. Lo no cruzado es saldo a favor del
+// proveedor (total − Σ cruces), que se puede aplicar después.
+// Asiento: posting.ts (bloque 9). Lógica: erp/supplierCreditNotes*.ts.
+
+model SupplierCreditNote {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplierId   String
+  supplier     Supplier   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  /// Número de la nota del proveedor, tal cual («NC-0123»).
+  number        String
+  /// Fecha contable de la nota (mediodía de Colombia, como Expense.date).
+  date          DateTime
+  /// CUDE de la nota electrónica (opcional).
+  cude          String?
+  /// discount | agreement | conditional_discount | return
+  kind          String
+  /// Concepto del acuerdo comercial («Bonificación trimestral cerveza»):
+  /// agrupa lo recibido por acuerdo en el reporte. Texto libre.
+  agreement     String?   @db.VarChar(120)
+  /// Valor total de la nota: lo que baja la cuenta por pagar.
+  totalCents    Int
+  /// IVA discriminado en la nota (0 = no trae IVA → no se toca el IVA).
+  ivaPct        Int       @default(0)
+  ivaCents      Int       @default(0)
+  /// Foto de `Restaurant.purchaseIvaDeductible` al registrarla.
+  ivaDeductible Boolean   @default(false)
+  /// Impuesto al consumo discriminado (es costo, sigue a la base).
+  incCents      Int       @default(0)
+  /// Contrapartida elegida (null = la del tipo, ver supplierCreditNoteAccounts).
+  accountCode   String?
+  note          String?
+  /// PDF/foto de la nota (/uploads/…).
+  attachmentUrl String?
+  /// Lectura con IA (la misma de las facturas), para auditoría.
+  extraction    Json?
+  /// active | voided
+  status        String    @default("active")
+  voidedAt      DateTime?
+  voidReason    String?
+  voidedById    String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  lines            SupplierCreditNoteLine[]
+  invoices         SupplierCreditNoteInvoice[]
+  purchasePayments PurchasePayment[]
+  expensePayments  ExpensePayment[]
+  refunds          SupplierCreditNoteRefund[]
+  stockMovements   StockMovement[]
+
+  @@index([restaurantId, date])
+  @@index([restaurantId, supplierId])
+  @@index([restaurantId, voidedAt])
+}
+
+/// Línea de una DEVOLUCIÓN: insumo, cantidad (unidad base) y valor (sin IVA).
+model SupplierCreditNoteLine {
+  id                  String             @id @default(cuid())
+  creditNoteId        String
+  creditNote          SupplierCreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  ingredientId        String
+  ingredient          Ingredient         @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  /// Línea de la compra de donde sale (si se eligió una factura).
+  purchaseOrderItemId String?
+  purchaseOrderItem   PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  qtyBase             Int
+  /// Valor de la línea SIN IVA (lo que acredita la nota por ese insumo).
+  valueCents          Int
+  /// Costo de la línea: valor + su parte del impuesto que es costo (INC e
+  /// IVA no descontable). Es lo que sale del kardex y lo que el asiento
+  /// acredita; se congela al registrar.
+  costCents           Int                @default(0)
+  /// ¿El insumo se lleva en inventario al registrar? Sí → sale del kardex y
+  /// acredita 1435; no → acredita el gasto, como la compra que lo trajo.
+  inventoried         Boolean            @default(true)
+
+  @@index([creditNoteId])
+  @@index([ingredientId])
+}
+
+/// Reintegro EN DINERO de un saldo a favor: el proveedor devuelve la plata.
+/// Asiento: D caja/banco (`accountCode`) · C 133005 saldo a favor.
+model SupplierCreditNoteRefund {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  creditNoteId String
+  creditNote   SupplierCreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  amountCents  Int
+  /// Fecha en que entró la plata (mediodía de Colombia).
+  receivedAt   DateTime
+  /// Cuenta de dinero donde ENTRÓ (caja, banco, pasarela).
+  accountCode  String
+  note         String?
+  createdById  String?
+  createdAt    DateTime           @default(now())
+
+  @@index([creditNoteId])
+  @@index([restaurantId, receivedAt])
+}
+
+/// Factura(s) de compra que la nota referencia (informativo; el cruce de
+/// saldos va aparte).
+model SupplierCreditNoteInvoice {
+  id              String             @id @default(cuid())
+  creditNoteId    String
+  creditNote      SupplierCreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([creditNoteId, purchaseOrderId])
+  @@index([purchaseOrderId])
 }
 
 /// Historial de precios por presentación de la lista de precios (spec D4).
@@ -4234,6 +4385,9 @@ model ExpensePayment {
   /// Cuenta del PUC de donde SALE la plata (caja, banco, pasarela…).
   accountCode String
   note        String?
+  /// Cruce con una nota crédito del proveedor (ver PurchasePayment).
+  supplierCreditNoteId String?
+  supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
 
   createdById String?
   createdBy   User?    @relation("ExpensePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -4241,6 +4395,8 @@ model ExpensePayment {
 
   @@index([expenseId])
   @@index([restaurantId, paidAt])
+  @@index([supplierCreditNoteId])
+
 }
 
 // Shared event log. Order changes are inserted transactionally by SQL trigger.

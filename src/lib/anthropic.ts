@@ -604,6 +604,12 @@ export async function extractRutData(source: DocumentSource): Promise<RutExtract
 // confirmación. Todo en centavos.
 
 const InvoiceTaxBasis = z.enum(["net", "gross", "unknown"]);
+/** Campos propios de una nota crédito del proveedor (ver PurchaseInvoiceSchema). */
+const CREDIT_NOTE_FIELDS = {
+  cude: z.string().nullable().optional().catch(null),
+  referencedInvoiceNumbers: z.array(z.string()).optional().catch(undefined),
+  creditNoteConcept: z.string().nullable().optional().catch(null),
+};
 const TaxCellSchema = z.object({
   cents: z.number().int().nullable(),
   pct: z.number().min(0).max(100).nullable(),
@@ -669,9 +675,12 @@ export const PurchaseInvoiceSchema = z.object({
   // ("debe a:"), no quien la emite arriba. .catch(null) evita que un valor
   // inesperado del modelo tumbe toda la extracción.
   documentType: z
-    .enum(["factura", "cuenta_de_cobro", "otro"])
+    .enum(["factura", "cuenta_de_cobro", "nota_credito", "otro"])
     .nullable()
     .catch(null),
+  // Nota crédito del proveedor (documentType "nota_credito"): CUDE impreso,
+  // facturas que referencia y concepto. Ausentes en lecturas viejas.
+  ...CREDIT_NOTE_FIELDS,
   supplierNit: z.string().nullable(),
   supplierName: z.string().nullable(),
   supplierInvoiceNumber: z.string().nullable(),
@@ -738,9 +747,12 @@ const RawInvoiceLine = z.object({
 });
 const RawInvoiceSchema = z.object({
   documentType: z
-    .enum(["factura", "cuenta_de_cobro", "otro"])
+    .enum(["factura", "cuenta_de_cobro", "nota_credito", "otro"])
     .nullable()
     .catch(null),
+  cude: z.string().nullable().optional().catch(null),
+  referencedInvoices: z.array(z.string()).optional().catch([]),
+  creditNoteConcept: z.string().nullable().optional().catch(null),
   supplierNit: z.string().nullable(),
   supplierName: z.string().nullable(),
   supplierInvoiceNumber: z.string().nullable(),
@@ -912,7 +924,10 @@ const PURCHASE_INVOICE_SYSTEM = `Eres un asistente que extrae los datos de un DO
 Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto adicional:
 
 {
-  "documentType": "factura" | "cuenta_de_cobro" | "otro",  // tipo de documento
+  "documentType": "factura" | "cuenta_de_cobro" | "nota_credito" | "otro",  // tipo de documento
+  "cude": string | null,                 // SOLO nota crédito electrónica: el CUDE impreso (código largo hexadecimal), null si no se ve
+  "referencedInvoices": [string],        // SOLO nota crédito: números de las facturas que la nota referencia/afecta, tal cual; [] si no referencia ninguna
+  "creditNoteConcept": string | null,    // SOLO nota crédito: concepto o motivo impreso (ej. "Descuento comercial", "Bonificación por volumen", "Devolución"), null si no se ve
   "supplierNit": string | null,          // NIT/RFC/cédula del PROVEEDOR (acreedor, a quien se paga), SOLO dígitos, sin DV ni guiones
   "supplierName": string | null,         // razón social o nombre del proveedor (acreedor)
   "supplierInvoiceNumber": string | null,// número/consecutivo de la factura
@@ -965,7 +980,8 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
 
 Reglas estrictas:
 - CANTIDADES Y MONTOS: cópialos como TEXTO EXACTO, carácter por carácter, tal como aparecen impresos, CON sus separadores de miles y decimales. NO hagas ninguna aritmética, NO conviertas a centavos, NO quites ni cambies los puntos/comas, NO redondees. Ejemplos de lo que debes devolver: "232.499,82" (déjalo así), "232,499.82" (déjalo así), "$12.500" (déjalo así), "4,34" (déjalo así). El código de la aplicación se encarga de interpretar el número — tú solo transcribe. Es CRÍTICO no perder los decimales de centavos.
-- documentType: "cuenta_de_cobro" si el documento se titula "CUENTA DE COBRO" o lo emite una persona natural sin factura electrónica; "factura" si es una factura de venta/compra; "otro" en cualquier otro caso.
+- documentType: "cuenta_de_cobro" si el documento se titula "CUENTA DE COBRO" o lo emite una persona natural sin factura electrónica; "factura" si es una factura de venta/compra; "nota_credito" si se titula "NOTA CRÉDITO" / "NOTA CREDITO ELECTRÓNICA" / "nota de devolución" o el proveedor DISMINUYE lo que se le debe (descuento, bonificación, rebaja, devolución); "otro" en cualquier otro caso.
+- NOTA CRÉDITO: es un documento de compra válido (nunca "otro"). supplierInvoiceNumber = el número de la NOTA (no el de la factura que afecta); issueDate = fecha de la nota; las facturas que referencia van en referencedInvoices. Copia los montos POSITIVOS aunque estén impresos con signo menos. lines = los ítems devueltos o, si es un descuento sin ítems, UNA línea con el concepto (quantity "1"). invoiceTax = el IVA SOLO si la nota lo discrimina; si no lo trae, null (no lo calcules). invoiceTotal = el valor total de la nota.
 - PROVEEDOR = a quién se le PAGA (el acreedor/beneficiario). En una FACTURA es quien la emite. En una CUENTA DE COBRO es quien aparece después de "DEBE A:" — NO quien debe (el restaurante que paga, que suele ir arriba o antes de "debe a"). supplierName y supplierNit son SIEMPRE los del acreedor (a quien se le paga), nunca los del restaurante.
 - supplierNit: el del PROVEEDOR (acreedor), NO el del restaurante que compra/debe. Solo dígitos, sin dígito de verificación.
 - quantity: la cantidad facturada de esa línea. Si la línea dice "2 cajas", quantity=2 y unit="caja".
@@ -996,6 +1012,16 @@ Reglas estrictas:
   Las retenciones se RESTAN del total a pagar; el IVA e INC se SUMAN. Cópialos como valores positivos (el signo lo maneja el código). El ajuste es el único que conserva su signo.
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
+
+/** Campos de nota crédito de la lectura (sólo cuando la IA la reconoció como tal). */
+function creditNoteReading(r: z.infer<typeof RawInvoiceSchema>) {
+  if (r.documentType !== "nota_credito") return {};
+  return {
+    cude: r.cude?.replace(/\s+/g, "").slice(0, 200) || null,
+    referencedInvoiceNumbers: (r.referencedInvoices ?? []).map((n) => n.trim()).filter(Boolean).slice(0, 20),
+    creditNoteConcept: r.creditNoteConcept?.trim().slice(0, 200) || null,
+  };
+}
 
 /** Read a complete response, never repair or concatenate fragments of an invoice. */
 async function readPurchaseInvoice(
@@ -1149,6 +1175,7 @@ function normalizePurchaseInvoiceReading(r: z.infer<typeof RawInvoiceSchema>): P
   });
   return inferPurchaseInvoiceTaxBases(PurchaseInvoiceSchema.parse({
     documentType: r.documentType,
+    ...creditNoteReading(r),
     supplierNit: r.supplierNit,
     supplierName: r.supplierName,
     supplierInvoiceNumber: r.supplierInvoiceNumber,

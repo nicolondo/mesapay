@@ -88,6 +88,8 @@ export const KIND_LABEL_KEYS: Record<string, string> = {
   // A5 — producción de lotes (los escribe /operator/produccion).
   production_in: "kindProductionIn",
   production_out: "kindProductionOut",
+  // Devolución al proveedor (nota crédito tipo devolución).
+  purchase_return: "kindPurchaseReturn",
 };
 
 export const WASTE_REASONS = ["expired", "damaged", "kitchen_error", "spill", "other"] as const;

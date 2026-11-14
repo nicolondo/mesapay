@@ -46,6 +46,8 @@
 .mp-admin-content .mp-page--account { max-width: 680px; }
 .mp-admin-content :where(table) { font-variant-numeric: tabular-nums; }
 .mp-admin-drawer .mp-admin-brand { padding-right: 60px; }
+/* Cajón del celular: «Salir» e idioma con objetivo táctil de 44px, como en el cajón del operador. */
+.mp-admin-drawer .mp-admin-signout, .mp-admin-drawer .mp-admin-session-actions .mp-locale-switcher { min-height: 44px; }
 @media (min-width: 768px) {
   .mp-admin-shell { grid-template-columns: 248px minmax(0, 1fr); }
   .mp-admin-sidebar { display: flex; }

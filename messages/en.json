@@ -1352,7 +1352,12 @@
     "einvoiceRepresentation": "Printed representation of the electronic sales invoice",
     "paymentPending": "Payment pending",
     "freeItemsNote": "Free of charge (not part of the invoice): {items}",
-    "methodBreB": "Bre-B · transfer"
+    "methodBreB": "Bre-B · transfer",
+    "invoiceTotal": "Invoice total",
+    "receiptTotal": "Receipt total",
+    "tipVoluntary": "Voluntary tip",
+    "totalToPay": "TOTAL TO PAY",
+    "suggestedTipVoluntary": "Suggested tip (voluntary) {pct}%"
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",
@@ -1371,7 +1376,10 @@
     "ctaText": "View the invoice: {url}",
     "verifyCta": "Verify your invoice with the DIAN",
     "footerHelp": "If you have questions about your bill, write directly to {brand}.",
-    "sentBy": "Sent by MESAPAY · Made in Colombia"
+    "sentBy": "Sent by MESAPAY · Made in Colombia",
+    "labelInvoiceTotal": "Invoice total",
+    "labelTip": "Voluntary tip",
+    "labelTotalToPay": "Total to pay"
   },
   "emailMembership": {
     "subjectT7": "Your MESAPAY plan expires in {days} days",
@@ -9886,7 +9894,8 @@
     "total": "Total credited: {amount}",
     "tipRefund": "Tip returned: {amount} (not part of the electronic credit note)",
     "open": "View credit note",
-    "attachments": "The PDF representation and XML container with the DIAN response are attached."
+    "attachments": "The PDF representation and XML container with the DIAN response are attached.",
+    "totalToRefund": "Total to refund including the tip: {amount}"
   },
   "serviceReports": {
     "representationTitle": "Representation expenses",
@@ -10595,7 +10604,7 @@
     "statHint": "Collected {collected} · returned {returned}"
   },
   "preInvoice": {
-    "action": "Print invoice",
+    "action": "Issue and print invoice",
     "sheetLabel": "Invoice before payment",
     "sheetTitle": "Print the invoice",
     "sheetIntro": "The invoice is issued for the bill as it is now, for {total}. The customer pays afterwards however they like: cash, card terminal, link or split.",
@@ -10644,7 +10653,8 @@
     "annulLink": "Void with credit note",
     "view": "View invoice",
     "tileBadge": "Invoiced",
-    "dinerInvoiced": "The invoice for this bill has already been issued ({number}). You can pay with any method."
+    "dinerInvoiced": "The invoice for this bill has already been issued ({number}). You can pay with any method.",
+    "actionManual": "Print invoice"
   },
   "adminDianRecovery": {
     "title": "DIAN invoices to recover",

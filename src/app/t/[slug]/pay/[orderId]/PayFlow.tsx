@@ -361,6 +361,7 @@ export async function PayFlow({
       }}
       initialTipPct={payLinkMode ? 0 : parseTipPct(tip)}
       payLinkMode={payLinkMode}
+      manualInvoice={manualInvoice}
       pendingPayments={pendingPayments}
       kushkiTerminalAvailable={kushkiTerminalAvailable}
       // "Resolver cobro" de un datáfono Kushki sin respuesta: sólo el

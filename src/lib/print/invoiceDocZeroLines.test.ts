@@ -67,7 +67,7 @@ describe("productos en $0 en la factura impresa", () => {
     const doc = build(true);
     expect(doc.items.map((i) => i.name)).toEqual(["Bandeja paisa", "Limonada"]);
     expect(doc.itemsNote).toBe("freeItemsNote(1× ZPostre Cumpleaños)");
-    expect(doc.totals.at(-1)).toMatchObject({ label: "total", amount: "$66000" });
+    expect(doc.totals.at(-1)).toMatchObject({ label: "totalToPay", amount: "$66000" });
   });
 
   it("comprobante (sin DIAN): todo como siempre, sin nota", () => {

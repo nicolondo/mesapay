@@ -86,6 +86,8 @@ describe("concurrent confirmations of the same uploaded invoice", () => {
         expectedCostCents: 98001,
         taxPct: 5,
       }],
+      // The reviewed amounts deliberately differ from the printed OCR total.
+      acknowledgedDifferences: true,
     };
     const bothPrechecks = checkpoint();
     const gates = [checkpoint(), checkpoint()];
@@ -164,7 +166,7 @@ describe("concurrent confirmation and discard of an uploaded invoice", () => {
     }), { params: Promise.resolve({ id: upload.id }) });
     try {
       await discardRead.reached;
-      const confirmation = await confirm(upload.id, correctedReview("receive"));
+      const confirmation = await confirm(upload.id, acknowledged(correctedReview("receive")));
       expect(confirmation.status).toBe(201);
       const { order } = await confirmation.json();
       const committedOrder = await db.purchaseOrder.findUniqueOrThrow({
@@ -239,6 +241,15 @@ function correctedReview(mode: Mode) {
   };
 }
 
+/**
+ * The fixtures' reviewed amounts intentionally differ from the OCR values,
+ * including the printed total: saving them needs the operator's explicit
+ * confirmation. Rejection tests keep it out to prove validation errors win.
+ */
+function acknowledged<T extends object>(review: T): T & { acknowledgedDifferences: true } {
+  return { ...review, acknowledgedDifferences: true };
+}
+
 function confirm(uploadId: string, review: unknown) {
   return confirmInvoice(new Request(`http://localhost/api/operator/purchase-invoices/${uploadId}/confirm`, {
     method: "POST",
@@ -267,7 +278,7 @@ async function expectRejectedWithoutWrites(uploadId: string, response: Response,
 describe.each(["draft", "receive"] as const)("reviewed purchase invoice confirmation (%s) on PostgreSQL", (mode) => {
   it("persists corrected catalog selection, new ingredient, quantity, net cost and VAT instead of OCR values", async () => {
     const upload = await uploadInvoice();
-    const response = await confirm(upload.id, correctedReview(mode));
+    const response = await confirm(upload.id, acknowledged(correctedReview(mode)));
     const body = await response.json();
     expect(body, `HTTP ${response.status}`).toHaveProperty("order.id");
     expect(response.status).toBe(201);
@@ -352,5 +363,44 @@ describe.each(["draft", "receive"] as const)("reviewed purchase invoice confirma
       ],
     });
     await expectRejectedWithoutWrites(upload.id, response, 400, "ingredient_not_found");
+  });
+});
+
+describe("confirming against the printed invoice total on PostgreSQL", () => {
+  // Printed Total 48.600 = 40.000 + 19 % + 1.000 exento. The review below
+  // reaches 48.632 and the invoice prints «Ajustes −0,32».
+  const matching = (fields: Record<string, unknown> = {}) => ({
+    supplierId: owner.supplierId,
+    supplierInvoiceNumber: "REVIEWED-789",
+    mode: "receive",
+    lines: [
+      { ingredientId: owner.selected.id, qtyBase: 2000, expectedCostCents: 40027, taxPct: 19 },
+      { ingredientId: owner.original.id, qtyBase: 1000, expectedCostCents: 1000, taxPct: 0 },
+    ],
+    ...fields,
+  });
+
+  it("refuses a payable different from the printed Total without confirmation, after validations and without writes", async () => {
+    const upload = await uploadInvoice();
+    const response = await confirm(upload.id, correctedReview("receive"));
+    await expectRejectedWithoutWrites(upload.id, response, 409, "totals_unconfirmed");
+  });
+
+  it("stores the printed rounding adjustment so the payable is exactly the invoice Total", async () => {
+    const upload = await uploadInvoice();
+    const response = await confirm(upload.id, matching({ roundingCents: -32 }));
+    expect(response.status).toBe(201);
+    const { order } = await response.json();
+    const saved = await db.purchaseOrder.findUniqueOrThrow({
+      where: { id: order.id }, include: { items: true },
+    });
+    expect(saved).toMatchObject({ status: "received", roundingCents: -32 });
+    const { purchaseOrderTotals } = await import("../src/lib/erp/purchaseTax");
+    expect(purchaseOrderTotals(saved, "received")).toMatchObject({ subtotalCents: 41027, taxCents: 7605, roundingCents: -32, totalCents: 48600 });
+  });
+
+  it("needs the confirmation when the rounding adjustment is left out", async () => {
+    const upload = await uploadInvoice();
+    await expectRejectedWithoutWrites(upload.id, await confirm(upload.id, matching()), 409, "totals_unconfirmed");
   });
 });

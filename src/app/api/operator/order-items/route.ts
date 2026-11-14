@@ -11,9 +11,12 @@ import {
   isValidSalesTaxRate,
   lineTaxOnTopCents,
   MAX_FREE_LINE_QTY,
-  MAX_FREE_LINE_TOTAL_CENTS,
-  MAX_ORDER_TOTAL_CENTS,
 } from "@/lib/salesTax";
+import {
+  freeLineFits,
+  maxFreeLineCents,
+  MAX_FREE_LINE_UNIT_CENTS,
+} from "@/lib/freeLineLimit";
 
 /**
  * Agregar una LÍNEA LIBRE a una cuenta: algo que no está en la carta y que
@@ -43,15 +46,35 @@ import {
  * servida, así que no cae en el board de cocina (que consulta rondas y
  * filtra por estación), no dispara comanda, no tiene receta y no se califica.
  *
+ * El valor de la línea tiene un tope DINÁMICO (`freeLineLimit.ts`): lo que
+ * le quede libre a la cuenta sin pasar el techo seguro del total, contando el
+ * impuesto que se suma y un margen para la propina. Si no cabe, sale
+ * `line_too_large` con `maxLineCents` para que el diálogo diga «El máximo
+ * para esta cuenta es $X» en vez de fallar en silencio.
+ *
  * Los errores viajan como código (`error`), nunca como texto: MESAPAY es
  * trilingüe y el cliente los traduce.
  */
+
+/** La línea no cabe en la cuenta; lleva el máximo que sí cabría. */
+class LineTooLargeError extends Error {
+  constructor(readonly maxLineCents: number) {
+    super("line_too_large");
+  }
+}
+
+function lineTooLarge(maxLineCents: number) {
+  return NextResponse.json(
+    { error: "line_too_large", maxLineCents },
+    { status: 400 },
+  );
+}
 
 const bodySchema = z.object({
   orderId: z.string().min(1),
   name: z.string().trim().min(2).max(120),
   qty: z.number().int().min(1).max(MAX_FREE_LINE_QTY),
-  unitPriceCents: z.number().int().min(0).max(MAX_FREE_LINE_TOTAL_CENTS),
+  unitPriceCents: z.number().int().min(0).max(MAX_FREE_LINE_UNIT_CENTS),
   // "included" ⇒ impuesto del comercio embebido (como un plato del menú).
   taxKind: z.enum(["none", "inc", "iva", "included"]),
   taxPct: z.number().int().min(0).max(100),
@@ -125,57 +148,60 @@ async function POSTHandler(req: Request) {
   }
 
   const lineCents = unitPriceCents * qty;
-  if (lineCents > MAX_FREE_LINE_TOTAL_CENTS) {
-    return NextResponse.json({ error: "line_too_large" }, { status: 400 });
+  const lineTax = { taxKind, taxPct };
+  const line = { amountCents: lineCents, ...lineTax };
+  // Los totales de la orden son Int: lo que desborda es la SUMA, no la línea
+  // sola. Se valida contra lo que la cuenta ya tiene ANTES de escribir —
+  // pasarse sería un 500 al guardar (o al registrar el pago), no un error de
+  // negocio que el mesero pueda entender.
+  if (!freeLineFits(order, line)) {
+    return lineTooLarge(maxFreeLineCents(order, lineTax));
   }
-  // Los totales de la orden son Int: chequear la línea sola no alcanza,
-  // porque lo que desborda es la SUMA. Se proyecta el total resultante contra
-  // el techo antes de escribir — pasarse sería un 500 al guardar, no un error
-  // de negocio que el mesero pueda entender.
-  const lineTaxCents = lineTaxOnTopCents({
-    amountCents: lineCents,
-    taxKind,
-    taxPct,
-  });
-  const projectedTotal =
-    order.subtotalCents +
-    order.taxCents +
-    order.tipCents +
-    lineCents +
-    lineTaxCents;
-  if (projectedTotal > MAX_ORDER_TOTAL_CENTS) {
-    return NextResponse.json({ error: "order_too_large" }, { status: 400 });
-  }
+  const lineTaxCents = lineTaxOnTopCents(line);
 
-  const { item, totals } = await db.$transaction(async tx => {
-    const current = await requireMutableOrderInTx(tx, order.id);
-    if (current.subtotalCents + current.taxCents + current.tipCents + lineCents + lineTaxCents > MAX_ORDER_TOTAL_CENTS) throw new Error("operation_conflict");
-    const item = await tx.orderItem.create({
-    data: {
-      orderId: order.id,
-      // Sin menuItem: no sale de la carta. Sin ronda: no es un pedido a
-      // cocina, y el board de cocina consulta rondas — así ni siquiera puede
-      // aparecer allí.
-      menuItemId: null,
-      roundId: null,
-      qty,
-      nameSnapshot: name,
-      priceCentsSnapshot: unitPriceCents,
-      taxKind,
-      taxPct,
-      notes: parsed.data.notes,
-      categoryKind: "other",
-      // "counter" + ya servida: nadie tiene que prepararla ni entregarla, así
-      // que no debe quedar pendiente en ninguna cola del personal.
-      station: "counter",
-      kitchenStatus: "ready",
-      servedAt: new Date(),
-    },
-    select: { id: true },
-  });
-    const totals = await recomputeOrderLinesInTx(tx, order.id);
-    return { item, totals };
-  });
+  let created: {
+    item: { id: string };
+    totals: { subtotalCents: number; totalCents: number };
+  };
+  try {
+    created = await db.$transaction(async (tx) => {
+      const current = await requireMutableOrderInTx(tx, order.id);
+      // Otra vez con la cuenta bloqueada: entre la lectura de arriba y acá
+      // otro dispositivo pudo sumarle platos.
+      if (!freeLineFits(current, line)) {
+        throw new LineTooLargeError(maxFreeLineCents(current, lineTax));
+      }
+      const item = await tx.orderItem.create({
+        data: {
+          orderId: order.id,
+          // Sin menuItem: no sale de la carta. Sin ronda: no es un pedido a
+          // cocina, y el board de cocina consulta rondas — así ni siquiera
+          // puede aparecer allí.
+          menuItemId: null,
+          roundId: null,
+          qty,
+          nameSnapshot: name,
+          priceCentsSnapshot: unitPriceCents,
+          taxKind,
+          taxPct,
+          notes: parsed.data.notes,
+          categoryKind: "other",
+          // "counter" + ya servida: nadie tiene que prepararla ni entregarla,
+          // así que no debe quedar pendiente en ninguna cola del personal.
+          station: "counter",
+          kitchenStatus: "ready",
+          servedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      const totals = await recomputeOrderLinesInTx(tx, order.id);
+      return { item, totals };
+    });
+  } catch (err) {
+    if (err instanceof LineTooLargeError) return lineTooLarge(err.maxLineCents);
+    throw err;
+  }
+  const { item, totals } = created;
 
   // Meterle plata a una cuenta es sensible — queda en la bitácora igual que
   // cancelar o mover un plato.

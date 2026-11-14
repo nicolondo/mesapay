@@ -1,4 +1,5 @@
 import { invoiceLineAmounts, parseInvoiceTaxPct, type InvoiceTaxBasis } from "./invoiceAmounts";
+import { ROUNDING_MAX_CENTS } from "./invoiceReconcile";
 
 /** The structural subset is also usable for previously saved OCR extractions. */
 export type InvoiceTaxLine = {
@@ -26,6 +27,8 @@ export type InvoiceTaxDocument = {
   retefuenteCents?: number | null;
   reteIvaCents?: number | null;
   reteIcaCents?: number | null;
+  /** «Ajustes» / ajuste al peso impreso, con signo. */
+  invoiceAdjustmentCents?: number | null;
 };
 type KnownBasis = Exclude<InvoiceTaxBasis, "unknown">;
 type Evidence = { basis: InvoiceTaxBasis; conflict: boolean };
@@ -146,6 +149,9 @@ function documentEvidence(invoice: InvoiceTaxDocument, numericAllowed: boolean):
   if (!numericAllowed || !invoice.lines.length || printed.filter(value => value != null).length < 2
     || money.some(value => value != null && !validCents(value))) return unknown();
   const retentions = (invoice.retefuenteCents ?? 0) + (invoice.reteIvaCents ?? 0) + (invoice.reteIcaCents ?? 0);
+  // A printed rounding adjustment is part of the printed total, never of a line.
+  const adjustment = invoice.invoiceAdjustmentCents != null && Number.isSafeInteger(invoice.invoiceAdjustmentCents)
+    && Math.abs(invoice.invoiceAdjustmentCents) <= ROUNDING_MAX_CENTS ? invoice.invoiceAdjustmentCents : 0;
   const candidates = BASES.filter(basis => {
     const amounts = invoice.lines.map(line => lineAmounts(line, line.lineTotalCents != null ? "line" : "unit", basis));
     if (amounts.some(amount => amount == null)) return false;
@@ -155,7 +161,7 @@ function documentEvidence(invoice: InvoiceTaxDocument, numericAllowed: boolean):
     const subtotal = invoice.invoiceSubtotalCents;
     if (subtotal != null && !near(sum.net, subtotal) && !near(sum.net, subtotal - (invoice.invoiceDiscountCents ?? 0))) return false;
     if (invoice.invoiceTaxCents != null && !near(sum.vat, invoice.invoiceTaxCents)) return false;
-    return invoice.invoiceTotalCents == null || near(sum.gross - retentions, invoice.invoiceTotalCents);
+    return invoice.invoiceTotalCents == null || near(sum.gross - retentions + adjustment, invoice.invoiceTotalCents);
   });
   return candidates.length === 1 ? reported(candidates[0]) : unknown();
 }

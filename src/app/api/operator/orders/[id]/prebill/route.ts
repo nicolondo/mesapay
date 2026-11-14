@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/auditLog";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
 import { enqueuePrebillTicket } from "@/lib/print/prebillQueue";
+import { STAFF_PRINT_ROLES } from "@/lib/print/staffPrint";
+import { wantsDevicePrint } from "@/lib/print/devicePrintRequest";
 
 /**
  * POST /api/operator/orders/[id]/prebill — manda la PRECUENTA de una
@@ -14,19 +16,24 @@ import { enqueuePrebillTicket } from "@/lib/print/prebillQueue";
  * factura". La factura (y la electrónica) sale recién al cobrar, por el
  * camino de siempre — esto no numera ni congela nada.
  *
- * Quién puede: el mismo staff que confirma un efectivo desde Salón
- * (`settle-cash`): operador, admins y el MESERO, que es quien de hecho la
- * lleva a la mesa. `requireOperatorScope` ya lo incluye.
+ * Quién puede: el staff que imprime (`STAFF_PRINT_ROLES`): operador,
+ * admins, el MESERO, que es quien de hecho la lleva a la mesa, y el usuario
+ * DATÁFONO, que cobra la mesa desde el Smart POS.
+ *
+ * «Este dispositivo» (cuerpo `{ destination: "device" }`): la precuenta se
+ * imprime desde el navegador de quien la pide, al papel de su equipo. La
+ * ruta NO encola nada: valida la cuenta (abierta, de este comercio), deja el
+ * rastro de quién la imprimió y responde `{ queued: false, reason: "device" }`.
  *
  * Responde `{ queued, reason?, printerName? }` y NUNCA falla por "no hay
  * impresora": en ese caso `queued: false` y el cliente abre la vista
  * imprimible del navegador (`/operator/orders/[id]/precuenta`).
  */
 async function POSTHandler(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const scope = await requireOperatorScope();
+  const scope = await requireOperatorScope(STAFF_PRINT_ROLES);
   if (isScopeError(scope)) {
     return NextResponse.json(
       { error: scope.error },
@@ -48,6 +55,16 @@ async function POSTHandler(
   // Ya pagada o cancelada: lo que corresponde es la factura, no esto.
   if (order.status === "paid" || order.status === "cancelled") {
     return NextResponse.json({ error: "order_closed" }, { status: 409 });
+  }
+
+  if (await wantsDevicePrint(req)) {
+    await recordAuditEvent({
+      kind: "order.prebill.print",
+      restaurantId: scope.restaurantId,
+      target: { type: "order", id: order.id },
+      summary: `Imprimió precuenta ${order.shortCode} en su dispositivo`,
+    });
+    return NextResponse.json({ queued: false, reason: "device" });
   }
 
   const result = await enqueuePrebillTicket({

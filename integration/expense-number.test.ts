@@ -12,7 +12,7 @@ import { ensureChartOfAccounts } from "../src/lib/erp/ledger";
 
 /**
  * Consecutivo de gastos (G-0001) y lista filtrada contra PostgreSQL real
- * (migración 20261113160000_expense_number): numeración secuencial y bajo
+ * (migración 20261113230000_expense_number): numeración secuencial y bajo
  * concurrencia, nunca reutilizada, compatible con la versión anterior del
  * código (gastos sin número), el backfill de la migración, y búsqueda,
  * filtros, páginas y totales calculados en el servidor.
@@ -184,7 +184,7 @@ describe("backfill de la migración", () => {
       });
     }
     const sql = readFileSync(
-      path.resolve(__dirname, "../prisma/migrations/20261113160000_expense_number/migration.sql"),
+      path.resolve(__dirname, "../prisma/migrations/20261113230000_expense_number/migration.sql"),
       "utf8",
     );
     const block = /-- backfill:start\n([\s\S]*?)-- backfill:end/.exec(sql)![1]!;

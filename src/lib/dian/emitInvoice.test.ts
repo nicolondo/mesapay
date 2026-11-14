@@ -751,18 +751,47 @@ describe("impuesto congelado — el XML lee la tarifa del snapshot, no del comer
 
 describe("medio de pago (PaymentMeans)", () => {
   it("una cuenta cobrada en efectivo (cash) sale de contado con medio 10 (efectivo)", async () => {
-    // La query sólo trae cobros a crédito; una cuenta en efectivo llega sin
-    // ninguno, se grabe como cash o como el histórico demo_cash.
+    // La query trae los cobros aprobados con su método; una cuenta en
+    // efectivo (cash o el histórico demo_cash) no tiene ninguno a crédito.
     const inv = invoice();
-    m.invoiceFindUnique.mockResolvedValue({ ...inv, order: { ...inv.order, payments: [] } });
+    m.invoiceFindUnique.mockResolvedValue({
+      ...inv,
+      order: { ...inv.order, payments: [{ method: "cash", billingCustomer: null }] },
+    });
     expect((await emit()).outcome).toBe("accepted");
     const query = m.invoiceFindUnique.mock.calls[0][0] as {
       select: { order: { select: { payments: { where: Record<string, unknown> } } } };
     };
-    expect(query.select.order.select.payments.where).toEqual({ method: "customer_credit", status: "approved" });
+    expect(query.select.order.select.payments.where).toEqual({ status: "approved" });
     const xml = sentXml();
     expect(tag(xml, "cbc:PaymentMeansCode")).toBe("10");
     expect(xml).toContain("<cac:PaymentMeans><cbc:ID>1</cbc:ID>");
+  });
+
+  it("una cuenta pagada toda con Bre-B declara el medio 47 (transferencia)", async () => {
+    const inv = invoice();
+    m.invoiceFindUnique.mockResolvedValue({
+      ...inv,
+      order: { ...inv.order, payments: [{ method: "kushki_bre_b", billingCustomer: null }] },
+    });
+    expect((await emit()).outcome).toBe("accepted");
+    expect(tag(sentXml(), "cbc:PaymentMeansCode")).toBe("47");
+  });
+
+  it("Bre-B mezclado con efectivo sigue declarando 10", async () => {
+    const inv = invoice();
+    m.invoiceFindUnique.mockResolvedValue({
+      ...inv,
+      order: {
+        ...inv.order,
+        payments: [
+          { method: "kushki_bre_b", billingCustomer: null },
+          { method: "cash", billingCustomer: null },
+        ],
+      },
+    });
+    expect((await emit()).outcome).toBe("accepted");
+    expect(tag(sentXml(), "cbc:PaymentMeansCode")).toBe("10");
   });
 });
 

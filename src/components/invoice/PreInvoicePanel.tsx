@@ -111,6 +111,8 @@ export function PreInvoiceAction({
   canConfigurePrinters = false,
   onPrintPrebill,
   onIssued,
+  suggestedTipPct = null,
+  manualInvoice = false,
   className = "mp-btn mp-btn--secondary mp-btn--block",
 }: {
   orderId: string;
@@ -127,6 +129,17 @@ export function PreInvoiceAction({
   onPrintPrebill?: () => void;
   /** La factura quedó emitida: el padre refresca la cuenta. */
   onIssued?: (invoice: { invoiceId: string; documentNumber: string }) => void;
+  /**
+   * La propina elegida en el cobro (0 = «Sin propina»): la factura la
+   * guarda y, con 0, ninguna representación sugiere propina. null = sin
+   * selector (la ficha de la mesa): la sugerida de siempre.
+   */
+  suggestedTipPct?: number | null;
+  /**
+   * Cuenta de una FACTURA MANUAL (mesa `kind = manual`): su botón tiene
+   * rótulo propio (`actionManual`), que conecta el flujo de las manuales.
+   */
+  manualInvoice?: boolean;
   className?: string;
 }) {
   const t = useTranslations("preInvoice");
@@ -173,7 +186,11 @@ export function PreInvoiceAction({
     setError(null);
     setBrowser(null);
     try {
-      const res = await fetch(`/api/operator/orders/${orderId}/pre-invoice`, { method: "POST" });
+      const res = await fetch(`/api/operator/orders/${orderId}/pre-invoice`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(suggestedTipPct == null ? {} : { suggestedTipPct }),
+      });
       const j = (await res.json().catch(() => ({}))) as Partial<PreInvoiceResponse> & { error?: string };
       if (!res.ok || !j.ok) {
         setError(
@@ -239,8 +256,9 @@ export function PreInvoiceAction({
 
   return (
     <>
+      {/* «Emitir e imprimir factura»: el botón EMITE (no es una reimpresión). */}
       <button type="button" onClick={openSheet} className={className}>
-        {t("action")}
+        {manualInvoice ? t("actionManual") : t("action")}
       </button>
 
       {open && step === "confirm" && (
@@ -532,6 +550,7 @@ export function InvoicedOrderBanner({
           ) : (
             <span className="inline-flex flex-col">
               <StaffPrintButton
+                destinationVariant="pay"
                 doc={{ kind: "invoice", orderId, href: invoicePrintHref({ invoiceId: invoice.invoiceId }) }}
                 label={t("reprint")}
                 sameTab={sameTab}

@@ -9,8 +9,8 @@
  *
  * El usuario de DATÁFONO (`terminal`) cobra desde «Mesas en vivo»
  * (`/terminal`) con el mismo checkout que el mesero y el administrador,
- * pero SOLO cobra: crea el pago, lo envía al datáfono, confirma el efectivo
- * y cancela o reintenta su propio intento. No da cortesías, no anula
+ * pero SOLO cobra: crea el pago, lo envía al datáfono, confirma el efectivo,
+ * muestra el QR de Bre-B y cancela o reintenta su propio intento. No da cortesías, no anula
  * facturas, no cobra a crédito ni con bonos, no asocia clientes ni emite la
  * factura antes de cobrar. El servidor lo bloquea igual en cada ruta; esto
  * sólo evita mostrarle botones que le van a rebotar.
@@ -101,6 +101,14 @@ export type StaffCheckoutCapabilities = {
   preInvoice: boolean;
   /** Enlace a configurar impresoras (sólo el panel lo tiene). */
   configurePrinters: boolean;
+  /**
+   * Cobrar con Bre-B (QR en el dispositivo de quien cobra). Todos los roles
+   * que cobran, también el datáfono: es un cobro EN LA MESA (el cliente
+   * escanea el código con la app de su banco), igual que pasar la tarjeta.
+   * No toca nada de lo que el datáfono no puede (cortesías, crédito,
+   * facturas); el resultado lo pone Kushki, no quien cobra.
+   */
+  breB: boolean;
 };
 
 export function staffCheckoutCapabilities(
@@ -115,6 +123,7 @@ export function staffCheckoutCapabilities(
       vouchers: false,
       preInvoice: false,
       configurePrinters: false,
+      breB: true,
     };
   }
   return {
@@ -125,6 +134,7 @@ export function staffCheckoutCapabilities(
     vouchers: true,
     preInvoice: true,
     configurePrinters: view === "admin",
+    breB: true,
   };
 }
 

@@ -437,6 +437,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   kushki_card: "Tarjeta directa",
   external_terminal: "Datáfono propio",
   kushki_pse: "PSE",
+  kushki_bre_b: "Bre-B",
   reservation_deposit: "Abono de reserva",
   voucher: "Bono empresarial",
   customer_credit: "Crédito a cliente",

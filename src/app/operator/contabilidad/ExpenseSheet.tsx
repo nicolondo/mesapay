@@ -14,7 +14,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, pesosToCents } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber, pesosToCents } from "@/lib/format";
+import { conceptRateBps } from "@/lib/erp/retencionesCore";
 import { expenseOutstandingCents } from "@/lib/erp/accounting";
 import {
   EXPENSE_DOCUMENT_TYPES,
@@ -59,6 +60,8 @@ export type ExpenseRetentionDto = {
   kind: string;
   name: string;
   rateBps: number;
+  /** Tarifa exacta en ppm (null = la de `rateBps`, gastos anteriores). */
+  ratePpm?: number | null;
   base: string;
   accountCode: string;
   baseCents: number;
@@ -109,11 +112,13 @@ type ConceptDto = {
   id: string;
   kind: string;
   name: string;
+  /** Tarifa efectiva en bps (puede tener decimales: 4,14 ‰ = 41,4). */
   rateBps: number;
   base: string;
   thresholdUvt: number;
   accountCode: string;
   active: boolean;
+  catalogKey?: string | null;
 };
 
 type TaxContext = {
@@ -199,11 +204,9 @@ export const API_ERROR_KEYS: Record<string, string> = {
   below_paid: "errExpenseBelowPaid",
 };
 
-/** Tarifa en bps → "2,5" (separador del idioma). */
+/** Tarifa en bps → "2,5" (separador del idioma; reteICA 41,4 bps → "0,414"). */
 function fmtRate(bps: number, locale: Locale): string {
-  return new Intl.NumberFormat(locale === "en" ? "en-US" : locale === "pt" ? "pt-BR" : "es-CO", {
-    maximumFractionDigits: 2,
-  }).format(bps / 100);
+  return formatNumber(bps / 100, { locale, maximumFractionDigits: 4 });
 }
 
 /* ──────────────── Crear/editar gasto (sheet) ───────────────────────── */
@@ -368,7 +371,7 @@ export function ExpenseSheet({
           sourceId: r.conceptId ? undefined : r.id,
           kind: r.kind,
           name: r.name,
-          rateBps: r.rateBps,
+          rateBps: conceptRateBps(r),
           base: r.base,
           amount: r.amountCents,
         }))

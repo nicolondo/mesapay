@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { terminalChargeOutcomeText } from "@/components/payments/TerminalAmountNote";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
 import { isRefreshMessage } from "@/lib/liveRefresh";
@@ -20,6 +21,9 @@ import {
 } from "@/components/payments/TerminalAttemptActions";
 import type { TerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
+import { BreBPendingCard } from "@/components/payments/BreBPendingCard";
+import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
+import { usePaymentMethodLabel } from "@/lib/usePaymentMethodLabel";
 
 type InvoiceAfterSettle = { orderId: string; paid: boolean; invoiceId: string | null };
 
@@ -126,6 +130,11 @@ type TerminalPending = {
   };
 };
 
+/** Un cobro Bre-B en curso, con la cuenta a la que pertenece. */
+type BreBPending = PendingPaymentView & {
+  order: { id: string; shortCode: string; tableNumber: number };
+};
+
 export function ServeBoard({
   tenantSlug,
   serviceMode,
@@ -134,6 +143,7 @@ export function ServeBoard({
   waiterCalls,
   cancelledPending,
   terminalPending,
+  breBPending = [],
   devices,
   chargeLocked,
   canResolveTerminal = false,
@@ -146,6 +156,10 @@ export function ServeBoard({
   waiterCalls: WaiterCall[];
   cancelledPending: CancelledPending[];
   terminalPending: TerminalPending[];
+  // Bre-B en curso que le toca al equipo: el QR abierto en un dispositivo del
+  // staff, o uno que quedó sin confirmar. Mismas reglas que el datáfono
+  // enviado: bloquea cobrar esa parte por otro medio hasta resolverse.
+  breBPending?: BreBPending[];
   // Datáfonos Kushki del comercio a los que se puede mandar un cobro (ver
   // usableTerminalDevices). Con varios, quien cobra elige a cuál.
   devices: { id: string; label: string }[];
@@ -160,6 +174,7 @@ export function ServeBoard({
   staffPrint?: StaffPrintAccess | null;
 }) {
   const tr = useTranslations("serve");
+  const methodLabel = usePaymentMethodLabel();
   const router = useRouter();
   const [, startTx] = useTransition();
   // A qué datáfono va el cobro: el único, o el último elegido en este
@@ -332,6 +347,7 @@ export function ServeBoard({
     groups.length === 0 &&
     cashPending.length === 0 &&
     terminalPending.length === 0 &&
+    breBPending.length === 0 &&
     waiterCalls.length === 0 &&
     cancelledPending.length === 0
   ) {
@@ -456,6 +472,38 @@ export function ServeBoard({
                 onBusyChange={setChargingPaymentId}
                 onOutcome={setTerminalOutcome}
               />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {breBPending.length > 0 && (
+        <section className="mb-6">
+          <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-terracotta mb-2">
+            <span aria-hidden>{"📲 "}</span>
+            {tr("breBHeading")}
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {breBPending.map((p) => (
+              <li key={p.id} className="space-y-1">
+                <div className="font-mono text-[10px] tracking-wider uppercase text-op-muted truncate">
+                  {serviceMode === "counter"
+                    ? tr("orderLabel", { code: displayOrderCode(p.order.shortCode) })
+                    : tr("tableWithCode", {
+                        number: p.order.tableNumber,
+                        code: displayOrderCode(p.order.shortCode),
+                      })}
+                </div>
+                <BreBPendingCard
+                  pending={p}
+                  amountLabel={fmtCOP(p.amountCents)}
+                  methodLabel={methodLabel(p.method)}
+                  tenantSlug={tenantSlug}
+                  chargeLocked={chargeLocked}
+                  onApproved={() => startTx(() => router.refresh())}
+                  onChanged={() => startTx(() => router.refresh())}
+                />
+              </li>
             ))}
           </ul>
         </section>
@@ -733,6 +781,7 @@ function TerminalPendingCard({
   onOutcome: (message: string) => void;
 }) {
   const tr = useTranslations("serve");
+  const tAttempt = useTranslations("terminalAttempt");
   const apiError = useApiError();
   const [err, setErr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -765,6 +814,13 @@ function TerminalPendingCard({
       body: JSON.stringify({ paymentId: pending.id, deviceId: device.id }),
     });
     onBusyChange(null);
+    if (res.ok) {
+      // Aprobado por otro monto (propina del datáfono, parcial) o «monto
+      // cobrado distinto»: el aviso queda en el tablero aunque la tarjeta se vaya.
+      const okJson = (await res.clone().json().catch(() => ({}))) as Record<string, unknown>;
+      const amountOutcome = terminalChargeOutcomeText(okJson, title, tAttempt, fmtCOP);
+      if (amountOutcome) onOutcome(amountOutcome);
+    }
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       // j.message trae el detalle real del datáfono (rechazo/error); j.error

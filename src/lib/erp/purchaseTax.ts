@@ -233,6 +233,11 @@ export type PurchaseOrderAmountsInput = Partial<InvoiceTaxExtras> & {
    * el avance de la recepción. Ausente = 0 (todas siguen el avance).
    */
   receptionRetentionCents?: number;
+  /**
+   * «Ajustes» / ajuste al peso de la factura, CON signo. Suma al total a
+   * pagar y a ninguna línea. Ausente = 0.
+   */
+  roundingCents?: number;
   items: readonly PurchaseLineAmountsInput[];
 };
 
@@ -248,6 +253,7 @@ export const PURCHASE_ORDER_TAX_SELECT = {
   reteIvaCents: true,
   reteIcaCents: true,
   receptionRetentionCents: true,
+  roundingCents: true,
 } as const;
 
 /**
@@ -291,7 +297,14 @@ export function purchaseOrderTotals(
   const allRetentions = (order.retefuenteCents ?? 0) + (order.reteIvaCents ?? 0) + (order.reteIcaCents ?? 0);
   const atReception = Math.min(allRetentions, Math.max(0, order.receptionRetentionCents ?? 0));
   const retention = extra(allRetentions - atReception) + atReception;
-  return { subtotalCents, taxCents, incCents, retentionsCents: retention, totalCents: subtotalCents + taxCents + incCents - retention };
+  // El ajuste al peso sigue el avance como los demás extras de cabecera:
+  // completo al recibir todo, nunca repartido entre las líneas.
+  const rounding = order.roundingCents ?? 0;
+  const roundingCents = rounding < 0 ? -extra(-rounding) : extra(rounding);
+  return {
+    subtotalCents, taxCents, incCents, retentionsCents: retention, roundingCents,
+    totalCents: subtotalCents + taxCents + incCents - retention + roundingCents,
+  };
 }
 
 /** Tarifas de IVA válidas por país (para el picker). CO 0/5/19, MX 0/8/16. */
@@ -375,9 +388,11 @@ export type PurchaseBookRowAmounts = {
   retefuenteCents: number;
   reteIvaCents: number;
   reteIcaCents: number;
+  /** Ajuste al peso de la factura (con signo); ausente = 0. */
+  roundingCents?: number;
 };
 
-export type PurchaseBookTotals = PurchaseBookRowAmounts & { count: number };
+export type PurchaseBookTotals = Required<PurchaseBookRowAmounts> & { count: number };
 
 /**
  * Suma las filas del libro de compras. La usan el libro (todas las del mes)
@@ -397,6 +412,7 @@ export function sumPurchaseBookRows(rows: readonly PurchaseBookRowAmounts[]): Pu
     retefuenteCents: 0,
     reteIvaCents: 0,
     reteIcaCents: 0,
+    roundingCents: 0,
   };
   for (const r of rows) {
     totals.receivedCents += r.receivedCents;
@@ -409,6 +425,7 @@ export function sumPurchaseBookRows(rows: readonly PurchaseBookRowAmounts[]): Pu
     totals.retefuenteCents += r.retefuenteCents;
     totals.reteIvaCents += r.reteIvaCents;
     totals.reteIcaCents += r.reteIcaCents;
+    totals.roundingCents += r.roundingCents ?? 0;
   }
   return totals;
 }

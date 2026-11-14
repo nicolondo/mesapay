@@ -8,6 +8,8 @@ export type TrackingSourceRow = {
   amountCents: number; refundedCents: number; currency: string | null; trackingKey: string | null;
   mode: string | null; providerRef: string | null; uncertain: boolean; duplicateReference?: boolean;
 };
+// Bre-B (`kushki_bre_b`) no entra: lo recauda otro comercio de Kushki, con
+// otra wallet; sumarlo inflaría el estimado de ESTA. Ver walletIncoming/local.ts.
 const METHODS = Prisma.sql`('kushki_card', 'kushki_apple_pay', 'kushki_google_pay', 'kushki_pse', 'kushki_card_terminal')`;
 /** All-time, tenant-scoped source projection. PaymentLink(order) and applied
  * deposits/vouchers are intentionally absent so one collection is counted once. */

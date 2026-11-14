@@ -4,6 +4,7 @@ import type { Tr } from "@/lib/salesAnalysis/dimLabels";
 
 const TERMS = [
   "sale",
+  "timeAxis",
   "net",
   "gross",
   "tax",

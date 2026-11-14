@@ -1,6 +1,34 @@
 import { subscribeMockWebhook } from "./kushki/mock";
 import { processKushkiWebhook } from "./webhookHandler";
+import { settleTerminalApproval } from "./terminalApproval";
+import { db } from "@/lib/db";
 import { randomUUID } from "crypto";
+
+/**
+ * El datáfono simulado autorizó otro monto (KUSHKI_MOCK_TERMINAL_AUTHORIZED):
+ * mismo camino que un aprobado real del Cloud Terminal (propina, parcial o
+ * conciliar), para verlo en local sin Kushki.
+ */
+async function settleMockTerminalApproval(e: { paymentId: string; providerRef: string; amountCents: number; authorizedCents: number }) {
+  try {
+    const payment = await db.payment.findUnique({ where: { id: e.paymentId }, include: { order: { select: { restaurantId: true } } } });
+    if (!payment) return;
+    await settleTerminalApproval({
+      restaurantId: payment.order.restaurantId,
+      paymentId: e.paymentId,
+      expectedCents: e.amountCents,
+      providerRef: e.providerRef,
+      authorizedCents: e.authorizedCents,
+      approvalCode: "MOCK01",
+      confirmed: true,
+      source: "mock",
+      eventId: `mock-${randomUUID()}`,
+      raw: e,
+    });
+  } catch (err) {
+    console.warn("[mock-bridge] no se pudo liquidar el aprobado simulado", err);
+  }
+}
 
 /**
  * In mock mode the Kushki "webhook" never reaches our HTTP endpoint because
@@ -21,7 +49,9 @@ export function ensureMockBridge(): void {
   if (installed) return;
   installed = true;
   subscribeMockWebhook((e) => {
-    if (
+    if (e.type === "terminal.approved" && e.authorizedCents !== undefined) {
+      void settleMockTerminalApproval({ ...e, authorizedCents: e.authorizedCents });
+    } else if (
       e.type === "terminal.approved" ||
       e.type === "terminal.declined" ||
       e.type === "pse.approved" ||

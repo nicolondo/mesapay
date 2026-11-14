@@ -16,6 +16,8 @@ const m = vi.hoisted(() => ({
   transaction: vi.fn(),
   issueSimpleInvoice: vi.fn(),
   deliverInvoiceEmail: vi.fn(),
+  staff: vi.fn(),
+  fromSaved: vi.fn(),
 }));
 
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
@@ -29,6 +31,9 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/simpleInvoice", () => ({ issueSimpleInvoice: m.issueSimpleInvoice }));
 vi.mock("@/lib/invoiceDelivery", () => ({ deliverInvoiceEmail: m.deliverInvoiceEmail }));
+// staffAccess arrastra next-auth (no carga en vitest/node).
+vi.mock("@/lib/staffAccess", () => ({ staffForRestaurant: m.staff, COLLECTOR_ROLES: ["operator", "mesero"] }));
+vi.mock("@/lib/invoiceCustomerMemoryQueries", () => ({ orderInvoicedFromSavedCustomer: m.fromSaved }));
 
 import { POST } from "./route";
 
@@ -64,6 +69,8 @@ beforeEach(() => {
   m.transaction.mockResolvedValue([]);
   m.issueSimpleInvoice.mockResolvedValue(issued());
   m.deliverInvoiceEmail.mockResolvedValue({ sent: "none", reason: "no_email" });
+  m.staff.mockResolvedValue(null);
+  m.fromSaved.mockResolvedValue(false);
 });
 
 describe("SIN pagar (pedida en el checkout)", () => {
@@ -206,5 +213,22 @@ describe("validación", () => {
     m.restaurantFindUnique.mockResolvedValue(null);
     const res = await call({});
     expect(res.status).toBe(404);
+  });
+});
+
+describe("factura armada con datos guardados (\"Usar estos datos\")", () => {
+  it("al comensal no se le entrega el enlace: trae el nombre completo de otra persona", async () => {
+    m.issueSimpleInvoice.mockResolvedValue(issued({ alreadyIssued: true, email: "duena@correo.test" }));
+    m.fromSaved.mockResolvedValue(true);
+    const res = await call({});
+    expect(await res.json()).toEqual({ ok: true, alreadyIssued: true, invoiceUrl: null });
+    expect(m.fromSaved).toHaveBeenCalledWith("order-1");
+  });
+
+  it("el personal sí la recibe", async () => {
+    m.issueSimpleInvoice.mockResolvedValue(issued({ alreadyIssued: true, email: "duena@correo.test" }));
+    m.fromSaved.mockResolvedValue(true);
+    m.staff.mockResolvedValue({ user: { id: "u", role: "mesero" } });
+    expect(await (await call({})).json()).toMatchObject({ invoiceUrl: "https://mesapay.co/factura/inv-1" });
   });
 });

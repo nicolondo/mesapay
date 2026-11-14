@@ -56,6 +56,14 @@ describe("comercio SIN facturación electrónica", () => {
     expect(m.sendDianInvoiceEmail).not.toHaveBeenCalled();
   });
 
+  it("varios correos: el comprobante sale al principal y en copia a los adicionales", async () => {
+    await deliverInvoiceEmail({ tenant: SIN_FE, invoice: { ...invoice, cc: ["conta@empresa.test"] }, firstIssuance: true });
+    await tick();
+    expect(m.sendSimpleInvoiceEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "cliente@correo.com", cc: ["conta@empresa.test"] }),
+    );
+  });
+
   it("no repite el comprobante si la tirilla ya estaba emitida y el correo no es nuevo", async () => {
     const r = await deliverInvoiceEmail({ tenant: SIN_FE, invoice, firstIssuance: false });
     expect(r).toEqual({ sent: "none", reason: "not_first_issuance" });

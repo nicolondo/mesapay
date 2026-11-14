@@ -7,6 +7,8 @@ export type BillingCustomerRecord = {
   docNumber: string;
   verificationDigit: string | null;
   email: string;
+  /** Correos adicionales de la factura (copia del envío). Ver src/lib/invoiceEmails.ts. */
+  ccEmails?: string[];
   phone: string | null;
   /** Dirección y municipio: null salvo en clientes cargados cuando aún se pedían. */
   address: string | null;

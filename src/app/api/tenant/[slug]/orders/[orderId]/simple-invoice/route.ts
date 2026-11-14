@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { issueSimpleInvoice } from "@/lib/simpleInvoice";
 import { deliverInvoiceEmail } from "@/lib/invoiceDelivery";
 import { SIMPLE_INVOICE_WITHOUT_EMAIL } from "@/lib/simpleInvoiceRequest";
+import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
+import { orderInvoicedFromSavedCustomer } from "@/lib/invoiceCustomerMemoryQueries";
 
 const bodySchema = z.object({
   // Correo OPCIONAL: vacío/ausente = solo se genera para imprimir/descargar
@@ -139,6 +141,16 @@ async function POSTHandler(
   });
 
   if (result.alreadyIssued) {
+    // La factura ya salió con un cliente guardado que el comensal eligió sin
+    // escribir sus datos ("Usar estos datos"): el enlace trae el nombre
+    // completo, así que a quien no es personal no se le entrega. Le llega al
+    // correo guardado. Ver src/lib/invoiceCustomerMemory.ts.
+    if (
+      !(await staffForRestaurant(tenant.id, COLLECTOR_ROLES)) &&
+      (await orderInvoicedFromSavedCustomer(orderId))
+    ) {
+      return NextResponse.json({ ok: true, alreadyIssued: true, invoiceUrl: null });
+    }
     return NextResponse.json({
       ok: true,
       alreadyIssued: true,

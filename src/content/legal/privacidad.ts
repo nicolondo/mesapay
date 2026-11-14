@@ -45,6 +45,7 @@ Tratamos datos de tres tipos de personas:
 - Al pedir desde la mesa, sin registro: el nombre que escribes para que la mesa te reconozca, los platos que pides, las notas del pedido, la propina que eliges y el medio de pago usado. Tu sesión de invitado se guarda en una cookie que sólo identifica tu mesa en ese restaurante.
 - Al pagar con tarjeta, PSE o Apple Pay: el pago lo procesa Kushki. **Los datos de tu tarjeta nunca pasan por los servidores de MESAPAY**: Kushki los convierte en un token y MESAPAY sólo recibe el resultado del pago, los últimos dígitos y la franquicia.
 - Al pedir una factura a tu nombre: nombre o razón social, tipo y número de documento, correo electrónico y, si aplica, dirección y teléfono. Estos datos van en la factura electrónica que exige la DIAN.
+- Si al pedir una factura a tu nombre dejas marcada la casilla «Recordar mis datos», el restaurante guarda tu nombre o razón social, tipo y número de documento y correo para que en tus próximas facturas en ese mismo restaurante solo tengas que escribir tu documento. Cuando lo escribas, solo te mostraremos una parte de esos datos para que los reconozcas. Puedes desmarcar la casilla en cualquier momento: la factura se emite igual y tus datos no se reutilizan. Estos datos no se comparten con otros restaurantes.
 - Al crear una cuenta en un restaurante: nombre completo, número de cédula, correo electrónico, celular (opcional), contraseña cifrada, los dispositivos donde entraste y tu historial de pedidos en ese restaurante. La cuenta es de ese restaurante; en otro restaurante que use MESAPAY tendrías que crear otra.
 - Al reservar: nombre, celular, correo, número de personas, fecha y hora, y el abono si el restaurante lo pide.
 - Al calificar un plato: la calificación y el comentario que escribes.
@@ -58,6 +59,7 @@ Nombre del restaurante, nombre y cargo de la persona de contacto, teléfono, cor
 - Prestar el servicio: mostrar la carta, recibir pedidos, cobrarlos, emitir facturas, administrar reservas y operar los módulos que el comercio tenga activos.
 - Procesar los pagos a través de la pasarela y conciliarlos con los pedidos.
 - Emitir y transmitir facturas electrónicas y notas crédito a la DIAN, y enviarlas por correo al comensal que las pide.
+- Recordar los datos de facturación del comensal que lo autoriza, para sus próximas facturas en el mismo restaurante.
 - Cobrar la suscripción del comercio y gestionar su plan.
 - Enviar correos transaccionales: confirmaciones de pedido y reserva, facturas, enlaces de acceso, restablecimiento de contraseña y avisos de la cuenta.
 - Mantener la seguridad de la plataforma: detectar fraudes, abusos y accesos no autorizados, y conservar registros de actividad.
@@ -192,6 +194,7 @@ We process data about three kinds of people:
 - When ordering from the table without registering: the name you type so the table recognizes you, the dishes you order, the order notes, the tip you choose and the payment method used. Your guest session is stored in a cookie that only identifies your table at that restaurant.
 - When paying by card, PSE or Apple Pay: the payment is processed by Kushki. **Your card details never pass through MESAPAY's servers**: Kushki turns them into a token and MESAPAY only receives the result of the payment, the last digits and the card brand.
 - When requesting an invoice in your name: name or legal name, type and number of ID document, email address and, if applicable, address and phone number. This data goes on the electronic invoice required by the DIAN.
+- If, when requesting an invoice in your name, you leave the "Remember my details" box checked, the restaurant saves your name or legal name, type and number of ID document and email address so that on your next invoices at that same restaurant you only have to enter your ID document. When you enter it, we will only show you part of that data so you can recognize it. You can uncheck the box at any time: the invoice is still issued and your data is not reused. This data is not shared with other restaurants.
 - When creating an account at a restaurant: full name, ID number, email address, mobile number (optional), encrypted password, the devices you signed in from and your order history at that restaurant. The account belongs to that restaurant; at another restaurant that uses MESAPAY you would need to create another one.
 - When booking: name, mobile number, email, number of people, date and time, and the deposit if the restaurant asks for one.
 - When rating a dish: the rating and the comment you write.
@@ -205,6 +208,7 @@ Restaurant name, name and position of the contact person, phone number, email ad
 - To provide the service: show the menu, receive orders, charge them, issue invoices, manage bookings and run the modules the restaurant has turned on.
 - To process payments through the gateway and reconcile them with the orders.
 - To issue and transmit electronic invoices and credit notes to the DIAN, and to email them to the guest who requests them.
+- To remember the billing details of the guest who authorizes it, for their next invoices at the same restaurant.
 - To bill the restaurant's subscription and manage its plan.
 - To send transactional emails: order and booking confirmations, invoices, sign-in links, password resets and account notices.
 - To keep the platform secure: detect fraud, abuse and unauthorized access, and keep activity logs.
@@ -339,6 +343,7 @@ Tratamos dados de três tipos de pessoas:
 - Ao pedir na mesa, sem cadastro: o nome que você digita para a mesa reconhecer você, os pratos que pede, as observações do pedido, a gorjeta que escolhe e o meio de pagamento usado. Sua sessão de convidado fica em um cookie que só identifica sua mesa naquele restaurante.
 - Ao pagar com cartão, PSE ou Apple Pay: o pagamento é processado pela Kushki. **Os dados do seu cartão nunca passam pelos servidores do MESAPAY**: a Kushki os converte em um token e o MESAPAY só recebe o resultado do pagamento, os últimos dígitos e a bandeira.
 - Ao pedir uma nota fiscal em seu nome: nome ou razão social, tipo e número do documento, e-mail e, se for o caso, endereço e telefone. Esses dados vão na nota fiscal eletrônica exigida pela DIAN.
+- Se, ao pedir uma nota fiscal em seu nome, você deixar marcada a caixa "Lembrar meus dados", o restaurante guarda seu nome ou razão social, tipo e número do documento e e-mail para que, nas suas próximas notas fiscais nesse mesmo restaurante, você só precise digitar o seu documento. Quando você o digitar, só mostraremos uma parte desses dados para que você os reconheça. Você pode desmarcar a caixa a qualquer momento: a nota fiscal é emitida do mesmo jeito e seus dados não são reutilizados. Esses dados não são compartilhados com outros restaurantes.
 - Ao criar uma conta em um restaurante: nome completo, número do documento de identidade, e-mail, celular (opcional), senha criptografada, os dispositivos de onde você entrou e seu histórico de pedidos naquele restaurante. A conta é daquele restaurante; em outro restaurante que use o MESAPAY você precisaria criar outra.
 - Ao reservar: nome, celular, e-mail, número de pessoas, data e hora, e o sinal, se o restaurante o pedir.
 - Ao avaliar um prato: a avaliação e o comentário que você escreve.
@@ -352,6 +357,7 @@ Nome do restaurante, nome e cargo da pessoa de contato, telefone, e-mail, cidade
 - Prestar o serviço: mostrar o cardápio, receber pedidos, cobrá-los, emitir notas fiscais, administrar reservas e operar os módulos que o restaurante tiver ativos.
 - Processar os pagamentos pelo gateway e conciliá-los com os pedidos.
 - Emitir e transmitir notas fiscais eletrônicas e notas de crédito à DIAN, e enviá-las por e-mail ao cliente que as pede.
+- Lembrar os dados de faturamento do cliente que o autoriza, para as próximas notas fiscais dele no mesmo restaurante.
 - Cobrar a assinatura do restaurante e gerenciar seu plano.
 - Enviar e-mails transacionais: confirmações de pedido e de reserva, notas fiscais, links de acesso, redefinição de senha e avisos da conta.
 - Manter a segurança da plataforma: detectar fraudes, abusos e acessos não autorizados, e conservar registros de atividade.
@@ -454,7 +460,7 @@ Para consultas, reclamações e qualquer assunto sobre seus dados pessoais, escr
 `.trim();
 
 export const PRIVACIDAD: LegalDocument = {
-  updatedAt: "2026-11-02",
+  updatedAt: "2026-11-13",
   es,
   en,
   pt,

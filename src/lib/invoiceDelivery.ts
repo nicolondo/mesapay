@@ -49,6 +49,12 @@ export type DeliverInvoiceEmailArgs = {
     invoiceUrl: string;
     snapshot: InvoiceSnapshot;
     email: string | null;
+    /**
+     * Correos adicionales de la solicitud personalizada (en copia). En la
+     * factura electrónica no hace falta pasarlos: `sendDianInvoiceEmail` los
+     * lee de la misma solicitud con la que se armó la factura.
+     */
+    cc?: string[];
     locale: string | null;
   };
   /**
@@ -88,6 +94,7 @@ export async function deliverInvoiceEmail(
         invoiceNumber: args.invoice.invoiceNumber,
         invoiceUrl: args.invoice.invoiceUrl,
         email,
+        ...(args.invoice.cc?.length ? { cc: args.invoice.cc } : {}),
         locale: args.invoice.locale,
       });
       return { sent: "comprobante" };

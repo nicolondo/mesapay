@@ -11,6 +11,7 @@ import {
 } from "@/lib/meseroShift";
 import { getCurrentShift } from "@/lib/shift";
 import { publishOrderEvent } from "@/lib/events";
+import { formatNumber } from "@/lib/format";
 
 const schema = z.object({
   // Base inicial de la caja del mesero — el efectivo con el que
@@ -136,9 +137,9 @@ async function POSTHandler(req: Request) {
       {
         error: "base_exceeds_local",
         maxCents: localShift.openingCashCents,
-        message: `Tu base no puede superar la base del local ($${Math.round(
+        message: `Tu base no puede superar la base del local ($${formatNumber(Math.round(
           localShift.openingCashCents / 100,
-        ).toLocaleString("es-CO")}).`,
+        ))}).`,
       },
       { status: 409 },
     );

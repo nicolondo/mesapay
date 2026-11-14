@@ -2,6 +2,7 @@
 // creó, editó o borró qué concepto, con el antes y el después. El resumen
 // es para /admin/audit, en español como el resto de esa bitácora.
 import { recordAuditEvent } from "@/lib/auditLog";
+import { formatNumber } from "@/lib/format";
 import type { ConceptMutationResult } from "./retenciones";
 
 const KIND_LABEL: Record<string, string> = {
@@ -10,10 +11,10 @@ const KIND_LABEL: Record<string, string> = {
   reteica: "reteICA",
 };
 
-/** 25.000 ppm → «2,5 %»; la reteICA, por mil: 4.140 ppm → «4,14 ‰». */
+/** 25,000 ppm → «2.5 %»; la reteICA, por mil: 4,140 ppm → «4.14 ‰». */
 export function auditRateText(kind: string, ratePpm: number): string {
   const n = kind === "reteica" ? ratePpm / 1_000 : ratePpm / 10_000;
-  return `${String(Number(n.toFixed(4))).replace(".", ",")} ${kind === "reteica" ? "‰" : "%"}`;
+  return `${formatNumber(n, { maximumFractionDigits: 4 })} ${kind === "reteica" ? "‰" : "%"}`;
 }
 
 export async function auditConceptChange(

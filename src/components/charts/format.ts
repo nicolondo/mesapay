@@ -3,7 +3,7 @@
 // gráfico convierte en texto con `@/lib/format`. Moneda = país del comercio;
 // locale = idioma de quien mira.
 import type { Locale } from "@/i18n/config";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 
 export type ValueFormat =
   | { kind: "money"; currency: string; locale: Locale }
@@ -13,19 +13,19 @@ export type ValueFormat =
 export function formatValue(value: number, f: ValueFormat): string {
   if (f.kind === "money") return formatMoney(value, { currency: f.currency, locale: f.locale });
   if (f.kind === "percent") {
-    return new Intl.NumberFormat(localeTag(f.locale), { style: "percent", maximumFractionDigits: 1 }).format(value);
+    return numberFormatter(localeTag(f.locale), { style: "percent", maximumFractionDigits: 1 }).format(value);
   }
-  return new Intl.NumberFormat(localeTag(f.locale), {
+  return numberFormatter(localeTag(f.locale), {
     maximumFractionDigits: f.digits ?? 0,
     minimumFractionDigits: 0,
   }).format(value);
 }
 
-/** Compacto para los ejes: «$ 1,2 M», «12 mil», «3.400». */
+/** Compacto para los ejes: «$ 1.2 M», «12.5 k», «3,400». */
 export function formatCompact(value: number, f: ValueFormat): string {
   if (f.kind === "percent") return formatValue(value, f);
   const amount = f.kind === "money" ? value / 100 : value;
-  return new Intl.NumberFormat(localeTag(f.locale), {
+  return numberFormatter(localeTag(f.locale), {
     notation: "compact",
     maximumFractionDigits: 1,
     ...(f.kind === "money" ? { style: "currency", currency: f.currency, currencyDisplay: "narrowSymbol" } : {}),

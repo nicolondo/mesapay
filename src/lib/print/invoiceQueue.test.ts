@@ -84,7 +84,7 @@ const h = vi.hoisted(() => {
     payment: {
       findMany: vi.fn(async () => [
         // Un pago de verdad: amountCents es el total cobrado, propina
-        // incluida ($49.000 + $6.000 = $55.000, el TOTAL del snapshot).
+        // incluida ($49,000 + $6,000 = $55.000, el TOTAL del snapshot).
         { method: "cash", amountCents: 5_500_000, tipCents: 600_000 },
       ]),
     },
@@ -332,7 +332,7 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     await enqueueInvoicePrint(args);
     const doc = parseInvoicePayload(h.state.created[0].payload)!;
     const total = doc.totals.find((r) => r.strong)!;
-    expect(total.amount).toContain("55.000");
+    expect(total.amount).toContain("55,000");
   });
 
   it("la forma de pago sale de los pagos aprobados de la orden", async () => {
@@ -347,7 +347,7 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     expect(doc.paymentRows).toHaveLength(1);
     // Un solo pago: la fila es el TOTAL de la cuenta, con la propina
     // contada una sola vez (antes la sumaba otra vez encima).
-    expect(doc.paymentRows[0].amount).toContain("55.000");
+    expect(doc.paymentRows[0].amount).toContain("55,000");
     expect(doc.paymentRows[0].amount).toBe(doc.totals.find((r) => r.strong)!.amount);
     // Emitida al cobrar: la propina ya está en el snapshot, no se lee la orden.
     expect(h.db.order.findUnique).not.toHaveBeenCalled();
@@ -358,7 +358,7 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     await enqueueInvoicePrint({
       ...args,
       trigger: "reprint",
-      // La factura es la venta ($49.000); la propina se decidió al pagar.
+      // La factura es la venta ($49,000); la propina se decidió al pagar.
       snapshot: { ...snapshot, tipCents: 0, totalCents: 4_900_000, issuedBeforePayment: true },
     });
     expect(h.db.order.findUnique).toHaveBeenCalledWith(
@@ -366,9 +366,9 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     );
     const doc = parseInvoicePayload(h.state.created[0].payload)!;
     expect(doc.totals.slice(-3).map((r) => [r.label, r.amount.replace(/\s/g, " ")])).toEqual([
-      ["Total comprobante", "$ 49.000"],
-      ["Propina voluntaria", "$ 6.000"],
-      ["TOTAL A PAGAR", "$ 55.000"],
+      ["Total comprobante", "$ 49,000"],
+      ["Propina voluntaria", "$ 6,000"],
+      ["TOTAL A PAGAR", "$ 55,000"],
     ]);
     expect(doc.totals.at(-1)?.strong).toBe(true);
     // Saldada: nada pendiente (el payload guardado ni lo trae).

@@ -22,6 +22,7 @@ import {
   type TableState,
   type TableTone,
 } from "@/components/floorplan/FloorPlanCanvas";
+import { formatNumber } from "@/lib/format";
 
 type AvailTable = {
   id: string;
@@ -90,7 +91,7 @@ function readFloor(j: Record<string, unknown>): { scene: FloorScene; tables: Flo
 }
 
 const fmtCOP = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("es-CO");
+  "$" + formatNumber(cents / 100);
 
 /** YYYY-MM-DD de hoy en hora local del browser. Suficiente para el
  *  date picker — el server reinterpreta en Bogotá. */

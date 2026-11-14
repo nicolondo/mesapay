@@ -32,6 +32,7 @@ import {
   terminalBaseUrl,
   tokenPassword,
 } from "./cloudTerminal";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Kushki ONE — Print API (Cloud), contrato verificado el 2026-11-13
@@ -65,9 +66,9 @@ export type PrintCommand =
   | { type: "cut" }
   | { type: "qr"; content: string; dotSize?: number; errorLevel?: "L" | "M" | "Q" | "H"; align?: "LEFT" | "CENTER" | "RIGHT" };
 
-/** $ 43.890 — sin decimales, agrupado es-CO (la tirilla COP no usa centavos). */
+/** $ 43,890 — sin decimales, con la convención de `@/lib/format` (la tirilla COP no usa centavos). */
 function money(cents: number): string {
-  return "$ " + Math.round(cents / 100).toLocaleString("es-CO");
+  return "$ " + formatNumber(Math.round(cents / 100));
 }
 
 /**

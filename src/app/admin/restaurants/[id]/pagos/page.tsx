@@ -8,6 +8,7 @@ import { AdminBreBConfig } from "./AdminBreBConfig";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { resolveEnabledPaymentMethods } from "@/lib/paymentMethods";
 import { maskEncryptedTail, maskKeyTail } from "@/lib/payments/breB/credentials";
+import { formatNumber } from "@/lib/format";
 
 function fmtFull(d: Date): string {
   const f = fmtBogotaDateTime(d);
@@ -311,10 +312,10 @@ export default async function AdminPagosPage({
                 </div>
                 <div className="font-mono tabular text-right">
                   {m.kind === "credit" ? "+" : "−"}
-                  {(m.amountCents / 100).toLocaleString("es-CO")}
+                  {formatNumber(m.amountCents / 100)}
                   <div className="text-[10px] text-op-muted">
                     {tr("walletBalance", {
-                      balance: (m.balanceAfterCents / 100).toLocaleString("es-CO"),
+                      balance: formatNumber(m.balanceAfterCents / 100),
                     })}
                   </div>
                 </div>

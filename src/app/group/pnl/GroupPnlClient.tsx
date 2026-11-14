@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
 // Espejo de GET /api/group/pnl (spec B2 · D4). Cada sede trae SU moneda
@@ -82,7 +82,7 @@ function monthLabel(month: string, locale: Locale): string {
 /** % (escala 0-100, 1 decimal) → "66,5 %" localizado; null → "—". */
 function fmtPct(pct: number | null, locale: Locale): string {
   if (pct === null) return "—";
-  return new Intl.NumberFormat(localeTag(locale), {
+  return numberFormatter(localeTag(locale), {
     style: "percent",
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,

@@ -9,7 +9,7 @@
 import { useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, numberFormatter } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { chooseInvoiceIngredient } from "@/lib/erp/invoiceReviewAlias";
@@ -443,7 +443,7 @@ function LineDetails({
   const priceQuantity = reviewPriceQuantity(l);
   const unitCents = lineView(l).unitCents;
   const money = (cents: number) => formatMoney(cents, { currency, locale });
-  const readQtyStr = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(l.readQty);
+  const readQtyStr = numberFormatter(locale, { maximumFractionDigits: 3 }).format(l.readQty);
   const incName = columns.consumo?.header?.trim() || t("invRecColumnConsumo");
 
   return (

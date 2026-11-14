@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import Link from "next/link";
-import { fmtCOP, formatMoney } from "@/lib/format";
+import { fmtCOP, formatMoney, formatNumber } from "@/lib/format";
 import { isCashMethod } from "@/lib/payments/methods";
 import { ApplePayButton } from "./ApplePayButton";
 import { BreBSheet, type BreBCloseReason } from "@/components/payments/BreBSheet";
@@ -2101,7 +2101,7 @@ function CashTenderSheet({
               <PresetBill
                 key={cop}
                 label={t("withAmount", {
-                  amount: "$" + cop.toLocaleString("es-CO"),
+                  amount: "$" + formatNumber(cop),
                 })}
                 tenderCents={tenderCents}
                 changeCents={tenderChange(tenderCents)}
@@ -2418,7 +2418,7 @@ function PseSheet({
             <div className="font-display text-xl">
               {t("pay")}{" "}
               <span className="tabular">
-                ${(amountCents / 100).toLocaleString("es-CO")}
+                ${formatNumber(amountCents / 100)}
               </span>
             </div>
           </div>
@@ -2543,7 +2543,7 @@ function PseSheet({
             : busy
               ? t("connectingBank")
               : t("goToBank", {
-                  amount: "$" + (amountCents / 100).toLocaleString("es-CO"),
+                  amount: "$" + formatNumber(amountCents / 100),
                 })}
         </button>
         <p className="text-[11px] text-op-muted text-center mt-2">

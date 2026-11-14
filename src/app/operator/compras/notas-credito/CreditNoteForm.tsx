@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { purchaseTaxRates } from "@/lib/erp/purchaseTax";
@@ -557,7 +557,7 @@ export function CreditNoteForm({
                         <div className="text-[11px] text-op-muted truncate">
                           {docLabel(t, { kind: "purchase", number: inv.supplierInvoiceNumber, purchaseNumber: inv.number })}
                           {" · "}
-                          {t("received", { qty: `${(it.receivedQtyBase / unit.factor).toLocaleString(locale)} ${unit.symbol}` })}
+                          {t("received", { qty: `${formatNumber(it.receivedQtyBase / unit.factor, { locale, maximumFractionDigits: 3 })} ${unit.symbol}` })}
                         </div>
                       </div>
                       <label className="min-w-0">

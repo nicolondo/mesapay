@@ -1975,6 +1975,12 @@ model Payment {
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
   breBCharge         BreBCharge?
+  /// Sólo en method=customer_credit de una FACTURA MANUAL emitida por cobrar:
+  /// el link de pago que cobra este cargo (ver src/lib/manualInvoiceReceivable.ts).
+  receivablePayLink      PaymentLink?            @relation("PaymentLinkCreditCharge")
+  /// Abonos dirigidos a ESTE cargo (link de pago o "registrar pago" de la
+  /// factura). Los abonos sin cargo se aplican FIFO.
+  targetedCreditPayments CustomerCreditPayment[] @relation("CustomerCreditPaymentCharge")
 
   @@index([orderId])
   @@index([shiftId])
@@ -3403,9 +3409,20 @@ model CustomerCreditPayment {
   createdById       String?
   createdBy         User?           @relation("CustomerCreditPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt         DateTime        @default(now())
+  /// Cargo a crédito (Payment customer_credit) al que se aplica PRIMERO este
+  /// abono — el de una factura manual pagada por su link o saldada desde su
+  /// ficha. null = abono general: se aplica FIFO al cargo más viejo
+  /// (`customerCredit.allocateFifo`).
+  creditChargeId    String?
+  creditCharge      Payment?        @relation("CustomerCreditPaymentCharge", fields: [creditChargeId], references: [id], onDelete: SetNull)
+  /// El link de pago que originó el abono (pago en línea por Kushki). Único:
+  /// un link se liquida una sola vez.
+  paymentLinkId     String?         @unique
+  paymentLink       PaymentLink?    @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, paidAt])
   @@index([billingCustomerId])
+  @@index([creditChargeId])
 }
 
 model InvoiceRequest {
@@ -4710,6 +4727,19 @@ model PaymentLink {
   orderId     String? @unique
   order       Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   emailSentAt DateTime?
+  /// Todos los destinatarios del último envío por correo (`payerEmail` guarda
+  /// el primero, para lo que ya lo leía).
+  emailRecipients String[] @default([])
+  /// Primera vez que el cliente abrió el link en un navegador (no el staff).
+  openedAt        DateTime?
+  /// `kind = order` de una factura manual EMITIDA POR COBRAR: el cargo a
+  /// crédito (Payment customer_credit) que este link salda. Con este campo
+  /// el link deja de abrir el checkout de la orden (ya cerrada) y cobra un
+  /// monto fijo en /r/[slug]/pago/[token]; pagado, deja un abono dirigido
+  /// a ese cargo (CustomerCreditPayment).
+  creditPaymentId String?                @unique
+  creditPayment   Payment?               @relation("PaymentLinkCreditCharge", fields: [creditPaymentId], references: [id], onDelete: SetNull)
+  creditAbono     CustomerCreditPayment?
   breBCharges BreBCharge[]
 
   @@index([restaurantId, status])

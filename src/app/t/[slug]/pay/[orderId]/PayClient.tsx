@@ -1108,7 +1108,8 @@ export function PayClient({
   }
 
   const hasGuests = guestTotals.length > 0;
-  const showDemoFallback = isMockMode && !kushkiReady;
+  // Nunca en el link de pago de una factura manual: el datáfono es presencial.
+  const showDemoFallback = isMockMode && !kushkiReady && !payLinkMode;
   // El sello "procesado por Kushki" sólo tiene sentido si hay algún método
   // Kushki habilitado. En un checkout de sólo-efectivo mostrarlo sería
   // engañoso, así que lo escondemos.

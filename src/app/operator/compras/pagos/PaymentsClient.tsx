@@ -28,7 +28,7 @@ export function PaymentsClient({
   const t = useTranslations("opSupplierPayment");
   const locale = useLocale() as Locale;
   const router = useRouter();
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const [open, setOpen] = useState<{ supplierId: string | null } | null>(initialPayFor ? { supplierId: initialPayFor } : null);
   const href = (id: string) => `/operator/compras/pagos/${encodeURIComponent(id)}`;
   const pages = Math.max(1, Math.ceil(list.total / list.pageSize));

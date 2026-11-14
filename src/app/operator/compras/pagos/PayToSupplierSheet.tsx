@@ -63,7 +63,7 @@ export function PayToSupplierSheet({
   const t = useTranslations("opSupplierPayment");
   const tc = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const [supplierId, setSupplierId] = useState<string | null>(initialSupplierId);
   const [ctx, setCtx] = useState<Context | null>(null);
   const [ctxErr, setCtxErr] = useState(false);

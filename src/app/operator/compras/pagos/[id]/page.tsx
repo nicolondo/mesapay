@@ -40,7 +40,7 @@ export default async function VoucherPage({ params }: { params: Promise<{ id: st
   if (!p) notFound();
   const currency = await getCurrencyForCountry(tenant.country);
   const loc = locale as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale: loc });
+  const money = (c: number) => formatMoney(c, { currency, locale: loc, fractionDigits: "auto" });
   const docsTotal = p.docs.reduce((s, d) => s + d.creditCents + d.moneyCents, 0);
   const tcFn = (key: string, values?: Record<string, string | number>) => tc(key, values);
 

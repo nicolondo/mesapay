@@ -32,17 +32,8 @@ export const PRINT_DESTINATION_STYLES = `
     letter-spacing: 0.02em;
   }
   .print-destination button.pd-off { background: #fff; color: #000; }
-  .print-destination input.pd-input {
-    width: 72px;
-    padding: 6px 10px;
-    font: inherit;
-    font-size: 11px;
-    border-radius: 999px;
-    border: 1px solid #000;
-    background: #fff;
-    color: #000;
-  }
   .print-destination button.pd-on { background: #000; color: #fff; }
+  div button.secondary-btn { background: #fff; color: #000; }
   .print-note a.print-help {
     all: unset;
     text-decoration: underline;

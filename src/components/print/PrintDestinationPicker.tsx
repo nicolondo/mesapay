@@ -4,16 +4,12 @@ import { useCallback, useContext, useEffect, useId, useMemo, useState, useSyncEx
 import { useTranslations } from "next-intl";
 import { SessionContext } from "next-auth/react";
 import {
-  DEVICE_PAPER_MAX_MM,
-  DEVICE_PAPER_MIN_MM,
-  DEVICE_PAPER_PRESETS,
-  parseDevicePaperMm,
   parseStoredPrintPreference,
   printDestinationsFor,
   printPreferenceStorageKey,
   resolvePrintPreference,
   serializePrintPreference,
-  type DevicePaperMm,
+  staleStoredPrintPreference,
   type PrintDestination,
   type PrintPreference,
 } from "@/lib/print/printDestination";
@@ -63,6 +59,17 @@ function writeRaw(key: string, raw: string): void {
   for (const l of listeners) l();
 }
 
+/** Borra lo guardado (en memoria queda "": sin recuerdo). */
+function removeRaw(key: string): void {
+  memory.set(key, "");
+  try {
+    browserStorage()?.removeItem(key);
+  } catch {
+    // Sin almacenamiento: vale para esta página y nada más.
+  }
+  for (const l of listeners) l();
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   // Otra pestaña del mismo equipo cambió el destino.
@@ -95,7 +102,6 @@ export type PrintPreferenceState = PrintPreference & {
   /** Los datáfonos a los que se puede imprimir (vacío mientras no se sabe). */
   terminalDevices: Array<{ id: string; label: string }>;
   setDestination: (destination: PrintDestination) => void;
-  setPaperMm: (paperMm: DevicePaperMm) => void;
 };
 
 /**
@@ -116,9 +122,7 @@ function loadTerminalDevices(scope: string | null): Promise<Array<{ id: string; 
         return Array.isArray(list)
           ? list.filter(
               (d): d is { id: string; label: string } =>
-                !!d &&
-                typeof (d as { id?: unknown }).id === "string" &&
-                typeof (d as { label?: unknown }).label === "string",
+                !!d && typeof (d as { id?: unknown }).id === "string" && typeof (d as { label?: unknown }).label === "string",
             )
           : [];
       })
@@ -141,6 +145,9 @@ export type PrintViewer = { role: string | null; scope: string | null };
  * La sesión se lee del contexto y no con `useSession`, que tira fuera de un
  * `<SessionProvider>` (un render suelto, un test): sin proveedor no hay a
  * quién esperar y vale el valor por defecto.
+ *
+ * El papel de «Este dispositivo» no se elige (`DEVICE_PAPER_MM`): el ancho
+ * que guardaba la versión con selector se borra del equipo al leerlo.
  */
 export function usePrintPreference(viewer?: PrintViewer | null): PrintPreferenceState {
   const session = useContext(SessionContext);
@@ -153,12 +160,10 @@ export function usePrintPreference(viewer?: PrintViewer | null): PrintPreference
     () => readRaw(key),
     () => null,
   );
-  // `undefined` = todavía no se sabe si el comercio tiene datáfonos.
-  const [terminalDevices, setTerminalDevices] = useState<Array<{ id: string; label: string }> | undefined>(
-    undefined,
-  );
+  // `undefined` = todavía no se sabe si hay datáfonos.
+  const [terminalDevices, setTerminalDevices] = useState<Array<{ id: string; label: string }> | undefined>(undefined);
   useEffect(() => {
-    if (!ready || !role || role === "terminal") return;
+    if (!ready || !role) return;
     let alive = true;
     void loadTerminalDevices(scope).then((list) => {
       if (alive) setTerminalDevices(list);
@@ -176,28 +181,29 @@ export function usePrintPreference(viewer?: PrintViewer | null): PrintPreference
     () => printDestinationsFor(role, terminalAvailable === true),
     [role, terminalAvailable],
   );
+  // Lo que quedó de otra versión (el ancho de papel por equipo) se limpia;
+  // el destino recordado se conserva.
+  useEffect(() => {
+    const fix = staleStoredPrintPreference(raw);
+    if (fix === undefined) return;
+    if (fix === null) removeRaw(key);
+    else writeRaw(key, fix);
+  }, [key, raw]);
   const setDestination = useCallback(
     (destination: PrintDestination) => {
-      writeRaw(key, serializePrintPreference({ destination, paperMm: resolved.paperMm }));
+      writeRaw(key, serializePrintPreference({ destination }));
     },
-    [key, resolved.paperMm],
-  );
-  const setPaperMm = useCallback(
-    (paperMm: DevicePaperMm) => {
-      writeRaw(key, serializePrintPreference({ destination: resolved.destination, paperMm }));
-    },
-    [key, resolved.destination],
+    [key],
   );
   return {
     ...resolved,
     role,
     scope,
-    // Con «Datáfono» guardado, se espera a saber si hay datáfonos.
-    ready: ready && !(resolved.destination === "terminal" && terminalDevices === undefined),
+    // Hasta saber si hay datáfonos no se sabe a dónde va: se espera.
+    ready: ready && (!role || terminalDevices !== undefined),
     destinations,
     terminalDevices: terminalDevices ?? [],
     setDestination,
-    setPaperMm,
   };
 }
 
@@ -205,7 +211,7 @@ export type PrintDestinationVariant = "op" | "pay" | "receipt";
 
 const STYLES: Record<
   PrintDestinationVariant,
-  { label: string; on: string; off: string; chip: string; input: string }
+  { label: string; on: string; off: string; chip: string }
 > = {
   // Panel del operador y app del mesero.
   // Mismos colores que «¿A qué datáfono?» (TerminalPicker).
@@ -214,7 +220,6 @@ const STYLES: Record<
     on: "border-terracotta bg-terracotta text-bone font-medium",
     off: "border-op-border bg-op-bg text-op-text",
     chip: "min-h-9 px-3 rounded-full border text-xs",
-    input: "h-9 w-20 px-3 rounded-full border border-op-border bg-op-bg text-op-text text-xs",
   },
   // Pantallas con los colores del cobro (datáfono, "listo" del cobro).
   pay: {
@@ -222,7 +227,6 @@ const STYLES: Record<
     on: "border-terracotta bg-terracotta text-bone font-medium",
     off: "border-hairline bg-paper text-ink",
     chip: "min-h-9 px-3 rounded-full border text-xs",
-    input: "h-9 w-20 px-3 rounded-full border border-hairline bg-paper text-ink text-xs",
   },
   // La vista imprimible (blanco y negro, monoespaciada).
   receipt: {
@@ -230,14 +234,13 @@ const STYLES: Record<
     on: "pd-on",
     off: "pd-off",
     chip: "pd-chip",
-    input: "pd-input",
   },
 };
 
 /**
- * El selector: dos opciones de destino y, con «Este dispositivo», el ancho
- * del papel del equipo. Elegir no imprime: sólo cambia a dónde va el
- * próximo «Imprimir».
+ * El selector: dos opciones de destino. Con «Este dispositivo» el papel es
+ * siempre `DEVICE_PAPER_MM` (no se elige). Elegir no imprime: sólo cambia a
+ * dónde va el próximo «Imprimir».
  */
 export function PrintDestinationPicker({
   pref,
@@ -245,10 +248,7 @@ export function PrintDestinationPicker({
   variant = "op",
   className = "",
 }: {
-  pref: Pick<
-    PrintPreferenceState,
-    "destination" | "destinations" | "paperMm" | "ready" | "setDestination" | "setPaperMm"
-  >;
+  pref: Pick<PrintPreferenceState, "destination" | "destinations" | "ready" | "setDestination">;
   disabled?: boolean;
   variant?: PrintDestinationVariant;
   className?: string;
@@ -288,106 +288,6 @@ export function PrintDestinationPicker({
           ))}
         </div>
       </div>
-      {pref.ready && pref.destination === "device" && (
-        <PaperPicker pref={pref} disabled={off} styles={s} chip={chip} />
-      )}
-    </div>
-  );
-}
-
-/**
- * El papel del equipo: 55 · 58 · 80 mm como atajos y «Otro», que abre un
- * campo numérico (40–120 mm) para el ancho que de verdad imprime el equipo.
- * Cada valor válido queda recordado al escribirlo; uno fuera de rango no se
- * guarda y lo dice.
- */
-function PaperPicker({
-  pref,
-  disabled,
-  styles,
-  chip,
-}: {
-  pref: Pick<PrintPreferenceState, "paperMm" | "setPaperMm">;
-  disabled: boolean;
-  styles: (typeof STYLES)[PrintDestinationVariant];
-  chip: (checked: boolean) => string;
-}) {
-  const t = useTranslations("staffPrint");
-  const paperId = useId();
-  const inputId = useId();
-  const isPreset = DEVICE_PAPER_PRESETS.includes(pref.paperMm);
-  // `customOpen`: alguien tocó «Otro» y está escribiendo (vale su borrador);
-  // si no, un ancho recordado fuera de los atajos también abre el campo,
-  // con ese valor.
-  const [customOpen, setCustomOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const showCustom = customOpen || !isPreset;
-  const inputValue = customOpen ? draft : String(pref.paperMm);
-  const invalid = showCustom && parseDevicePaperMm(inputValue) === null;
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span id={paperId} className={`font-mono text-[10px] tracking-wider uppercase ${styles.label}`}>
-        {t("paperLabel")}
-      </span>
-      <div role="radiogroup" aria-labelledby={paperId} className="flex flex-wrap items-center gap-1.5">
-        {DEVICE_PAPER_PRESETS.map((mm) => (
-          <button
-            key={mm}
-            type="button"
-            role="radio"
-            aria-checked={!showCustom && pref.paperMm === mm}
-            disabled={disabled}
-            onClick={() => {
-              setCustomOpen(false);
-              pref.setPaperMm(mm);
-            }}
-            className={chip(!showCustom && pref.paperMm === mm)}
-          >
-            {t("paperMm", { mm })}
-          </button>
-        ))}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={showCustom}
-          disabled={disabled}
-          onClick={() => {
-            setCustomOpen(true);
-            setDraft(String(pref.paperMm));
-          }}
-          className={chip(showCustom)}
-        >
-          {t("paperOther")}
-        </button>
-      </div>
-      {showCustom && (
-        <span className="inline-flex flex-wrap items-center gap-1.5">
-          <label htmlFor={inputId} className="sr-only">
-            {t("paperCustomLabel")}
-          </label>
-          <input
-            id={inputId}
-            type="number"
-            inputMode="numeric"
-            min={DEVICE_PAPER_MIN_MM}
-            max={DEVICE_PAPER_MAX_MM}
-            step={1}
-            value={inputValue}
-            disabled={disabled}
-            aria-invalid={invalid}
-            onChange={(e) => {
-              setCustomOpen(true);
-              setDraft(e.target.value);
-              const mm = parseDevicePaperMm(e.target.value);
-              if (mm !== null) pref.setPaperMm(mm);
-            }}
-            className={styles.input}
-          />
-          <span className={`text-[11px] ${invalid ? "text-danger" : styles.label}`}>
-            {t("paperCustomHint", { min: DEVICE_PAPER_MIN_MM, max: DEVICE_PAPER_MAX_MM })}
-          </span>
-        </span>
-      )}
     </div>
   );
 }

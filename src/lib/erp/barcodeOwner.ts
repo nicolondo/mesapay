@@ -20,3 +20,31 @@ export async function barcodeTakenResponse(restaurantId: string, barcode: string
   const owner = await findBarcodeOwner(restaurantId, barcode).catch(() => null);
   return NextResponse.json({ error: "barcode_taken", owner }, { status: 409 });
 }
+
+/** Ficha mínima del dueño de un código, para explicar un escaneo en el conteo. */
+export type BarcodeOwnerDetail = BarcodeOwner & {
+  trackInventory: boolean;
+  category: string | null;
+  barcode: string | null;
+  barcodes: { barcode: string }[];
+};
+
+/**
+ * El mismo registro canónico (`IngredientBarcode`, único por comercio) que
+ * usa el alta de códigos, con lo que el conteo necesita para decir por qué
+ * ese insumo no aparece: archivado, sin inventario o de otra categoría.
+ */
+export async function findBarcodeOwnerDetail(restaurantId: string, barcode: string): Promise<BarcodeOwnerDetail | null> {
+  const row = await db.ingredientBarcode.findUnique({
+    where: { restaurantId_barcode: { restaurantId, barcode } },
+    select: {
+      ingredient: {
+        select: {
+          id: true, name: true, active: true, trackInventory: true, category: true, barcode: true,
+          barcodes: { where: { restaurantId }, select: { barcode: true }, orderBy: { barcode: "asc" } },
+        },
+      },
+    },
+  });
+  return row?.ingredient ?? null;
+}

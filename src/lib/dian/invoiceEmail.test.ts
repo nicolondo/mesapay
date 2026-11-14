@@ -9,7 +9,7 @@ const base = {
   invoiceNumber: "FESM6482",
   issuedAt: new Date("2026-09-14T20:04:05.000Z"),
   cufe: CUFE,
-  totalCents: 12_345_600,
+  payable: { invoiceTotalCents: 12_345_600, tipCents: 0, totalToPayCents: 12_345_600 },
   invoiceUrl: "https://mesapay.co/factura/abc123",
   verifyUrl: `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${CUFE}`,
   attachmentName: "adFESM6482.zip",
@@ -162,5 +162,37 @@ describe("renderDianInvoiceEmail — datos del emisor", () => {
     });
     expect(html).toContain("Cra 6 &lt;b&gt;24A&lt;/b&gt; Sur");
     expect(html).not.toContain("<b>24A</b>");
+  });
+});
+
+describe("renderDianInvoiceEmail — total factura, propina y TOTAL A PAGAR", () => {
+  const conPropina = {
+    ...base,
+    payable: { invoiceTotalCents: 12_000_000, tipCents: 1_200_000, totalToPayCents: 13_200_000 },
+  };
+
+  it.each([
+    ["es", "Total factura", "Propina voluntaria", "Total a pagar"],
+    ["en", "Invoice total", "Voluntary tip", "Total to pay"],
+    ["pt", "Total da fatura", "Gorjeta voluntária", "Total a pagar"],
+  ])("%s: los tres renglones, en ese orden, y el total a pagar con la propina", async (locale, invoiceTotal, tip, toPay) => {
+    const { html, text } = await renderDianInvoiceEmail({ ...conPropina, locale });
+    const lines = text.split("\n");
+    const at = (label: string) => lines.findIndex((l) => l.startsWith(`${label}: `));
+    expect(at(invoiceTotal)).toBeGreaterThan(-1);
+    expect(at(tip)).toBe(at(invoiceTotal) + 1);
+    expect(at(toPay)).toBe(at(tip) + 1);
+    expect(lines[at(invoiceTotal)]).toMatch(/120[.,]000/);
+    expect(lines[at(tip)]).toMatch(/12[.,]000/);
+    expect(lines[at(toPay)]).toMatch(/132[.,]000/);
+    // El TOTAL A PAGAR va en negrita y más grande que el resto.
+    expect(html).toMatch(/font-size:20px;font-weight:700;[^"]*">[^<]*132[.,]000/);
+  });
+
+  it("sin propina no hay renglón de propina y el total a pagar es el de la factura", async () => {
+    const { text } = await renderDianInvoiceEmail({ ...base, locale: "es" });
+    expect(text).not.toContain("Propina voluntaria");
+    expect(text).toMatch(/Total factura: .*123\.456/);
+    expect(text).toMatch(/Total a pagar: .*123\.456/);
   });
 });

@@ -59,6 +59,15 @@ export async function reconcilePaymentInTx(tx: Prisma.TransactionClient, args: R
       if (args.outcome !== "approved" && args.outcome !== "declined") throw new Error("operation_conflict");
       const settled = await settleKushkiEventInTx(tx, { eventId: `reconcile:${payment.id}`, type: args.outcome === "approved" ? "charge.approved" : "charge.declined", paymentId: payment.id, restaurantId: args.restaurantId, providerRef: args.providerRef, amountCents: payment.amountCents });
       fired = settled?.fired ?? [];
+      // Bre-B: el intento (QR) queda cerrado con lo que verificó la persona.
+      // Un aviso posterior de Kushki que lo contradiga queda para conciliación
+      // (aprobación tardía; ver breB/service.ts).
+      if (payment.method === "kushki_bre_b") {
+        await tx.breBCharge.updateMany({
+          where: { paymentId: payment.id, status: { in: ["creating", "active", "uncertain"] } },
+          data: { status: args.outcome === "approved" ? "approved" : "declined", failureCode: "reconciled", settledAt: new Date() },
+        });
+      }
     } else if (args.outcome !== "reviewed") throw new Error("operation_conflict");
     await tx.payment.update({ where: { id: payment.id }, data: { reconciliationRequired: false } });
   }

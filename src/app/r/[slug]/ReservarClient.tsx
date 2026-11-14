@@ -466,7 +466,7 @@ export function ReservarClient({
                   <span
                     aria-hidden
                     className="w-3.5 h-3.5 rounded inline-block border"
-                    style={{ background: TONE_FREE.fill, borderColor: TONE_FREE.stroke }}
+                    style={{ background: "rgba(46,107,76,0.15)", borderColor: TONE_FREE.stroke }}
                   />
                   {tr("available")}
                 </span>
@@ -656,7 +656,8 @@ export function ReservarClient({
 // Colores de las mesas en el plano del comensal. Constantes: el dibujo de
 // cada mesa solo se rehace si cambia su estado.
 const TONE_FREE: TableTone = {
-  fill: "color-mix(in srgb, var(--ok) 15%, var(--ivory))",
+  fill: "var(--ok)",
+  fillOpacity: 0.15,
   stroke: "var(--ok)",
   text: "#1E5339",
 };

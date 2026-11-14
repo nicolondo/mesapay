@@ -52,8 +52,8 @@ beforeEach(() => {
   });
 });
 
-async function render() {
-  const page = await FacturaPage({ params: Promise.resolve({ id: "inv-1" }), searchParams: Promise.resolve({}) });
+async function render(searchParams: { print?: string; w?: string } = {}) {
+  const page = await FacturaPage({ params: Promise.resolve({ id: "inv-1" }), searchParams: Promise.resolve(searchParams) });
   return renderToStaticMarkup(page);
 }
 
@@ -175,5 +175,224 @@ describe("factura web — formato compacto", () => {
     expect(html).toContain('class="dian-qr"');
     expect(text).toContain("CUFE: abc123");
     expect(text).toContain("Representación impresa de la factura electrónica de venta");
+  });
+});
+
+describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
+  /** El recibo, sin los controles ni los estilos de la página. */
+  const receipt = (html: string) => /<article[\s\S]*<\/article>/.exec(html)?.[0] ?? "";
+
+  it("?w=58 en un comercio de 80: el recibo y la página que se pide miden 58 mm", async () => {
+    const html = await render({ w: "58" });
+    expect(html).toContain('data-print-width-mm="58"');
+    expect(html).toContain("width:58mm");
+    // El botón sabe a qué ancho está dibujada la página (para imprimirse ella).
+    expect(mocks.printButtonProps).toMatchObject({ paperMm: 58 });
+  });
+
+  it("un ?w= fuera de 40–120 mm (o que no es un número) se ignora: el papel del comercio", async () => {
+    expect(await render({ w: "150" })).toContain('data-print-width-mm="80"');
+    expect(await render({ w: "abc" })).toContain('data-print-width-mm="80"');
+    expect(await render({ w: "55mm" })).toContain('data-print-width-mm="80"');
+  });
+
+  it("?w=55 (el datáfono): página de 55 mm con el texto en 48 mm, y el QR nunca más ancho que el 60 %", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: {
+        ...snapshot,
+        items: [
+          {
+            qty: 12,
+            name: "Bandeja paisa especial de la casa con chicharrón, morcilla, arepa, aguacate y huevo frito",
+            priceCents: 8_333_333_300,
+          },
+          { qty: 1, name: "Supercalifragilisticoespialidosoconsalsadelacasa", priceCents: 99_999_999_900 },
+        ],
+        subtotalCents: 199_999_999_500,
+        tipCents: 19_999_999_900,
+        totalCents: 219_999_999_400,
+      },
+      dianDocument: { state: "accepted", cufe: "f".repeat(96) },
+      restaurant: { ...row.restaurant, enabledModules: ["einvoicing"] },
+    });
+    const html = await render({ w: "55" });
+    const article = receipt(html);
+    expect(article).toContain('data-print-width-mm="55"');
+    expect(article).toContain("width:55mm;padding-inline:3.5mm");
+    // Montos de 9 dígitos enteros, sin partirse (la columna del monto no envuelve).
+    expect(article).toContain('<span class="amount">$999.999.999</span>');
+    expect(article).toContain('class="dian-qr"');
+    expect(article).toContain("f".repeat(96));
+    // Lo que evita que algo se salga: nombres y CUFE parten donde haga falta,
+    // y el QR no pasa del 60 % del ancho.
+    expect(html).toMatch(/\.items \.line \{[^}]*overflow-wrap: anywhere/);
+    expect(html).toMatch(/\.dian-cufe \{[^}]*word-break: break-all/);
+    expect(html).toMatch(/\.dian-qr \{[^}]*max-width: 60%/);
+    expect(article).toMatchSnapshot();
+  });
+
+  it("es la MISMA tirilla que la del comercio, sólo cambia el ancho (snapshot a 58 mm)", async () => {
+    const at80 = receipt(await render());
+    const at58 = receipt(await render({ w: "58" }));
+    // Lo único que cambia además del ancho: en papel angosto el TOTAL A
+    // PAGAR va un punto menor (`narrow`), para caber en un renglón.
+    expect(at58).toContain('class="row to-pay narrow"');
+    expect(at80).toContain('class="row to-pay"');
+    expect(at58.replace(/58mm|="58"|padding-inline:5mm| narrow/g, "")).toBe(
+      at80.replace(/80mm|="80"|padding-inline:4mm/g, ""),
+    );
+    expect(at58).toMatchSnapshot();
+  });
+});
+
+
+// El caso del dueño: la vista decía TOTAL con la venta sola y el cliente
+// pagó más, con la propina. Ahora: «Total factura/comprobante» (la venta),
+// «Propina voluntaria» y el TOTAL A PAGAR = factura + propina, destacado.
+describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
+  /** Los renglones de totales, como texto: "rótulo|monto". */
+  const totals = (html: string) =>
+    [...html.matchAll(/<div class="row[^"]*"[^>]*><span>([^<]*)<\/span><span class="right">([^<]*)<\/span><\/div>/g)].map(
+      (m) => `${m[1]}|${m[2]}`,
+    );
+  const toPay = (html: string) => /data-total-to-pay="(\d+)"/.exec(html)?.[1];
+
+  it("emitida al cobrar: la venta, la propina del snapshot y el total a pagar con ella", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 1_200_000, totalCents: 13_200_000 },
+    });
+    const html = await render();
+    expect(totals(html).slice(-3)).toEqual([
+      "Total comprobante|$120.000",
+      "Propina voluntaria|$12.000",
+      "TOTAL A PAGAR|$132.000",
+    ]);
+    expect(toPay(html)).toBe("13200000");
+    expect(html).toContain('class="row to-pay"');
+    expect(html).not.toContain(">TOTAL<");
+  });
+
+  it("factura electrónica aceptada: el rótulo es «Total factura»", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      dianDocument: { state: "accepted", cufe: "abc123" },
+      restaurant: { ...row.restaurant, enabledModules: ["einvoicing"] },
+    });
+    expect(totals(await render())).toContain("Total factura|$25.000");
+  });
+
+  it("emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden (la del snapshot es 0)", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
+      order: {
+        shortCode: "DEMO",
+        tipCents: 1_200_000,
+        payments: [{ method: "external_terminal", amountCents: 13_200_000, tipCents: 1_200_000 }],
+      },
+    });
+    const html = await render();
+    expect(totals(html).slice(-3)).toEqual([
+      "Total comprobante|$120.000",
+      "Propina voluntaria|$12.000",
+      "TOTAL A PAGAR|$132.000",
+    ]);
+    expect(html).not.toContain("Pendiente de pago");
+    expect(html).not.toContain("Propina sugerida");
+  });
+
+  it("emitida ANTES de cobrar y sin cobrar: TOTAL A PAGAR = la factura; la propina sugerida aparte, sin sumar", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
+      order: { shortCode: "DEMO", tipCents: 0, payments: [] },
+    });
+    const html = await render();
+    expect(totals(html)).toEqual([
+      "Subtotal|$120.000",
+      "Total comprobante|$120.000",
+      "TOTAL A PAGAR|$120.000",
+      "Pendiente de pago|$120.000",
+      "Propina sugerida (voluntaria) 10%|$12.000",
+    ]);
+    expect(toPay(html)).toBe("12000000");
+    expect(html).not.toContain("132.000");
+    expect(html).not.toContain("TOTAL CON PROPINA");
+  });
+
+  it.each(["en", "pt"])("en %s los rótulos nuevos están traducidos", async (locale) => {
+    mocks.locale = locale;
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row,
+      snapshot: { ...snapshot, tipCents: 250_000, totalCents: 2_750_000 },
+    });
+    const html = await render();
+    const { t } = await getEmailTranslator(locale, "emailInvoice");
+    for (const key of ["receiptTotal", "tipVoluntary", "totalToPay"]) {
+      expect(t(key)).not.toBe(key);
+      expect(html).toContain(t(key));
+    }
+  });
+});
+
+describe("factura web — emitida con «Sin propina» en el cobro", () => {
+  const preSinPropina = {
+    ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000,
+    issuedBeforePayment: true, suggestedTipPct: 0,
+  };
+
+  it("sin cobrar: nada de propina sugerida ni total con propina", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({ ...row, snapshot: preSinPropina, order: { shortCode: "DEMO", tipCents: 0, payments: [] } });
+    for (const w of [undefined, "58"]) {
+      const html = await render(w ? { w } : {});
+      expect(html).not.toContain("Propina sugerida");
+      expect(html).not.toContain("TOTAL CON PROPINA");
+      expect(html).not.toContain("Propina voluntaria");
+      expect(html).toContain("Pendiente de pago");
+      expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12000000");
+    }
+  });
+
+  it("cobrada y el cliente igual dejó propina: sólo la propina voluntaria real", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row, snapshot: preSinPropina,
+      order: { shortCode: "DEMO", tipCents: 500_000, payments: [{ method: "cash", amountCents: 12_500_000, tipCents: 500_000 }] },
+    });
+    const html = await render();
+    expect(html).not.toContain("Propina sugerida");
+    expect(html).toContain("Propina voluntaria");
+    expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12500000");
+  });
+
+  it("emitida con propina sugerida: aparece aparte, sin sumarse", async () => {
+    const row = await mocks.findUnique();
+    mocks.findUnique.mockResolvedValue({
+      ...row, snapshot: { ...preSinPropina, suggestedTipPct: 15 },
+      order: { shortCode: "DEMO", tipCents: 0, payments: [] },
+    });
+    const html = await render();
+    expect(html).toContain("Propina sugerida (voluntaria) 15%");
+    expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12000000");
+  });
+
+  it("los correos (comprobante y factura electrónica) nunca sugieren propina", async () => {
+    const mail = await renderInvoiceEmail({
+      snapshot: preSinPropina, invoiceNumber: 1, invoiceUrl: "https://example.invalid/factura/1", locale: "es",
+      order: { tipCents: 0, paid: false },
+    });
+    for (const out of [mail.html, mail.text]) {
+      expect(out).not.toContain("Propina sugerida");
+      expect(out).not.toContain("Propina voluntaria");
+    }
   });
 });

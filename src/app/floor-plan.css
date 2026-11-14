@@ -47,6 +47,15 @@
 .fp-zone-label {
   font-weight: 600;
 }
+/* El color del tipo de área va como atributo (más débil que el CSS): en el
+   tema oscuro se lee el texto del panel. */
+[data-op-theme="dark"] .fp-zone-label {
+  fill: var(--op-text);
+}
+.fp-canvas .fp-sub--strong {
+  opacity: 1;
+  font-weight: 600;
+}
 .fp-marker-label {
   font-weight: 600;
   fill: color-mix(in srgb, var(--fp-ink) 72%, transparent);

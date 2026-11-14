@@ -44,6 +44,7 @@ async function GETHandler() {
         base: c.base,
         thresholdUvt: c.thresholdUvt,
         accountCode: c.accountCode,
+        catalogKey: c.catalogKey,
       })),
     uvtCents: uvtDelAno(bogotaYear(), Math.round(cfg.uvtCents / 100)) * 100,
   });

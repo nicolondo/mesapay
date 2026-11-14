@@ -50,11 +50,26 @@ export type CanvasTable = {
   placement: TablePlacement;
 };
 
-/** Colores de una mesa. Usa las mismas referencias entre renders (constantes). */
+/**
+ * Colores de una mesa. Usa las mismas referencias entre renders (constantes).
+ *
+ * Sin color-mix(): estos valores van como atributos del SVG, donde el
+ * respaldo para navegadores viejos de postcss no llega (datáfono con
+ * Firefox 107, Safari iOS 15.4) y un color inválido pinta NEGRO. Un tinte se
+ * escribe como color sólido + opacidad: la mesa se dibuja primero sobre su
+ * superficie, así el resultado es el mismo que mezclar con la superficie.
+ */
 export type TableTone = {
   fill: string;
+  /** < 1: tinte sobre la superficie de la mesa. */
+  fillOpacity?: number;
   stroke: string;
+  strokeOpacity?: number;
+  /** Borde en px de pantalla (por defecto 1.5; 2.5 = estado que pide acción). */
+  strokeWidth?: number;
   text: string;
+  /** Segunda línea en otro color (el monto, como en las tarjetas). */
+  subText?: string;
   /** Línea punteada: refuerza «no disponible» sin depender solo del color. */
   dashed?: boolean;
   /** Punto de estado (mapa del Salón). */
@@ -66,7 +81,8 @@ export type TableTone = {
 
 export const TONE_NEUTRAL: TableTone = {
   fill: "var(--fp-surface)",
-  stroke: "color-mix(in srgb, var(--fp-ink) 62%, transparent)",
+  stroke: "var(--fp-ink)",
+  strokeOpacity: 0.62,
   text: "var(--fp-ink)",
 };
 
@@ -80,6 +96,8 @@ export type TableState = {
   warn?: boolean;
   /** Segunda línea; por defecto, la capacidad. `null` la oculta. */
   sub?: string | null;
+  /** Tercera línea, solo si la mesa se ve grande. */
+  sub2?: string | null;
 };
 
 type CanvasProps = {
@@ -203,6 +221,7 @@ export function FloorPlanCanvas({
               pressed={s?.pressed}
               warn={!!s?.warn}
               sub={s?.sub === undefined ? t("seats", { count: tb.capacity }) : s.sub}
+              sub2={s?.sub2 ?? null}
               onActivate={onTableActivate}
               onKeyFocus={onTableKeyFocus}
             />
@@ -224,7 +243,7 @@ export function FloorPlanCanvas({
               strokeWidth={px * 4}
               dominantBaseline="central"
               className="fp-halo fp-zone-label"
-              style={{ fill: `color-mix(in srgb, ${ZONE_KINDS[z.kind].text} 78%, var(--fp-ink))` }}
+              fill={ZONE_KINDS[z.kind].text}
             >
               {text}
             </text>
@@ -338,6 +357,7 @@ const TableShapeNode = memo(function TableShapeNode({
   pressed,
   warn,
   sub,
+  sub2,
   onActivate,
   onKeyFocus,
 }: {
@@ -349,6 +369,7 @@ const TableShapeNode = memo(function TableShapeNode({
   pressed?: boolean;
   warn: boolean;
   sub: string | null;
+  sub2: string | null;
   onActivate?: (id: string) => void;
   onKeyFocus?: (id: string) => void;
 }) {
@@ -361,7 +382,33 @@ const TableShapeNode = memo(function TableShapeNode({
   const minPx = Math.min(w, h) * pxPerUnit;
   const numPx = Math.max(9, Math.min(15, minPx * 0.42));
   const showNum = minPx >= 13;
-  const showSub = !!sub && minPx >= 34;
+  // Las líneas de abajo solo se muestran si CABEN en el ancho de la mesa
+  // (si no, achican la letra hasta 7,5 px o se omiten): un «Listo para
+  // servir» desbordando sobre las sillas no se lee. Si el estado no cabe
+  // pero el monto sí, va el monto.
+  const availW = Math.max(0, w * pxPerUnit * (tb.shape === "round" ? 0.8 : 1) - 8);
+  const fit = (text: string | null, base: number): number | null => {
+    if (!text) return null;
+    const need = text.length * base * 0.6;
+    if (need <= availW) return base;
+    const size = availW / (text.length * 0.6);
+    return size >= 7.5 ? size : null;
+  };
+  const fitSub = minPx >= 34 ? fit(sub, 9) : null;
+  const fitSub2 = minPx >= 34 ? fit(sub2, 9.5) : null;
+  const line1 =
+    fitSub !== null
+      ? { text: sub, size: fitSub, strong: false }
+      : fitSub2 !== null
+        ? { text: sub2, size: fitSub2, strong: true }
+        : null;
+  const line2 =
+    line1 && !line1.strong && fitSub2 !== null && minPx >= 58
+      ? { text: sub2, size: fitSub2, strong: true }
+      : null;
+  const showSub = !!line1;
+  const showSub2 = !!line2;
+  const tinted = tone.fillOpacity !== undefined && tone.fillOpacity < 1;
   // Siempre el NÚMERO: es lo que el equipo y el comensal reconocen (el
   // nombre opcional va en la etiqueta accesible y en el panel).
   const title = String(tb.number);
@@ -439,13 +486,16 @@ const TableShapeNode = memo(function TableShapeNode({
             rx={SEAT_D / 2}
             transform={s.angle ? `rotate(${s.angle} ${s.x} ${s.y})` : undefined}
             fill={tone.stroke}
-            opacity={0.75}
+            opacity={0.75 * (tone.strokeOpacity ?? 1)}
           />
         ))}
+        {tinted && shape(0, { fill: "var(--fp-surface)", stroke: "none" })}
         {shape(0, {
           fill: tone.fill,
+          fillOpacity: tone.fillOpacity,
           stroke: tone.stroke,
-          strokeWidth: 1.5,
+          strokeOpacity: tone.strokeOpacity,
+          strokeWidth: tone.strokeWidth ?? 1.5,
           strokeDasharray: tone.dashed ? "3 3" : undefined,
           vectorEffect: "non-scaling-stroke",
         })}
@@ -454,7 +504,7 @@ const TableShapeNode = memo(function TableShapeNode({
       {showNum && (
         <text
           x={0}
-          y={showSub ? -px * 5 : 0}
+          y={showSub2 ? -px * (numPx * 0.5 + 4) : showSub ? -px * 5 : 0}
           fontSize={px * numPx}
           textAnchor="middle"
           dominantBaseline="central"
@@ -464,17 +514,30 @@ const TableShapeNode = memo(function TableShapeNode({
           {title}
         </text>
       )}
-      {showSub && (
+      {line1 && (
         <text
           x={0}
-          y={px * (numPx * 0.5 + 3)}
-          fontSize={px * 9}
+          y={line2 ? px * 4 : px * (numPx * 0.5 + 3)}
+          fontSize={px * line1.size}
           textAnchor="middle"
           dominantBaseline="central"
-          className="fp-sub"
-          fill={tone.text}
+          className={line1.strong ? "fp-sub fp-sub--strong" : "fp-sub"}
+          fill={line1.strong ? (tone.subText ?? tone.text) : tone.text}
         >
-          {sub}
+          {line1.text}
+        </text>
+      )}
+      {line2 && (
+        <text
+          x={0}
+          y={px * 15}
+          fontSize={px * line2.size}
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="fp-sub fp-sub--strong"
+          fill={tone.subText ?? tone.text}
+        >
+          {line2.text}
         </text>
       )}
       {tone.dot && (

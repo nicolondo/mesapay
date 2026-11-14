@@ -11,6 +11,7 @@ import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import {
   buildInvoiceCommands,
   printOnCloudTerminal,
+  waitForCloudPrintJob,
 } from "@/lib/payments/kushki/cloudPrint";
 
 /**
@@ -46,7 +47,7 @@ async function POSTHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const invoice = await db.simpleInvoice.findUnique({ where: { id }, include: { order: { select: { locale: true } } } });
+  const invoice = await db.simpleInvoice.findUnique({ where: { id }, include: { order: { select: { locale: true, tipCents: true } } } });
   if (!invoice || invoice.restaurantId !== restaurantId) {
     return NextResponse.json({ error: "invoice_not_found" }, { status: 404 });
   }
@@ -85,6 +86,9 @@ async function POSTHandler(
     invoice.invoiceNumber,
     invoiceUrlFor(invoice.id),
     t,
+    // Propina REAL de la orden: la de una factura emitida antes de cobrar
+    // no está en el snapshot.
+    invoice.order,
   );
 
   const result = await printOnCloudTerminal({
@@ -108,10 +112,27 @@ async function POSTHandler(
       { status: 502 },
     );
   }
+  // 202 = encolado, NO impreso: se espera el estado real (hasta ~30 s).
+  const outcome = await waitForCloudPrintJob({
+    serialNumber: device.serialNumber!,
+    businessCode: tenant?.cloudTerminalBusinessCode,
+    mode: await getRestaurantKushkiMode(tenant),
+    printJobId: result.printJobId,
+  });
+  if (outcome.state === "failed") {
+    return NextResponse.json(
+      {
+        error: "print_failed",
+        message: outcome.errorCode ?? "FAILED",
+        ...(outcome.errorCode && { errorCode: outcome.errorCode }),
+      },
+      { status: 502 },
+    );
+  }
   return NextResponse.json({
     ok: true,
     printJobId: result.printJobId,
-    status: result.status ?? "PENDING",
+    state: outcome.state === "completed" ? "printed" : "queued",
   });
 }
 

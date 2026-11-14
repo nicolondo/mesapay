@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { terminalClaimKey } from "@/lib/payments/methods";
 import { TERMINAL_CANCELED_REASON, toTerminalAttemptView } from "@/lib/payments/terminalAttempt";
+import { toTerminalAmountView } from "@/lib/payments/terminalAmount";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 
 async function GETHandler(
@@ -24,10 +25,13 @@ async function GETHandler(
   //   - Reintentado: `nextPaymentId`, para que la pantalla siga al pago nuevo.
   //   - Pendiente y quien mira es del equipo: `terminalAttempt`, para ofrecer
   //     reintentar / cancelar en la pantalla de espera del staff.
+  //   - Aprobado por OTRO monto (propina del datáfono o parcial):
+  //     `terminalAmount`, para que la pantalla diga cuánto se cobró.
   const claim =
-    payment.method === "kushki_card_terminal" && payment.status !== "approved"
+    payment.method === "kushki_card_terminal"
       ? await db.financialOperation.findUnique({ where: { key: terminalClaimKey(payment.id) } })
       : null;
+  const amount = payment.status === "approved" ? toTerminalAmountView(claim) : null;
   const declined = payment.status === "declined";
   const staff =
     claim && payment.status === "pending"
@@ -41,6 +45,7 @@ async function GETHandler(
     ...(declined && claim?.answeredAt ? { declineReason: TERMINAL_CANCELED_REASON } : {}),
     ...(declined && claim?.nextPaymentId ? { nextPaymentId: claim.nextPaymentId } : {}),
     ...(staff ? { terminalAttempt: toTerminalAttemptView(claim, payment.reconciliationRequired) } : {}),
+    ...(amount && (amount.check === "tip" || amount.check === "partial") ? { terminalAmount: amount } : {}),
   });
 }
 

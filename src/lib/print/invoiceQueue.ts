@@ -104,6 +104,11 @@ export async function buildInvoiceDocument(args: {
   dian?: InvoiceDianPrintData | null;
   /** La impresora DESTINO imprime QR nativo (`Printer.supportsQr`). */
   supportsQr?: boolean;
+  /**
+   * La orden HOY: la propina REAL de una factura emitida antes de cobrar
+   * (ver `invoicePayableOf`). Ausente en la tirilla de muestra.
+   */
+  order?: { tipCents: number } | null;
 }): Promise<ThermalInvoice> {
   const { t, locale } = await getEmailTranslator(args.locale, "emailInvoice");
   const money = (cents: number) =>
@@ -138,6 +143,7 @@ export async function buildInvoiceDocument(args: {
           qr: args.supportsQr === true,
         }
       : null,
+    order: args.order ?? null,
   });
 }
 
@@ -241,6 +247,15 @@ export async function enqueueInvoicePrintDetailed(
     orderBy: { createdAt: "asc" },
     select: { method: true, amountCents: true, tipCents: true },
   });
+  // Factura emitida ANTES de cobrar: su snapshot no tiene propina (se
+  // decidió después). La del TOTAL A PAGAR es la REAL de la orden. Emitida
+  // al cobrar, la del snapshot ya es esa y no hace falta leer nada más.
+  const order = isIssuedBeforePayment(args.snapshot)
+    ? await db.order.findUnique({
+        where: { id: args.orderId },
+        select: { tipCents: true },
+      })
+    : null;
 
   const currency = await getCurrencyForCountry(restaurant.country);
   const dedupeKey =
@@ -260,6 +275,7 @@ export async function enqueueInvoicePrintDetailed(
         locale: args.locale,
         dian: args.dian ?? null,
         supportsQr: printer.supportsQr === true,
+        order,
       });
       const payload: InvoicePrintJobPayload = {
         v: INVOICE_PAYLOAD_VERSION,

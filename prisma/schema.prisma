@@ -92,6 +92,20 @@ model Restaurant {
   // principal (UAT opera con un solo par). Private cifrada AES-GCM.
   kushkiPayoutPublicKey     String?
   kushkiPayoutPrivateKeyEnc String?
+  // Bre-B (pagos inmediatos por QR) vía Kushki «Transfer In» — producto en
+  // BETA en Kushki: se coordina con ellos antes de usarlo en producción.
+  // Kushki entrega un comercio DISTINTO al de tarjeta/PSE para Bre-B: par de
+  // llaves propio y firma de webhook propia. La privada y la firma van cifradas igual que
+  // `kushkiPrivateKeyEnc` (src/lib/crypto.ts). El id/nombre son opcionales:
+  // sólo sirven para casar un webhook por comercio y para que el
+  // administrador reconozca de qué comercio de Kushki son las llaves. Se
+  // cargan en /admin/restaurants/[id]/pagos. Sin ambas llaves no se puede
+  // habilitar el medio `kushki_bre_b`.
+  kushkiBreBMerchantId       String?
+  kushkiBreBMerchantName     String?
+  kushkiBreBPublicKey        String?
+  kushkiBreBPrivateKeyEnc    String?
+  kushkiBreBWebhookSecretEnc String?
   // Business code del comercio en el Cloud Terminal API (datáfono físico
   // vía cloud). Lo carga el comercio desde Configuración → Datáfonos. Va
   // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth
@@ -481,6 +495,7 @@ model Restaurant {
   voucherStatements      VoucherStatement[]
   customerCreditPayments CustomerCreditPayment[]
   paymentLinks           PaymentLink[]
+  breBCharges            BreBCharge[]
   backups                RestaurantBackup[]
 
   // Comercial asignado — el rep que trajo este restaurante y cobra comisión recurrente.
@@ -1862,6 +1877,14 @@ enum PaymentMethod {
   // para el modo demo de la plataforma. Para saber si un método es
   // efectivo usá `isCashMethod` (src/lib/payments/methods.ts): cubre los dos.
   cash
+  // Bre-B (sistema de pagos inmediatos de Colombia) vía Kushki «Transfer
+  // In»: MESAPAY muestra un QR con el monto, el cliente lo escanea desde la
+  // app de su banco y el resultado llega por webhook / consulta de estado.
+  // Asíncrono como PSE, pero sin redirección: el QR se queda en pantalla
+  // (del comensal o del dispositivo del staff). Cobra con las llaves del
+  // comercio Bre-B (`Restaurant.kushkiBreB*`), no con las de tarjeta/PSE.
+  // El intento (QR, vencimiento, cancelación) vive en `BreBCharge`.
+  kushki_bre_b
 }
 
 /**
@@ -1951,6 +1974,7 @@ model Payment {
 
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
+  breBCharge         BreBCharge?
 
   @@index([orderId])
   @@index([shiftId])
@@ -2396,6 +2420,11 @@ model PurchaseOrder {
   /// siguen el avance de la recepción— cuenta completa en la cuenta por pagar
   /// desde la entrega en que se practicó. Ver `purchaseOrderTotals`.
   receptionRetentionCents Int @default(0)
+  /// «Ajustes» / ajuste al peso impreso en la factura del proveedor, CON
+  /// signo. Suma al total a pagar (la CxP queda igual al Total impreso) pero a
+  /// ninguna línea: no es costo de inventario ni impuesto. Lo fija la
+  /// importación con IA al confirmar. Ver `purchaseOrderTotals`.
+  roundingCents Int @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -3009,6 +3038,9 @@ model ExpenseRetention {
   base        String  @default("subtotal")
   /// Cuenta del PUC que se acredita (2365xx / 2367xx / 2368xx).
   accountCode String
+  /// Tarifa exacta en partes por millón (null = la de `rateBps`): la foto
+  /// de un concepto con decimales finos (reteICA 4,14 ‰ = 4.140).
+  ratePpm     Int?
   /// Base sobre la que se calculó (la base del gasto o su IVA).
   baseCents   Int
   amountCents Int
@@ -3788,6 +3820,9 @@ model AccountingConfig {
   closedThrough     String?
   /// Siguiente número de comprobante de la secuencia del comercio.
   nextVoucherNumber Int        @default(1)
+  /// Cuándo se sembró el set estándar de conceptos de retención: desde ahí
+  /// no se vuelve a sembrar aunque el comercio borre todos los suyos.
+  retentionConceptsSeededAt DateTime?
   updatedAt         DateTime   @updatedAt
 }
 
@@ -3958,20 +3993,32 @@ model DeferredItem {
 }
 
 /// Concepto de retención del comercio (retefuente/reteIVA/reteICA) al estilo
-/// zenith: tarifa en basis points, base subtotal o impuesto, umbral en UVT
-/// (0 = siempre aplica) y cuenta PUC del pasivo. Se siembra un set estándar
-/// INACTIVO — el contador activa los que apliquen al régimen del comercio.
+/// zenith: tarifa, base subtotal o impuesto, umbral en UVT (0 = siempre
+/// aplica) y cuenta PUC del pasivo. Se siembra un set estándar INACTIVO — el
+/// contador activa los que apliquen al régimen del comercio — y el comercio
+/// crea los suyos desde el catálogo (retencionesCatalogo.ts) o a mano.
+/// Un concepto que ya se usó en un gasto no se borra: se desactiva.
 model RetentionConcept {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   kind         String // retefuente | reteiva | reteica
   name         String
-  rateBps      Int // 250 = 2,5% — sobre la base elegida
+  rateBps      Int // 250 = 2,5% — sobre la base elegida (redondeado si hay ratePpm)
+  /// Tarifa EXACTA en partes por millón (1 % = 10.000; 0,1 % = 1.000;
+  /// 4,14 ‰ = 4.140). null = la de `rateBps` (conceptos anteriores). Al
+  /// escribir se guardan las dos: `rateBps` redondeado sirve a la versión
+  /// anterior del código durante el despliegue.
+  ratePpm      Int?
   base         String     @default("subtotal") // subtotal | tax
   thresholdUvt Int        @default(0)
-  accountCode  String // 236505 / 236705 / 236805
+  accountCode  String // 2365xx / 2367xx / 2368xx
   active       Boolean    @default(false)
+  /// Clave del catálogo de donde nació (retencionesCatalogo.ts); null =
+  /// personalizado o sembrado antes del catálogo.
+  catalogKey   String?
+  /// Creado a mano por el comercio («Personalizado»).
+  isCustom     Boolean    @default(false)
   createdAt    DateTime   @default(now())
 
   expenseRetentions ExpenseRetention[]
@@ -4115,6 +4162,16 @@ model FinancialOperation {
   /// ("not_found", "unknown:reversed", "error"…). Evita consultar de más.
   checkedAt DateTime?
   checkStatus String?
+  /// Sólo kind=terminal: lo que Kushki dice que AUTORIZÓ (centavos), cuando no
+  /// es lo que se mandó (`amountCents`). Null = autorizó lo de la cuenta (o no
+  /// lo dijo). BIGINT: un error de unidades (×100) de una cuenta grande no
+  /// cabe en INT4.
+  authorizedCents BigInt?
+  /// Sólo kind=terminal: qué se hizo con esa diferencia
+  /// (src/lib/payments/terminalAmount.ts): "tip" (de más → propina), "partial"
+  /// (de menos → saldo pendiente), o por qué quedó para conciliar
+  /// ("over_cap", "units", "invalid", "unconfirmed").
+  amountCheck String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, createdAt])
@@ -4653,9 +4710,82 @@ model PaymentLink {
   orderId     String? @unique
   order       Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   emailSentAt DateTime?
+  breBCharges BreBCharge[]
 
   @@index([restaurantId, status])
   @@index([providerRef])
+}
+
+/// Un intento de cobro por Bre-B (QR de pago inmediato vía Kushki «Transfer
+/// In»). Uno por `Payment` de una cuenta, o varios por `PaymentLink` de
+/// monto fijo (bonos / cortes), que no tiene Payment.
+///
+/// Guarda lo que hace falta para volver a mostrar el QR (recargar la
+/// página, retomarlo desde otra pantalla del staff), para consultarlo y
+/// cancelarlo en Kushki, y para detectar una aprobación que llega tarde
+/// sobre un intento cancelado o vencido.
+///
+/// `status`:
+///   creating  — el pago ya está reservado; todavía no hay QR.
+///   active    — QR emitido, esperando la transferencia.
+///   approved  — aprobado y saldado.
+///   declined  — Kushki lo rechazó (o el QR nunca se emitió).
+///   expired   — venció sin pago (confirmado con Kushki o cancelado al vencer).
+///   canceled  — cancelado por el comensal / el staff (Kushki invalidó el QR).
+///   uncertain — no se pudo confirmar qué pasó (sin respuesta, respuesta que
+///               no se entiende, monto distinto): queda para conciliación.
+/// Ver src/lib/payments/breB/.
+model BreBCharge {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  paymentId     String?      @unique
+  payment       Payment?     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  paymentLinkId String?
+  paymentLink   PaymentLink? @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+
+  /// Modo Kushki con el que se creó (mock / sandbox / production): las
+  /// consultas y la cancelación van al mismo ambiente.
+  mode        String
+  amountCents Int
+  currency    String @default("COP")
+  status      String @default("creating")
+
+  /// Token del «Transfer In» de Kushki: con él se consulta y se cancela.
+  token                String? @unique
+  /// Referencias que devuelve el init / el webhook, para casar el aviso.
+  transactionReference String?
+  ticketNumber         String?
+
+  /// Procesador Bre-B con el que se pidió el token (tal como lo nombra el
+  /// config de Kushki), para saber con cuál se cobró.
+  processorName String?
+  /// Imagen del QR tal como la entrega Kushki: `data:image/png;base64,…`.
+  qrImage   String?
+  /// El QR de Kushki vence a los 10 minutos de pedirlo.
+  expiresAt DateTime?
+
+  /// Quién pidió cancelar y cuándo; `canceledAt` = Kushki confirmó (204).
+  cancelRequestedAt DateTime?
+  cancelReason      String?
+  canceledAt        DateTime?
+
+  /// Última consulta de estado a Kushki y qué dijo ("pending", "approved",
+  /// "error", "unparseable", "amount_mismatch"…).
+  checkedAt   DateTime?
+  checkStatus String?
+  /// Por qué quedó `uncertain` / `declined` (código corto, no texto libre).
+  failureCode String?
+  settledAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, status])
+  @@index([status, expiresAt])
+  @@index([paymentLinkId])
+  @@index([transactionReference])
 }
 
 /// Snapshot completo de los datos de un comercio (JSON), para restaurar ante

@@ -8,6 +8,8 @@ import { fmtCOP } from "@/lib/format";
 import { getActiveRestaurantId } from "@/lib/activeRestaurant";
 import { getMeseroScope, meseroTableWhere } from "@/lib/meseroScope";
 import { PaymentDetailSheet, type PaymentDetail } from "./PaymentDetailSheet";
+import { terminalAmountViews } from "@/lib/payments/pendingRequests";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +82,9 @@ export default async function PaymentsPage({
   ]);
   const payments = paymentRows.slice(0, 50);
   const hasNext = paymentRows.length > 50;
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono, parcial o
+  // «monto cobrado distinto»): una línea bajo el estado.
+  const amountById = await terminalAmountViews(db, payments);
   const counterMode = tenant?.serviceMode === "counter";
 
   // Arma el objeto de detalle para el drawer a partir del charge de Kushki.
@@ -213,6 +218,9 @@ export default async function PaymentsPage({
                         {ux("needsReview")}
                       </Link>
                     )}
+                    {amountById.get(p.id) && (
+                      <TerminalAmountNote amount={amountById.get(p.id)!} variant="short" className="mt-1 max-w-56" />
+                    )}
                   </Td>
                   <Td className="text-right font-mono tabular">
                     {fmtCOP(p.amountCents)}
@@ -269,6 +277,9 @@ export default async function PaymentsPage({
                   {fmtTime(p.createdAt, locale)}
                 </span>
               </div>
+              {amountById.get(p.id) && (
+                <TerminalAmountNote amount={amountById.get(p.id)!} variant="short" className="mt-2" />
+              )}
               {p.reconciliationRequired && (
                 <Link
                   href={`/operator/orders/${p.orderId}`}
@@ -373,6 +384,7 @@ function methodLabel(m: string, t: (key: string) => string) {
     kushki_card_terminal: t("mKushkiTerminal"),
     external_terminal: t("mExternalTerminal"),
     kushki_pse: t("mKushkiPse"),
+    kushki_bre_b: t("mKushkiBreB"),
     reservation_deposit: t("mReservationDeposit"),
     voucher: t("mVoucher"),
     customer_credit: t("mCustomerCredit"),

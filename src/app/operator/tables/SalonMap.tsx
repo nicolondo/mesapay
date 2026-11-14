@@ -6,6 +6,7 @@ import type { FloorScene, TablePlacement, TableShape } from "@/lib/floorPlan";
 import { fmtCOP } from "@/lib/format";
 import type { TableVisualState } from "@/lib/walkoutRisk";
 import { minutesSincePaid } from "@/lib/tables/phonePaid";
+import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
 import {
   FloorPlanView,
   type CanvasTable,
@@ -77,41 +78,35 @@ export function useSalonView(viewerId: string | null): [SalonView, (v: SalonView
 /* ─────────────────────────── colores por estado ─────────────────────────── */
 
 // Mismo código de color que las tarjetas (src/lib/walkoutRisk.ts →
-// tileTokensForState), en valores CSS que el SVG entiende. Constantes: el
-// dibujo de una mesa solo se rehace cuando cambia su estado.
-const mix = (c: string, pct: number, base = "var(--op-surface)") =>
-  `color-mix(in srgb, ${c} ${pct}%, ${base})`;
+// tileTokensForState): tinte, borde (sólido y más grueso en los estados que
+// piden acción), punto y color del monto. Sin color-mix(): van como
+// atributos del SVG y el datáfono (Firefox 107) no lo entiende — ver
+// TableTone. Constantes: el dibujo de una mesa solo se rehace si cambia.
 const AMBER = "#C98A2E";
 const RED = "#C9302C";
 const TEXT = "var(--op-text)";
+const ACTION = 2.5;
 
-type ToneKey = TableVisualState | "phone_paid" | "waiter";
+type ToneKey = TableVisualState | "phone_paid";
 
 const TONES: Record<ToneKey, TableTone> = {
-  free: { fill: "var(--op-surface)", stroke: mix("var(--op-text)", 45, "transparent"), text: TEXT },
-  recently_paid: { fill: mix("var(--ok)", 12), stroke: mix("var(--ok)", 60, "transparent"), text: TEXT, dot: "var(--ok)" },
+  free: { fill: "var(--op-surface)", stroke: "var(--op-text)", strokeOpacity: 0.45, text: TEXT },
+  recently_paid: { fill: "var(--ok)", fillOpacity: 0.12, stroke: "var(--ok)", strokeOpacity: 0.6, text: TEXT, subText: "#1E5339", dot: "var(--ok)" },
   phone_paid: { fill: "var(--ok)", stroke: "var(--ok)", text: "var(--bone)", dot: "var(--bone)" },
-  cooking: { fill: mix(AMBER, 9), stroke: mix(AMBER, 45, "transparent"), text: TEXT, dot: mix(AMBER, 70, "transparent") },
-  ready_to_serve: { fill: mix(AMBER, 20), stroke: mix(AMBER, 75, "transparent"), text: TEXT, dot: AMBER },
-  eating: { fill: mix("var(--op-text)", 7), stroke: mix("var(--op-text)", 35, "transparent"), text: TEXT, dot: mix("var(--op-text)", 50, "transparent") },
-  eating_at_risk: { fill: mix(AMBER, 16), stroke: mix(AMBER, 65, "transparent"), text: TEXT, dot: AMBER },
-  needs_payment: { fill: mix("var(--terracotta)", 14), stroke: mix("var(--terracotta)", 60, "transparent"), text: TEXT, dot: "var(--terracotta)" },
-  needs_payment_urgent: { fill: mix("var(--terracotta)", 22), stroke: "var(--terracotta)", text: TEXT, dot: "var(--terracotta)", pulse: true },
-  danger: { fill: mix(RED, 14), stroke: mix(RED, 65, "transparent"), text: TEXT, dot: RED, pulse: true },
-  // Llamó al mesero: el punto de la esquina pasa a terracota y titila (en
-  // la tarjeta es la campana).
-  waiter: { fill: "var(--op-surface)", stroke: mix("var(--op-text)", 45, "transparent"), text: TEXT, dot: "var(--terracotta)", pulse: true },
+  cooking: { fill: AMBER, fillOpacity: 0.1, stroke: AMBER, strokeOpacity: 0.45, text: TEXT, dot: AMBER },
+  ready_to_serve: { fill: AMBER, fillOpacity: 0.2, stroke: AMBER, strokeWidth: ACTION, text: TEXT, subText: "#6E4D19", dot: AMBER },
+  eating: { fill: "var(--ink)", fillOpacity: 0.06, stroke: "var(--ink)", strokeOpacity: 0.3, text: TEXT, dot: "var(--ink)" },
+  eating_at_risk: { fill: AMBER, fillOpacity: 0.14, stroke: AMBER, strokeWidth: ACTION, text: TEXT, subText: "#7F5A1F", dot: AMBER },
+  needs_payment: { fill: "var(--terracotta)", fillOpacity: 0.14, stroke: "var(--terracotta)", strokeWidth: ACTION, text: TEXT, subText: "var(--terracotta-2)", dot: "var(--terracotta)" },
+  needs_payment_urgent: { fill: "var(--terracotta)", fillOpacity: 0.22, stroke: "var(--terracotta-2)", strokeWidth: ACTION, text: TEXT, subText: "#8E3519", dot: "var(--terracotta-2)", pulse: true },
+  danger: { fill: RED, fillOpacity: 0.14, stroke: RED, strokeWidth: ACTION, text: TEXT, subText: "#A12622", dot: RED, pulse: true },
 };
-const DIMMED = Object.fromEntries(
-  Object.entries(TONES).map(([k, v]) => [k, { ...v, dim: true }]),
-) as Record<ToneKey, TableTone>;
-/** Variante con el punto de «llamó al mesero» sobre el color del estado. */
-const WITH_WAITER = Object.fromEntries(
-  Object.entries(TONES).map(([k, v]) => [k, { ...v, dot: "var(--terracotta)", pulse: true }]),
-) as Record<ToneKey, TableTone>;
-const WITH_WAITER_DIM = Object.fromEntries(
-  Object.entries(WITH_WAITER).map(([k, v]) => [k, { ...v, dim: true }]),
-) as Record<ToneKey, TableTone>;
+const variant = (fn: (t: TableTone) => TableTone) =>
+  Object.fromEntries(Object.entries(TONES).map(([k, v]) => [k, fn(v)])) as Record<ToneKey, TableTone>;
+const DIMMED = variant((t) => ({ ...t, dim: true }));
+/** Llamó al mesero: el punto pasa a terracota y titila (en la tarjeta, la campana). */
+const WITH_WAITER = variant((t) => ({ ...t, dot: "var(--terracotta)", pulse: true }));
+const WITH_WAITER_DIM = variant((t) => ({ ...t, dot: "var(--terracotta)", pulse: true, dim: true }));
 
 /**
  * Las mesas en su lugar real, con el mismo código de colores de las
@@ -188,13 +183,20 @@ export function SalonMap({
       const amount = fmtCOP(tile.order.outstandingCents);
       const waiter = tile.order.needsWaiter;
       const set = waiter ? (dim ? WITH_WAITER_DIM : WITH_WAITER) : dim ? DIMMED : TONES;
+      // El estado también en texto, igual que la tarjeta (tileStateLabel).
+      const stateKey = tileStateLabelKey(tile.visualState, {
+        needsWaiter: waiter,
+        pendingMethods: tile.order.pendingPayments.map((p) => p.method),
+      });
+      const stateText = stateKey ? tr(stateKey) : null;
+      const parts = [stateText, amount, waiter && stateKey !== "tileStateCalledWaiter" ? tr("waiterCallPending") : null];
       return {
         tone: set[tile.visualState],
-        ariaLabel: tr("mapTableAria", {
-          table: name,
-          state: waiter ? `${amount}, ${tr("waiterCallPending")}` : amount,
-        }),
-        sub: amount,
+        ariaLabel: tr("mapTableAria", { table: name, state: parts.filter(Boolean).join(", ") }),
+        // Si la mesa se ve chica cabe una línea: el estado; si es grande,
+        // también el monto.
+        sub: stateText ?? amount,
+        sub2: stateText ? amount : null,
       };
     },
     [byId, visibleIds, isHighlighted, now, tr],

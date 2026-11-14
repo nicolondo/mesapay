@@ -18,7 +18,16 @@ import es from "../messages/es.json";
  * se mueve al desplazar la lista.
  *
  * Los viewports bajos simulan el alto que dejan las barras de Safari: el
- * cajón debe medir exactamente eso.
+ * cajón debe medir exactamente eso, también si el alto cambia con el cajón
+ * abierto (la barra que aparece y desaparece).
+ *
+ * Mismo cajón en el admin de plataforma. Reporte del dueño (iOS): el cajón
+ * no llegaba al borde de abajo, asomaba una franja crema y «Salir» quedaba
+ * cortado. Con el cajón abierto el body queda fijo y Safari de iOS 26 no
+ * pinta contenido fijo más allá de su viewport de fijos, que puede ser más
+ * corto que la pantalla. Eso no se reproduce en Playwright: se SIMULA con
+ * CSS (viewport de fijos 60px más corto y nada fijo pintado debajo) y se
+ * exige que el pie siga entero y que la franja salga del color del riel.
  *
  * Mismas salvaguardas que operator-safe-area.spec.ts: sólo corre contra una
  * app local y una base de validación aislada (crea y borra sus propios datos).
@@ -115,6 +124,79 @@ async function expectReachable(page: Page, button: Locator, viewport: { width: n
   return box;
 }
 
+/** El cajón va de borde a borde vertical y nada de la página asoma debajo. */
+async function expectEdgeToEdge(page: Page, drawer: Locator, viewport: { width: number; height: number }) {
+  const box = (await drawer.boundingBox())!;
+  expect(box.y, "el cajón arranca arriba").toBe(0);
+  expect(box.y + box.height, "el cajón llega al borde de abajo, sin pasarse").toBeCloseTo(viewport.height, 0);
+  const bottomHit = await page.evaluate(
+    ({ y }) => document.elementFromPoint(4, y)?.closest("dialog.mp-navigation-drawer") != null,
+    { y: viewport.height - 1 },
+  );
+  expect(bottomHit, "la última fila de la pantalla es del cajón (sin franja)").toBe(true);
+  return box;
+}
+
+/** El pie (y su botón de salir) cierra el cajón, entero y pegado al borde. */
+async function expectFooterAtBottom(page: Page, drawer: Locator, footer: Locator, button: Locator, viewport: { width: number; height: number }) {
+  const drawerBox = await expectEdgeToEdge(page, drawer, viewport);
+  const box = await expectReachable(page, button, viewport);
+  const footerBox = (await footer.boundingBox())!;
+  expect(footerBox.y + footerBox.height, "el pie cierra el cajón").toBeCloseTo(drawerBox.y + drawerBox.height, 0);
+  const gap = viewport.height - (box.y + box.height);
+  expect(gap, "el botón de salir va al pie").toBeGreaterThanOrEqual(0);
+  expect(gap, "el botón de salir va al pie").toBeLessThanOrEqual(FOOT_GAP + 20);
+  return box;
+}
+
+/** Con el cajón abierto, la pantalla se alarga y se acorta (la barra del navegador). */
+async function expectSurvivesResize(page: Page, drawer: Locator, footer: Locator, button: Locator, viewport: { width: number; height: number }) {
+  for (const delta of [140, -90]) {
+    const resized = { width: viewport.width, height: Math.max(320, viewport.height + delta) };
+    await page.setViewportSize(resized);
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(drawer).toBeVisible();
+    await expectFooterAtBottom(page, drawer, footer, button, resized);
+  }
+  await page.setViewportSize(viewport);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+}
+
+/**
+ * Simulación del caso de iOS: el viewport de los elementos fijos queda
+ * `strip` px más corto que la pantalla y nada fijo se pinta por debajo (el
+ * body, fijo con el cajón abierto, tampoco). Lo único visible ahí es el
+ * fondo del documento.
+ */
+function iosShortFixedViewport(strip: number) {
+  return `
+    dialog.mp-navigation-drawer, dialog.mp-navigation-drawer::backdrop { bottom: ${strip}px !important; }
+    body, dialog.mp-navigation-drawer, dialog.mp-navigation-drawer::backdrop {
+      clip-path: inset(0 0 max(0px, calc(100% - 100vh + ${strip}px)) 0) !important;
+    }
+    nextjs-portal { display: none !important; }`;
+}
+
+/** Color [r, g, b] del píxel (en px CSS) de una captura de la página. */
+async function pixelAt(page: Page, x: number, y: number) {
+  const png = await page.screenshot({ scale: "css", animations: "disabled" });
+  return page.evaluate(async ({ b64, x, y }) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    return Array.from(ctx.getImageData(x, y, 1, 1).data.slice(0, 3));
+  }, { b64: png.toString("base64"), x, y });
+}
+
+const RAIL_RGB = [0x15, 0x11, 0x09];
+const BONE_RGB = [0xf5, 0xf1, 0xea];
+const near = (a: number[], b: number[], tolerance = 6) => a.every((v, i) => Math.abs(v - b[i]) <= tolerance);
+
 for (const phone of phones) {
   test(`el dueño ve «Cerrar sesión» al pie del menú — ${phone.name} (${phone.width}×${phone.height})`, async ({ page }) => {
     test.setTimeout(90_000);
@@ -163,6 +245,14 @@ for (const phone of phones) {
       await expect(locale).toBeInViewport({ ratio: 1 });
       expect((await locale.boundingBox())!.height, "objetivo táctil del idioma ≥ 44px").toBeGreaterThanOrEqual(44);
 
+      // 3b) De borde a borde y estable si la pantalla cambia de alto con el
+      //     cajón abierto (la barra del navegador que aparece y desaparece).
+      await expectEdgeToEdge(page, drawer, phone);
+      await expectSurvivesResize(page, drawer, account, signOut, phone);
+      // Mientras está abierto, el fondo del documento es el del riel bajo
+      // el cajón (si el navegador deja pantalla sin pintar, no hay franja).
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundImage)).toContain("gradient");
+
       // 4) Menú largo: con todos los grupos desplegados la lista es la que
       //    hace scroll, por encima del pie, y el botón no se mueve.
       const groups = drawer.locator("button[aria-controls]");
@@ -202,6 +292,116 @@ for (const phone of phones) {
     }
   });
 }
+
+test("la página pide pantalla completa (viewport-fit=cover) y barra de estado translúcida en la PWA", async ({ page }) => {
+  await page.goto("/signin", { waitUntil: "domcontentloaded" });
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /viewport-fit=cover/);
+  await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute("content", "black-translucent");
+  const manifest = await (await page.request.get((await page.locator('link[rel="manifest"]').getAttribute("href"))!)).json();
+  expect(manifest.display).toBe("standalone");
+});
+
+async function createPlatformAdmin() {
+  const token = randomUUID();
+  const password = `Admin-${token}`;
+  const user = await db.user.create({
+    data: {
+      email: `admin-cajon-${token}@example.test`,
+      passwordHash: await bcrypt.hash(password, 4),
+      role: "platform_admin",
+    },
+  });
+  return { user, password };
+}
+
+async function openAdminDrawer(page: Page, viewport: { width: number; height: number }) {
+  const admin = await createPlatformAdmin();
+  await page.setViewportSize(viewport);
+  await page.route(/^https?:\/\//, (route) => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+  await login(page, admin.user.email, admin.password);
+  await page.waitForURL((url) => url.pathname.startsWith("/admin/"), { timeout: 45_000 });
+  await expect(page.locator(".mp-admin-shell")).toBeVisible();
+  const trigger = page.getByRole("button", { name: es.opAdmin.openMenu, exact: true });
+  await expect
+    .poll(() => trigger.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactProps"))), { timeout: 30_000 })
+    .toBe(true);
+  await trigger.click();
+  const drawer = page.locator("dialog.mp-navigation-drawer");
+  await expect(drawer).toBeVisible();
+  const footer = drawer.locator(".mp-admin-footer");
+  const signOut = drawer.getByRole("button", { name: es.opAdmin.signOutFull, exact: true });
+  await expect(signOut).toContainText(es.opAdmin.signOut);
+  return { admin, drawer, footer, signOut };
+}
+
+for (const phone of phones.filter((p) => p.width < p.height)) {
+  test(`admin de plataforma: el cajón va de borde a borde y «Salir» queda entero al pie — ${phone.name} (${phone.width}×${phone.height})`, async ({ page }) => {
+    test.setTimeout(90_000);
+    let adminId: string | undefined;
+    try {
+      const { admin, drawer, footer, signOut } = await openAdminDrawer(page, phone);
+      adminId = admin.user.id;
+      await expectFooterAtBottom(page, drawer, footer, signOut, phone);
+      await expectSurvivesResize(page, drawer, footer, signOut, phone);
+      await expect(footer.locator(".mp-locale-switcher")).toBeInViewport({ ratio: 1 });
+      expect(await drawer.locator(".mp-admin-navigation").evaluate((el) => el.contains(document.querySelector("dialog .mp-admin-signout")))).toBe(false);
+    } finally {
+      if (adminId) await db.user.delete({ where: { id: adminId } });
+    }
+  });
+}
+
+test.describe("simulación de iOS: el viewport de los fijos más corto que la pantalla", () => {
+  const STRIP = 60;
+  const viewport = { width: 390, height: 844 };
+
+  async function expectNoCreamStrip(page: Page, button: Locator) {
+    await page.addStyleTag({ content: iosShortFixedViewport(STRIP) });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    // El pie cae dentro de lo que se pinta: entero, por encima de la franja.
+    const box = await expectReachable(page, button, viewport);
+    expect(box.y + box.height, "el botón de salir no cae en la franja sin pintar").toBeLessThanOrEqual(viewport.height - STRIP);
+    // La franja sale del color del riel bajo el cajón, y velada al lado: nunca crema.
+    const under = await pixelAt(page, 12, viewport.height - 12);
+    expect(near(under, RAIL_RGB), `bajo el cajón la franja es del riel (${under})`).toBe(true);
+    const beside = await pixelAt(page, viewport.width - 12, viewport.height - 12);
+    expect(near(beside, BONE_RGB, 40), `al lado del cajón la franja va velada (${beside})`).toBe(false);
+  }
+
+  test("cajón del operador", async ({ page }) => {
+    test.setTimeout(90_000);
+    const owner = await createOwner();
+    try {
+      await page.setViewportSize(viewport);
+      await page.route(/^https?:\/\//, (route) => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+      await login(page, owner.user.email, owner.password);
+      await page.goto("/operator", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(".op-app-shell")).toBeVisible();
+      await openMenu(page);
+      const drawer = page.locator("dialog.mp-navigation-drawer");
+      await expect(drawer).toBeVisible();
+      await expectNoCreamStrip(page, drawer.getByRole("button", { name: es.operator.signOutFull, exact: true }));
+      // Al cerrar el cajón el documento recupera su fondo.
+      await page.keyboard.press("Escape");
+      await expect(drawer).toHaveCount(0);
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundImage)).toBe("none");
+    } finally {
+      await removeOwner(owner);
+    }
+  });
+
+  test("cajón del admin de plataforma", async ({ page }) => {
+    test.setTimeout(90_000);
+    let adminId: string | undefined;
+    try {
+      const { admin, signOut } = await openAdminDrawer(page, viewport);
+      adminId = admin.user.id;
+      await expectNoCreamStrip(page, signOut);
+    } finally {
+      if (adminId) await db.user.delete({ where: { id: adminId } });
+    }
+  });
+});
 
 test("en escritorio «Cerrar sesión» sigue al pie del riel, siempre visible", async ({ page }) => {
   test.setTimeout(90_000);

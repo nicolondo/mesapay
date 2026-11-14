@@ -13,8 +13,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *   · en el cajón el bloque de cuenta va DESPUÉS de la lista, como pie;
  *   · nunca queda dentro del área que hace scroll;
  *   · en escritorio sigue siendo el pie del riel;
- *   · el CSS le da al cajón un alto que no pase de lo visible (con respaldo
- *     para navegadores sin `dvh`) y al pie la franja del área segura.
+ *   · el CSS ancla el cajón de borde a borde (sin alto en dvh/vh), pinta el
+ *     fondo del documento del color del riel mientras está abierto y le da
+ *     al pie la franja del área segura.
  */
 
 const h = vi.hoisted(() => ({ open: false }));
@@ -43,6 +44,7 @@ vi.mock("@/components/ui/AppDialog", () => ({
 }));
 
 import { OperatorCockpit } from "./OperatorCockpit";
+import { WORKSPACE_RAIL_THEME } from "@/components/ui/workspaceRailTheme";
 import type { NavEntry } from "./OperatorMobileMenu";
 
 const navItems: NavEntry[] = [
@@ -174,18 +176,31 @@ describe("estilos del bloque de cuenta (workspace.css)", () => {
     expect(rule(".mp-rail-signout")).toMatch(/min-height:\s*44px/);
   });
 
-  it("el cajón no mide más que lo visible: 100dvh, con respaldo previo sin dvh y 100vh sólo en la PWA", () => {
+  it("el cajón va de borde a borde: anclado arriba y abajo, sin alto propio ni max-height del <dialog>", () => {
     const drawer = rule(".mp-navigation-drawer");
-    // El respaldo va JUSTO ANTES (un navegador sin dvh descarta la segunda
-    // declaración y se queda con la primera; y así postcssLegacyFallbacks no
-    // antepone el suyo en vh). Nunca 100vh fuera de la PWA: en Chrome mide
-    // como si no hubiera barra de direcciones y el pie quedaría debajo.
-    expect(drawer).toMatch(/(?<![-\w])height:\s*100%;\s*height:\s*100dvh;/);
-    expect(drawer).toMatch(/max-height:\s*100%;\s*max-height:\s*100dvh;/);
-    expect(drawer).not.toMatch(/100vh/);
-    expect(media("all and (display-mode: standalone)")).toMatch(
-      /\.mp-navigation-drawer \{[^}]*height:\s*100vh/,
-    );
+    // Con el cajón abierto el body queda fijo y Safari de iOS 26 no pinta
+    // contenido fijo más allá de su viewport de fijos: un alto en 100dvh o
+    // 100vh que mida más cortaba «Salir» y dejaba ver una franja crema.
+    expect(drawer).toMatch(/position:\s*fixed/);
+    expect(drawer).toMatch(/inset:\s*0 auto 0 0/);
+    expect(drawer).toMatch(/(?<![-\w])height:\s*auto/);
+    expect(drawer).toMatch(/max-height:\s*none/);
+    expect(drawer).toMatch(/margin:\s*0/);
+    expect(drawer).not.toMatch(/\d(?:d|s|l)?vh/);
+    // Tampoco la PWA le vuelve a fijar un alto.
+    expect(media("all and (display-mode: standalone)")).not.toContain(".mp-navigation-drawer");
+  });
+
+  it("con un cajón abierto, el fondo del documento es el del riel bajo el cajón (sin franja crema)", () => {
+    const at = css.indexOf("html:has(dialog.mp-navigation-drawer[open])");
+    expect(at, "falta el fondo del documento con el cajón abierto").toBeGreaterThan(-1);
+    // :has() sólo bajo @supports (el piso Firefox 107 no lo tiene).
+    expect(css.lastIndexOf("@supports selector(:has(*))", at)).toBeGreaterThan(css.lastIndexOf("}\n}", at));
+    const paint = css.slice(at, css.indexOf("}", at));
+    const rail = (WORKSPACE_RAIL_THEME as Record<string, string>)["--rail"];
+    expect(paint.toLowerCase()).toContain(`${rail.toLowerCase()} min(320px, 90vw)`);
+    expect(rule(".mp-navigation-drawer")).toMatch(/width:\s*min\(320px, 90vw\)/);
+    expect(paint).toMatch(/background-color:\s*var\(--bone\)/);
   });
 
   it("el pie del cajón reserva el área segura de abajo, también en pantallas bajas", () => {

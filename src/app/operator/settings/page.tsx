@@ -401,7 +401,8 @@ export default async function SettingsPage() {
       badge: t("badgeConfigure"),
       tint: "bg-paper text-op-muted",
     },
-    tenant.reservationsEnabled && {
+    // El mapa sirve también sin reservas: es la vista «Mapa» de Mesas.
+    {
       href: "/operator/settings/salon",
       title: t("cardSalonTitle"),
       subtitle: t("cardSalonSubtitle"),

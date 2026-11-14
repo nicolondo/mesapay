@@ -3,9 +3,10 @@
 // APARTE y sin sumar: el TOTAL A PAGAR lleva sólo la propina que se cobró
 // de verdad (la de la orden), que antes de cobrar es ninguna. Una vez
 // cobrada, la reimpresión muestra lo cobrado y el TOTAL A PAGAR con la
-// propina REAL que dejaron ($ 120.000 + $ 12.000 = $ 132.000).
+// propina REAL que dejaron ($ 120,000 + $ 12,000 = $ 132,000).
 import { describe, expect, it } from "vitest";
 import { readPaper } from "./testPaper";
+import { formatNumber } from "@/lib/format";
 import {
   INVOICE_PAYLOAD_VERSION,
   parseInvoicePayload,
@@ -45,7 +46,7 @@ const t = (key: string, values?: Record<string, string | number>) =>
   key === "suggestedTipVoluntary"
     ? `Propina sugerida (voluntaria) ${values?.pct}%`
     : (LABELS[key] ?? key);
-const money = (cents: number) => `$ ${Math.round(cents / 100).toLocaleString("es-CO")}`;
+const money = (cents: number) => `$ ${formatNumber(Math.round(cents / 100))}`;
 
 const snapshot: InvoiceSnapshot = {
   restaurantName: "Son y Melona",
@@ -121,13 +122,13 @@ describe("papel de la factura emitida antes de cobrar", () => {
   it("sin pagos: TOTAL A PAGAR = total factura, 'Pendiente de pago' y la propina sugerida aparte, SIN sumar", () => {
     const doc = build(snapshot);
     expect(doc.totals.slice(-2)).toEqual([
-      { label: "Total comprobante", amount: "$ 100.000" },
-      { label: "TOTAL A PAGAR", amount: "$ 100.000", strong: true },
+      { label: "Total comprobante", amount: "$ 100,000" },
+      { label: "TOTAL A PAGAR", amount: "$ 100,000", strong: true },
     ]);
     expect(doc.paymentTitle).toBeNull();
     expect(doc.paymentRows).toEqual([]);
-    expect(doc.pendingRow).toEqual({ label: "Pendiente de pago", amount: "$ 100.000", bold: true });
-    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10.000" }]);
+    expect(doc.pendingRow).toEqual({ label: "Pendiente de pago", amount: "$ 100,000", bold: true });
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10,000" }]);
     expect(doc.tipNotice).toBeUndefined();
     const text = paper(doc);
     expect(text).toContain("Pendiente de pago");
@@ -135,7 +136,7 @@ describe("papel de la factura emitida antes de cobrar", () => {
     expect(text).not.toContain("Forma de pago");
     expect(text).not.toContain("TOTAL CON PROPINA");
     // Un solo total grande, y es el de la venta: la sugerida NO está sumada.
-    expect(text).toMatch(/TOTAL A PAGAR +\$ 100\.000/);
+    expect(text).toMatch(/TOTAL A PAGAR +\$ 100,000/);
     expect(text).not.toContain("110.000");
   });
 
@@ -143,25 +144,25 @@ describe("papel de la factura emitida antes de cobrar", () => {
     const text = paper(build(snapshot, [], true));
     expect(text).toContain("FACTURA ELECTRÓNICA DE VENTA");
     expect(text).toContain("CUFE:");
-    expect(text).toMatch(/Total factura +\$ 100\.000/);
+    expect(text).toMatch(/Total factura +\$ 100,000/);
     expect(text).toContain("Pendiente de pago");
   });
 
   it("con un pago parcial (cuenta dividida): la propina cobrada suma al TOTAL A PAGAR; lo pendiente es la venta que falta", () => {
     const doc = build(snapshot, [{ method: "cash", amountCents: 5_500_000, tipCents: 500_000 }]);
     expect(doc.totals.slice(-3)).toEqual([
-      { label: "Total comprobante", amount: "$ 100.000" },
-      { label: "Propina voluntaria", amount: "$ 5.000" },
-      { label: "TOTAL A PAGAR", amount: "$ 105.000", strong: true },
+      { label: "Total comprobante", amount: "$ 100,000" },
+      { label: "Propina voluntaria", amount: "$ 5,000" },
+      { label: "TOTAL A PAGAR", amount: "$ 105,000", strong: true },
     ]);
     // Lo cobrado, con su propina adentro: pagado + pendiente = TOTAL A PAGAR.
-    expect(doc.paymentRows).toEqual([{ label: "Efectivo", amount: "$ 55.000" }]);
-    expect(doc.pendingRow).toEqual({ label: "Pendiente de pago", amount: "$ 50.000", bold: true });
-    expect(doc.tipRows?.[0]).toEqual({ label: "Propina sugerida (voluntaria) 10%", amount: "$ 5.000" });
+    expect(doc.paymentRows).toEqual([{ label: "Efectivo", amount: "$ 55,000" }]);
+    expect(doc.pendingRow).toEqual({ label: "Pendiente de pago", amount: "$ 50,000", bold: true });
+    expect(doc.tipRows?.[0]).toEqual({ label: "Propina sugerida (voluntaria) 10%", amount: "$ 5,000" });
   });
 
   it("reimpresa ya cobrada: TOTAL A PAGAR con la propina REAL de la orden, sin pendiente ni sugerida", () => {
-    // $ 120.000 de consumo (impoconsumo incluido) y $ 12.000 de propina
+    // $ 120,000 de consumo (impoconsumo incluido) y $ 12,000 de propina
     // decidida al pagar: el snapshot de la factura no la tiene (0).
     const snap: InvoiceSnapshot = {
       ...snapshot,
@@ -172,15 +173,15 @@ describe("papel de la factura emitida antes de cobrar", () => {
     };
     const doc = build(snap, [{ method: "external_terminal", amountCents: 13_200_000, tipCents: 1_200_000 }], true);
     expect(doc.totals.slice(-3)).toEqual([
-      { label: "Total factura", amount: "$ 120.000" },
-      { label: "Propina voluntaria", amount: "$ 12.000" },
-      { label: "TOTAL A PAGAR", amount: "$ 132.000", strong: true },
+      { label: "Total factura", amount: "$ 120,000" },
+      { label: "Propina voluntaria", amount: "$ 12,000" },
+      { label: "TOTAL A PAGAR", amount: "$ 132,000", strong: true },
     ]);
     expect(doc.pendingRow).toBeNull();
     expect(doc.tipRows).toEqual([]);
     const text = paper(doc);
     expect(text).not.toContain("Pendiente de pago");
-    expect(text).toMatch(/TOTAL A PAGAR +\$ 132\.000/);
+    expect(text).toMatch(/TOTAL A PAGAR +\$ 132,000/);
   });
 
   it("la propina sale de la ORDEN, no del snapshot ni de adivinarla", () => {
@@ -190,12 +191,12 @@ describe("papel de la factura emitida antes de cobrar", () => {
     ];
     const doc = build(snapshot, payments, false, { tipCents: 800_000 });
     expect(doc.paymentRows).toEqual([
-      { label: "Efectivo", amount: "$ 60.000" },
-      { label: "Tarjeta · datáfono", amount: "$ 48.000" },
+      { label: "Efectivo", amount: "$ 60,000" },
+      { label: "Tarjeta · datáfono", amount: "$ 48,000" },
     ]);
-    expect(doc.totals.find((r) => r.strong)).toEqual({ label: "TOTAL A PAGAR", amount: "$ 108.000", strong: true });
+    expect(doc.totals.find((r) => r.strong)).toEqual({ label: "TOTAL A PAGAR", amount: "$ 108,000", strong: true });
     // Sin la orden (p. ej. la tirilla de muestra): sin propina que sumar.
-    expect(build(snapshot, payments, false, null).totals.find((r) => r.strong)?.amount).toBe("$ 100.000");
+    expect(build(snapshot, payments, false, null).totals.find((r) => r.strong)?.amount).toBe("$ 100,000");
   });
 
   it("una factura emitida al cobrar no usa la orden: la propina es la de su snapshot", () => {
@@ -208,11 +209,11 @@ describe("papel de la factura emitida antes de cobrar", () => {
     expect("pendingRow" in doc).toBe(false);
     expect("tipRows" in doc).toBe(false);
     expect(doc.totals.slice(-3)).toEqual([
-      { label: "Total comprobante", amount: "$ 100.000" },
-      { label: "Propina voluntaria", amount: "$ 10.000" },
-      { label: "TOTAL A PAGAR", amount: "$ 110.000", strong: true },
+      { label: "Total comprobante", amount: "$ 100,000" },
+      { label: "Propina voluntaria", amount: "$ 10,000" },
+      { label: "TOTAL A PAGAR", amount: "$ 110,000", strong: true },
     ]);
-    expect(doc.paymentRows).toEqual([{ label: "Efectivo", amount: "$ 110.000" }]);
+    expect(doc.paymentRows).toEqual([{ label: "Efectivo", amount: "$ 110,000" }]);
   });
 
   it("el payload guardado en la cola conserva el pendiente (en negrita) y la propina sugerida", () => {
@@ -226,10 +227,10 @@ describe("papel de la factura emitida antes de cobrar", () => {
   it("un payload VIEJO (TOTAL CON PROPINA fuerte, aviso) se sigue imprimiendo tal cual", () => {
     const old: ThermalInvoice = {
       ...build(snapshot),
-      pendingRow: { label: "Pendiente de pago", amount: "$ 100.000", strong: true },
+      pendingRow: { label: "Pendiente de pago", amount: "$ 100,000", strong: true },
       tipRows: [
-        { label: "Propina sugerida 10%", amount: "$ 10.000" },
-        { label: "TOTAL CON PROPINA", amount: "$ 110.000", strong: true },
+        { label: "Propina sugerida 10%", amount: "$ 10,000" },
+        { label: "TOTAL CON PROPINA", amount: "$ 110,000", strong: true },
       ],
       tipNotice: "La propina es voluntaria: puedes aceptarla, rechazarla o cambiarla.",
     };
@@ -247,7 +248,7 @@ describe("papel de la factura emitida antes de cobrar", () => {
     // Ningún renglón se pasa del ancho (fuente A 12 puntos, B 9).
     for (const row of p.rows) expect(row.widthDots).toBeLessThanOrEqual(cols * 12);
     expect(p.text).toContain("Pendiente de pago");
-    expect(p.text).toMatch(/TOTAL A PAGAR +\$ 105\.000/);
+    expect(p.text).toMatch(/TOTAL A PAGAR +\$ 105,000/);
     expect(p.text.replace(/\s+/g, " ")).toContain("Propina sugerida (voluntaria) 10%");
   });
 });
@@ -265,8 +266,8 @@ describe("la propina elegida en el cobro al emitir (suggestedTipPct)", () => {
       const doc = build(sinPropina, [], true, { tipCents: 0 }, mm);
       expect(doc.tipRows).toEqual([]);
       expect(doc.totals.slice(-2)).toEqual([
-        { label: "Total factura", amount: "$ 100.000" },
-        { label: "TOTAL A PAGAR", amount: "$ 100.000", strong: true },
+        { label: "Total factura", amount: "$ 100,000" },
+        { label: "TOTAL A PAGAR", amount: "$ 100,000", strong: true },
       ]);
       const text = paper(doc);
       expect(text).not.toContain("Propina sugerida");
@@ -281,9 +282,9 @@ describe("la propina elegida en el cobro al emitir (suggestedTipPct)", () => {
   it("«Sin propina» y el cliente igual deja propina al pagar: sale sólo como propina voluntaria real", () => {
     const doc = build(sinPropina, [{ method: "cash", amountCents: 10_500_000, tipCents: 500_000 }]);
     expect(doc.totals.slice(-3)).toEqual([
-      { label: "Total comprobante", amount: "$ 100.000" },
-      { label: "Propina voluntaria", amount: "$ 5.000" },
-      { label: "TOTAL A PAGAR", amount: "$ 105.000", strong: true },
+      { label: "Total comprobante", amount: "$ 100,000" },
+      { label: "Propina voluntaria", amount: "$ 5,000" },
+      { label: "TOTAL A PAGAR", amount: "$ 105,000", strong: true },
     ]);
     expect(doc.tipRows).toEqual([]);
     expect(paper(doc)).not.toContain("Propina sugerida");
@@ -291,11 +292,11 @@ describe("la propina elegida en el cobro al emitir (suggestedTipPct)", () => {
 
   it("con propina elegida (15 %): la sugerida es ésa, aparte y sin sumar", () => {
     const doc = build({ ...snapshot, suggestedTipPct: 15 });
-    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: "$ 15.000" }]);
-    expect(doc.totals.at(-1)).toEqual({ label: "TOTAL A PAGAR", amount: "$ 100.000", strong: true });
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: "$ 15,000" }]);
+    expect(doc.totals.at(-1)).toEqual({ label: "TOTAL A PAGAR", amount: "$ 100,000", strong: true });
   });
 
   it("sin elección guardada (facturas anteriores, ficha de la mesa): la sugerida de siempre, 10 %", () => {
-    expect(build(snapshot).tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10.000" }]);
+    expect(build(snapshot).tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10,000" }]);
   });
 });

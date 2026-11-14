@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import type { BlockerCode, DeletionCounts, WarningCode } from "@/lib/restaurantDeletion";
 import {
@@ -163,7 +163,7 @@ function DeleteDialog({
     };
   }, [previewUrl, attempt]);
 
-  const numberFmt = new Intl.NumberFormat(localeTag(locale));
+  const numberFmt = numberFormatter(localeTag(locale));
 
   const gate = deleteGate({ blockerCount: preview?.blockers.length ?? 0, slugInput, slug });
   const blocked = gate.reason === "blocked";

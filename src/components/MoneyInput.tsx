@@ -12,6 +12,7 @@ import {
   moneySeparators,
   parseMoneyInput,
   parseMoneyPaste,
+  typedDecimalComma,
 } from "@/lib/moneyInput";
 import type { Locale } from "@/i18n/config";
 
@@ -51,7 +52,7 @@ export function MoneyInput({
       (String(value) !== "" && Number(draft) === Number(value)));
   const raw = sameValue ? draft : String(value);
   const display = formatMoneyInput(raw, locale, fractionDigits);
-  const { group, decimal } = moneySeparators(locale);
+  const { group, decimal } = moneySeparators();
   useLayoutEffect(() => {
     if (cursor.current !== null && ref.current === document.activeElement)
       ref.current?.setSelectionRange(cursor.current, cursor.current);
@@ -93,12 +94,15 @@ export function MoneyInput({
             ? formatMoneyInput(placeholder, locale, fractionDigits)
             : placeholder
         }
-        onChange={(e) =>
+        onChange={(e) => {
+          const caret = e.target.selectionStart ?? e.target.value.length;
+          // Teclados que no reportan la tecla (Android): la coma tecleada
+          // en un campo con decimales es el punto decimal.
           commit(
-            e.target.value,
-            e.target.selectionStart ?? e.target.value.length,
-          )
-        }
+            typedDecimalComma(display, e.target.value, caret, fractionDigits),
+            caret,
+          );
+        }}
         onBlur={(e) => {
           const normalized = raw === "-" ? "" : raw.replace(/\.$/, "");
           if (normalized !== raw) onChange(normalized);
@@ -128,14 +132,17 @@ export function MoneyInput({
           if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
           const start = e.currentTarget.selectionStart ?? 0,
             end = e.currentTarget.selectionEnd ?? start;
-          if (e.key === group) {
-            e.preventDefault(); // grouping is automatic; typing a dot/comma must not change the amount
-          } else if (fractionDigits && e.key === decimal) {
+          if (e.key === "," || e.key === "." || e.key === "Decimal") {
+            // Los miles se agrupan solos: nunca hace falta teclearlos. En un
+            // campo con decimales, punto o coma (la tecla decimal de los
+            // teclados numéricos en español) ponen el punto decimal; en uno
+            // entero no hacen nada — nunca cambian el monto.
             e.preventDefault();
-            commit(
-              display.slice(0, start) + decimal + display.slice(end),
-              start + 1,
-            );
+            if (fractionDigits)
+              commit(
+                display.slice(0, start) + decimal + display.slice(end),
+                start + 1,
+              );
           } else if (
             start === end &&
             e.key === "Backspace" &&

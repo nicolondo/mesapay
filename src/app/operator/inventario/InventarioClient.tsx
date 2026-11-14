@@ -828,6 +828,7 @@ function MovementSheet({
               <MoneyInput
                 value={cost}
                 onChange={setCost}
+                fractionDigits={2}
                 className={inputCls}
               />
             </Field>

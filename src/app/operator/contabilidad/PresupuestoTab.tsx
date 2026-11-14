@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { formatDate, formatMoney, localeTag } from "@/lib/format";
+import { formatDate, formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import type { Locale } from "@/i18n/config";
 import type { BudgetExecutionRow, BudgetStatus } from "@/lib/erp/budgets";
@@ -230,7 +230,7 @@ export function PresupuestoTab({ month, currency }: { month: string; currency: s
   const money = (c: number) => formatMoney(c, { currency, locale });
   const pctFmt = useMemo(
     () =>
-      new Intl.NumberFormat(localeTag(locale), {
+      numberFormatter(localeTag(locale), {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
       }),

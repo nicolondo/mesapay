@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, localeTag, pesosToCents } from "@/lib/format";
+import { formatDate, formatMoney, localeTag, pesosToCents, numberFormatter } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { captureVideoFrame, detectFaceDescriptor } from "./faceApi";
 
@@ -212,9 +212,9 @@ function rangeLabel(s: { startMinutes: number; endMinutes: number }): string {
   return `${minutesToTime(s.startMinutes)}–${minutesToTime(s.endMinutes)}`;
 }
 
-/** Minutos → horas con 1 decimal máximo, localizado ("42,5"). */
+/** Minutos → horas con 1 decimal máximo ("42.5"). */
 function fmtHours(minutes: number, locale: Locale): string {
-  return new Intl.NumberFormat(localeTag(locale), {
+  return numberFormatter(localeTag(locale), {
     maximumFractionDigits: 1,
   }).format(minutes / 60);
 }

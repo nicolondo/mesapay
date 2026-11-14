@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import {
   catalogoFormatos,
   CUANTIA_MENOR_PAGOS_UVT,
@@ -64,7 +64,7 @@ export default async function ExogenaPage({ searchParams }: { searchParams: Sear
   const year = parseAnoGravable(firstParam(sp.year)) ?? parseAnoGravable(null)!;
   const loc = locale as Locale;
   const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc });
-  const pctFmt = new Intl.NumberFormat(localeTag(loc), { style: "percent", maximumFractionDigits: 4 });
+  const pctFmt = numberFormatter(localeTag(loc), { style: "percent", maximumFractionDigits: 4 });
   const inputCls = "w-full min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm";
 
   const { uvtPesos, report } = await loadExogenaReport(gate.restaurantId, year);

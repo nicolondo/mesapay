@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import type { IncomeClassification, IncomeMonth, IncomeSummary } from "@/lib/erp/reports/incomeStatement";
 
 /**
@@ -237,12 +237,12 @@ export function IncomeCharts({
   const locale = useLocale() as Locale;
   const uid = useId();
   const money = (c: number) => formatMoney(c, { currency, locale });
-  const compact = new Intl.NumberFormat(localeTag(locale), {
+  const compact = numberFormatter(localeTag(locale), {
     notation: "compact",
     maximumFractionDigits: 1,
   });
   const axis = (c: number) => compact.format(c / 100);
-  const pct = new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 });
+  const pct = numberFormatter(localeTag(locale), { maximumFractionDigits: 1 });
   const co = classification === "co";
 
   const reconciles =

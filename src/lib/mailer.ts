@@ -3,6 +3,7 @@
 // abort a signup or a successful payment.
 
 import { getEmailTranslator } from "./emailIntl";
+import { formatNumber } from "@/lib/format";
 
 /** Base de las URLs que van en los correos. Mismo criterio que magic-link. */
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://mesapay.co";
@@ -460,7 +461,7 @@ export async function renderMembershipReminderEmail(args: {
     body,
     "",
     `${t("labelPlan")}: ${planName}`,
-    `${t("labelMonthly")}: $${monthlyPriceCop.toLocaleString("es-CO")} COP`,
+    `${t("labelMonthly")}: $${formatNumber(monthlyPriceCop)} COP`,
     `${t("labelDue")}: ${endsAtLabel}`,
     "",
     t("contactLine"),
@@ -512,7 +513,7 @@ export async function renderMembershipReminderEmail(args: {
                 </td>
                 <td align="right" style="padding:14px 0;width:50%;">
                   <div style="font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;margin:0 0 4px 0;">${escapeHtml(t("labelMonthly"))}</div>
-                  <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">$${monthlyPriceCop.toLocaleString("es-CO")}</div>
+                  <div style="font-family:'Instrument Serif',Georgia,serif;font-size:22px;color:#1A1613;line-height:1;">$${formatNumber(monthlyPriceCop)}</div>
                 </td>
               </tr>
               <tr>

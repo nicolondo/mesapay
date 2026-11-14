@@ -60,7 +60,7 @@ export function ComprasList({
   const t = useTranslations("opErp");
   const tc = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
   const filtered = hasPurchaseFilters(params);
   const hrefWith = (patch: Partial<PurchaseListParams>) => purchaseListHref({ ...params, page: 1, ...patch });
   const unpaid = params.tab === "unpaid";

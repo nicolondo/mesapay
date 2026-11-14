@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
-import { formatDate, localeTag } from "@/lib/format";
+import { formatDate, localeTag, numberFormatter } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { listDeletedRestaurants } from "@/lib/restaurantDeletion";
 
@@ -29,7 +29,7 @@ export default async function DeletedRestaurantsPage({
   const sp = await searchParams;
   const t = await getTranslations("adminDelete");
   const locale = (await getLocale()) as Locale;
-  const numberFmt = new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 });
+  const numberFmt = numberFormatter(localeTag(locale), { maximumFractionDigits: 1 });
   const size = (bytes: number) =>
     bytes < 1024 * 1024
       ? t("sizeKb", { n: numberFmt.format(bytes / 1024) })

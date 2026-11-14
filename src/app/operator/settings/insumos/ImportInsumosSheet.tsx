@@ -911,6 +911,7 @@ function TableRow({
           </span>
           <MoneyInput
             value={row.cost}
+            fractionDigits={2}
             onChange={(d) => onPatch(row.localId, { cost: d })}
             className={cellInput + " text-right tabular"}
           />

@@ -4,7 +4,7 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, localeTag } from "@/lib/format";
+import { formatDate, formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import { currentMonthPeriod, shiftPeriod, type ReportPeriod } from "@/lib/erp/reports/period";
 import {
   accountLabel,
@@ -81,7 +81,7 @@ export function MisComisionesClient({
   const data = cache[which];
   const failed = errorFor === which;
   const money = (c: number) => formatMoney(c, { currency, locale });
-  const pctFmt = new Intl.NumberFormat(localeTag(locale), {
+  const pctFmt = numberFormatter(localeTag(locale), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

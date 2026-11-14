@@ -31,7 +31,7 @@ describe("renderVoucherIssueEmail", () => {
     expect(r.html).toContain("SM-ABCD-2345");
     expect(r.text).toContain("Bonos navidad");
     // Total en la moneda del comercio, sin sufijo ISO.
-    expect(r.text).toContain("600.000");
+    expect(r.text).toContain("600,000");
     expect(r.html).toContain("prepagado");
     expect(r.html).not.toContain("a crédito");
   });

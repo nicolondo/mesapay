@@ -14,8 +14,8 @@ const INC8: CheckoutTax = { kind: "inc", pct: 8 };
 const IVA19: CheckoutTax = { kind: "iva", pct: 19 };
 const NONE: CheckoutTax = { kind: "none", pct: 0 };
 
-// La cuenta del ejemplo del dueño: $42.900 de carta con impoconsumo 8% ⇒
-// $3.178 de impuesto ADENTRO del precio (42.900 × 8 / 108). Todo en centavos.
+// La cuenta del ejemplo del dueño: $42,900 de carta con impoconsumo 8% ⇒
+// $3,178 de impuesto ADENTRO del precio (42.900 × 8 / 108). Todo en centavos.
 const BILL = 42_900_00;
 // Tres en la mesa; "lo mío" de la persona elegida son $12.500.
 const SPLIT = { splitCount: 3, mineCents: 12_500_00 };
@@ -53,7 +53,7 @@ describe("payModeSubtotalCents", () => {
 });
 
 describe("checkoutTaxLine por modo de pago", () => {
-  it("Todo con impoconsumo 8%: $3.178 dentro de $42.900", () => {
+  it("Todo con impoconsumo 8%: $3,178 dentro de $42,900", () => {
     const line = lineFor("full", INC8);
     expect(line).toEqual({
       kind: "inc",
@@ -61,7 +61,7 @@ describe("checkoutTaxLine por modo de pago", () => {
       taxCents: 3_177_78,
       baseCents: 39_722_22,
     });
-    expect(fmtCOP(line!.taxCents)).toBe("$3.178");
+    expect(fmtCOP(line!.taxCents)).toBe("$3,178");
   });
   it("Partes iguales: el impuesto va sobre la parte, no sobre la cuenta", () => {
     expect(lineFor("equal", INC8)).toEqual({
@@ -129,7 +129,7 @@ describe("paidFoodCents / outstandingSubtotalCents", () => {
     expect(outstandingSubtotalCents(BILL, 0, 0)).toBe(BILL);
   });
   it("un pago parcial descuenta sólo la comida, no la propina", () => {
-    // Alguien pagó $12.500 de comida + $1.250 de propina.
+    // Alguien pagó $12,500 de comida + $1,250 de propina.
     expect(paidFoodCents(13_750_00, 1_250_00)).toBe(12_500_00);
     expect(outstandingSubtotalCents(BILL, 13_750_00, 1_250_00)).toBe(30_400_00);
   });

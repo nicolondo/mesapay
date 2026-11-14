@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, numberFormatter } from "@/lib/format";
 import { MAX_WASTE_PCT } from "@/lib/erp/recipes";
 import {
   foodCostPct,
@@ -2040,7 +2040,7 @@ function EngineeringTab({
               {/* Umbrales D4 usados, discretos */}
               <div className="text-[10px] text-op-muted">
                 {t("engineeringThresholds", {
-                  units: new Intl.NumberFormat(locale, {
+                  units: numberFormatter(locale, {
                     maximumFractionDigits: 1,
                   }).format(data.popularityThreshold),
                   amount: formatMoney(Math.round(data.marginThreshold), {

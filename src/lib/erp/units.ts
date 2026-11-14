@@ -22,6 +22,8 @@
 // notación, no como texto traducible. Los NOMBRES de dimensión ("Peso",
 // "Volumen", "Unidades") sí van por i18n en la UI.
 
+import { numberFormatter } from "@/lib/format";
+
 // Alineado con el enum Prisma MeasureKind (string literals para no importar
 // @prisma/client en componentes cliente).
 export type MeasureKind = "mass" | "volume" | "count";
@@ -117,8 +119,8 @@ export function displayUnitFor(baseQty: number, kind: MeasureKind): DisplayUnit 
 
 /**
  * Formatea una cantidad en unidad base para mostrar, escalando a la unidad
- * grande cuando queda legible (2500 g → "2,5 kg"; 500 ml → "500 ml";
- * 24 un → "24 un"). Locale-aware para el separador decimal.
+ * grande cuando queda legible (2500 g → "2.5 kg"; 500 ml → "500 ml";
+ * 24 un → "24 un"). Con la convención de números de `@/lib/format`.
  */
 export function formatBaseQty(
   baseQty: number,
@@ -129,7 +131,7 @@ export function formatBaseQty(
   const value = baseQty / unit.factor;
   // Decimales según la unidad elegida (count "un" = 3; kg/L = 2; g/ml = 0).
   const maxFrac = unit.decimals ?? (unit.factor > 1 ? 2 : 0);
-  const formatted = new Intl.NumberFormat(locale, {
+  const formatted = numberFormatter(locale, {
     maximumFractionDigits: maxFrac,
   }).format(value);
   return `${formatted} ${unit.symbol}`;

@@ -228,7 +228,7 @@ describe("«Este dispositivo»: la tirilla al papel del equipo (?w=)", () => {
     expect(article).toContain('data-print-width-mm="55"');
     expect(article).toContain("width:55mm;padding-inline:3.5mm");
     // Montos de 9 dígitos enteros, sin partirse (la columna del monto no envuelve).
-    expect(article).toContain('<span class="amount">$999.999.999</span>');
+    expect(article).toContain('<span class="amount">$999,999,999</span>');
     expect(article).toContain('class="dian-qr"');
     expect(article).toContain("f".repeat(96));
     // Lo que evita que algo se salga: nombres y CUFE parten donde haga falta,
@@ -273,9 +273,9 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
     });
     const html = await render();
     expect(totals(html).slice(-3)).toEqual([
-      "Total comprobante|$120.000",
-      "Propina voluntaria|$12.000",
-      "TOTAL A PAGAR|$132.000",
+      "Total comprobante|$120,000",
+      "Propina voluntaria|$12,000",
+      "TOTAL A PAGAR|$132,000",
     ]);
     expect(toPay(html)).toBe("13200000");
     expect(html).toContain('class="row to-pay"');
@@ -289,7 +289,7 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
       dianDocument: { state: "accepted", cufe: "abc123" },
       restaurant: { ...row.restaurant, enabledModules: ["einvoicing"] },
     });
-    expect(totals(await render())).toContain("Total factura|$25.000");
+    expect(totals(await render())).toContain("Total factura|$25,000");
   });
 
   it("emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden (la del snapshot es 0)", async () => {
@@ -305,9 +305,9 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
     });
     const html = await render();
     expect(totals(html).slice(-3)).toEqual([
-      "Total comprobante|$120.000",
-      "Propina voluntaria|$12.000",
-      "TOTAL A PAGAR|$132.000",
+      "Total comprobante|$120,000",
+      "Propina voluntaria|$12,000",
+      "TOTAL A PAGAR|$132,000",
     ]);
     expect(html).not.toContain("Pendiente de pago");
     expect(html).not.toContain("Propina sugerida");
@@ -322,11 +322,11 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
     });
     const html = await render();
     expect(totals(html)).toEqual([
-      "Subtotal|$120.000",
-      "Total comprobante|$120.000",
-      "TOTAL A PAGAR|$120.000",
-      "Pendiente de pago|$120.000",
-      "Propina sugerida (voluntaria) 10%|$12.000",
+      "Subtotal|$120,000",
+      "Total comprobante|$120,000",
+      "TOTAL A PAGAR|$120,000",
+      "Pendiente de pago|$120,000",
+      "Propina sugerida (voluntaria) 10%|$12,000",
     ]);
     expect(toPay(html)).toBe("12000000");
     expect(html).not.toContain("132.000");

@@ -7,6 +7,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import type { Locale } from "@/i18n/config";
 import { manualInvoicePayLinkPath, payLinkState } from "@/lib/manualInvoicePayLink";
+import { refreshReceivablePayLink } from "@/lib/manualInvoiceReceivable";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,13 @@ export default async function ManualInvoicePayLinkStatusPage({
   const link = await db.paymentLink.findUnique({
     where: { token },
     select: {
+      id: true,
+      restaurantId: true,
       status: true,
       kind: true,
       expiresAt: true,
+      amountCents: true,
+      creditPaymentId: true,
       restaurant: { select: { slug: true, name: true, country: true } },
       order: {
         select: {
@@ -54,14 +59,16 @@ export default async function ManualInvoicePayLinkStatusPage({
   }
 
   const currency = await getCurrencyForCountry(link.restaurant.country);
+  // Factura emitida por cobrar: el estado y el saldo salen de su cargo a
+  // crédito, no de la orden (que ya está cerrada).
+  const receivable = link.creditPaymentId ? await refreshReceivablePayLink(link) : null;
   const paidFood = link.order.payments.reduce((s, p) => s + Math.max(0, p.amountCents - p.tipCents), 0);
-  const outstandingCents = Math.max(
-    0,
-    link.order.subtotalCents + link.order.taxCents - link.order.discountCents - paidFood,
-  );
+  const outstandingCents = receivable
+    ? receivable.amountCents
+    : Math.max(0, link.order.subtotalCents + link.order.taxCents - link.order.discountCents - paidFood);
   const amount = formatMoney(outstandingCents, { currency, locale });
   const code = displayOrderCode(link.order.shortCode);
-  const state = payLinkState(link, link.order);
+  const state = receivable ? receivable.state : payLinkState(link, link.order);
 
   const header = (
     <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-2">

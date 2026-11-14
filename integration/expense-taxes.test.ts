@@ -253,7 +253,7 @@ describe("gastos con impuestos (PostgreSQL)", () => {
     const rete = drill.drill.taxes.find((t) => t.key === "retefuente")!;
     expect(rete).toMatchObject({ docCents: 4_000_000, bookCents: 4_000_000, diffCents: 0 });
     const aux = auxRowsForNode(drill, rete.docNodes[0]!.id)!;
-    expect(aux.rows[0]).toMatchObject({ docKind: "expense", document: "FE-901", conceptName: expect.stringContaining("Servicios") });
+    expect(aux.rows[0]).toMatchObject({ docKind: "expense", document: expect.stringMatching(/^G-\d{4} · FE-901$/), conceptName: expect.stringContaining("Servicios") });
     expect(aux.rows[0]!.entryId).toBeTruthy();
     // Revisiones: el comercio de prueba descuenta IVA pero no factura con IVA
     // (régimen sin impuesto de ventas): el IVA descontable del gasto se marca.

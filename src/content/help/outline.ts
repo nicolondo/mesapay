@@ -493,6 +493,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       covers:
         "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\", deuda vencida), \"Descuento\" comercial, editar; buscar, filtrar (tipo, condición), ordenar y paginar, resumen de deuda; la pestaña de comensales registrados y su búsqueda.",
     },
+    {
+      slug: "documento-soporte",
+      title: "Genera el documento soporte de compras y gastos",
+      covers:
+        "Documento soporte en adquisiciones a no obligados a facturar (Res. DIAN 000167/2021): pasos del dueño en el portal DIAN (modo de operación software propio, Software ID/PIN, TestSetId, set de 2 DS + 1 nota de ajuste, autorización de numeración tipo \"Documento soporte\" Formato 1876 y asociarla al software), \"Documento soporte electrónico\" en Facturación DIAN, marcar al proveedor como no obligado y sus datos (NIT, municipio, código postal, exterior), \"Generar documento soporte\" desde Gastos y Compras, plazo (por operación / acumulado semanal, 6 días), retenciones informadas y ReteICA no, estados, \"Reenviar a la DIAN\" con el mismo número, representación gráfica y XML, \"Nota de ajuste\" y que no crea asientos.",
+    },
   ],
 
   /* ─────────────────────── contabilidad-y-reportes ─────────────────────── */

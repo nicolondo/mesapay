@@ -46,8 +46,9 @@ export function TrendPanel({
   const count: ValueFormat = { kind: "number", locale };
   const format = metric === "orders" ? count : money;
 
-  const valueOf = (net: number | null, orders: number | null) =>
-    metric === "net" ? net : metric === "orders" ? orders : pointTicket(net, orders);
+  // El ticket sale de las cuentas contadas en el balde, enteras (ver `pointTicket`).
+  const valueOf = (net: number | null, orders: number | null, accountNet: number | null) =>
+    metric === "net" ? net : metric === "orders" ? orders : pointTicket(accountNet, orders);
 
   const hrefOf = (p: TrendPoint) => {
     if (granularity === "hora") {
@@ -82,8 +83,8 @@ export function TrendPanel({
       key: p.bucket,
       label: inProgress(p.bucket) ? t("trend.inProgress", { label: l.long }) : l.long,
       shortLabel: l.short,
-      value: valueOf(p.netCents, p.orders) ?? 0,
-      compare: hasCompare ? valueOf(p.compareNetCents, p.compareOrders) : null,
+      value: valueOf(p.netCents, p.orders, p.accountNetCents) ?? 0,
+      compare: hasCompare ? valueOf(p.compareNetCents, p.compareOrders, p.compareAccountNetCents) : null,
       compareLabel: p.compareBucket ? labelOf(p.compareBucket).long : null,
       extra: [
         ...(metric !== "orders" ? [{ value: formatValue(p.orders, count), label: t("trend.ordersRow") }] : []),
@@ -149,7 +150,7 @@ export function TrendPanel({
                 const href = hrefOf(p);
                 const label = labelOf(p.bucket).long;
                 const d = hasCompare ? variation(p.netCents, p.compareNetCents) : null;
-                const ticket = pointTicket(p.netCents, p.orders);
+                const ticket = pointTicket(p.accountNetCents, p.orders);
                 return (
                   <tr key={p.bucket}>
                     <th scope="row">{href ? <ChartLink href={href} className="mp-text-link">{label}</ChartLink> : label}</th>

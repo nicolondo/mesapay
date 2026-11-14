@@ -39,6 +39,7 @@ vi.mock("@/lib/cashBox", () => ({ buildCashSnapshot: async () => ({}) }));
 vi.mock("@/components/CashBox", () => ({ CashBox: () => null }));
 vi.mock("./LiveRefresh", () => ({ LiveRefresh: () => null }));
 vi.mock("@/lib/reports/dashboardSalesQuery", () => ({
+  dashboardOpenOrdersWhere: (restaurantId: string) => ({ restaurantId }),
   // One paid order today: the main figure must stay exactly this.
   loadDashboardSales: async () => [{ paidAt: new Date(), netCents: 9_416_700 }],
   loadDashboardUncollected: h.loadUncollected,

@@ -15,6 +15,8 @@ const m = vi.hoisted(() => ({
   eventUpdate: vi.fn(),
   queryRaw: vi.fn(),
   publish: vi.fn(),
+  paymentFindUnique: vi.fn(),
+  abonoCreate: vi.fn(),
 }));
 
 const tx = {
@@ -24,6 +26,8 @@ const tx = {
     updateMany: m.linkUpdateMany,
   },
   voucherBatch: { updateMany: m.batchUpdateMany },
+  payment: { findUnique: m.paymentFindUnique },
+  customerCreditPayment: { create: m.abonoCreate },
   kushkiWebhookEvent: {
     createMany: m.eventCreateMany,
     findUniqueOrThrow: m.eventFindUniqueOrThrow,
@@ -198,5 +202,48 @@ describe("helpers", () => {
     // orden; la página y las rutas de bonos no deben cobrar su amountCents.
     expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "order" })).toBe(false);
     expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "voucher_batch" })).toBe(true);
+  });
+});
+
+describe("factura manual emitida por cobrar (link kind=order con cargo)", () => {
+  const receivableLink = {
+    ...pendingLink,
+    id: "link-r",
+    kind: "order" as const,
+    voucherBatchId: null,
+    voucherStatementId: null,
+    orderId: "o1",
+    amountCents: 108_000,
+    creditPaymentId: "pay-credit",
+  };
+
+  it("sólo se cobra por la página de monto fijo si tiene cargo", () => {
+    expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "order" })).toBe(false);
+    expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "order", creditPaymentId: null })).toBe(false);
+    expect(paymentLinkIsOpen({ status: "pending", expiresAt: null, kind: "order", creditPaymentId: "pay-credit" })).toBe(true);
+    expect(paymentLinkIsOpen({ status: "paid", expiresAt: null, kind: "order", creditPaymentId: "pay-credit" })).toBe(false);
+  });
+
+  it("pagado: deja UN abono dirigido al cargo, a la pasarela, ligado al link (no toca la orden ni emite factura)", async () => {
+    m.linkFindUnique.mockResolvedValue(receivableLink);
+    m.paymentFindUnique.mockResolvedValue({ billingCustomerId: "bc1" });
+    const r = await settlePaymentLinkInTx(tx as never, { id: "link-r" }, { approved: true, providerRef: "tx-1", method: "kushki_pse" });
+    expect(r.status).toBe("paid");
+    expect(m.abonoCreate).toHaveBeenCalledTimes(1);
+    expect(m.abonoCreate.mock.calls[0][0].data).toMatchObject({
+      restaurantId: "rest-1",
+      billingCustomerId: "bc1",
+      amountCents: 108_000,
+      accountCode: "112005",
+      creditChargeId: "pay-credit",
+      paymentLinkId: "link-r",
+    });
+    expect(m.batchUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("segundo riel (webhook después del retorno): no deja otro abono", async () => {
+    m.linkFindUnique.mockResolvedValue({ ...receivableLink, status: "paid" });
+    expect(await settlePaymentLinkInTx(tx as never, { id: "link-r" }, { approved: true })).toEqual({ status: "already_paid" });
+    expect(m.abonoCreate).not.toHaveBeenCalled();
   });
 });

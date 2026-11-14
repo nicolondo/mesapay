@@ -337,7 +337,11 @@ async function EntryRow({
           {e.dueDate && (
             <span className="text-xs text-op-muted">{t("dueOn", { date: fmtIsoDate(e.dueDate, locale) })}</span>
           )}
-          {e.note && <span className="text-xs text-op-muted">{e.note}</span>}
+          {e.viaPayLink ? (
+            <span className="text-xs text-op-muted">{t("abonoViaPayLink")}</span>
+          ) : (
+            e.note && <span className="text-xs text-op-muted">{e.note}</span>
+          )}
           {link && (
             <Link href={link.href} className="no-print text-xs text-op-accent hover:underline">
               {t(link.key)}
@@ -375,10 +379,14 @@ async function EntryCard({
         </span>
         <span className="font-mono text-xs">{e.number}</span>
       </div>
-      {(e.dueDate || e.note || link) && (
+      {(e.dueDate || e.note || e.viaPayLink || link) && (
         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-op-muted">
           {e.dueDate && <span>{t("dueOn", { date: fmtIsoDate(e.dueDate, locale) })}</span>}
-          {e.note && <span className="break-words">{e.note}</span>}
+          {e.viaPayLink ? (
+            <span className="break-words">{t("abonoViaPayLink")}</span>
+          ) : (
+            e.note && <span className="break-words">{e.note}</span>
+          )}
           {link && (
             <Link href={link.href} className="text-op-accent hover:underline">
               {t(link.key)}

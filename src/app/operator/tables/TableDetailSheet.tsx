@@ -19,6 +19,8 @@ import {
   PendingPaymentNotice,
   type PendingPaymentView,
 } from "@/components/payments/PendingPaymentNotice";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import { roleLabelKey } from "@/lib/orders/placedBy";
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import type { CompPolicyView } from "@/lib/staffPolicies";
@@ -43,6 +45,8 @@ import {
   type OrderRoomInput,
 } from "@/lib/freeLineLimit";
 import { FreeLineLimitNotice } from "./FreeLineLimitNotice";
+import { ManualInvoiceSendCard } from "@/components/manualInvoice/ManualInvoiceSend";
+import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 
 /**
  * Impuesto de una línea libre tal como lo elige quien la carga:
@@ -157,7 +161,9 @@ export function TableDetailSheet({
   invoiceIntent = null,
   invoice = null,
   pendingPayments = [],
+  terminalAmounts = [],
   counterMode = false,
+  sendInfo = null,
 }: {
   orderId: string;
   shortCode: string;
@@ -246,6 +252,9 @@ export function TableDetailSheet({
   // comercio, efectivo) la ficha lo muestra ARRIBA con "Confirmar pago
   // recibido"; un pago en línea en curso se muestra sin acción.
   pendingPayments?: PendingPaymentView[];
+  // Cobros del datáfono Kushki aprobados por OTRO monto (propina del
+  // datáfono o parcial): el aviso va arriba, con lo pendiente.
+  terminalAmounts?: TerminalAmountView[];
   // Modo mostrador: el cobro en efectivo titula "Orden X" en vez de "Mesa N".
   counterMode?: boolean;
   // Lo que ya se pidió de factura en la cuenta: la hoja de "Imprimir
@@ -255,6 +264,10 @@ export function TableDetailSheet({
   // cuenta queda CERRADA a cambios (el servidor también lo exige — ver
   // src/lib/orders/invoicedOrder.ts). Se cobra con cualquier medio.
   invoice?: InvoicedOrderView | null;
+  // FACTURA MANUAL: "Emitir y enviar factura" (por correo, con link de
+  // pago, y la cuenta sale de Mesas a Cartera). Lo arma el server
+  // (src/lib/manualInvoiceSendInfo.ts). null en una mesa.
+  sendInfo?: ManualInvoiceSendInfo | null;
 }) {
   const tr = useTranslations("opTables");
   // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
@@ -842,6 +855,14 @@ export function TableDetailSheet({
                 />
               )}
 
+            {/* El datáfono aprobó otro monto: «se registró como propina» o
+                «quedan $X por cobrar». Ya está liquidado; queda para revisión. */}
+            {terminalAmounts.map((amount, i) => (
+              <div key={i} className="rounded-xl border border-op-border bg-op-bg px-3 py-2">
+                <TerminalAmountNote amount={amount} />
+              </div>
+            ))}
+
             {/* Factura emitida ANTES de cobrar: va arriba, es lo primero
                 que hay que saber de esta cuenta (cerrada, pendiente de
                 pago, se cobra con cualquier medio). */}
@@ -953,6 +974,24 @@ export function TableDetailSheet({
                     </div>
                   )}
                 </div>
+              )}
+
+            {/* FACTURA MANUAL: la acción principal. Las manuales casi
+                siempre se mandan por correo: "Emitir y enviar factura" la
+                emite a nombre del cliente de arriba, la envía con el link
+                de pago y la saca de Mesas (queda por cobrar en Cartera).
+                Imprimirla sigue abajo, como acción secundaria. */}
+            {manual &&
+              sendInfo &&
+              orderStatus !== "paid" &&
+              orderStatus !== "cancelled" && (
+                <ManualInvoiceSendCard
+                  info={sendInfo}
+                  variant="sheet"
+                  customerName={invoiceCustomer?.customerName ?? null}
+                  customerEmail={invoiceCustomer?.email ?? null}
+                  afterIssue="open-order"
+                />
               )}
 
             {/* Comensal identificado + su descuento. Identificarlo es lo
@@ -1156,7 +1195,14 @@ export function TableDetailSheet({
                         href={`/t/${tenantSlug}/pay/${orderId}?op=1`}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                        // En una factura manual la acción principal es
+                        // "Emitir y enviar factura" (arriba); cobrar en caja
+                        // queda como alternativa.
+                        className={
+                          manual && sendInfo
+                            ? "mp-btn mp-btn--secondary mp-btn--block"
+                            : "w-full h-11 rounded-full bg-terracotta text-bone text-sm font-medium inline-flex items-center justify-center hover:brightness-95"
+                        }
                       >
                         {tr("chargeBill")}
                       </a>
@@ -1215,6 +1261,7 @@ export function TableDetailSheet({
                       canConfigurePrinters={!isMeseroView}
                       onPrintPrebill={() => void prebillPrint.run()}
                       onIssued={() => startTx(() => router.refresh())}
+                      manualInvoice={manual}
                     />
                   )}
                   {canMove && (

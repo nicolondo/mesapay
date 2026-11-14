@@ -9,6 +9,7 @@ import {
 } from "@/lib/erp/accounting";
 import {
   accountingMonthRange,
+  calendarRangeOf,
   computeTaxSummary,
   loadCogsBook,
   loadInventoryBook,
@@ -16,6 +17,9 @@ import {
   loadSalesBook,
 } from "@/lib/erp/accountingData";
 import { formatBaseQty } from "@/lib/erp/units";
+import { db } from "@/lib/db";
+import { expenseBaseCents, expensePayableCents } from "@/lib/erp/expenseTax";
+import { ensureExpenseNumbers, formatExpenseNumber } from "@/lib/erp/expenseNumber";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
 import type { ModuleSlug } from "@/lib/modules";
 
@@ -29,8 +33,8 @@ function isoDate(d: Date | null): string {
 
 /**
  * Reporte para el contador en un solo archivo Excel (.xls SpreadsheetML, sin
- * dependencias) con hojas: Ventas, Retenciones, Costos de ventas (CMV) e
- * Inventarios. Montos como número para que el contador los sume/filtre.
+ * dependencias) con hojas: Ventas, Retenciones, Gastos (con su consecutivo
+ * G-0001), Costos de ventas (CMV) e Inventarios. Montos como número para que el contador los sume/filtre.
  * En Ventas, las notas crédito aceptadas del mes van como documentos en
  * negativo y el total es NETO de ellas; una fila aparte muestra la base y
  * el impuesto que restaron.
@@ -48,12 +52,20 @@ async function GETHandler(req: Request) {
   if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
   const t = await getTranslations("opErp");
-  const [sales, purchases, cogs, inventory, tax] = await Promise.all([
+  await ensureExpenseNumbers(ctx.restaurantId);
+  // Gastos: FECHA contable, mes calendario (como su CSV y el motor).
+  const calendar = calendarRangeOf(range);
+  const [sales, purchases, cogs, inventory, tax, expenses] = await Promise.all([
     loadSalesBook(ctx.restaurantId, range),
     loadPurchasesBook(ctx.restaurantId, range),
     loadCogsBook(ctx.restaurantId, range),
     loadInventoryBook(ctx.restaurantId),
     computeTaxSummary(ctx.restaurantId, range),
+    db.expense.findMany({
+      where: { restaurantId: ctx.restaurantId, recurring: false, date: { gte: calendar.from, lt: calendar.to } },
+      orderBy: [{ date: "asc" }, { number: "asc" }],
+      include: { supplier: { select: { name: true, taxId: true } } },
+    }),
   ]);
 
   // ── Ventas ──────────────────────────────────────────────────────────────
@@ -176,6 +188,74 @@ async function GETHandler(req: Request) {
     ],
   };
 
+  // ── Gastos (con su consecutivo) ──────────────────────────────────────────
+  const expenseRows = expenses.map((e) => {
+    const payable = expensePayableCents(e);
+    const retentions = e.retefuenteCents + e.reteIvaCents + e.reteIcaCents;
+    return {
+      cells: [
+        formatExpenseNumber(e.number) ?? "",
+        isoDate(e.date),
+        e.category,
+        e.supplier?.name ?? "",
+        e.supplier?.taxId ?? "",
+        e.documentNumber ?? "",
+        centsToAmount(expenseBaseCents(e)),
+        centsToAmount(e.ivaCents),
+        centsToAmount(e.incCents),
+        centsToAmount(retentions),
+        centsToAmount(payable),
+        centsToAmount(e.amountCents),
+        centsToAmount(Math.max(0, payable - e.paidCents)),
+      ],
+      base: expenseBaseCents(e),
+      iva: e.ivaCents,
+      inc: e.incCents,
+      retentions,
+      payable,
+      cost: e.amountCents,
+      outstanding: Math.max(0, payable - e.paidCents),
+    };
+  });
+  const sumOf = (k: "base" | "iva" | "inc" | "retentions" | "payable" | "cost" | "outstanding") =>
+    centsToAmount(expenseRows.reduce((acc, r) => acc + r[k], 0));
+  const gastos: XlsxSheet = {
+    name: t("repSheetExpenses"),
+    headers: [
+      t("csvExpenseNumber"),
+      t("csvDate"),
+      t("csvCategory"),
+      t("csvSupplier"),
+      t("csvSupplierTaxId"),
+      t("csvDocument"),
+      t("csvNet"),
+      t("csvIva"),
+      t("csvInc"),
+      t("repColRetentions"),
+      t("csvPayable"),
+      t("csvAmount"),
+      t("repColOutstanding"),
+    ],
+    rows: [
+      ...expenseRows.map((r) => r.cells),
+      [
+        t("repTotal"),
+        "",
+        "",
+        "",
+        "",
+        "",
+        sumOf("base"),
+        sumOf("iva"),
+        sumOf("inc"),
+        sumOf("retentions"),
+        sumOf("payable"),
+        sumOf("cost"),
+        sumOf("outstanding"),
+      ],
+    ],
+  };
+
   // ── Costos de ventas (CMV) ────────────────────────────────────────────────
   const costos: XlsxSheet = {
     name: t("repSheetCogs"),
@@ -210,7 +290,7 @@ async function GETHandler(req: Request) {
     ],
   };
 
-  const xml = buildXlsxWorkbook([ventas, retenciones, costos, inventarios]);
+  const xml = buildXlsxWorkbook([ventas, retenciones, gastos, costos, inventarios]);
   return new NextResponse(xml, {
     headers: {
       "Content-Type": "application/vnd.ms-excel; charset=utf-8",

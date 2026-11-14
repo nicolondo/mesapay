@@ -499,6 +499,12 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       covers:
         "\"Clientes para facturación\": \"Crear cliente\", tipo y número de documento (NIT sin dígito de verificación), correo y teléfono, \"Crédito\" (límite, plazo, \"Abonar\", \"Estado de cuenta\", deuda vencida), \"Descuento\" comercial, editar; buscar, filtrar (tipo, condición), ordenar y paginar, resumen de deuda; la pestaña de comensales registrados y su búsqueda.",
     },
+    {
+      slug: "documento-soporte",
+      title: "Genera el documento soporte de compras y gastos",
+      covers:
+        "Documento soporte en adquisiciones a no obligados a facturar (Res. DIAN 000167/2021): pasos del dueño en el portal DIAN (modo de operación software propio, Software ID/PIN, TestSetId, set de 2 DS + 1 nota de ajuste, autorización de numeración tipo \"Documento soporte\" Formato 1876 y asociarla al software), \"Documento soporte electrónico\" en Facturación DIAN, marcar al proveedor como no obligado y sus datos (NIT, municipio, código postal, exterior), \"Generar documento soporte\" desde Gastos y Compras, plazo (por operación / acumulado semanal, 6 días), retenciones informadas y ReteICA no, estados, \"Reenviar a la DIAN\" con el mismo número, representación gráfica y XML, \"Nota de ajuste\" y que no crea asientos.",
+    },
   ],
 
   /* ─────────────────────── contabilidad-y-reportes ─────────────────────── */
@@ -563,7 +569,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "impuestos-y-retenciones",
       title: "Revisa tus impuestos y registra su pago",
       covers:
-        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención y UVT, \"Registrar pago\"), \"Impuestos del período\" (resumen para la DIAN con semáforo contra el libro y tendencia, despliegue por impuesto → origen y tarifa / tipo de asiento → auxiliares con documento y asiento, exportar a Excel, \"Revisar antes de declarar\"); «Impuestos detallados» quedó dentro; que no reemplaza la declaración.",
+        "Pestaña Impuestos (impuestos del mes netos de notas crédito y devoluciones, con el bruto cuando algo restó; conceptos de retención —crear desde el catálogo del año o personalizados, editar, desactivar, borrar los no usados— y UVT, \"Registrar pago\"), \"Impuestos del período\" (resumen para la DIAN con semáforo contra el libro y tendencia, despliegue por impuesto → origen y tarifa / tipo de asiento → auxiliares con documento y asiento, exportar a Excel, \"Revisar antes de declarar\"); «Impuestos detallados» quedó dentro; que no reemplaza la declaración.",
     },
     {
       slug: "informacion-exogena",

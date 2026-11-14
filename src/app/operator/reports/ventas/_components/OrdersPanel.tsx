@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
 import { displayOrderCode } from "@/lib/orderCode";
+import type { TimeAxis } from "@/lib/salesAnalysis/filters";
 import type { OrderListRow } from "@/lib/salesAnalysis/types";
 import { channelLabel, methodLabel, tableName } from "@/lib/salesAnalysis/dimLabels";
 import { fmtNumber } from "@/lib/salesAnalysis/labels";
@@ -17,6 +18,7 @@ export function OrdersPanel({
   locale,
   counterMode,
   itemFilter,
+  axis,
 }: {
   t: Tr;
   orders: OrderListRow[];
@@ -25,14 +27,24 @@ export function OrdersPanel({
   locale: Locale;
   counterMode: boolean;
   itemFilter: boolean;
+  axis: TimeAxis;
 }) {
   const money = (v: number | null) => (v === null ? t("notApplicable") : formatMoney(v, { currency, locale }));
+  const time = (at: Date) => (
+    <time dateTime={at.toISOString()}>
+      {formatDate(at, { locale, dateStyle: undefined, timeStyle: undefined, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
+    </time>
+  );
   return (
     <section className="mp-panel mp-sa-panel" aria-labelledby="sales-orders-title">
       <div className="mp-panel-heading">
         <div>
           <h2 id="sales-orders-title">{t("orders.title")}</h2>
-          <p className="mp-sales-sub">{itemFilter ? t("orders.itemFilterNote") : t("orders.subtitle", { count: orders.length })}</p>
+          <p className="mp-sales-sub">
+            {itemFilter
+              ? t("orders.itemFilterNote")
+              : t(axis === "pedido" ? "orders.subtitleOrder" : "orders.subtitle", { count: orders.length })}
+          </p>
         </div>
       </div>
       <div className="mp-sales-panel-body">
@@ -43,6 +55,7 @@ export function OrdersPanel({
             <table className="mp-sales-table">
               <thead>
                 <tr>
+                  <th scope="col">{t("orders.placedAt")}</th>
                   <th scope="col">{t("orders.paidAt")}</th>
                   <th scope="col">{t("orders.account")}</th>
                   <th scope="col">{t("orders.where")}</th>
@@ -58,11 +71,8 @@ export function OrdersPanel({
               <tbody>
                 {orders.map((o) => (
                   <tr key={o.id}>
-                    <td className="num-left">
-                      <time dateTime={o.paidAt.toISOString()}>
-                        {formatDate(o.paidAt, { locale, dateStyle: undefined, timeStyle: undefined, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
-                      </time>
-                    </td>
+                    <td className="num-left">{time(o.openedAt)}</td>
+                    <td className="num-left">{time(o.paidAt)}</td>
                     <th scope="row">
                       <Link prefetch={false} href={`/operator/orders/${o.id}`} className="mp-sales-name-link" title={o.shortCode}>
                         {displayOrderCode(o.shortCode)}

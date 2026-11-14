@@ -86,6 +86,8 @@ export type CarteraPayment = {
   date: string;
   amountCents: number;
   note: string | null;
+  /** Abono que dejó el pago en línea de un link (la pantalla lo rotula). */
+  viaPayLink?: boolean;
 };
 
 const DAY_MS = 86_400_000;
@@ -229,6 +231,8 @@ export type StatementEntry = {
   /** Vencimiento del documento (sólo en cargos). */
   dueDate: string | null;
   note: string | null;
+  /** Abono que dejó el pago en línea de un link (la pantalla lo rotula). */
+  viaPayLink?: boolean;
   cargoCents: number;
   abonoCents: number;
   /** Saldo corrido, siempre cronológico. */
@@ -301,6 +305,7 @@ export function buildStatement(
       number: d.number,
       dueDate: null,
       note: p.note,
+      ...(p.viaPayLink ? { viaPayLink: true } : {}),
       cargoCents: 0,
       abonoCents: p.amountCents,
     });

@@ -15,6 +15,13 @@ import {
   type StaffPrintFallbackReason,
 } from "@/lib/print/staffPrint";
 import {
+  printOnTerminal,
+  readRememberedPrintTerminal,
+  rememberPrintTerminal,
+  terminalPrintMessage,
+  type TerminalPrintDevice,
+} from "@/lib/print/terminalPrintClient";
+import {
   devicePrintHelpHref,
   otherDestination,
   type DevicePaperMm,
@@ -43,6 +50,10 @@ type Notice = {
   device?: { paperMm: DevicePaperMm; opened: boolean };
   /** A dónde se intentó: para ofrecer «Reintentar» y el otro destino. */
   destination?: PrintDestination;
+  /** Datáfono: hay varios y hay que decir cuál es éste (una vez). */
+  chooseDevices?: TerminalPrintDevice[];
+  /** Datáfono: quedó encolada sin imprimir; reintentar con el MISMO trabajo. */
+  retryJob?: { deviceId: string; printJobId: string };
 };
 
 /**
@@ -134,6 +145,10 @@ export type StaffPrintState = {
   runAt: (destination: PrintDestination) => Promise<void>;
   /** Cambia el destino recordado e imprime ahí. */
   switchTo: (destination: PrintDestination) => Promise<void>;
+  /** Datáfono: elige cuál es este equipo e imprime ahí. */
+  chooseTerminal: (deviceId: string) => Promise<void>;
+  /** Datáfono: reintenta un trabajo encolado (el mismo `printJobId`). */
+  retryTerminal: (job: { deviceId: string; printJobId: string }) => Promise<void>;
   busy: boolean;
   notice: Notice | null;
   browser: BrowserPrintState | null;
@@ -170,8 +185,65 @@ export function useStaffPrint(
     [],
   );
 
+  /**
+   * «Este dispositivo» del usuario DATÁFONO: la impresora integrada del
+   * Smart POS por el Print API cloud de Kushki (su app instalada en Firefox
+   * no abre la impresión del sistema). Ver `lib/print/terminalPrint.ts`.
+   */
+  async function runOnTerminal(deviceId?: string, printJobId?: string) {
+    if (busy) return;
+    if (timer.current) clearTimeout(timer.current);
+    setBusy(true);
+    setBrowser(null);
+    // El destino con el que se reintenta: «Datáfono», o el «Este
+    // dispositivo» del usuario Datáfono.
+    const dest: PrintDestination = pref.role === "terminal" ? "device" : "terminal";
+    setNotice({ tone: "ok", text: t("terminalSending"), destination: dest });
+    const scope = pref.scope;
+    try {
+      const result = await printOnTerminal(doc, {
+        deviceId: deviceId ?? readRememberedPrintTerminal(scope),
+        printJobId,
+      });
+      if (result.via === "terminal") {
+        rememberPrintTerminal(scope, result.deviceId);
+        // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
+        setNotice(
+          result.state === "printed"
+            ? { tone: "ok", text: t("terminalSent", { device: result.deviceLabel }), destination: dest }
+            : {
+                tone: "warn",
+                text: t("terminalQueued", { device: result.deviceLabel }),
+                destination: dest,
+                retryJob: { deviceId: result.deviceId, printJobId: result.printJobId },
+              },
+        );
+      } else if (result.via === "choose_device") {
+        setNotice({
+          tone: "warn",
+          text: t("terminalChoose"),
+          destination: dest,
+          chooseDevices: result.devices,
+        });
+      } else {
+        const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
+        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
+      }
+    } catch {
+      setNotice({ tone: "error", text: t("terminalFailed"), destination: dest });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runAt(destination: PrintDestination) {
     if (busy || !pref.ready) return;
+    // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
+    // mismo): la impresora del datáfono por Kushki.
+    if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
+      await runOnTerminal();
+      return;
+    }
     if (timer.current) clearTimeout(timer.current);
     const paperMm = pref.paperMm;
     setBusy(true);
@@ -247,7 +319,23 @@ export function useStaffPrint(
     await runAt(destination);
   }
 
-  return { run, runAt, switchTo, busy, notice, browser, pref };
+  /** Datáfono: «este datáfono es X» — se recuerda e imprime ahí. */
+  async function chooseTerminal(deviceId: string) {
+    rememberPrintTerminal(pref.scope, deviceId);
+    await runOnTerminal(deviceId);
+  }
+
+  return {
+    run,
+    runAt,
+    switchTo,
+    chooseTerminal,
+    retryTerminal: (job: { deviceId: string; printJobId: string }) => runOnTerminal(job.deviceId, job.printJobId),
+    busy,
+    notice,
+    browser,
+    pref,
+  };
 }
 
 /**
@@ -260,7 +348,10 @@ export function StaffPrintNotice({
   sameTab = false,
   canConfigurePrinters = false,
 }: {
-  print: Pick<StaffPrintState, "notice" | "browser" | "busy" | "runAt" | "switchTo" | "pref">;
+  print: Pick<
+    StaffPrintState,
+    "notice" | "browser" | "busy" | "runAt" | "switchTo" | "chooseTerminal" | "retryTerminal" | "pref"
+  >;
   className?: string;
   sameTab?: boolean;
   canConfigurePrinters?: boolean;
@@ -334,9 +425,46 @@ export function StaffPrintNotice({
             disabled={print.busy}
             onClick={() => void print.switchTo(otherDestination(notice.destination!))}
           >
-            {notice.destination === "caja" ? t("useDevice") : t("useCaja")}
+            {otherDestination(notice.destination) === "caja" ? t("useCaja") : t("useDevice")}
           </button>
         </>
+      )}
+      {notice.retryJob && (
+        <>
+          {" "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.retryTerminal(notice.retryJob!)}
+          >
+            {t("retry")}
+          </button>
+          {" · "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.switchTo("caja")}
+          >
+            {t("useCaja")}
+          </button>
+        </>
+      )}
+      {notice.chooseDevices && notice.chooseDevices.length > 0 && (
+        <span className="mt-1 flex flex-wrap gap-1.5">
+          {notice.chooseDevices.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              disabled={print.busy}
+              onClick={() => void print.chooseTerminal(d.id)}
+              className="min-h-9 px-3 rounded-full border border-ink bg-paper text-ink text-xs disabled:opacity-50"
+            >
+              {d.label}
+            </button>
+          ))}
+        </span>
       )}
     </span>
   );

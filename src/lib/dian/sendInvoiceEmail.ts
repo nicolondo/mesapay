@@ -17,7 +17,7 @@
 import { db } from "@/lib/db";
 import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { brandedInvoiceFrom, invoiceUrlFor } from "@/lib/simpleInvoice";
-import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { formatInvoiceNumber, invoicePayableOf, type InvoiceSnapshot } from "@/lib/invoice";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import {
   attachedDocumentFileName,
@@ -27,7 +27,7 @@ import {
 import { renderDianInvoiceEmail, resolveDianRecipient } from "@/lib/dian/invoiceEmail";
 import { customerPartyFor, type InvoiceRequestParty } from "@/lib/dian/emit";
 import { dianIssueDateTime } from "@/lib/dian/dianDateTime";
-import { emisorToSupplierParty, resolveEmisor } from "@/lib/dian/config";
+import { dianEnvironment, emisorToSupplierParty, resolveEmisor } from "@/lib/dian/config";
 import {
   extractApplicationResponse,
   unzipFirstXml,
@@ -113,6 +113,9 @@ export async function sendDianInvoiceEmail(opts: {
                 locale: true,
                 simpleInvoiceEmail: true,
                 paidAt: true,
+                // Propina REAL de la factura emitida antes de cobrar, para
+                // el TOTAL A PAGAR (ver `invoicePayableOf`).
+                tipCents: true,
               },
             },
           },
@@ -210,7 +213,16 @@ export async function sendDianInvoiceEmail(opts: {
       invoiceNumber,
       issuedAt,
       cufe: doc.cufe,
-      totalCents: inv.totalCents,
+      // `SimpleInvoice.totalCents` es el `totalCents` del snapshot (venta +
+      // propina si se emitió al cobrar; la venta sola si se emitió antes).
+      payable: invoicePayableOf(
+        {
+          totalCents: inv.totalCents,
+          tipCents: snap.tipCents ?? 0,
+          issuedBeforePayment: snap.issuedBeforePayment,
+        },
+        inv.order,
+      ),
       invoiceUrl: invoiceUrlFor(inv.id),
       verifyUrl: dianQrUrl(doc.cufe, envCode),
       attachmentName: attachment?.filename ?? null,
@@ -339,4 +351,56 @@ async function buildAttachment(args: {
     content: zip.toString("base64"),
     contentType: "application/zip",
   };
+}
+
+/**
+ * El AttachedDocument (zip con el XML) de una factura ACEPTADA, para
+ * adjuntarlo a OTRO correo — el de "Emitir y enviar factura" de una
+ * factura manual, que manda la factura con su link de pago. Mismo sobre
+ * que el correo de la factura electrónica (mismo adquiriente, misma fecha
+ * declarada). null si no está aceptada o falta algún insumo; nunca lanza.
+ */
+export async function dianInvoiceAttachmentFor(documentId: string): Promise<EmailAttachment | null> {
+  try {
+    const doc = await db.dianDocument.findUnique({
+      where: { id: documentId },
+      select: {
+        restaurantId: true,
+        state: true,
+        cufe: true,
+        xmlZip: true,
+        responseXml: true,
+        simpleInvoice: {
+          select: { invoiceNumber: true, snapshot: true, order: { select: { id: true, paidAt: true } } },
+        },
+      },
+    });
+    if (!doc || doc.state !== "accepted" || !doc.cufe || !doc.simpleInvoice) return null;
+    const environment = await dianEnvironment(doc.restaurantId);
+    if (!environment) return null;
+    const inv = doc.simpleInvoice;
+    const snap = inv.snapshot as unknown as InvoiceSnapshot;
+    const request = await db.invoiceRequest.findFirst({
+      where: { orderId: inv.order.id },
+      orderBy: { createdAt: "desc" },
+      select: { customerName: true, docType: true, docNumber: true, address: true, city: true, department: true, email: true },
+    });
+    const invoiceXml = doc.xmlZip ? await unzipFirstXml(doc.xmlZip) : null;
+    const issued = invoiceXml ? invoiceIssueInstant(invoiceXml) : null;
+    const fallback = dianIssueDateTime(issued?.at ?? inv.order.paidAt ?? new Date(snap.paidAtIso));
+    return await buildAttachment({
+      restaurantId: doc.restaurantId,
+      environment: environment === "produccion" ? "1" : "2",
+      invoiceNumber: formatInvoiceNumber(snap, inv.invoiceNumber),
+      issueDate: issued?.date ?? fallback.date,
+      issueTime: issued?.time ?? fallback.time,
+      cufe: doc.cufe,
+      invoiceXml,
+      responseXml: doc.responseXml,
+      request,
+    });
+  } catch (err) {
+    console.error("[dian-email] no se pudo armar el adjunto para otro correo", { documentId, err });
+    return null;
+  }
 }

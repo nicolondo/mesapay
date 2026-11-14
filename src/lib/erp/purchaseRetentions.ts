@@ -14,6 +14,7 @@
 //    desde esa entrega.
 // Es el mismo motor de conceptos del resto del ERP (`computeRetentions`).
 import { computeRetentions, type RetentionConceptInput } from "./retencionesCore";
+import { retentionTopic } from "./retencionesCatalogo";
 
 export const PURCHASE_RETENTION_KINDS = ["retefuente", "reteiva", "reteica"] as const;
 export type PurchaseRetentionKind = (typeof PURCHASE_RETENTION_KINDS)[number];
@@ -49,15 +50,16 @@ export type SuggestedPurchaseRetention = {
 
 /**
  * El concepto de RETEFUENTE de una compra de insumos: el de «compras» si el
- * comercio lo tiene activo; si no, el primero activo. A una factura se le
- * aplica UNO (no «compras» y «servicios» a la vez, aunque los dos estén
- * activos para los gastos).
+ * comercio lo tiene activo (por el catálogo o por el nombre,
+ * `retentionTopic`); si no, el primero activo. A una factura se le aplica
+ * UNO (no «compras» y «servicios» a la vez, aunque los dos estén activos
+ * para los gastos); el operador cambia a otro desde «+ Agregar retención».
  */
-export function pickPurchaseRetefuenteConcept<T extends Pick<RetentionConceptInput, "kind" | "name">>(
+export function pickPurchaseRetefuenteConcept<T extends Pick<RetentionConceptInput, "kind" | "name" | "catalogKey">>(
   concepts: readonly T[],
 ): T | null {
   const candidates = concepts.filter((c) => c.kind === "retefuente");
-  return candidates.find((c) => /compra/i.test(c.name)) ?? candidates[0] ?? null;
+  return candidates.find((c) => retentionTopic(c) === "compras") ?? candidates[0] ?? null;
 }
 
 /** Base de un concepto: el IVA (reteIVA) o la base neta de la factura. */

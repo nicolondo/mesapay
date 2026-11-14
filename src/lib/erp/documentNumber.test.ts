@@ -64,6 +64,11 @@ describe("parseDuplicateConflict", () => {
     });
   });
 
+  it("keeps the expense consecutive (G-0012) when the existing document is an expense", () => {
+    const expense = { ...existing, kind: "expense" as const, purchaseNumber: null, expenseNumber: 12 };
+    expect(parseDuplicateConflict({ error: "duplicate_document", duplicate: expense })?.existing.expenseNumber).toBe(12);
+  });
+
   it("reads a possible duplicate (no invoice number)", () => {
     expect(parseDuplicateConflict({ error: "possible_duplicate", duplicate: { ...existing, number: null } })?.code).toBe(
       "possible_duplicate",

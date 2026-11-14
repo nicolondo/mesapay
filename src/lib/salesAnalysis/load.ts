@@ -28,6 +28,7 @@ import {
   loadTotals,
   loadTrend,
   loadWaiters,
+  withCandidates,
   type SalesDb,
 } from "./queries";
 import type { SalesScope } from "./sql";
@@ -48,14 +49,15 @@ export type SalesAnalysisInput = {
   recipesEnabled: boolean;
 };
 
-function scopeFor(input: SalesAnalysisInput, range: DayRange): SalesScope {
-  return {
+function scopeFor(client: SalesDb, input: SalesAnalysisInput, range: DayRange): Promise<SalesScope> {
+  return withCandidates(client, {
     restaurantId: input.restaurantId,
     ...rangeInstants(range, input.cutoffHour),
     cutoffHour: input.cutoffHour,
     tax: input.tax,
     dims: input.filters.dims,
-  };
+    axis: input.filters.axis,
+  });
 }
 
 async function loadPeriod(
@@ -120,14 +122,17 @@ export async function loadSalesAnalysis(client: SalesDb, input: SalesAnalysisInp
   const range = resolveRange(filters, input.today);
   const compareRange = resolveComparison(filters, range);
   const granularity = resolveGranularity(range, filters.granularity);
-  const scope = scopeFor(input, range);
+  const [scope, compareScope] = await Promise.all([
+    scopeFor(client, input, range),
+    compareRange ? scopeFor(client, input, compareRange) : null,
+  ]);
   const itemFilter = hasItemFilter(filters);
   const singleDay = rangeDays(range) === 1;
   const dimsBesidesCategory = Object.keys(filters.dims).filter((d) => d !== "categoria");
 
   const [current, compare, heat, tables, modifiers, orders, options, available] = await Promise.all([
     loadPeriod(client, scope, range, granularity, input.tax),
-    compareRange ? loadPeriod(client, scopeFor(input, compareRange), compareRange, granularity, input.tax) : null,
+    compareRange && compareScope ? loadPeriod(client, compareScope, compareRange, granularity, input.tax) : null,
     loadHeat(client, scope),
     loadTables(client, scope),
     loadModifiers(client, scope),

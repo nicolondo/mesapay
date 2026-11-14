@@ -48,6 +48,12 @@ import {
   type SupplierRef,
 } from "./shared";
 import { NewOrderForm } from "./oc/NewOrderForm";
+import { ComprasList, type FilterSupplier } from "./ComprasList";
+import { PayStatusChip, StatusChip } from "./chips";
+import { useListNavigation } from "@/components/billingCustomers/ListControls";
+import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
+import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
+import type { PoStatus, PurchaseListPage, PurchaseListParams } from "@/lib/erp/purchaseList";
 import { waLink } from "@/lib/crm/phone";
 import {
   BASE_UNIT_SYMBOL,
@@ -68,17 +74,9 @@ import {
   retentionsCents,
   totalsMatch,
 } from "@/lib/erp/purchaseTax";
+import { SupportDocumentPanel } from "@/components/supportDocument/SupportDocumentPanel";
 
 /* ───────────────────────────── Tipos ───────────────────────────────── */
-
-const PO_STATUSES = [
-  "draft",
-  "sent",
-  "partially_received",
-  "received",
-  "canceled",
-] as const;
-type PoStatus = (typeof PO_STATUSES)[number];
 
 type OrderSummary = Partial<InvoiceTaxExtras> & {
   /** Parte de las retenciones practicada al recibir (no sigue el avance). */
@@ -261,38 +259,6 @@ function orderLineText(it: OrderItem, locale: Locale): string {
   return `${qty} — ${it.ingredient.name}`;
 }
 
-const STATUS_KEYS: Record<PoStatus, string> = {
-  draft: "statusDraft",
-  sent: "statusSent",
-  partially_received: "statusPartial",
-  received: "statusReceived",
-  canceled: "statusCanceled",
-};
-
-// Colores por estado: neutro (borrador), tinta (enviada), ámbar (parcial),
-// ok (recibida), danger (anulada) — mismos tokens del design system.
-const STATUS_CHIP_CLS: Record<PoStatus, string> = {
-  draft: "bg-paper text-op-muted",
-  sent: "bg-ink text-bone",
-  partially_received: "bg-[#C98A2E]/15 text-[#7F5A1F]",
-  received: "bg-ok/10 text-ok",
-  canceled: "bg-danger/10 text-danger",
-};
-
-function StatusChip({ status }: { status: PoStatus }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        STATUS_CHIP_CLS[status]
-      }
-    >
-      {t(STATUS_KEYS[status])}
-    </span>
-  );
-}
-
 /**
  * Desglose Subtotal + IVA + Total de una lista de líneas netas + taxPct.
  * Si el IVA total es 0 solo muestra el Total (no ensucia con "IVA $0"),
@@ -387,233 +353,80 @@ function TaxBreakdown({
 
 /* ───────────────────────────── Lista ───────────────────────────────── */
 
-type Filter = "all" | PoStatus;
-type Tab = "orders" | "unpaid";
+/** Lo que necesitan «Registrar pago» y «Editar factura» de una fila de «Por pagar». */
+type PayableRef = Pick<OrderSummary, "id" | "number" | "paidCents" | "supplierInvoiceNumber" | "invoiceDueAt"> & {
+  supplier: { id: string; name: string };
+  /** Total recibido (la cuenta por pagar). */
+  receivedTotalCents: number;
+};
 
 export function ComprasClient({
-  initialOrders,
-  initialCursor,
+  list,
+  params,
   suppliers,
+  filterSuppliers,
   currency,
   initialDetailId = null,
 }: {
-  initialOrders: OrderSummary[];
-  initialCursor: string | null;
+  /** Página de compras con los filtros de la URL (paginada y resumida en el servidor). */
+  list: PurchaseListPage;
+  params: PurchaseListParams;
+  /** Proveedores activos (crear orden, revisar factura). */
   suppliers: SupplierRef[];
+  /** Todos los proveedores, también inactivos (filtro de la lista). */
+  filterSuppliers: FilterSupplier[];
   currency: string;
   /** `?oc=<id>`: abre el detalle de esa orden (enlace desde los reportes). */
   initialDetailId?: string | null;
 }) {
   const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-
-  // null = lista invalidada (cambio de filtro u orden nueva) → refetch.
-  const [orders, setOrders] = useState<OrderSummary[] | null>(initialOrders);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialCursor);
-  const [tab, setTab] = useState<Tab>("orders");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [listErr, setListErr] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Los filtros viven en la URL: cada cambio navega y el servidor vuelve a
+  // consultar. Tras crear, recibir o pagar, `refresh` trae la lista al día.
+  const nav = useListNavigation();
   const [createOpen, setCreateOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(initialDetailId);
+  const [payFor, setPayFor] = useState<PayableRef | null>(null);
+  const [invoiceFor, setInvoiceFor] = useState<PayableRef | null>(null);
   // Carga de factura con IA (A2.5): resultado del POST → sheet de revisión.
   const [invoiceResult, setInvoiceResult] = useState<InvoiceUploadResult | null>(
     null,
   );
 
-  useEffect(() => {
-    if (orders !== null || listErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const qs = filter === "all" ? "" : `?status=${filter}`;
-        const r = await fetch(`/api/operator/purchase-orders${qs}`);
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (cancelled) return;
-        setOrders((j.orders ?? []) as OrderSummary[]);
-        setNextCursor(j.nextCursor ?? null);
-      } catch {
-        if (!cancelled) setListErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [orders, listErr, filter]);
-
   function invalidate() {
-    setOrders(null);
-    setNextCursor(null);
-    setListErr(false);
-  }
-
-  function changeFilter(f: Filter) {
-    if (f === filter) return;
-    setFilter(f);
-    invalidate();
-  }
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const params = new URLSearchParams();
-      if (filter !== "all") params.set("status", filter);
-      params.set("cursor", nextCursor);
-      const r = await fetch(`/api/operator/purchase-orders?${params}`);
-      if (!r.ok) throw new Error("load_failed");
-      const j = await r.json();
-      setOrders((prev) => [
-        ...(prev ?? []),
-        ...((j.orders ?? []) as OrderSummary[]),
-      ]);
-      setNextCursor(j.nextCursor ?? null);
-    } catch {
-      setListErr(true);
-    }
-    setLoadingMore(false);
+    nav.refresh();
   }
 
   return (
     <div className="space-y-4">
-      {/* Segmentos Órdenes / Por pagar */}
-      <div className="mp-seg" role="tablist">
-        {(
-          [
-            ["orders", t("tabOrders")],
-            ["unpaid", t("tabUnpaid")],
-          ] as [Tab, string][]
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => setTab(value)}
-            className="mp-seg__i"
-          >
-            {label}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="mp-btn mp-btn--primary mp-btn--block"
+        >
+          {t("newOrder")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setSuggestOpen(true)}
+          className="mp-btn mp-btn--secondary mp-btn--block"
+        >
+          {t("suggestedButton")}
+        </button>
+        <InvoiceUploadButton onUploaded={setInvoiceResult} />
       </div>
 
-      {tab === "unpaid" ? (
-        <UnpaidTab currency={currency} onOpenDetail={setDetailId} />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="mp-btn mp-btn--primary mp-btn--block"
-            >
-              {t("newOrder")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSuggestOpen(true)}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {t("suggestedButton")}
-            </button>
-            <InvoiceUploadButton onUploaded={setInvoiceResult} />
-          </div>
-
-          {/* Filtro por estado */}
-          <div className="flex flex-wrap gap-2">
-            {(["all", ...PO_STATUSES] as Filter[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => changeFilter(f)}
-                className={
-                  "min-h-[36px] px-3 rounded-full border text-xs font-medium transition-colors " +
-                  (filter === f
-                    ? "border-ink bg-ink text-bone"
-                    : "border-op-border bg-op-surface text-op-muted hover:text-ink")
-                }
-              >
-                {f === "all" ? t("filterAllStatuses") : t(STATUS_KEYS[f])}
-              </button>
-            ))}
-          </div>
-
-          {listErr ? (
-        <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-      ) : orders === null ? (
-        <div className="py-6 text-center text-sm text-op-muted">
-          {t("loading")}
-        </div>
-      ) : orders.length === 0 ? (
-        filter === "all" ? (
-          <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center">
-            <div className="font-display text-lg mb-1">
-              {t("emptyOrdersTitle")}
-            </div>
-            <p className="text-sm text-op-muted">{t("emptyOrdersBody")}</p>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-            {t("emptyFilteredOrders")}
-          </div>
-        )
-      ) : (
-        <>
-          <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-            {orders.map((o) => {
-              // Bruto (neto + IVA) — lo que se paga con impuestos.
-              const total = purchaseOrderTotals(o).totalCents;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setDetailId(o.id)}
-                  className="w-full text-left px-4 py-2.5 border-b border-op-border last:border-b-0 hover:bg-op-bg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium shrink-0">
-                          {t("poNumber", { number: padNumber(o.number) })}
-                        </span>
-                        <span className="text-sm text-op-muted truncate">
-                          {o.supplier.name}
-                        </span>
-                        <StatusChip status={o.status} />
-                      </div>
-                      <div className="text-[11px] text-op-muted mt-0.5 truncate">
-                        {[
-                          formatDate(o.createdAt, { locale }),
-                          t("poLineCount", { count: o._count.items }),
-                        ].join(" · ")}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-medium tabular-nums">
-                        {formatMoney(total, { currency, locale })}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {nextCursor && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mp-btn mp-btn--secondary mp-btn--block"
-            >
-              {loadingMore ? t("loading") : t("loadMore")}
-            </button>
-          )}
-            </>
-          )}
-        </>
-      )}
+      <ComprasList
+        list={list}
+        params={params}
+        suppliers={filterSuppliers}
+        currency={currency}
+        nav={nav}
+        onOpenDetail={setDetailId}
+        onPay={setPayFor}
+        onEditInvoice={setInvoiceFor}
+      />
 
       {/* El detalle va ANTES del sheet de creación en el DOM para que el
           sheet (hermano posterior, mismo z) pinte encima si conviven. */}
@@ -623,6 +436,30 @@ export function ComprasClient({
           currency={currency}
           onClose={() => setDetailId(null)}
           onChanged={invalidate}
+        />
+      )}
+
+      {payFor && (
+        <RegisterPaymentSheet
+          order={payFor}
+          currency={currency}
+          onClose={() => setPayFor(null)}
+          onDone={() => {
+            setPayFor(null);
+            invalidate();
+          }}
+        />
+      )}
+
+      {invoiceFor && (
+        <InvoiceSheet
+          order={invoiceFor}
+          currency={currency}
+          onClose={() => setInvoiceFor(null)}
+          onSaved={() => {
+            setInvoiceFor(null);
+            invalidate();
+          }}
         />
       )}
 
@@ -1560,6 +1397,17 @@ function InvoiceReviewSheet({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [err, setErr] = useState<string | null>(null);
+  // Factura ya registrada: aviso temprano mientras se revisa (proveedor +
+  // número) y el 409 del servidor al confirmar. Sin número, el servidor
+  // advierte si hay otra igual del día y «Guardar de todas formas» reenvía.
+  const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
+  const allowPossibleDuplicate = useRef(false);
+  const earlyDuplicate = useDuplicateDocumentCheck({
+    supplierId: supplier?.id ?? null,
+    taxId: supplier ? null : newSupplierNit,
+    number: invoiceNumber,
+  });
+  const duplicate = conflict ?? (earlyDuplicate ? { code: "early" as const, existing: earlyDuplicate } : null);
 
   // The supplier the invoice matched stays selectable even if it is not in
   // the active list loaded with the page.
@@ -1838,6 +1686,13 @@ function InvoiceReviewSheet({
     if (!busyRef.current) onClose();
   }
 
+  /** "allow" sólo en el reenvío de «Guardar de todas formas». */
+  function possibleDuplicate(): "check" | "allow" {
+    const allow = allowPossibleDuplicate.current;
+    allowPossibleDuplicate.current = false;
+    return allow ? "allow" : "check";
+  }
+
   // A lost response may hide a committed order. Recover that order before retrying.
   async function recoverConfirmedOrder(): Promise<boolean> {
     try {
@@ -1857,6 +1712,7 @@ function InvoiceReviewSheet({
   async function confirm() {
     if (busyRef.current || supplierMatchBusy || supplierMatchError) return;
     setErr(null);
+    setConflict(null);
     // Proveedor: existente o nombre nuevo.
     if (!supplier && (!creatingSupplier || !newSupplierName.trim())) {
       setErr(t("invReviewErrNoSupplier"));
@@ -1957,6 +1813,7 @@ function InvoiceReviewSheet({
             lines: payloadLines,
             mode,
             supplierInvoiceNumber: invoiceNumber.trim() || null,
+            possibleDuplicate: possibleDuplicate(),
             invoiceDueAt:
               mode === "receive" && dueDate ? dateInputToIso(dueDate) : null,
             incCents: extras.incCents,
@@ -1974,6 +1831,11 @@ function InvoiceReviewSheet({
       const j = await r.json().catch(() => null);
       if (!r.ok) {
         if (j?.error === "not_pending" && await recoverConfirmedOrder()) return;
+        const dup = parseDuplicateConflict(j);
+        if (dup) {
+          setConflict(dup);
+          return;
+        }
         const key = API_CONFIRM_ERROR_KEYS[j?.error as string];
         setErr(key ? t(key) : t("errSaveFailed"));
         return;
@@ -2390,6 +2252,18 @@ function InvoiceReviewSheet({
           />
 
           {err && <div role="alert" className="text-xs text-danger">{err}</div>}
+          {duplicate && (
+            <DuplicateDocumentAlert
+              code={duplicate.code}
+              existing={duplicate.existing}
+              currency={currency}
+              busy={busy}
+              onConfirm={() => {
+                allowPossibleDuplicate.current = true;
+                void confirm();
+              }}
+            />
+          )}
 
           <div className="flex items-center justify-between gap-3">
             <button
@@ -3092,6 +2966,19 @@ function OrderDetailSheet({
                 );
               })()}
 
+            {/* Documento soporte DIAN: compra recibida a un proveedor no
+                obligado a facturar (Res. 000167/2021). */}
+            {order.status === "received" && (
+              <div className="mt-4">
+                <SupportDocumentPanel
+                  key={reloadKey}
+                  sourceType="purchase_order"
+                  sourceId={order.id}
+                  currency={currency}
+                />
+              </div>
+            )}
+
             {err && <div className="text-xs text-danger mt-3">{err}</div>}
             {okMsg && <div className="text-xs text-ok mt-3">{okMsg}</div>}
 
@@ -3707,291 +3594,6 @@ function ReceiveSheet({
   );
 }
 
-/* ───────────────────────── Por pagar (CxP, D5) ─────────────────────── */
-
-/** Total recibido de la OC (bruto: neto + IVA del acumulado por línea). */
-function receivedTotal(o: OrderSummary): number {
-  return purchaseOrderTotals(o, "received").totalCents;
-}
-
-/** Saldo pendiente de la OC = total bruto recibido − abonado. */
-function outstandingOf(o: OrderSummary): number {
-  return receivedTotal(o) - o.paidCents;
-}
-
-// Estado de pago de la CxP (por abonos): pagada / parcial / vencida / pendiente.
-type PayStatus = "paid" | "partial" | "overdue" | "pending";
-
-/** Deriva el estado de pago de una OC. `now`=0 (sin fetch aún) ⇒ nunca vencida. */
-function payStatus(o: OrderSummary, now: number): PayStatus {
-  const outstanding = outstandingOf(o);
-  if (outstanding <= 0) return "paid";
-  const overdue =
-    o.invoiceDueAt != null && now > 0 && new Date(o.invoiceDueAt).getTime() < now;
-  if (overdue) return "overdue";
-  if (o.paidCents > 0) return "partial";
-  return "pending";
-}
-
-const PAY_STATUS_KEYS: Record<PayStatus, string> = {
-  paid: "payStatusPaid",
-  partial: "payStatusPartial",
-  overdue: "payStatusOverdue",
-  pending: "payStatusPending",
-};
-
-// Colores por estado de pago — mismos tokens del archivo: ok (pagada), ámbar
-// (parcial), danger (vencida), neutro (pendiente).
-const PAY_STATUS_CLS: Record<PayStatus, string> = {
-  paid: "bg-ok/10 text-ok",
-  partial: "bg-[#C98A2E]/15 text-[#7F5A1F]",
-  overdue: "bg-danger/10 text-danger",
-  pending: "bg-paper text-op-muted",
-};
-
-function PayStatusChip({ status }: { status: PayStatus }) {
-  const t = useTranslations("opErp");
-  return (
-    <span
-      className={
-        "px-2 h-5 inline-flex items-center rounded-full text-[10px] font-medium shrink-0 " +
-        PAY_STATUS_CLS[status]
-      }
-    >
-      {t(PAY_STATUS_KEYS[status])}
-    </span>
-  );
-}
-
-function UnpaidTab({
-  currency,
-  onOpenDetail,
-}: {
-  currency: string;
-  onOpenDetail: (id: string) => void;
-}) {
-  const t = useTranslations("opErp");
-  const locale = useLocale() as Locale;
-
-  const [rows, setRows] = useState<OrderSummary[] | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [listErr, setListErr] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [payFor, setPayFor] = useState<OrderSummary | null>(null);
-  const [invoiceFor, setInvoiceFor] = useState<OrderSummary | null>(null);
-  // "Ahora" congelado al momento del fetch (regla de pureza del render):
-  // suficiente para resaltar vencidas — el corte es por día, no por segundo.
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    if (rows !== null || listErr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/operator/purchase-orders?unpaid=1");
-        if (!r.ok) throw new Error("load_failed");
-        const j = await r.json();
-        if (cancelled) return;
-        setRows((j.orders ?? []) as OrderSummary[]);
-        setNextCursor(j.nextCursor ?? null);
-        setNow(Date.now());
-      } catch {
-        if (!cancelled) setListErr(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [rows, listErr]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const r = await fetch(
-        `/api/operator/purchase-orders?unpaid=1&cursor=${encodeURIComponent(nextCursor)}`,
-      );
-      if (!r.ok) throw new Error("load_failed");
-      const j = await r.json();
-      setRows((prev) => [
-        ...(prev ?? []),
-        ...((j.orders ?? []) as OrderSummary[]),
-      ]);
-      setNextCursor(j.nextCursor ?? null);
-    } catch {
-      setListErr(true);
-    }
-    setLoadingMore(false);
-  }
-
-  // Refrescar la lista desde cero (tras registrar/borrar un abono): un pago
-  // total saca la OC de "por pagar"; uno parcial actualiza saldo/estado.
-  function reload() {
-    setRows(null);
-    setNextCursor(null);
-    setListErr(false);
-  }
-
-  // Total por pagar = suma de los SALDOS pendientes (no del bruto total).
-  const totalDue = (rows ?? []).reduce((sum, o) => sum + outstandingOf(o), 0);
-
-  return (
-    <>
-      {listErr ? (
-        <div className="text-xs text-danger">{t("errLoadFailed")}</div>
-      ) : rows === null ? (
-        <div className="py-6 text-center text-sm text-op-muted">
-          {t("loading")}
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-op-border bg-op-surface/50 p-8 text-center text-sm text-op-muted">
-          {t(nextCursor ? "unpaidMoreCandidates" : "unpaidEmpty")}
-        </div>
-      ) : (
-        <>
-          <div className="bg-op-surface border border-op-border rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 bg-op-bg/50 border-b border-op-border">
-              <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
-                {t("unpaidTotalLabel")}
-              </span>
-              <span className="text-sm font-medium tabular-nums">
-                {formatMoney(totalDue, { currency, locale })}
-              </span>
-            </div>
-            {rows.map((o) => {
-              const status = payStatus(o, now);
-              const overdue = status === "overdue";
-              const totals = purchaseOrderTotals(o, "received");
-              const total = totals.totalCents;
-              const outstanding = total - o.paidCents;
-              return (
-                <div
-                  key={o.id}
-                  className="px-4 py-2.5 border-b border-op-border last:border-b-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetail(o.id)}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium shrink-0">
-                          {t("poNumber", { number: padNumber(o.number) })}
-                        </span>
-                        <span className="text-sm text-op-muted truncate">
-                          {o.supplier.name}
-                        </span>
-                        <PayStatusChip status={status} />
-                      </div>
-                      <div className="text-[11px] mt-0.5 truncate">
-                        <span className="text-op-muted">
-                          {o.supplierInvoiceNumber
-                            ? t("invoiceLabel", {
-                                number: o.supplierInvoiceNumber,
-                              })
-                            : t("noInvoiceNumber")}
-                        </span>
-                        {o.invoiceDueAt != null && (
-                          <span
-                            className={
-                              overdue
-                                ? "text-danger font-medium"
-                                : "text-op-muted"
-                            }
-                          >
-                            {" · "}
-                            {t("dueLabel", {
-                              date: formatDate(o.invoiceDueAt, {
-                                locale,
-                                timeStyle: undefined,
-                              }),
-                            })}
-                            {overdue && ` · ${t("overdueLabel")}`}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-medium tabular-nums">
-                        {formatMoney(outstanding, { currency, locale })}
-                      </div>
-                      <div className="text-[10px] text-op-muted tabular-nums mt-0.5">
-                        {t("cxpTotalPaid", {
-                          total: formatMoney(total, { currency, locale }),
-                          paid: formatMoney(o.paidCents, { currency, locale }),
-                        })}
-                      </div>
-                      {totals.retentionsCents > 0 && (
-                        <div className="text-[10px] text-op-muted tabular-nums mt-0.5">
-                          {t("poUnpaidRetained", { amount: formatMoney(totals.retentionsCents, { currency, locale }) })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setInvoiceFor(o)}
-                      className="min-h-[36px] px-3 rounded-full text-[11px] font-medium text-op-muted hover:text-ink"
-                    >
-                      {t("editInvoice")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPayFor(o)}
-                      className="mp-btn mp-btn--sm mp-btn--secondary"
-                    >
-                      {t("registerPayment")}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-      {!listErr && rows !== null && nextCursor && (
-        <button
-          type="button"
-          onClick={loadMore}
-          disabled={loadingMore}
-          className="mp-btn mp-btn--secondary mp-btn--block"
-        >
-          {loadingMore ? t("loading") : t("loadMore")}
-        </button>
-      )}
-
-      {payFor && (
-        <RegisterPaymentSheet
-          order={payFor}
-          currency={currency}
-          onClose={() => setPayFor(null)}
-          onDone={() => {
-            setPayFor(null);
-            reload();
-          }}
-        />
-      )}
-
-      {invoiceFor && (
-        <InvoiceSheet
-          order={invoiceFor}
-          onClose={() => setInvoiceFor(null)}
-          onSaved={(updated) => {
-            setInvoiceFor(null);
-            setRows((prev) =>
-              (prev ?? []).map((r) =>
-                r.id === updated.id ? { ...r, ...updated } : r,
-              ),
-            );
-          }}
-        />
-      )}
-    </>
-  );
-}
-
 // Errores del POST /payments → clave i18n (fallback errSaveFailed).
 const API_PAYMENT_ERROR_KEYS: Record<string, string> = {
   exceeds_balance: "errExceedsBalance",
@@ -4223,7 +3825,7 @@ function RegisterPaymentSheet({
   onClose,
   onDone,
 }: {
-  order: OrderSummary;
+  order: PayableRef;
   currency: string;
   onClose: () => void;
   onDone: () => void;
@@ -4259,7 +3861,7 @@ function RegisterPaymentSheet({
 
         <PaymentForm
           orderId={order.id}
-          totalCents={receivedTotal(order)}
+          totalCents={order.receivedTotalCents}
           paidCents={order.paidCents}
           currency={currency}
           onDone={onDone}
@@ -4272,12 +3874,14 @@ function RegisterPaymentSheet({
 /** Nº de factura + vencimiento (PATCH update_invoice). */
 function InvoiceSheet({
   order,
+  currency,
   onClose,
   onSaved,
 }: {
-  order: OrderSummary;
+  order: PayableRef;
+  currency: string;
   onClose: () => void;
-  onSaved: (updated: Partial<OrderSummary> & { id: string }) => void;
+  onSaved: () => void;
 }) {
   const t = useTranslations("opErp");
   const [invoiceNumber, setInvoiceNumber] = useState(
@@ -4290,9 +3894,19 @@ function InvoiceSheet({
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Ese número ya es otra factura registrada del proveedor: aviso mientras
+  // se digita y el 409 del servidor al guardar (que lo bloquea).
+  const [conflict, setConflict] = useState<DuplicateConflict | null>(null);
+  const earlyDuplicate = useDuplicateDocumentCheck({
+    supplierId: order.supplier.id,
+    number: invoiceNumber,
+    excludePurchaseId: order.id,
+  });
+  const duplicate = conflict ?? (earlyDuplicate ? { code: "early" as const, existing: earlyDuplicate } : null);
 
   async function submit() {
     setErr(null);
+    setConflict(null);
     setBusy(true);
     const r = await fetch(`/api/operator/purchase-orders/${order.id}`, {
       method: "PATCH",
@@ -4305,11 +3919,12 @@ function InvoiceSheet({
     });
     setBusy(false);
     if (!r.ok) {
-      setErr(t("errSaveFailed"));
+      const dup = parseDuplicateConflict(await r.json().catch(() => null));
+      if (dup) setConflict(dup);
+      else setErr(t("errSaveFailed"));
       return;
     }
-    const j = await r.json();
-    onSaved(j.order as Partial<OrderSummary> & { id: string });
+    onSaved();
   }
 
   return (
@@ -4360,6 +3975,11 @@ function InvoiceSheet({
         </div>
 
         {err && <div className="text-xs text-danger mt-3">{err}</div>}
+        {duplicate && (
+          <div className="mt-3">
+            <DuplicateDocumentAlert code={duplicate.code} existing={duplicate.existing} currency={currency} />
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-3 mt-4">
           <button

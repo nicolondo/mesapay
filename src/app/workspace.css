@@ -1567,6 +1567,11 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-filter-row > .mp-sales-field {
   flex: 0 1 200px;
 }
+/* Los segmentados (eje de tiempo, agrupar) miden lo que sus opciones: con
+   200 px se montaban sobre el campo siguiente. */
+.mp-sales-filter-row > .mp-sales-field--seg {
+  flex: 0 0 auto;
+}
 .mp-sales-range {
   display: flex;
   flex-wrap: wrap;
@@ -1583,6 +1588,18 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-filter-row .mp-sales-more {
   height: 40px;
   margin-left: auto;
+}
+/* Interruptor «Hora del pedido / Hora del pago»: en el celular ocupa el
+   ancho, mitad y mitad. Doble clase: .mp-seg se declara después (globals.css). */
+@media (max-width: 639px) {
+  .mp-seg.mp-sales-axis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-sales-axis .mp-seg__i {
+    justify-content: center;
+    padding: 0 10px;
+  }
 }
 .mp-sales-dims {
   display: grid;
@@ -2146,6 +2163,47 @@ a.mp-viz-heat-cell:focus-visible {
 }
 .mp-conta-tabs[data-end="true"]::after {
   opacity: 0;
+}
+
+/* ─── Contabilidad › Gastos (ExpensesTab.tsx) ─────────────────────────────
+ *
+ *  La pestaña Gastos es una lista ancha (filas de una línea en columnas):
+ *  el contenedor de la página se abre sólo mientras está a la vista (las
+ *  demás pestañas siguen en su ancho de lectura). Sin :has (navegadores
+ *  viejos) queda angosta y la lista cae a tarjetas: nada se rompe.
+ *  .mp-exp-row       Columnas de la fila (y de su encabezado): consecutivo,
+ *                    fecha, proveedor, categoría, total a pagar, estado.
+ *  .mp-exp-filters   Barra de filtros: la lista de los buscadores de
+ *                    proveedor y cuenta flota encima de la página en vez de
+ *                    empujar la barra (en las hojas va en el flujo).
+ *  .mp-exp-pill--*   Tonos de «Pagado» / «Por pagar» legibles en oscuro.
+ */
+@supports selector(:has(*)) {
+  .op-contabilidad:has([data-conta-wide]) {
+    max-width: 72rem;
+  }
+}
+.mp-exp-row {
+  grid-template-columns: 5.25rem 4.75rem minmax(0, 1.1fr) minmax(0, 1.5fr) 8.5rem 9.5rem;
+  align-items: center;
+  column-gap: 0.875rem;
+}
+.mp-exp-filters [role="listbox"] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+}
+[data-op-theme="dark"] .mp-exp-pill--ok {
+  background: rgba(127, 201, 160, 0.14);
+  color: #8fd3ae;
+}
+[data-op-theme="dark"] .mp-exp-pill--warn {
+  color: #e0b46a;
+}
+[data-op-theme="dark"] span.mp-exp-pill--warn {
+  background: rgba(224, 180, 106, 0.14);
 }
 
 /* ─── Inventario (/operator/inventario) ───────────────────────────────────

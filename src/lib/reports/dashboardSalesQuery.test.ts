@@ -88,6 +88,8 @@ describe("dashboard amount still to collect", () => {
       where: {
         restaurantId: "tenant",
         status: { in: ["placed", "in_kitchen", "ready", "served", "paying"] },
+        // A manual invoice is never an open account of the dining room.
+        table: { kind: { not: "manual" } },
         // An account left open from an earlier business day is not today's service.
         createdAt: { gte: BUSINESS_DAY },
       },

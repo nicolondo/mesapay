@@ -11,7 +11,8 @@
 //
 //   deuda   = Σ max(0, monto − reembolsado − notas crédito) − Σ abonos
 //   vencida = max(0, Σ cargos ya vencidos − Σ abonos)        (FIFO, ver
-//             `overdueFromTotals`; mismo criterio que Cartera)
+//             `overdueFromTotals`; mismo criterio que Cartera; un abono
+//             dirigido a un cargo que aún no vence no cuenta)
 //
 // Se corren dos lecturas sobre esa base: el agregado (total y resumen de la
 // lista filtrada, y si el comercio usa crédito) y la página (ids en orden,
@@ -96,16 +97,25 @@ function baseCte(restaurantId: string, today: string): Prisma.Sql {
        GROUP BY p."billingCustomerId"
     ),
     paid AS (
-      SELECT "billingCustomerId" AS "customerId", SUM("amountCents")::bigint AS "paidCents"
-        FROM "CustomerCreditPayment"
-       WHERE "restaurantId" = ${restaurantId}
-       GROUP BY "billingCustomerId"
+      -- Un abono DIRIGIDO a un cargo que todavía no vence (el link de pago
+      -- de una factura manual) no baja la deuda vencida: se aplica a su
+      -- cargo, no FIFO (ver customerCredit.allocateFifo).
+      SELECT ccp."billingCustomerId" AS "customerId",
+             SUM(ccp."amountCents")::bigint AS "paidCents",
+             SUM(CASE WHEN ch."id" IS NOT NULL
+                       AND COALESCE(ch."settledAt", ch."createdAt")::date + cbc."creditTermsDays" >= ${today}::date
+                      THEN ccp."amountCents" ELSE 0 END)::bigint AS "paidNotOverdueCents"
+        FROM "CustomerCreditPayment" ccp
+        LEFT JOIN "Payment" ch ON ch."id" = ccp."creditChargeId"
+        LEFT JOIN "BillingCustomer" cbc ON cbc."id" = ccp."billingCustomerId"
+       WHERE ccp."restaurantId" = ${restaurantId}
+       GROUP BY ccp."billingCustomerId"
     ),
     base AS (
       SELECT bc."id", bc."customerName", bc."docType", bc."docNumber", bc."email", bc."createdAt",
              bc."creditEnabled", bc."discountEnabled", bc."discountBps",
              COALESCE(ch."chargedCents", 0) - COALESCE(pd."paidCents", 0) AS "debtCents",
-             GREATEST(COALESCE(ch."overdueChargedCents", 0) - COALESCE(pd."paidCents", 0), 0) AS "overdueCents"
+             GREATEST(COALESCE(ch."overdueChargedCents", 0) - (COALESCE(pd."paidCents", 0) - COALESCE(pd."paidNotOverdueCents", 0)), 0) AS "overdueCents"
         FROM "BillingCustomer" bc
         LEFT JOIN charged ch ON ch."customerId" = bc."id"
         LEFT JOIN paid pd ON pd."customerId" = bc."id"

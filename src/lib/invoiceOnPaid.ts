@@ -75,6 +75,13 @@ export type IssueInvoiceOnPaidOptions = {
    *   · "none": sólo se crea el documento (tests, o quien vaya a emitir).
    */
   emit?: "after" | "inline" | "none";
+  /**
+   * `false`: no mandar el correo del comprobante. Lo usa "Emitir y enviar
+   * factura" de la factura manual, que manda ella misma la factura (con su
+   * link de pago) a los correos que eligió el operador. La factura
+   * electrónica sale igual al aceptarla la DIAN: es la entrega fiscal.
+   */
+  deliverEmail?: boolean;
 };
 
 /**
@@ -200,7 +207,7 @@ export async function issueInvoiceOnPaid(
     // lugar: invoiceDelivery.ts. Con `einvoicing` activo nunca sale el
     // comprobante; la factura electrónica la manda la aceptación de la DIAN.
     // Best-effort y no lanza.
-    void deliverInvoiceEmail({
+    if (opts.deliverEmail !== false) void deliverInvoiceEmail({
       tenant: { id: order.restaurantId, enabledModules: order.restaurant.enabledModules },
       invoice: {
         invoiceId: inv.invoiceId,

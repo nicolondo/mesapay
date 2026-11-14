@@ -89,6 +89,28 @@ describe("POST abono", () => {
     expect(m.queryRaw).toHaveBeenCalled();
   });
 
+  it("dirigido a un cargo (factura manual por cobrar): se guarda el cargo y no pasa de su saldo", async () => {
+    // Ya hay un abono de $40.000 dirigido a c2: le quedan $10.000.
+    m.abonoFindMany.mockResolvedValue([
+      { id: "a0", paidAt: new Date("2026-09-06"), amountCents: 40_000, accountCode: "112005", note: null, creditChargeId: "c2", paymentLinkId: "pl1", createdBy: null },
+    ]);
+    const over = await post({ amountCents: 20_000, accountCode: "111005", creditChargeId: "c2" });
+    expect(over.status).toBe(400);
+    expect(await over.json()).toEqual({ error: "exceeds_debt", debtCents: 10_000 });
+    expect(m.abonoCreate).not.toHaveBeenCalled();
+
+    const ok = await post({ amountCents: 10_000, accountCode: "111005", creditChargeId: "c2" });
+    expect(ok.status).toBe(201);
+    expect(m.abonoCreate.mock.calls[0][0].data).toMatchObject({ creditChargeId: "c2", amountCents: 10_000 });
+  });
+
+  it("un cargo que no es de este cliente no existe", async () => {
+    const res = await post({ amountCents: 1_000, accountCode: "111005", creditChargeId: "ajeno" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "charge_not_found" });
+    expect(m.abonoCreate).not.toHaveBeenCalled();
+  });
+
   it("sin fecha usa hoy", async () => {
     const before = Date.now();
     await post({ amountCents: 1_000, accountCode: "110505" });

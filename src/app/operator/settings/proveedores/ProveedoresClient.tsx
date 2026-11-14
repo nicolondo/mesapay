@@ -18,6 +18,7 @@ import {
   toBaseQty,
   type MeasureKind,
 } from "@/lib/erp/units";
+import { SupplierCreditSummary } from "@/components/suppliers/SupplierCreditSummary";
 
 type Supplier = {
   id: string;
@@ -727,6 +728,9 @@ function SupplierDetailSheet({
           </div>
         </div>
         <div className="text-[11px] text-op-muted mb-4">{headerLine}</div>
+
+        {/* Notas crédito y saldo a favor del proveedor. */}
+        <SupplierCreditSummary supplierId={supplier.id} currency={currency} />
 
         <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-2">
           {t("priceListTitle")}

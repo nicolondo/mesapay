@@ -32,6 +32,7 @@ function row(i: number, over: Partial<SupplierReportRow> = {}): SupplierReportRo
     invoices: i,
     lastPurchase: null,
     payableCents: 0,
+    agreementCents: 0,
     ...over,
   };
 }

@@ -39,6 +39,10 @@
  * sueltas en su sitio.
  */
 import type { StatementLabel } from "./statementLabel";
+import { ENGINE } from "../engineCodes";
+
+/** Subcuenta de los acuerdos comerciales con proveedores (renglón propio del PYG). */
+export const SUPPLIER_AGREEMENTS_PREFIX: string = ENGINE.ACUERDOS_COMERCIALES;
 
 export type ResultMovement = {
   accountCode: string;
@@ -364,7 +368,13 @@ export function buildIncomeStatement({
     line("ing", { key: "isIncomeGeneric" }, summary.incomeCents);
   }
 
-  line("costo-inv", { key: "isCosts" }, neg(summary.costCents));
+  // Acuerdos comerciales con proveedores (bonificaciones por volumen, metas,
+  // convenios): contra-costo propio (613575 y sus auxiliares). Renglón aparte
+  // en Colombia para ver por período cuánto se recibió por ese concepto; el
+  // resto de los costos queda en «Costos reconocidos». Σ de los dos = costos.
+  const agreements = co ? sum(rows, (r) => r.kind === "costo" && r.accountCode.startsWith(SUPPLIER_AGREEMENTS_PREFIX)) : 0;
+  line("costo-inv", { key: "isCosts" }, neg(summary.costCents - agreements));
+  if (agreements !== 0) line("costo-acuerdos", { key: "isSupplierAgreements" }, neg(agreements), SUPPLIER_AGREEMENTS_PREFIX);
 
   if (co) {
     // Gastos por naturaleza: 51xx y 52xx se funden por los dígitos 3-4 y

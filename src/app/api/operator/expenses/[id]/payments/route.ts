@@ -7,6 +7,9 @@ import { getErpContext, isDenied } from "@/lib/erp/access";
 import { EXPENSE_INCLUDE } from "@/lib/erp/expenseShared";
 import { expensePayableCents } from "@/lib/erp/expenseTax";
 import { loadAccountMap } from "@/lib/erp/ledger";
+import { SupplierCreditError } from "@/lib/erp/supplierCreditNoteService";
+import { createSupplierPayment } from "@/lib/erp/supplierPaymentService";
+import { bogotaBusinessDateIso } from "@/lib/bogota";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +65,47 @@ async function POSTHandler(
   const accounts = await loadAccountMap(ctx.restaurantId);
   if (!accounts.get(b.accountCode)) {
     return NextResponse.json({ error: "account_not_found" }, { status: 400 });
+  }
+
+  // Gasto CON proveedor: el abono es un comprobante de egreso de UNA factura
+  // (misma lógica, consecutivo y asiento que «Pagar a proveedor»). Sin
+  // proveedor no hay comprobante: sigue como abono suelto.
+  const owner = await db.expense.findUnique({
+    where: { id },
+    select: { restaurantId: true, supplierId: true, recurring: true },
+  });
+  if (owner && owner.restaurantId === ctx.restaurantId && owner.supplierId && !owner.recurring) {
+    const paidAt = b.paidAt ? new Date(b.paidAt) : new Date();
+    try {
+      const voucher = await createSupplierPayment(
+        ctx.restaurantId,
+        {
+          supplierId: owner.supplierId,
+          date: bogotaBusinessDateIso(paidAt),
+          accountCode: b.accountCode,
+          note: b.note || null,
+          amountCents: b.amountCents,
+          docs: [{ kind: "expense", id }],
+          credits: [],
+        },
+        session?.user?.id ?? null,
+        { anyAccount: true },
+      );
+      const [payment, expense] = await Promise.all([
+        db.expensePayment.findFirstOrThrow({ where: { supplierPaymentId: voucher.id, expenseId: id } }),
+        db.expense.findUniqueOrThrow({
+          where: { id },
+          include: { ...EXPENSE_INCLUDE, payments: { orderBy: { paidAt: "desc" } } },
+        }),
+      ]);
+      return NextResponse.json({ payment, expense, voucher: { id: voucher.id, number: voucher.number } }, { status: 201 });
+    } catch (err) {
+      if (err instanceof SupplierCreditError) {
+        const code = err.code === "plan_changed" ? "exceeds_balance" : err.code === "account_invalid" ? "account_not_found" : err.code;
+        return NextResponse.json({ error: code }, { status: code === "exceeds_balance" || code === "account_not_found" ? 400 : err.status });
+      }
+      throw err;
+    }
   }
 
   try {

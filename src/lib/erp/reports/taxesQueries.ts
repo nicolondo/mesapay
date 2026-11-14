@@ -57,6 +57,7 @@ import {
 import { creditNoteFiscalDate } from "../creditNoteLedger";
 import type {
   CreditNoteTaxInput,
+  SupplierCreditNoteTaxInput,
   CurrentSalesTax,
   ExpenseTaxInput,
   PurchaseTaxInput,
@@ -309,6 +310,52 @@ export async function loadExpenseTaxDocs(
     retentions: e.retentions.map(({ ratePpm, ...r }) => ({ ...r, rateBps: conceptRateBps({ rateBps: r.rateBps, ratePpm }) })),
     href: expenseHref(e.id, e.date),
   }));
+}
+
+/**
+ * Notas crédito de PROVEEDORES con IVA o INC discriminado: las fechadas en
+ * el rango restan; las anuladas en el rango devuelven (como el reverso del
+ * asiento). Las que no discriminan impuestos no tocan el IVA.
+ */
+export async function loadSupplierCreditNoteTaxDocs(
+  restaurantId: string,
+  from: Date,
+  to: Date,
+): Promise<SupplierCreditNoteTaxInput[]> {
+  const withTax = { OR: [{ ivaCents: { gt: 0 } }, { incCents: { gt: 0 } }] };
+  const select = {
+    id: true,
+    number: true,
+    date: true,
+    voidedAt: true,
+    ivaPct: true,
+    totalCents: true,
+    ivaCents: true,
+    incCents: true,
+    ivaDeductible: true,
+    supplier: { select: { name: true, taxId: true } },
+  } as const;
+  const [notes, voids] = await Promise.all([
+    db.supplierCreditNote.findMany({ where: { restaurantId, date: { gte: from, lt: to }, ...withTax }, select }),
+    db.supplierCreditNote.findMany({
+      where: { restaurantId, status: "voided", voidedAt: { gte: from, lt: to }, ...withTax },
+      select,
+    }),
+  ]);
+  const row = (n: (typeof notes)[number], sign: -1 | 1): SupplierCreditNoteTaxInput => ({
+    creditNoteId: n.id,
+    document: n.number,
+    dateIso: (sign === 1 && n.voidedAt ? n.voidedAt : n.date).toISOString(),
+    supplierName: n.supplier.name,
+    supplierTaxId: n.supplier.taxId,
+    sign,
+    ivaPct: n.ivaPct,
+    baseCents: n.totalCents - n.ivaCents - n.incCents,
+    ivaCents: n.ivaCents,
+    nonDeductibleIvaCents: n.ivaDeductible ? 0 : n.ivaCents,
+    incCents: n.incCents,
+  });
+  return [...notes.map((n) => row(n, -1)), ...voids.map((n) => row(n, 1))];
 }
 
 /**

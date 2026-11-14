@@ -18,6 +18,18 @@ const m = vi.hoisted(() => ({
   numberedWhere: [] as unknown[],
 }));
 
+// Pagos con comprobante (bloque 10): este test no los ejercita.
+vi.mock("./supplierPaymentPosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierPaymentPosting")>()),
+  loadSupplierPaymentFacts: async () => ({ payments: [], voids: [] }),
+  firstSupplierPaymentActivity: async () => null,
+}));
+// Notas crédito de proveedores (bloque 9): este test no las ejercita.
+vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),
+  loadSupplierCreditFacts: async () => ({ notes: [], voids: [], applies: [], refunds: [] }),
+  firstSupplierCreditActivity: async () => null,
+}));
 vi.mock("@/lib/db", () => {
   const agg = (model: string, field: string) => ({
     aggregate: async () => ({ _min: { [field]: m.mins[model] ?? null } }),
@@ -330,7 +342,10 @@ describe("lock por comercio", () => {
 
 describe("ENGINE_SOURCES", () => {
   it("coincide con las fuentes que arma el motor en posting.ts", () => {
-    const code = readFileSync(path.join(__dirname, "posting.ts"), "utf8");
+    // El motor y su bloque de notas crédito de proveedores (archivo aparte).
+    const code = ["posting.ts", "supplierCreditNotePosting.ts", "supplierPaymentPosting.ts"]
+      .map((f) => readFileSync(path.join(__dirname, f), "utf8"))
+      .join("\n");
     const sources = new Set([...code.matchAll(/source: "([a-z_]+)",\s*memo:/g)].map((x) => x[1]));
     expect([...sources].sort()).toEqual([...ENGINE_SOURCES].sort());
   });

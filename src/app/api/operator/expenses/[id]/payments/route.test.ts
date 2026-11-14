@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  voucher: vi.fn(),
   update: vi.fn(),
   paymentCreate: vi.fn(),
 }));
@@ -20,8 +21,16 @@ vi.mock("@/lib/db", () => {
     expense: { findUnique: m.findUnique, update: m.update },
     expensePayment: { create: m.paymentCreate },
   };
-  return { db: { $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx) } };
+  return {
+    db: {
+      $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
+      // Con proveedor el abono es un comprobante de egreso (ver el último caso).
+      expense: { findUnique: m.findUnique, findUniqueOrThrow: async () => ({ id: "e1" }) },
+      expensePayment: { findFirstOrThrow: async () => ({ id: "p-ce" }) },
+    },
+  };
 });
+vi.mock("@/lib/erp/supplierPaymentService", () => ({ createSupplierPayment: m.voucher }));
 
 import { POST } from "./route";
 import { expenseOutstandingCents } from "@/lib/erp/accounting";
@@ -79,5 +88,16 @@ describe("expenseOutstandingCents", () => {
     expect(expenseOutstandingCents({ amountCents: 500_000, paidCents: null, recurring: false })).toBe(500_000);
     expect(expenseOutstandingCents({ amountCents: 500_000, paidCents: 600_000, recurring: false })).toBe(0);
     expect(expenseOutstandingCents({ amountCents: 500_000, recurring: true })).toBe(0);
+  });
+
+  it("con proveedor, el abono es un comprobante de egreso de esa factura (cualquier cuenta del plan)", async () => {
+    m.findUnique.mockResolvedValue({ restaurantId: "r1", supplierId: "s1", recurring: false, amountCents: 500_000, paidCents: 0 });
+    m.voucher.mockResolvedValue({ id: "ce-1", number: 3, plan: {} });
+    const res = await pay({ amountCents: 100_000, accountCode: "110505", paidAt: "2026-10-21T17:00:00.000Z" });
+    expect(res.status).toBe(201);
+    const [, input, , opts] = m.voucher.mock.calls[0]!;
+    expect(input).toMatchObject({ supplierId: "s1", date: "2026-10-21", docs: [{ kind: "expense", id: "e1" }], credits: [] });
+    expect(opts).toEqual({ anyAccount: true });
+    expect(m.paymentCreate).not.toHaveBeenCalled();
   });
 });

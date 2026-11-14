@@ -16,7 +16,11 @@ const scope = vi.hoisted(() => ({ restaurantId: "" }));
 vi.mock("../src/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("../src/auth", () => ({ auth: async () => ({ user: { role: "operator" } }) }));
 vi.mock("../src/lib/activeRestaurant", () => ({ getActiveRestaurantId: async () => scope.restaurantId }));
-vi.mock("../src/lib/erp/ledger", () => ({ loadAccountMap: async () => new Map([["110505", "test-cash-account"]]) }));
+vi.mock("../src/lib/erp/ledger", () => ({
+  loadAccountMap: async () => new Map([["110505", "test-cash-account"]]),
+  // El abono es un comprobante de egreso: su servicio valida la cuenta con el índice del plan.
+  loadAccountIndex: async () => new Map([["110505", { id: "test-cash-account", postable: true, active: true }]]),
+}));
 
 const url = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/invalid");
 if (!["127.0.0.1", "localhost"].includes(url.hostname) || !/^\/mesapay_.*(?:test|validation)$/.test(url.pathname)) {

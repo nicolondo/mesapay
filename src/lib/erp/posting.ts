@@ -42,6 +42,15 @@ import { loadCreditNoteMonthPosting, loadRefundMonthPosting } from "./creditNote
 import { NO_TIP_POSTING, sumSlices } from "./creditNoteLedger";
 import { payrollTotalsForPosting } from "./payrollData";
 import { resolvePurchasePaymentAccount } from "./paymentAccounts";
+import { buildSupplierCreditEntries, loadSupplierCreditFacts } from "./supplierCreditNotePosting";
+import { buildSupplierPaymentEntries, loadSupplierPaymentFacts } from "./supplierPaymentPosting";
+
+/**
+ * Abonos que NO son un pago suelto: cruces de notas crédito o anticipos y
+ * filas de un comprobante de egreso. Los asientan los bloques 9 y 10, no
+ * «Pagos a proveedores» ni «Pagos de gastos».
+ */
+const NOT_SUPPLIER_LINKED = { supplierCreditNoteId: null, supplierPaymentId: null, supplierAdvanceId: null } as const;
 import { type PurchaseBookRowAmounts, sumPurchaseBookRows } from "./purchaseTax";
 import {
   type SalesTaxOrder,
@@ -210,8 +219,10 @@ async function buildMonthEntries(
         where: { restaurantId, paidAt: tsRange },
         select: { amountCents: true, accountCode: true, paidAt: true },
       }),
+      // Sin los cruces con notas crédito de proveedores: no salió plata (los
+      // asienta el bloque 9 contra el saldo a favor).
       db.purchasePayment.findMany({
-        where: { restaurantId, paidAt: tsRange },
+        where: { restaurantId, paidAt: tsRange, ...NOT_SUPPLIER_LINKED },
         select: { amountCents: true, accountCode: true, method: true, paidAt: true },
       }),
       // sale_consumption/waste = CMV y mermas reales (ledger A4), una fila por
@@ -243,8 +254,9 @@ async function buildMonthEntries(
           retentions: { select: { kind: true, accountCode: true, amountCents: true } },
         },
       }),
+      // Ídem: los cruces de un gasto con una nota crédito van en el bloque 9.
       db.expensePayment.findMany({
-        where: { restaurantId, paidAt: tsRange },
+        where: { restaurantId, paidAt: tsRange, ...NOT_SUPPLIER_LINKED },
         select: { amountCents: true, accountCode: true, paidAt: true },
       }),
     ]);
@@ -693,6 +705,32 @@ async function buildMonthEntries(
       creditNoteIds: notes.filter((n) => n.postsFiscal !== false).map((n) => n.id),
       creditNoteTipIds: notes.filter((n) => n.postsTip).map((n) => n.id),
     });
+  }
+
+  // 9) NOTAS CRÉDITO DE PROVEEDORES — la nota (D saldo a favor 133005 · C
+  // contrapartida + IVA descontable), su anulación, los cruces con compras y
+  // gastos (D proveedores / costos y gastos por pagar · C 133005) y los
+  // reintegros en dinero (D caja/banco · C 133005). Ver
+  // supplierCreditNotePosting.ts.
+  {
+    const facts = await loadSupplierCreditFacts(restaurantId, range, biz);
+    entries.push(
+      ...buildSupplierCreditEntries(facts, {
+        calendarDay: calendarDayOf,
+        businessDay: dayOf,
+        entryDate: dateOf,
+      }),
+    );
+  }
+
+  // 10) PAGOS A PROVEEDORES CON COMPROBANTE (CE) — por día del pago: D
+  // proveedores / costos y gastos por pagar por lo aplicado a cada lado + D
+  // 133005 por el anticipo (excedente) · C la cuenta de donde salió. Su
+  // anulación, el reverso el día que se anula. Los cruces de saldos a favor
+  // hechos al pagar los asienta el bloque 9. Ver supplierPaymentPosting.ts.
+  {
+    const facts = await loadSupplierPaymentFacts(restaurantId, range, biz);
+    entries.push(...buildSupplierPaymentEntries(facts, { calendarDay: calendarDayOf, businessDay: dayOf, entryDate: dateOf }));
   }
 
   return entries;

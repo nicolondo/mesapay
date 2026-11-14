@@ -127,6 +127,28 @@ export type ExpenseTaxInput = {
 
 export type CurrentSalesTax = { kind: SalesTaxKind; pct: number };
 
+/**
+ * Nota crédito de un PROVEEDOR con IVA o INC discriminado (las que no lo
+ * discriminan no tocan el IVA). Resta del tramo de compras de su tarifa lo
+ * que el motor saca del IVA descontable; su anulación (`sign` 1) lo
+ * devuelve el día que se anula, como el reverso del asiento.
+ */
+export type SupplierCreditNoteTaxInput = {
+  creditNoteId: string;
+  document: string;
+  dateIso: string;
+  supplierName: string;
+  supplierTaxId: string | null;
+  /** −1: la nota (resta); 1: su anulación (devuelve). */
+  sign: -1 | 1;
+  ivaPct: number;
+  baseCents: number;
+  ivaCents: number;
+  /** Parte del IVA que NO era descontable (sigue a la base en el asiento). */
+  nonDeductibleIvaCents: number;
+  incCents: number;
+};
+
 /** Una nota crédito aceptada, con fecha fiscal en el período. */
 export type CreditNoteTaxInput = {
   creditNoteId: string;
@@ -173,6 +195,8 @@ export type DocumentTaxTotals = {
   /** IVA de compras que el motor lleva al descontable (24081001). */
   ivaDescontableCents: number;
   incComprasCents: number;
+  /** IVA que restaron (neto de anulaciones) las notas crédito de proveedores; ya restado de ivaComprasCents. */
+  supplierCreditNoteIvaCents?: number;
   /** IVA registrado en GASTOS (todas sus tarifas). */
   ivaGastosCents: number;
   /** Parte del IVA de gastos que NO es descontable (costo del gasto). */
@@ -279,6 +303,7 @@ export function aggregateDocumentTaxes({
   currentTax = { kind: "none", pct: 0 },
   creditNotes = [],
   expenses = [],
+  supplierCreditNotes = [],
 }: {
   sales: readonly SaleTaxInput[];
   purchases: readonly PurchaseTaxInput[];
@@ -290,6 +315,8 @@ export function aggregateDocumentTaxes({
   currentTax?: CurrentSalesTax;
   /** Notas crédito aceptadas con fecha fiscal en el período. */
   creditNotes?: readonly CreditNoteTaxInput[];
+  /** Notas crédito de PROVEEDORES con IVA/INC (y sus anulaciones) del período. */
+  supplierCreditNotes?: readonly SupplierCreditNoteTaxInput[];
 }): DocumentTaxes {
   // ── Ventas por `kind:tarifa` (lo que cada factura congeló) ──────────────
   const salesBuckets = new Map<string, TaxBucket>();
@@ -381,6 +408,34 @@ export function aggregateDocumentTaxes({
     addRetention("reteica", netTotal, p.reteIcaCents);
   }
 
+  // ── Notas crédito de proveedores: restan del tramo de compras ─────────
+  // Lo que restan queda aparte en el tramo (creditNote*), como las notas de
+  // ventas: el contador ve bruto, notas y neto.
+  let supplierCreditNoteIva = 0;
+  for (const n of supplierCreditNotes) {
+    const base = n.sign * n.baseCents;
+    if (n.ivaCents !== 0) {
+      const key = bucketKey("iva", n.ivaPct);
+      const b = purchaseBuckets.get(key) ?? newBucket("iva", n.ivaPct);
+      b.baseCents += base;
+      b.taxCents += n.sign * n.ivaCents;
+      b.creditNoteBaseCents -= base;
+      b.creditNoteTaxCents -= n.sign * n.ivaCents;
+      purchaseBuckets.set(key, b);
+      ivaNoDescontable += n.sign * Math.max(0, Math.min(n.ivaCents, n.nonDeductibleIvaCents));
+      supplierCreditNoteIva -= n.sign * n.ivaCents;
+    }
+    if (n.incCents !== 0) {
+      const b = purchaseBuckets.get(bucketKey("inc", null)) ?? newBucket("inc", null);
+      b.baseCents += base;
+      b.taxCents += n.sign * n.incCents;
+      b.creditNoteBaseCents -= base;
+      b.creditNoteTaxCents -= n.sign * n.incCents;
+      purchaseBuckets.set(b.key, b);
+      incCompras += n.sign * n.incCents;
+    }
+  }
+
   // ── Gastos: IVA por la tarifa del gasto, INC y sus retenciones ───────
   const expenseBuckets = new Map<string, TaxBucket>();
   let ivaGastosNoDescontable = 0;
@@ -428,6 +483,7 @@ export function aggregateDocumentTaxes({
     ivaNoDescontableCents: ivaNoDescontable,
     ivaDescontableCents: ivaCompras - ivaNoDescontable,
     incComprasCents: incCompras,
+    supplierCreditNoteIvaCents: supplierCreditNoteIva,
     ivaGastosCents: ivaGastos,
     ivaGastosNoDescontableCents: ivaGastosNoDescontable,
     ivaGastosDescontableCents: ivaGastos - ivaGastosNoDescontable,

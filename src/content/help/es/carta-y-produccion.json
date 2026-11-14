@@ -484,6 +484,87 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "notas-credito-de-proveedores",
+      "title": "Registra las notas crédito de tus proveedores",
+      "summary": "Registra los acuerdos comerciales, descuentos, pronto pago y devoluciones que te dan tus proveedores con nota crédito: bajan lo que les debes, quedan en la contabilidad y lo que sobra queda como saldo a favor.",
+      "keywords": [
+        "nota credito",
+        "nota credito proveedor",
+        "descuento comercial",
+        "acuerdo comercial",
+        "bonificacion",
+        "rebate",
+        "pronto pago",
+        "descuento condicionado",
+        "devolucion a proveedor",
+        "devolucion de mercancia",
+        "saldo a favor",
+        "anticipo proveedor",
+        "reintegro",
+        "CUDE",
+        "nota credito sin factura",
+        "613575",
+        "613570",
+        "421040",
+        "133005"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Cuando un proveedor te baja lo que le debes —por un descuento, una bonificación por volumen, pronto pago o porque le devolviste mercancía— te manda una **nota crédito**. Regístrala en **Compras › Notas crédito**: baja la cuenta por pagar, queda en la contabilidad y, si sobra, queda como **saldo a favor** del proveedor.\n\n## Qué tipo de nota es\n\n- **Acuerdo comercial**: bonificación por volumen, metas o un convenio con el proveedor (por ejemplo, «Bonificación trimestral cerveza»). Escribe el **Concepto o acuerdo** para agruparlo en el reporte. Contablemente es un menor costo de ventas en su propia cuenta (613575) y sale como renglón aparte en el estado de resultado.\n- **Descuento comercial**: un descuento o rebaja puntual que te dan después de la factura. Es menor costo de ventas (613570).\n- **Pronto pago**: un descuento por pagar a tiempo o de contado (condicionado). Es un ingreso financiero (421040).\n- **Devolución**: le devolviste mercancía. Elige la factura de donde sale y escribe qué devolviste y cuánto: los insumos salen del inventario al valor que te acredita la nota.\n\nLos descuentos van al costo de ventas y no al inventario porque, en un restaurante, la mercancía de la factura casi siempre ya se vendió. Las cuentas por defecto se pueden cambiar en **Cuenta contable** (excepto en devoluciones); **valídalas con tu contador**.\n\n## Registra una nota\n\n1. Entra a [Compras](/operator/compras) y abre la pestaña **Notas crédito**.\n2. Toca **Registrar nota crédito**. Si tienes el PDF o la foto, toca **Leer nota con IA**: se llenan el proveedor, el número, la fecha, el CUDE, el valor y las facturas que cita. Revísalo todo antes de guardar.\n3. Elige el **Proveedor** y escribe el **Número de la nota**, la **Fecha** y, si es electrónica, el **CUDE**.\n4. Elige el tipo y escribe el **Valor total de la nota**.\n5. Si la nota **discrimina IVA o INC**, marca la casilla y revisa la tarifa y el valor. Si no lo discrimina, déjala sin marcar: el IVA no se toca y el valor completo es el descuento. Una nota electrónica es válida aunque no relacione ninguna factura.\n6. Opcional: relaciona las facturas que la nota cita.\n7. Revisa **Cómo se aplica** y toca **Guardar nota**.\n\nSi subes a **Cargar factura** un documento que en realidad es una nota crédito, MESAPAY te avisa y te lleva a registrarla aquí sin volver a leerla.\n\n## Cómo se aplica a las facturas\n\nAl guardar, la nota se aplica de una vez a lo que le debes al proveedor:\n\n- **Automático**: primero a las facturas que relaciona y lo que sobra a las más antiguas (la que vence primero).\n- **Elegir**: tú dices cuánto baja de cada factura o gasto.\n- **Saldo a favor**: no se aplica a nada todavía.\n\nLa vista previa muestra cuánto debía cada factura y cuánto queda. En el detalle de la compra la aplicación aparece como «Nota crédito NC-…» y no se puede borrar desde ahí: se deshace anulando la nota.\n\n## El saldo a favor\n\nLo que no se aplica queda como **saldo a favor del proveedor**: un derecho tuyo, no deuda. Lo ves en las notas (filtro **Con saldo a favor**), en **Por pagar**, en el detalle del proveedor y en la [Cartera](/operator/reportes/cartera) como «Saldos a favor de proveedores». Se usa así:\n\n- Al **recibir** la próxima compra del proveedor aparece marcada la casilla para aplicar su saldo a favor a esa factura, y en el detalle de una compra pendiente aparece **Aplicar**.\n- Desde el detalle de la nota: **Aplicar saldo a facturas**.\n- Si el proveedor te devuelve la plata: **Registrar reintegro** con la cuenta de caja o banco donde entró.\n\n## Anular una nota\n\nLas notas no se borran. En el detalle toca **Anular nota**: las facturas vuelven a deber lo que la nota les había bajado, la mercancía devuelta vuelve al inventario y la contabilidad registra el reverso el día de la anulación. Si la nota tiene reintegros, bórralos primero. No se puede anular si se aplicó a facturas en un mes ya cerrado.\n\n## En la contabilidad y los reportes\n\n- La nota entra al libro el día de su fecha: debita el saldo a favor (133005) y acredita la cuenta del tipo y, si la nota trae IVA y tu comercio lo descuenta, el IVA descontable. Cada aplicación a una factura pasa ese valor a Proveedores (o a costos y gastos por pagar, si es un gasto).\n- En **Impuestos del período** el IVA de las notas resta del IVA de compras de su tarifa; las notas sin IVA no lo tocan.\n- El reporte [Notas crédito de proveedores](/operator/reportes/notas-credito-proveedores) muestra lo recibido por tipo, por proveedor, por acuerdo y por mes, con descarga en Excel.\n- No se registra una nota con fecha en un mes cerrado: usa la fecha en que la recibiste.",
+      "links": [
+        {
+          "label": "Ir a Notas crédito",
+          "href": "/operator/compras/notas-credito"
+        },
+        {
+          "label": "Ver el reporte",
+          "href": "/operator/reportes/notas-credito-proveedores"
+        },
+        {
+          "label": "Ir a Cartera",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
+      "slug": "pagar-a-proveedores",
+      "title": "Paga a tus proveedores con comprobante de egreso",
+      "summary": "Elige el proveedor, mira todo lo que le debes y paga: primero se cruzan sus notas crédito y anticipos y luego el dinero, de la factura más antigua a la más nueva, con su comprobante CE para enviarle.",
+      "keywords": [
+        "pagar proveedor",
+        "pago a proveedor",
+        "comprobante de egreso",
+        "CE",
+        "abono",
+        "FIFO",
+        "factura mas antigua",
+        "nota credito",
+        "anticipo",
+        "pago de mas",
+        "pago parcial",
+        "anular pago",
+        "cuentas por pagar",
+        "egreso"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "En **Compras › Pagos** registras lo que le pagas a un proveedor, aunque cubra varias facturas, y queda un **comprobante de egreso** (CE-0001, CE-0002…) para enviarle.\n\n## Paga\n\n1. Entra a [Compras › Pagos](/operator/compras/pagos) y toca **Pagar a proveedor** (también desde la [Cartera](/operator/reportes/cartera) o el extracto del proveedor: **Pagar a este proveedor**).\n2. Elige el **Proveedor**. Aparece **todo lo que le debes**: compras recibidas con saldo y gastos por pagar, de la que vence primero a la última.\n3. Abajo están sus **notas crédito y anticipos a favor**. Se cruzan **antes** del dinero: una nota que relaciona facturas baja primero esas; las demás (acuerdos comerciales, rebajas, anticipos) van a las facturas más antiguas.\n4. Revisa la vista previa: por factura ves **Saldo**, lo que baja la **Nota crédito**, el **Pago** y lo que **Queda**, y arriba **Total pendiente**, **Notas crédito aplicadas**, **Neto a pagar** y **Estás pagando**.\n5. Si quieres, desmarca facturas o notas, o cambia el orden con las flechas.\n6. Escribe el **Valor a pagar** (se propone el neto), la **Fecha**, de qué cuenta **Sale** (caja o banco), el **Medio**, la **Referencia** y, si tienes, el **Soporte**.\n7. Toca **Pagar**. Se abre el comprobante.\n\nPuedes pagar menos que el neto (pago parcial: el dinero cubre las facturas en el orden de la lista). Si pagas **de más**, te avisamos: el excedente queda como **anticipo** a tu favor con ese proveedor y se descuenta de sus próximas facturas (al recibir la compra aparece marcado y al volver a pagarle aparece en la lista).\n\n## El comprobante\n\nMuestra el comercio, el proveedor, la fecha, la cuenta y el medio, cada factura con lo cruzado y lo pagado, las notas crédito y anticipos usados, el total y el anticipo si lo hubo. Toca **Imprimir** para imprimirlo o guardarlo como PDF y enviárselo.\n\nEl **Registrar pago** del detalle de una compra (y el abono de un gasto con proveedor) también crea un comprobante, de una sola factura y sin anticipo.\n\n## Anular un pago\n\nLos comprobantes no se borran: en el comprobante toca **Anular comprobante**. Las facturas vuelven a deber lo pagado, las notas crédito y anticipos cruzados recuperan su saldo y la contabilidad registra el reverso ese día. No se puede si su anticipo ya se descontó de otra factura (anula primero ese pago) ni si es de un mes cerrado.\n\n## En la contabilidad\n\nEl pago debita Proveedores (2205) —o costos y gastos por pagar si es un gasto— y acredita la caja o el banco. El cruce de notas crédito no mueve caja (la nota ya se registró). El anticipo va a 133005 Anticipos a proveedores. La cartera, el informe de proveedores y **Por pagar** se actualizan al instante.",
+      "links": [
+        {
+          "label": "Ir a Pagos",
+          "href": "/operator/compras/pagos"
+        },
+        {
+          "label": "Ir a Cartera",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Haz órdenes de compra, recibe la mercancía y paga a tus proveedores",
       "summary": "Pide mercancía a tus proveedores con una orden de compra o registra la que ya recibiste, con su IVA o impuesto al consumo y tus retenciones, recíbela completa o por partes y paga hasta dejar la cuenta en cero.",

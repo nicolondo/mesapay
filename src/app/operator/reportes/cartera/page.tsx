@@ -10,6 +10,8 @@ import {
   type CarteraSide,
 } from "@/lib/erp/reports/cartera";
 import { loadPayablesDocs, loadReceivableDocs } from "@/lib/erp/reports/carteraQueries";
+import { loadSupplierCreditBalances } from "@/lib/erp/reports/supplierCreditCartera";
+import { SupplierCreditSection } from "./SupplierCreditSection";
 import { carteraQuery } from "@/lib/erp/reports/params";
 import { todayIso } from "@/lib/erp/reports/period";
 import { firstParam, reportGate } from "../_components/gate";
@@ -62,6 +64,7 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
     getTranslations("opSettings"),
     getLocale(),
   ]);
+  const tPay = await getTranslations("opSupplierPayment");
   const gate = await reportGate();
   if (!gate) return <div className="p-6">{tSettings("noRestaurant")}</div>;
 
@@ -74,9 +77,10 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
   const asOf = q.hasta ?? todayIso();
   const vista: Vista = q.vista ?? "todas";
 
-  const [payableDocs, receivable] = await Promise.all([
+  const [payableDocs, receivable, supplierCredits] = await Promise.all([
     loadPayablesDocs(gate.restaurantId, asOf),
     loadReceivableDocs(gate.restaurantId, asOf),
+    loadSupplierCreditBalances(gate.restaurantId, asOf),
   ]);
   const payables = buildPartnerSummary(payableDocs, asOf);
   const receivables = buildPartnerSummary(receivable.docs, asOf);
@@ -129,6 +133,9 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
       }
       actions={
         <>
+          <Link href="/operator/compras/pagos?pagar=" className="mp-btn mp-btn--primary mp-btn--sm no-print">
+            {tPay("payButton")}
+          </Link>
           <CsvButton
             href={csvHref("/api/operator/reports/cartera", {
               vista: vista === "todas" ? undefined : vista,
@@ -203,6 +210,14 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
           locale={loc}
           totalLabel={t("statPayable")}
           empty={<EmptyNote>{t("emptyCxp")}</EmptyNote>}
+        />
+      )}
+
+      {vista !== "cxc" && supplierCredits.length > 0 && (
+        <SupplierCreditSection
+          balances={supplierCredits}
+          asOf={asOf}
+          money={(c) => formatMoney(c, { currency: gate.currency, locale: loc, fractionDigits: "auto" })}
         />
       )}
     </ReportShell>

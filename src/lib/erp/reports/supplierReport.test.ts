@@ -239,7 +239,7 @@ describe("promedio mensual", () => {
     expect(byId.get("s3")).toMatchObject({ totalCents: 0, averageCents: 0, invoices: 0, lastPurchase: "2024-06-30", creditDays: null });
   });
 
-  it("inactivos: solo si compraron en el período o se les debe", () => {
+  it("inactivos: solo si compraron en el período, se les debe o dieron acuerdos", () => {
     expect(byId.has("s4")).toBe(false);
     expect(byId.get("s5")).toMatchObject({ active: false, payableCents: 70_000, invoices: 0 });
   });
@@ -253,7 +253,30 @@ describe("promedio mensual", () => {
       averageCents: 150_000,
       invoices: 3,
       payableCents: 270_000,
+      agreementCents: 0,
     });
+  });
+
+  it("recibido por acuerdos comerciales: columna aparte que no toca compras ni promedio", () => {
+    const withAgreements = buildSupplierReport({
+      suppliers: SUPPLIERS,
+      docs: [doc("s1", "2026-01-15", 1_200_000)],
+      period: PERIOD,
+      basis: "costo",
+      agreements: new Map([
+        ["s1", 150_000],
+        // Inactivo sin compras ni saldo, pero que dio un acuerdo en el período: sale.
+        ["s4", 40_000],
+        // De otro comercio: se ignora.
+        ["ajeno", 999_999],
+      ]),
+    });
+    const m = new Map(withAgreements.map((r) => [r.supplierId, r]));
+    expect(m.get("s1")).toMatchObject({ totalCents: 1_200_000, averageCents: 100_000, agreementCents: 150_000 });
+    expect(m.get("s2")).toMatchObject({ agreementCents: 0 });
+    expect(m.get("s4")).toMatchObject({ active: false, invoices: 0, payableCents: 0, agreementCents: 40_000 });
+    expect(m.has("ajeno")).toBe(false);
+    expect(supplierReportTotals(withAgreements, PERIOD.months)).toMatchObject({ totalCents: 1_200_000, agreementCents: 190_000 });
   });
 
   it("base «total facturado» usa el total con IVA", () => {
@@ -310,14 +333,15 @@ function row(over: Partial<SupplierReportRow> & { supplierId: string; name: stri
     invoices: 0,
     lastPurchase: null,
     payableCents: 0,
+    agreementCents: 0,
     ...over,
   };
 }
 
 const VIEW_ROWS: SupplierReportRow[] = [
-  row({ supplierId: "a", name: "Panadería Ñapa", averageCents: 500, creditDays: 30, lastPurchase: "2026-09-01", document: supplierDocument("900123456-7", null) }),
+  row({ supplierId: "a", name: "Panadería Ñapa", averageCents: 500, creditDays: 30, lastPurchase: "2026-09-01", document: supplierDocument("900123456-7", null), agreementCents: 20_000 }),
   row({ supplierId: "b", name: "Abarrotes Centro", averageCents: 900, lastPurchase: null, document: null }),
-  row({ supplierId: "c", name: "Carnes Andinas", averageCents: 500, creditDays: 8, lastPurchase: "2026-10-01", document: supplierDocument("800197268", "NIT") }),
+  row({ supplierId: "c", name: "Carnes Andinas", averageCents: 500, creditDays: 8, lastPurchase: "2026-10-01", document: supplierDocument("800197268", "NIT"), agreementCents: 75_000 }),
 ];
 
 describe("búsqueda, filtro y orden", () => {
@@ -344,6 +368,8 @@ describe("búsqueda, filtro y orden", () => {
     expect(view({ sort: "nit", dir: "asc" })).toEqual(["c", "a", "b"]);
     expect(view({ sort: "nit", dir: "desc" })).toEqual(["a", "c", "b"]);
     expect(view({ sort: "condicion", dir: "asc" })).toEqual(["b", "c", "a"]);
+    expect(view({ sort: "acuerdos", dir: "desc" })).toEqual(["c", "a", "b"]);
+    expect(view({ sort: "acuerdos", dir: "asc" })).toEqual(["b", "a", "c"]);
   });
 
   it("pagina en el servidor sin perder filas y acota la página pedida", () => {

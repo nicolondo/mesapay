@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ purchases: vi.fn(), createEntry: vi.fn() }));
+// Pagos con comprobante (bloque 10): este test no los ejercita.
+vi.mock("./supplierPaymentPosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierPaymentPosting")>()),
+  loadSupplierPaymentFacts: async () => ({ payments: [], voids: [] }),
+  firstSupplierPaymentActivity: async () => null,
+}));
+// Notas crédito de proveedores (bloque 9): este test no las ejercita.
+vi.mock("./supplierCreditNotePosting", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./supplierCreditNotePosting")>()),
+  loadSupplierCreditFacts: async () => ({ notes: [], voids: [], applies: [], refunds: [] }),
+  firstSupplierCreditActivity: async () => null,
+}));
 vi.mock("@/lib/db", () => ({ db: {
   restaurant: { findUnique: async () => ({ businessDayCutoffHour: 5, salesTaxKind: "none", salesTaxPct: 0 }) },
   stockMovement: { findMany: async () => [] },

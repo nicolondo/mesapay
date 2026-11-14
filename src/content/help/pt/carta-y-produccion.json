@@ -482,6 +482,86 @@
       "updated": "2026-11-13"
     },
     {
+      "slug": "notas-credito-de-proveedores",
+      "title": "Registre as notas de crédito dos seus fornecedores",
+      "summary": "Registre os acordos comerciais, descontos, pagamento antecipado e devoluções que seus fornecedores concedem com nota de crédito: reduzem o que você deve, entram na contabilidade e o que sobrar fica como saldo a favor.",
+      "keywords": [
+        "nota de credito",
+        "nota de credito do fornecedor",
+        "desconto comercial",
+        "acordo comercial",
+        "bonificacao",
+        "rebate",
+        "pagamento antecipado",
+        "desconto condicionado",
+        "devolucao ao fornecedor",
+        "devolucao de mercadoria",
+        "saldo a favor",
+        "adiantamento a fornecedor",
+        "reembolso",
+        "CUDE",
+        "nota de credito sem fatura",
+        "613575",
+        "613570",
+        "421040",
+        "133005"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Quando um fornecedor reduz o que você deve —por um desconto, uma bonificação por volume, pagamento antecipado ou porque você devolveu mercadoria— ele envia uma **nota de crédito**. Registre-a em **Compras › Notas de crédito**: ela reduz a conta a pagar, entra na contabilidade e, se sobrar, fica como **saldo a favor** com o fornecedor.\n\n## Que tipo de nota é\n\n- **Acordo comercial**: bonificação por volume, metas ou um convênio com o fornecedor (por exemplo, «Bonificação trimestral de cerveja»). Preencha **Conceito ou acordo** para agrupá-lo no relatório. Contabilmente é um menor custo das vendas em conta própria (613575) e aparece como linha à parte na demonstração do resultado.\n- **Desconto comercial**: um desconto ou abatimento pontual concedido depois da fatura. É menor custo das vendas (613570).\n- **Pagamento antecipado**: um desconto por pagar em dia ou à vista (condicionado). É uma receita financeira (421040).\n- **Devolução**: você devolveu mercadoria. Escolha a fatura de origem e informe o que devolveu e quanto: os insumos saem do estoque pelo valor que a nota credita.\n\nOs descontos vão para o custo das vendas e não para o estoque porque, num restaurante, a mercadoria da fatura quase sempre já foi vendida. As contas padrão podem ser trocadas em **Conta contábil** (exceto nas devoluções); **valide-as com seu contador**.\n\n## Registre uma nota\n\n1. Entre em [Compras](/operator/compras) e abra a aba **Notas de crédito**.\n2. Toque em **Registrar nota de crédito**. Se tiver o PDF ou a foto, toque em **Ler nota com IA**: são preenchidos o fornecedor, o número, a data, o CUDE, o valor e as faturas citadas. Confira tudo antes de salvar.\n3. Escolha o **Fornecedor** e informe o **Número da nota**, a **Data** e, se for eletrônica, o **CUDE**.\n4. Escolha o tipo e informe o **Valor total da nota**.\n5. Se a nota **discrimina IVA ou imposto sobre consumo**, marque a caixa e confira a alíquota e o valor. Se não discrimina, deixe desmarcada: o IVA não é alterado e o valor total é o desconto. Uma nota eletrônica é válida mesmo que não relacione nenhuma fatura.\n6. Opcional: relacione as faturas que a nota cita.\n7. Confira **Como é aplicada** e toque em **Salvar nota**.\n\nSe você enviar em **Carregar fatura** um documento que na verdade é uma nota de crédito, o MESAPAY avisa e leva você a registrá-la aqui sem ler de novo.\n\n## Como é aplicada às faturas\n\nAo salvar, a nota é aplicada na hora ao que você deve ao fornecedor:\n\n- **Automático**: primeiro às faturas que relaciona e o que sobrar às mais antigas (a que vence primeiro).\n- **Escolher**: você define quanto reduz de cada fatura ou despesa.\n- **Saldo a favor**: nada é aplicado ainda.\n\nA prévia mostra quanto cada fatura devia e quanto fica. No detalhe da compra a aplicação aparece como «Nota de crédito NC-…» e não pode ser apagada ali: desfaz-se anulando a nota.\n\n## O saldo a favor\n\nO que não for aplicado fica como **saldo a favor do fornecedor**: um direito seu, não dívida. Você o vê nas notas (filtro **Com saldo a favor**), em **A pagar**, no detalhe do fornecedor e na [Carteira](/operator/reportes/cartera) como «Saldos a favor com fornecedores». É usado assim:\n\n- Ao **receber** a próxima compra do fornecedor aparece marcada a caixa para aplicar o saldo a favor a essa fatura, e no detalhe de uma compra pendente aparece **Aplicar**.\n- No detalhe da nota: **Aplicar saldo a faturas**.\n- Se o fornecedor devolver o dinheiro: **Registrar reembolso** com a conta de caixa ou banco onde entrou.\n\n## Anular uma nota\n\nAs notas não são apagadas. No detalhe, toque em **Anular nota**: as faturas voltam a dever o que a nota tinha reduzido, a mercadoria devolvida volta ao estoque e a contabilidade registra o estorno no dia da anulação. Se a nota tiver reembolsos, apague-os primeiro. Não pode ser anulada se foi aplicada a faturas de um mês já fechado.\n\n## Na contabilidade e nos relatórios\n\n- A nota entra no livro na sua data: debita o saldo a favor (133005) e credita a conta do tipo e, se a nota traz IVA e seu estabelecimento o deduz, o IVA dedutível. Cada aplicação a uma fatura passa esse valor para Fornecedores (ou para custos e despesas a pagar, se for uma despesa).\n- Em **Impostos do período** o IVA das notas é subtraído do IVA de compras da sua alíquota; as notas sem IVA não o alteram.\n- O relatório [Notas de crédito de fornecedores](/operator/reportes/notas-credito-proveedores) mostra o recebido por tipo, fornecedor, acordo e mês, com download em Excel.\n- Não se registra uma nota com data num mês fechado: use a data em que a recebeu.",
+      "links": [
+        {
+          "label": "Ir para Notas de crédito",
+          "href": "/operator/compras/notas-credito"
+        },
+        {
+          "label": "Ver o relatório",
+          "href": "/operator/reportes/notas-credito-proveedores"
+        },
+        {
+          "label": "Ir para Carteira",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
+      "slug": "pagar-a-proveedores",
+      "title": "Pague seus fornecedores com comprovante de saída",
+      "summary": "Escolha o fornecedor, veja tudo o que você deve e pague: primeiro são compensadas as notas de crédito e os adiantamentos e depois o dinheiro, da fatura mais antiga para a mais nova, com o comprovante CE para enviar.",
+      "keywords": [
+        "pagar fornecedor",
+        "pagamento a fornecedor",
+        "comprovante de saida",
+        "CE",
+        "abono",
+        "FIFO",
+        "fatura mais antiga",
+        "nota de credito",
+        "adiantamento",
+        "pagamento a mais",
+        "pagamento parcial",
+        "anular pagamento",
+        "contas a pagar"
+      ],
+      "audience": [
+        "operator"
+      ],
+      "body": "Em **Compras › Pagamentos** você registra o que paga a um fornecedor, mesmo que cubra várias faturas, e fica um **comprovante de saída** (CE-0001, CE-0002…) para enviar a ele.\n\n## Pague\n\n1. Entre em [Compras › Pagamentos](/operator/compras/pagos) e toque em **Pagar fornecedor** (também na [Carteira](/operator/reportes/cartera) ou no extrato do fornecedor: **Pagar este fornecedor**).\n2. Escolha o **Fornecedor**. Aparece **tudo o que você deve**: compras recebidas com saldo e despesas a pagar, da que vence primeiro à última.\n3. Abaixo estão as **notas de crédito e adiantamentos a favor**. Eles são compensados **antes** do dinheiro: uma nota que relaciona faturas vai primeiro a essas; as demais (acordos comerciais, abatimentos, adiantamentos) vão às faturas mais antigas.\n4. Confira a prévia: por fatura você vê o **Saldo**, o que a **Nota de crédito** reduz, o **Pagamento** e o que **Fica**, e no topo **Total pendente**, **Notas de crédito aplicadas**, **Líquido a pagar** e **Você está pagando**.\n5. Se quiser, desmarque faturas ou notas, ou mude a ordem com as setas.\n6. Informe o **Valor a pagar** (o líquido é sugerido), a **Data**, de que conta **Sai** (caixa ou banco), o **Meio**, a **Referência** e, se tiver, o **Comprovante anexo**.\n7. Toque em **Pagar**. O comprovante abre.\n\nVocê pode pagar menos que o líquido (pagamento parcial: o dinheiro cobre as faturas na ordem da lista). Se pagar **a mais**, avisamos: o excedente fica como **adiantamento** a seu favor com esse fornecedor e é descontado das próximas faturas (aparece marcado ao receber a compra e na lista ao pagar de novo).\n\n## O comprovante\n\nMostra o estabelecimento, o fornecedor, a data, a conta e o meio, cada fatura com o compensado e o pago, as notas de crédito e adiantamentos usados, o total e o adiantamento, se houver. Toque em **Imprimir** para imprimir ou salvar como PDF e enviar.\n\nO **Registrar pagamento** do detalhe de uma compra (e o abono de uma despesa com fornecedor) também cria um comprovante, de uma só fatura e sem adiantamento.\n\n## Anular um pagamento\n\nOs comprovantes não são apagados: no comprovante toque em **Anular comprovante**. As faturas voltam a dever o que foi pago, as notas de crédito e adiantamentos compensados recuperam o saldo e a contabilidade registra o estorno nesse dia. Não é possível se o adiantamento já foi descontado de outra fatura (anule primeiro esse pagamento) nem se for de um mês fechado.\n\n## Na contabilidade\n\nO pagamento debita Fornecedores (2205) —ou custos e despesas a pagar, se for uma despesa— e credita o caixa ou o banco. A compensação de notas de crédito não movimenta caixa (a nota já foi registrada). O adiantamento vai para 133005 Adiantamentos a fornecedores. A carteira, o relatório de fornecedores e **A pagar** se atualizam na hora.",
+      "links": [
+        {
+          "label": "Ir para Pagamentos",
+          "href": "/operator/compras/pagos"
+        },
+        {
+          "label": "Ir para Carteira",
+          "href": "/operator/reportes/cartera"
+        }
+      ],
+      "updated": "2026-11-13"
+    },
+    {
       "slug": "ordenes-de-compra",
       "title": "Faça ordens de compra, receba a mercadoria e pague seus fornecedores",
       "summary": "Peça mercadoria aos seus fornecedores com uma ordem de compra ou registre a que você já recebeu, com IVA ou imposto sobre consumo e suas retenções, receba tudo ou em partes e pague até zerar o saldo.",

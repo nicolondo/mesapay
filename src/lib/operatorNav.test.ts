@@ -77,14 +77,32 @@ describe("buildOperatorNav — grupos Contabilidad y Reportes", () => {
       ["navRepAll", "/operator/reportes"],
       ["navRepCommissions", "/operator/reportes/comisiones"],
       ["navRepReceivables", "/operator/reportes/cartera"],
+      ["navRepSuppliers", "/operator/reportes/proveedores"],
       ["navRepTaxes", "/operator/reportes/impuestos"],
       ["navRepBalanceSheet", "/operator/reportes/estado-situacion"],
       ["navRepIncome", "/operator/reportes/estado-resultado"],
       ["navRepTrialBalance", "/operator/reportes/balance-prueba"],
       ["navRepExogena", "/operator/reportes/exogena"],
     ]);
-    // 8 + 8 de zenith, más "Gastos y diario".
-    expect((acc?.children.length ?? 0) + (rep?.children.length ?? 0)).toBe(17);
+    // 8 + 8 de zenith, más "Gastos y diario" y el informe de proveedores.
+    expect((acc?.children.length ?? 0) + (rep?.children.length ?? 0)).toBe(18);
+  });
+
+  it("el informe de proveedores va en Reportes con contabilidad y junto a Compras sin ella, nunca en los dos", () => {
+    const href = "/operator/reportes/proveedores";
+    const withAccounting = buildOperatorNav({ ...base, enabledModules: ["purchasing", "accounting"] });
+    expect(group(withAccounting, "navGroupReports")?.children.map((c) => c.href)).toContain(href);
+    expect(group(withAccounting, "navErpGroup")?.children.map((c) => c.href)).not.toContain(href);
+
+    const purchasingOnly = buildOperatorNav({ ...base, enabledModules: ["purchasing"] });
+    expect(group(purchasingOnly, "navErpGroup")?.children.map((c) => c.href)).toEqual([
+      "/operator/settings/insumos",
+      "/operator/compras",
+      href,
+    ]);
+    expect(resolveActiveHref(purchasingOnly, { pathname: href })).toBe(href);
+
+    expect(hrefs(buildOperatorNav({ ...base, enabledModules: ["inventory"] }))).not.toContain(href);
   });
 
   it("los grupos van entre Administración y Negocio, sin entrada suelta de Contabilidad", () => {

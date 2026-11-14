@@ -32,6 +32,7 @@ import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability"
 import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { onlinePaymentsReady } from "@/lib/payments/onlinePayments";
 import { loadOrderInvoiceView } from "@/lib/orders/invoicedOrder";
+import { invoiceSummaryFor } from "@/lib/invoiceCustomerMemory";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -154,12 +155,15 @@ export async function PayFlow({
       docType: true,
       docNumber: true,
       email: true,
+      ccEmails: true,
+      fromSavedCustomer: true,
     },
   });
   // La genérica pudo pedirse SIN correo (`simpleInvoiceEmail === ""`): igual
-  // cuenta como pedida y se muestra el resumen, no la pregunta.
+  // cuenta como pedida y se muestra el resumen, no la pregunta. Armada con
+  // un cliente guardado, al comensal le llega enmascarada.
   const invoiceIntent: InvoiceIntent | null = invoiceRequest
-    ? { kind: "formal", summary: invoiceRequest }
+    ? { kind: "formal", summary: invoiceSummaryFor(invoiceRequest, operatorMode) }
     : isSimpleInvoiceRequested(order.simpleInvoiceEmail)
       ? { kind: "simple", email: simpleInvoiceEmailFrom(order.simpleInvoiceEmail) }
       : null;

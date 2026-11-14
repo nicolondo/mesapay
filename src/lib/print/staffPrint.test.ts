@@ -152,115 +152,28 @@ describe("sin impresora (o agente caído): el navegador, como respaldo", () => {
   });
 });
 
-describe("«Este dispositivo»: ni se intenta el agente", () => {
-  const device = { destination: "device" as const, paperMm: 58 as const };
-
-  it("factura ⇒ sin llamar a la ruta, la vista al papel del equipo en el iframe oculto", async () => {
+describe("«Este dispositivo»: a la vista imprimible del equipo, sin agente ni iframe", () => {
+  it("factura ⇒ navega a /factura/[id]?w=55&imprimir=dispositivo, sin llamar a la ruta ni imprimir acá", async () => {
     const fetch = route(200, { queued: true, printerName: "Caja" });
     const printInBrowser = browser();
-    const onDevicePrint = vi.fn();
-    const r = await printAsStaff(invoice, { fetch, printInBrowser, onDevicePrint }, device);
+    const navigate = vi.fn();
+    const r = await printAsStaff(invoice, { fetch, printInBrowser, navigate }, { destination: "device" });
     expect(fetch).not.toHaveBeenCalled();
-    expect(onDevicePrint).toHaveBeenCalledOnce();
-    expect(onDevicePrint.mock.invocationCallOrder[0]).toBeLessThan(
-      printInBrowser.mock.invocationCallOrder[0],
-    );
-    expect(printInBrowser).toHaveBeenCalledWith("/factura/inv-1?w=58", {
-      tabUrl: "/factura/inv-1?w=58&print=1",
-    });
-    expect(r).toEqual({
-      via: "device",
-      outcome: { kind: "printed" },
-      tabUrl: "/factura/inv-1?w=58&print=1",
-      paperMm: 58,
-    });
-  });
-
-  it("55 mm (el datáfono) u otro ancho del equipo van tal cual en ?w=", async () => {
-    const printInBrowser = browser();
-    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 55 });
-    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=55", {
-      tabUrl: "/factura/inv-1?w=55&print=1",
-    });
-    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 52 });
-    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=52", {
-      tabUrl: "/factura/inv-1?w=52&print=1",
-    });
-  });
-
-  it("80 mm si el equipo usa ese papel; sin papel elegido, 58", async () => {
-    const printInBrowser = browser();
-    await printAsStaff(invoice, { printInBrowser }, { destination: "device", paperMm: 80 });
-    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=80", {
-      tabUrl: "/factura/inv-1?w=80&print=1",
-    });
-    await printAsStaff(invoice, { printInBrowser }, { destination: "device" });
-    expect(printInBrowser).toHaveBeenLastCalledWith("/factura/inv-1?w=58", {
-      tabUrl: "/factura/inv-1?w=58&print=1",
-    });
-  });
-
-  it("precuenta ⇒ avisa a su ruta (rastro) SIN encolar, y la imprime acá", async () => {
-    const fetch = route(200, { queued: false, reason: "device" });
-    const printInBrowser = browser();
-    const openTab = vi.fn(() => true);
-    const r = await printAsStaff(prebill, { fetch, printInBrowser, openTab }, device);
-    expect(fetch).toHaveBeenCalledWith("/api/operator/orders/order-1/prebill", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ destination: "device" }),
-    });
-    expect(printInBrowser).toHaveBeenCalledWith("/mesero/precuenta/order-1?w=58", {
-      tabUrl: "/mesero/precuenta/order-1?w=58&print=1",
-      openTab,
-    });
-    expect(r).toMatchObject({ via: "device", paperMm: 58 });
-  });
-
-  it("precuenta de una cuenta ya cerrada ⇒ error, sin imprimir", async () => {
-    const printInBrowser = browser();
-    const r = await printAsStaff(
-      prebill,
-      { fetch: route(409, { error: "order_closed" }), printInBrowser },
-      device,
-    );
-    expect(r).toEqual({ via: "error", code: "order_closed" });
     expect(printInBrowser).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith("/factura/inv-1?w=55&imprimir=dispositivo");
+    expect(r).toEqual({ via: "device_view", href: "/factura/inv-1?w=55&imprimir=dispositivo" });
   });
 
-  it("un servidor viejo que ignora el aviso y la encola ⇒ salió por la caja: no se imprime dos veces", async () => {
-    const printInBrowser = browser();
-    const r = await printAsStaff(
-      prebill,
-      { fetch: route(200, { queued: true, printerName: "Caja" }), printInBrowser },
-      device,
-    );
-    expect(r).toEqual({ via: "agent", printerName: "Caja" });
-    expect(printInBrowser).not.toHaveBeenCalled();
-  });
-
-  it("el cierre de turno avisa a su ruta y se imprime en su tirilla", async () => {
-    const fetch = route(200, { queued: false, reason: "device" });
-    const printInBrowser = browser();
-    const r = await printAsStaff(
+  it("precuenta del mesero y cierre: su propia vista imprimible", async () => {
+    const navigate = vi.fn();
+    await printAsStaff(prebill, { navigate }, { destination: "device" });
+    expect(navigate).toHaveBeenLastCalledWith("/mesero/precuenta/order-1?w=55&imprimir=dispositivo");
+    await printAsStaff(
       { kind: "shift", shiftId: "shift-1", href: "/operator/shifts/shift-1/tirilla" },
-      { fetch, printInBrowser },
-      device,
+      { navigate },
+      { destination: "device" },
     );
-    expect(fetch).toHaveBeenCalledWith("/api/operator/shifts/shift-1/print", expect.anything());
-    expect(printInBrowser).toHaveBeenCalledWith("/operator/shifts/shift-1/tirilla?w=58", {
-      tabUrl: "/operator/shifts/shift-1/tirilla?w=58&print=1",
-    });
-    expect(r).toMatchObject({ via: "device" });
-  });
-
-  it("si el documento no carga ⇒ lo dice (para reintentar o cambiar de destino)", async () => {
-    const r = await printAsStaff(
-      invoice,
-      { printInBrowser: browser({ kind: "failed", reason: "load_failed" }) },
-      device,
-    );
-    expect(r).toMatchObject({ via: "device", outcome: { kind: "failed", reason: "load_failed" } });
+    expect(navigate).toHaveBeenLastCalledWith("/operator/shifts/shift-1/tirilla?w=55&imprimir=dispositivo");
   });
 
   it("«Impresora de caja» explícita es lo de siempre (POST sin cuerpo)", async () => {

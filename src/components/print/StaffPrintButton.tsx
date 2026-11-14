@@ -21,10 +21,10 @@ import {
   terminalPrintMessage,
   type TerminalPrintDevice,
 } from "@/lib/print/terminalPrintClient";
+import { browserPrintSupport, reportClientPrintError } from "@/lib/print/devicePrint";
 import {
   devicePrintHelpHref,
   otherDestination,
-  type DevicePaperMm,
   type PrintDestination,
 } from "@/lib/print/printDestination";
 import {
@@ -44,10 +44,10 @@ type Notice = {
   /** Por qué se cayó al navegador (para el aviso de configurar). */
   fallback?: StaffPrintFallbackReason;
   /**
-   * Por «Este dispositivo», con este papel; `opened` cuando el diálogo de
-   * impresión ya salió (ahí va la pista de cómo activar la impresora).
+   * «Este dispositivo» en un navegador que no puede imprimir: el aviso
+   * ofrece imprimir en el datáfono (Kushki) o en la caja.
    */
-  device?: { paperMm: DevicePaperMm; opened: boolean };
+  device?: { unsupported: boolean };
   /** A dónde se intentó: para ofrecer «Reintentar» y el otro destino. */
   destination?: PrintDestination;
   /** Datáfono: hay varios y hay que decir cuál es éste (una vez). */
@@ -147,6 +147,8 @@ export type StaffPrintState = {
   switchTo: (destination: PrintDestination) => Promise<void>;
   /** Datáfono: elige cuál es este equipo e imprime ahí. */
   chooseTerminal: (deviceId: string) => Promise<void>;
+  /** Imprime en el datáfono por Kushki (también desde otros roles, como salida). */
+  runOnTerminal: () => Promise<void>;
   /** Datáfono: reintenta un trabajo encolado (el mismo `printJobId`). */
   retryTerminal: (job: { deviceId: string; printJobId: string }) => Promise<void>;
   busy: boolean;
@@ -190,6 +192,12 @@ export function useStaffPrint(
    * Smart POS por el Print API cloud de Kushki (su app instalada en Firefox
    * no abre la impresión del sistema). Ver `lib/print/terminalPrint.ts`.
    */
+  /**
+   * «Datáfono» (y «Este dispositivo» del usuario Datáfono): la impresora del
+   * datáfono por Kushki (ver `lib/print/terminalPrint.ts`). «Impresa ✓» sólo
+   * si el datáfono respondió COMPLETED; si quedó encolada, Reintentar con el
+   * MISMO trabajo (no imprime doble).
+   */
   async function runOnTerminal(deviceId?: string, printJobId?: string) {
     if (busy) return;
     if (timer.current) clearTimeout(timer.current);
@@ -207,7 +215,6 @@ export function useStaffPrint(
       });
       if (result.via === "terminal") {
         rememberPrintTerminal(scope, result.deviceId);
-        // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
         setNotice(
           result.state === "printed"
             ? { tone: "ok", text: t("terminalSent", { device: result.deviceLabel }), destination: dest }
@@ -219,17 +226,20 @@ export function useStaffPrint(
               },
         );
       } else if (result.via === "choose_device") {
-        setNotice({
-          tone: "warn",
-          text: t("terminalChoose"),
-          destination: dest,
-          chooseDevices: result.devices,
-        });
+        setNotice({ tone: "warn", text: t("terminalChoose"), destination: dest, chooseDevices: result.devices });
       } else {
+        reportClientPrintError("terminal_print_failed", {
+          name: result.errorCode ?? result.code ?? "unknown",
+          ...(result.reason && { message: result.reason }),
+        });
         const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
         setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
       }
-    } catch {
+    } catch (err) {
+      reportClientPrintError("terminal_print_failed", {
+        name: err instanceof Error ? err.name : "unknown",
+        message: err instanceof Error ? err.message.slice(0, 300) : undefined,
+      });
       setNotice({ tone: "error", text: t("terminalFailed"), destination: dest });
     } finally {
       setBusy(false);
@@ -239,13 +249,24 @@ export function useStaffPrint(
   async function runAt(destination: PrintDestination) {
     if (busy || !pref.ready) return;
     // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
-    // mismo): la impresora del datáfono por Kushki.
+    // mismo): la impresora del Smart POS por Kushki.
     if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
       await runOnTerminal();
       return;
     }
     if (timer.current) clearTimeout(timer.current);
-    const paperMm = pref.paperMm;
+    // «Este dispositivo» en un navegador que no puede abrir la impresión
+    // del sistema (Firefox para Android < 114, la app instalada del
+    // datáfono): ni se navega; se dice qué hacer.
+    if (
+      destination === "device" &&
+      browserPrintSupport(navigator.userAgent, typeof window.print === "function") === "unsupported"
+    ) {
+      reportClientPrintError("device_print_unsupported");
+      setBrowser(null);
+      setNotice({ tone: "warn", text: t("deviceUnsupported"), destination, device: { unsupported: true } });
+      return;
+    }
     setBusy(true);
     setNotice(null);
     setBrowser(null);
@@ -263,16 +284,13 @@ export function useStaffPrint(
             });
             setBrowser({ step: "preparing" });
           },
-          onDevicePrint: () => {
-            setNotice({
-              tone: "ok",
-              text: t("deviceOpening"),
-              device: { paperMm, opened: false },
-              destination,
-            });
+          // «Este dispositivo»: a la vista imprimible del equipo (en la PWA
+          // del mesero, in-app).
+          navigate: (url) => {
+            if (!openTab || !openTab(url)) window.location.assign(url);
           },
         },
-        { destination, paperMm },
+        { destination },
       );
       if (result.via === "agent") {
         const m = agentMessage(result);
@@ -281,24 +299,9 @@ export function useStaffPrint(
         if (m.tone === "ok") timer.current = setTimeout(() => setNotice(null), 4000);
       } else if (result.via === "browser") {
         setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
-      } else if (result.via === "device") {
-        if (result.outcome.kind === "printed") {
-          setBrowser(null);
-          setNotice({
-            tone: "ok",
-            text: t("deviceOpened", { mm: result.paperMm }),
-            device: { paperMm: result.paperMm, opened: true },
-            destination,
-          });
-        } else {
-          setNotice({
-            tone: result.outcome.kind === "failed" ? "error" : "warn",
-            text: "",
-            device: { paperMm: result.paperMm, opened: false },
-            destination,
-          });
-          setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
-        }
+      } else if (result.via === "device_view") {
+        setBrowser(null);
+        setNotice({ tone: "ok", text: t("deviceOpeningView"), destination });
       } else {
         setBrowser(null);
         setNotice({ tone: "error", text: t("failed"), destination });
@@ -330,6 +333,7 @@ export function useStaffPrint(
     runAt,
     switchTo,
     chooseTerminal,
+    runOnTerminal: () => runOnTerminal(),
     retryTerminal: (job: { deviceId: string; printJobId: string }) => runOnTerminal(job.deviceId, job.printJobId),
     busy,
     notice,
@@ -350,7 +354,15 @@ export function StaffPrintNotice({
 }: {
   print: Pick<
     StaffPrintState,
-    "notice" | "browser" | "busy" | "runAt" | "switchTo" | "chooseTerminal" | "retryTerminal" | "pref"
+    | "notice"
+    | "browser"
+    | "busy"
+    | "runAt"
+    | "switchTo"
+    | "chooseTerminal"
+    | "runOnTerminal"
+    | "retryTerminal"
+    | "pref"
   >;
   className?: string;
   sameTab?: boolean;
@@ -360,7 +372,7 @@ export function StaffPrintNotice({
   const { notice, browser } = print;
   if (!notice) return null;
   const failed = notice.tone === "error" || browser?.step === "error";
-  const deviceOpened = !!notice.device?.opened && !browser;
+  const unsupported = !!notice.device?.unsupported;
   const helpHref = devicePrintHelpHref(print.pref.role);
   const actionClass = "underline font-medium disabled:opacity-50";
   return (
@@ -393,13 +405,33 @@ export function StaffPrintNotice({
           />
         </>
       )}
-      {deviceOpened && (
+      {unsupported && (
         <>
           {" "}
-          {t("deviceHint")}
+          {print.pref.terminalDevices.length > 0 && (
+            <>
+              <button
+                type="button"
+                className={actionClass}
+                disabled={print.busy}
+                onClick={() => void print.runOnTerminal()}
+              >
+                {t("useTerminal")}
+              </button>
+              {" · "}
+            </>
+          )}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.switchTo("caja")}
+          >
+            {t("useCaja")}
+          </button>
           {helpHref && (
             <>
-              {" "}
+              {" · "}
               <Link href={helpHref} className="underline" prefetch={false}>
                 {t("deviceHelpLink")}
               </Link>

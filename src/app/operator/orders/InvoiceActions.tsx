@@ -98,16 +98,19 @@ export function useResendInvoiceEmail(documentId: string | null): ResendInvoiceE
       );
       const j = (await res.json().catch(() => ({}))) as {
         sentTo?: string;
+        /** Correos adicionales de la factura, que también la recibieron. */
+        sentCc?: string[];
         attachment?: boolean;
         error?: string;
       };
       if (res.ok && j.sentTo) {
+        const email = [j.sentTo, ...(j.sentCc ?? [])].join(", ");
         setMsg({
           ok: true,
           text:
             j.attachment === false
-              ? t("resendSentNoAttachment", { email: j.sentTo })
-              : t("resendSent", { email: j.sentTo }),
+              ? t("resendSentNoAttachment", { email })
+              : t("resendSent", { email }),
         });
       } else {
         setMsg({

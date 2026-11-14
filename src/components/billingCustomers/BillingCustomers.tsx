@@ -449,9 +449,10 @@ function CustomerTable({ rows, usesCredit, money, onEdit, onPay, onStatement }: 
                   <DocumentCell customer={c} />
                 </Td>
                 <Td className="w-full max-w-0">
-                  <span className="block truncate" title={c.email}>
+                  <span className="block truncate" title={[c.email, ...(c.ccEmails ?? [])].join(", ")}>
                     {c.email}
                   </span>
+                  {(c.ccEmails?.length ?? 0) > 0 && <span className="block text-xs text-op-muted mt-0.5">{t("moreEmails", { count: c.ccEmails?.length ?? 0 })}</span>}
                   {c.phone && <span className="block text-xs text-op-muted mt-0.5">{c.phone}</span>}
                 </Td>
                 {usesCredit && (
@@ -525,6 +526,7 @@ function CustomerCards({ rows, money, onEdit, onPay, onStatement }: RowActions &
                 {t(isCompany(c.docType) ? "kindCompany" : "kindPerson")}
               </p>
               <p className="mt-0.5 text-xs text-op-muted break-all">{c.email}</p>
+              {(c.ccEmails?.length ?? 0) > 0 && <p className="text-xs text-op-muted">{t("moreEmails", { count: c.ccEmails?.length ?? 0 })}</p>}
               {c.phone && <p className="text-xs text-op-muted">{c.phone}</p>}
               <Badges customer={c} />
             </div>

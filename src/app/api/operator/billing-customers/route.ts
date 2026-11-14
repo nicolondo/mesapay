@@ -7,6 +7,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import { billingCustomerSchema, BILLING_CUSTOMER_READ_ROLES, BILLING_CUSTOMER_WRITE_ROLES } from "@/lib/billingCustomers";
 import { parseCustomerListParams, parsePageSize } from "@/lib/billingCustomerList";
 import { loadBillingCustomerPage } from "@/lib/billingCustomerListQueries";
+import { recordAuditEvent } from "@/lib/auditLog";
 
 /**
  * Listado/búsqueda de clientes de facturación, paginado en el servidor
@@ -57,6 +58,12 @@ async function POSTHandler(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "invalid", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
   try {
     const customer = await db.billingCustomer.create({ data: { ...parsed.data, restaurantId: scope.restaurantId } });
+    await recordAuditEvent({
+      kind: "billing_customer.create",
+      restaurantId: scope.restaurantId,
+      target: { type: "billing_customer", id: customer.id },
+      diff: { after: { source: "customers" } },
+    });
     return NextResponse.json({ customer }, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

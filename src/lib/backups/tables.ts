@@ -34,6 +34,9 @@ export const EXCLUDED_MODELS: ReadonlySet<string> = new Set([
   "DinerMagicLink",
   "PasswordResetToken",
   "PushSubscription",
+  // Token de un solo uso de "Usar estos datos" (factura personalizada):
+  // vence en minutos; no es dato del negocio.
+  "InvoiceCustomerLookup",
   // Acceso: las cuentas del personal (roles, contraseñas) las administra la
   // plataforma. Restaurarlas podría borrar al usuario que está restaurando
   // o revivir una contraseña vieja. Las referencias a usuarios que ya no

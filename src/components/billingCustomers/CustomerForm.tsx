@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { MoneyInput } from "@/components/MoneyInput";
 import { pesosToCents } from "@/lib/format";
 import { discountBpsToPctText, discountPctTextToBps, type BillingCustomerRecord } from "./types";
+import { ExtraEmailsField } from "@/components/invoice/ExtraEmailsField";
 
 const inputClass = "w-full min-w-0 rounded-xl border border-hairline bg-ivory px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta/40";
 
@@ -35,6 +36,8 @@ export function CustomerForm({ initial, onSaved, onCancel, className = "rounded-
     docNumber: initial?.docNumber ?? "",
     email: initial?.email ?? "", phone: initial?.phone ?? "",
   });
+  // Correos adicionales: la factura también les llega (ver invoiceEmails.ts).
+  const [ccEmails, setCcEmails] = useState<string[]>(initial?.ccEmails ?? []);
   const [creditEnabled, setCreditEnabled] = useState(initial?.creditEnabled ?? false);
   // El tope se edita en pesos (MoneyInput trabaja en unidades mayores); vacío = sin tope.
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimitCents != null ? String(initial.creditLimitCents / 100) : "");
@@ -68,6 +71,7 @@ export function CustomerForm({ initial, onSaved, onCancel, className = "rounded-
         body: JSON.stringify({
           // Sólo el número: el DV del NIT lo calcula el servidor.
           ...values,
+          ccEmails: ccEmails.map(e => e.trim()).filter(Boolean),
           creditEnabled,
           creditLimitCents: creditLimit.trim() && Number.isFinite(limitPesos) && limitPesos > 0 ? pesosToCents(limitPesos) : null,
           creditTermsDays: Number.isInteger(termsDays) ? termsDays : 30,
@@ -110,8 +114,18 @@ export function CustomerForm({ initial, onSaved, onCancel, className = "rounded-
         </select>
       </div>
       {field("docNumber", { maxLength: 40, inputMode: values.docType === "CC" ? "numeric" : "text", hint: values.docType === "NIT" ? t("docNumberHintNit") : undefined })}
-      {field("email", { type: "email" })}
+      {field("email", { type: "email", hint: t("emailMainHint") })}
       {field("phone", { type: "tel", required: false, maxLength: 32 })}
+      <div className="sm:col-span-2">
+        <ExtraEmailsField
+          value={ccEmails}
+          onChange={next => { setCcEmails(next); setFieldErrors(p => ({ ...p, ccEmails: undefined })); }}
+          disabled={busy}
+          inputClassName={inputClass}
+          labelClassName="text-sm text-muted mb-1.5"
+        />
+        {Boolean(fieldErrors.ccEmails) && <p className="text-xs text-danger mt-1">{t("ccEmailsInvalid")}</p>}
+      </div>
     </fieldset>
 
     <fieldset disabled={busy} className="mt-6 rounded-xl border border-hairline bg-ivory p-4">

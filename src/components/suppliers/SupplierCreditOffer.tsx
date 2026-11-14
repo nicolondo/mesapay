@@ -77,7 +77,7 @@ export function SupplierCreditOffer({
   const [err, setErr] = useState(false);
   if (!available || available <= 0 || doc.outstandingCents <= 0) return null;
   const amount = Math.min(available, doc.outstandingCents);
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   return (
     <div role="status" className="mt-2 rounded-2xl border border-[#2F6B4F]/30 bg-[#2F6B4F]/8 p-3">
       <p className="text-sm font-medium">{t("offerTitle", { amount: money(available) })}</p>

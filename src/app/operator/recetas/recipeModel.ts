@@ -4,7 +4,7 @@
 // sub-recetas, y se prueba sin DOM.
 
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, numberFormatter } from "@/lib/format";
 import { parseDecimalInput } from "@/lib/decimalInput";
 import { REFERENCE_PRICE_QTY_BASE, referencePriceUnit } from "@/lib/erp/ingredientPrice";
 import { grossQty, MAX_WASTE_PCT } from "@/lib/erp/recipes";
@@ -116,9 +116,9 @@ export function baseToInputQty(
   return { qty: String(base / units[0].factor), unit: units[0].symbol };
 }
 
-/** "32,5%" con separador decimal del idioma. */
+/** "32.5%" con la convención de números de `@/lib/format`. */
 export function formatPct(pct: number, locale: string): string {
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(pct)}%`;
+  return `${numberFormatter(locale, { maximumFractionDigits: 1 }).format(pct)}%`;
 }
 
 /**
@@ -219,7 +219,7 @@ export function minQtyLabel(
   const unit = DISPLAY_UNITS[kind].find((u) => u.symbol === unitSymbol);
   if (!unit) return "";
   const decimals = String(unit.factor).length - 1;
-  const min = new Intl.NumberFormat(locale, {
+  const min = numberFormatter(locale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(1 / unit.factor);

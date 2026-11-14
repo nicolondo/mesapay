@@ -61,7 +61,7 @@ export default async function SupplierCreditReportPage({ searchParams }: { searc
   ]);
 
   const loc = locale as Locale;
-  const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc });
+  const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc, fractionDigits: "auto" });
   const periodVars = { desde: fmtIsoDate(query.period.desde, loc), hasta: fmtIsoDate(query.period.hasta, loc) };
   const kindTotal = (k: (typeof SUPPLIER_CREDIT_NOTE_KINDS)[number]) =>
     report.byKind.find((x) => x.kind === k)?.totalCents ?? 0;

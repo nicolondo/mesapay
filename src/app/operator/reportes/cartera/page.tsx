@@ -214,7 +214,11 @@ export default async function CarteraPage({ searchParams }: { searchParams: Sear
       )}
 
       {vista !== "cxc" && supplierCredits.length > 0 && (
-        <SupplierCreditSection balances={supplierCredits} asOf={asOf} money={money} />
+        <SupplierCreditSection
+          balances={supplierCredits}
+          asOf={asOf}
+          money={(c) => formatMoney(c, { currency: gate.currency, locale: loc, fractionDigits: "auto" })}
+        />
       )}
     </ReportShell>
   );

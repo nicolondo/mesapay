@@ -129,9 +129,9 @@ export function maxFreeLineCents(order: OrderRoomInput, tax: FreeLineTax): numbe
 }
 
 /**
- * El máximo para mostrarle a quien digita: en pesos ENTEROS (el campo de
- * precio no admite centavos), redondeado hacia abajo para que escribir
- * exactamente ese número siempre pase.
+ * El máximo para mostrarle a quien digita: en pesos ENTEROS, redondeado
+ * hacia abajo para que escribir exactamente ese número siempre pase (el
+ * precio admite centavos, pero el tope se dice en pesos).
  */
 export function maxFreeLineDisplayCents(maxCents: number): number {
   return Math.max(0, Math.floor(maxCents / 100) * 100);

@@ -46,7 +46,7 @@ export function InvoiceReconcileSummary({
   const [expanded, setExpanded] = useState(false);
   // Cents are shown only when the amount has them (a rounding of $0,32 must
   // never read as "$0").
-  const money = (cents: number) => formatMoney(cents, { currency, locale, ...(cents % 100 !== 0 ? { fractionDigits: 2 as const } : {}) });
+  const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
   const signed = (cents: number) => `${cents > 0 ? "+" : "−"} ${money(Math.abs(cents))}`;
   const amount = (row: ReconcileRow, cents: number) => row.key === "adjustment" && cents !== 0 ? signed(cents) : money(cents);
   const total = rows.find(row => row.key === "total");

@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, formatMoney, localeTag } from "@/lib/format";
+import { formatDate, formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import {
   type ContabilidadTab,
   DEFAULT_CONTABILIDAD_TAB,
@@ -240,7 +240,7 @@ const PAY_METHOD_KEYS: Record<string, string> = {
 /** % (ya en escala 0-100, 1 decimal) → "66,5 %" localizado; null → "—". */
 function fmtPct(pct: number | null, locale: Locale): string {
   if (pct === null) return "—";
-  return new Intl.NumberFormat(localeTag(locale), {
+  return numberFormatter(localeTag(locale), {
     style: "percent",
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,

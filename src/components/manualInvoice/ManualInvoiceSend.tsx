@@ -96,7 +96,7 @@ async function callPayLink(orderId: string, body: { emails?: string[]; issue?: b
 /** Las líneas de estado: emitida, por cobrar/vencida, enviada, abierta, pagada… */
 export function PayLinkStatusLines({ info }: { info: ManualInvoiceSendInfo }) {
   const { t, locale, day, when, list, methodName } = useSendText();
-  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale, fractionDigits: "auto" });
   const lines: { key: string; text: string; tone?: "ok" | "warn" | "muted" }[] = [];
   const r = info.receivable;
   const link = info.link;
@@ -182,7 +182,7 @@ export function ManualInvoiceSendCard({
 }) {
   const { t, locale, list, methodName, errorText } = useSendText();
   const router = useRouter();
-  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale, fractionDigits: "auto" });
   const [mode, setMode] = useState<Mode | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [busy, setBusy] = useState<"copy" | "whatsapp" | null>(null);
@@ -437,7 +437,7 @@ export function ManualInvoiceSendDialog({
 }) {
   const { t, locale, list, errorText } = useSendText();
   const id = useId();
-  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency: info.currency, locale, fractionDigits: "auto" });
   const [emails, setEmails] = useState<string[]>(suggestedEmails.length > 0 ? suggestedEmails.slice(0, MAX_RECIPIENTS) : [""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -29,7 +29,7 @@ const LABELS: TaxRowLabels = {
   ivaIncluded: (pct) => `Incl. IVA ${pct}%`,
 };
 
-// Bandeja de $30.000 con INC 8% embebido, repartida como el XML:
+// Bandeja de $30,000 con INC 8% embebido, repartida como el XML:
 // base 27.777,78 + impuesto 2.222,22.
 const INC_8 = {
   salesTaxKind: "inc" as const,
@@ -235,7 +235,7 @@ describe("advertencia de propina — documento completo", () => {
 
 describe("taxRows — impuesto EMBEBIDO congelado en la factura", () => {
   it("una cuenta de menú con impoconsumo muestra la base y el impuesto incluido", () => {
-    // Lo que el dueño reclamó: el XML aceptado dice "INC 8%: $2.222" y el
+    // Lo que el dueño reclamó: el XML aceptado dice "INC 8%: $2,222" y el
     // papel no decía nada. Ahora el papel lo discrimina, informativo (ya
     // está dentro del subtotal, no se suma al total).
     expect(taxRows(snap(INC_8), LABELS)).toEqual([
@@ -349,10 +349,10 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
     const label = texts.findIndex((c) => c.text === "TOTAL A PAGAR\n");
     expect(label).toBeGreaterThan(-1);
     expect(texts[label]).toMatchObject({ bold: true, size: 28 });
-    expect(texts[label + 1]).toMatchObject({ text: "$ 132.000\n", bold: true, size: 32, align: "RIGHT" });
+    expect(texts[label + 1]).toMatchObject({ text: "$ 132,000\n", bold: true, size: 32, align: "RIGHT" });
     const rows = commands.flatMap((c) => (c.type === "columns" ? [`${c.columns[0].text} ${c.columns[1].text}`] : []));
-    expect(rows).toContain("Total factura $ 120.000");
-    expect(rows).toContain("Propina voluntaria $ 12.000");
+    expect(rows).toContain("Total factura $ 120,000");
+    expect(rows).toContain("Propina voluntaria $ 12,000");
   });
 
   it("datáfono, factura emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden", () => {
@@ -363,15 +363,15 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
       );
       return texts[texts.indexOf("TOTAL A PAGAR\n") + 1];
     };
-    expect(totalToPay({ tipCents: 1_200_000 })).toBe("$ 132.000\n");
-    expect(totalToPay()).toBe("$ 120.000\n");
+    expect(totalToPay({ tipCents: 1_200_000 })).toBe("$ 132,000\n");
+    expect(totalToPay()).toBe("$ 120,000\n");
   });
 });
 
 // Factura con el descuento del cliente DENTRO de las líneas: el XML declara
 // cada línea neta, así que el snapshot congela base e impuesto netos y TODAS
 // las superficies ponen el descuento antes de ellos. Cifras: subtotal
-// $113.400 con INC 8 %, descuento 20 % = $22.680, propina $9.072.
+// $113,400 con INC 8 %, descuento 20 % = $22.680, propina $9.072.
 const DISCOUNTED: Partial<InvoiceSnapshot> = {
   salesTaxKind: "inc",
   salesTaxPct: 8,
@@ -416,11 +416,11 @@ describe("summaryRows — el descuento del cliente y el impuesto, en el orden de
     const email = await renderInvoiceEmail({ snapshot: snap(DISCOUNTED), invoiceNumber: 1, invoiceUrl, locale: "es" });
     const lines = email.text.split("\n");
     const at = (prefix: string) => lines.findIndex((l) => l.startsWith(prefix));
-    expect(lines[at("Descuento 20%")]).toBe("Descuento 20%: -$22.680");
-    expect(lines[at("Base gravable")]).toBe("Base gravable: $84.000");
+    expect(lines[at("Descuento 20%")]).toBe("Descuento 20%: -$22,680");
+    expect(lines[at("Base gravable")]).toBe("Base gravable: $84,000");
     expect(at("Descuento 20%")).toBeLessThan(at("Base gravable"));
     expect(email.html).toContain("Descuento 20%");
-    expect(email.html).toContain("-$22.680");
+    expect(email.html).toContain("-$22,680");
   });
 
   it("datáfono: subtotal, descuento, base e impuesto netos, propina y total", async () => {
@@ -480,10 +480,10 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
     const lines = text.split("\n");
     const start = lines.findIndex((l) => l.startsWith("2× Bretaña"));
     expect(lines.slice(start, start + 6)).toEqual([
-      "2× Bretaña  $12.000",
-      "1× Hamburguesa  $28.000",
+      "2× Bretaña  $12,000",
+      "1× Hamburguesa  $28,000",
       "   - Término: Medio",
-      "1× Hamburguesa  $28.000",
+      "1× Hamburguesa  $28,000",
       "   - Término: Bien asado",
       '   "Sin cebolla"',
     ]);
@@ -497,7 +497,7 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
     const rows = itemRowsOf(html);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toContain(">2×</td>");
-    expect(rows[0]).toContain("$12.000");
+    expect(rows[0]).toContain("$12,000");
     expect(rows[2]).toContain("&quot;Sin cebolla&quot;");
     expect(rows).toMatchSnapshot();
   });
@@ -509,7 +509,7 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
     const amounts = text
       .split("\n")
       .filter((l) => /^\d+× /.test(l))
-      .map((l) => Number(l.split("$")[1].replace(/\./g, "")) * 100);
+      .map((l) => Number(l.split("$")[1].replace(/,/g, "")) * 100);
     expect(amounts.reduce((a, b) => a + b, 0)).toBe(repeated.subtotalCents);
   });
 
@@ -523,7 +523,7 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
     const { text, html } = await renderInvoiceEmail({
       snapshot: old, invoiceNumber: 1, invoiceUrl, locale: "es",
     });
-    expect(text).toContain("3× Limonada de coco  $36.000");
+    expect(text).toContain("3× Limonada de coco  $36,000");
     expect(itemRowsOf(html)).toHaveLength(1);
     expect(itemRowsOf(html)[0]).not.toContain("<div");
   });
@@ -541,10 +541,10 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
           : c.type,
     );
     expect(slice).toEqual([
-      "2x Bretaña | $ 12.000",
-      "1x Hamburguesa | $ 28.000",
+      "2x Bretaña | $ 12,000",
+      "1x Hamburguesa | $ 28,000",
       "   - Término: Medio\n",
-      "1x Hamburguesa | $ 28.000",
+      "1x Hamburguesa | $ 28,000",
       "   - Término: Bien asado\n",
       '   "Sin cebolla"\n',
     ]);
@@ -560,8 +560,8 @@ describe("invoice payment time", () => {
 });
 
 
-// El caso del dueño: consumo $ 120.000 con impoconsumo incluido y $ 12.000
-// de propina; el cliente pagó $ 132.000 y la factura decía TOTAL
+// El caso del dueño: consumo $ 120,000 con impoconsumo incluido y $ 12,000
+// de propina; el cliente pagó $ 132,000 y la factura decía TOTAL
 // $ 120.000. Desde ahora: «Total factura» (la venta, lo del XML), «Propina
 // voluntaria» y el TOTAL A PAGAR destacado = factura + propina cobrada.
 describe("invoicePayableOf — total factura + propina = TOTAL A PAGAR", () => {
@@ -614,9 +614,9 @@ describe("correo del comprobante — total, propina voluntaria y TOTAL A PAGAR",
   const fesm = snap({ ...INC_8, subtotalCents: 12_000_000, tipCents: 1_200_000, totalCents: 13_200_000 });
 
   it.each([
-    ["es", ["Total comprobante: $120.000", "Propina voluntaria: $12.000", "TOTAL A PAGAR: $132.000"]],
-    ["en", ["Receipt total: $120.000", "Voluntary tip: $12.000", "TOTAL TO PAY: $132.000"]],
-    ["pt", ["Total do comprovante: $120.000", "Gorjeta voluntária: $12.000", "TOTAL A PAGAR: $132.000"]],
+    ["es", ["Total comprobante: $120,000", "Propina voluntaria: $12,000", "TOTAL A PAGAR: $132,000"]],
+    ["en", ["Receipt total: $120,000", "Voluntary tip: $12,000", "TOTAL TO PAY: $132,000"]],
+    ["pt", ["Total do comprovante: $120,000", "Gorjeta voluntária: $12,000", "TOTAL A PAGAR: $132,000"]],
   ])("%s: los tres renglones seguidos y el resumen de arriba con el total a pagar", async (locale, rows) => {
     const email = await renderInvoiceEmail({ snapshot: fesm, invoiceNumber: 77, invoiceUrl, locale });
     const lines = email.text.split("\n");
@@ -624,21 +624,21 @@ describe("correo del comprobante — total, propina voluntaria y TOTAL A PAGAR",
     expect(first).toBeGreaterThan(-1);
     expect(lines.slice(first, first + 3)).toEqual(rows);
     // En el HTML, el TOTAL A PAGAR va en negrita y a 16px (el resto a 12px).
-    expect(email.html).toMatch(/font-size:16px;font-weight:700;[^"]*">[^<]*<\/td><td[^>]*font-size:16px;font-weight:700;[^>]*>\$132\.000/);
+    expect(email.html).toMatch(/font-size:16px;font-weight:700;[^"]*">[^<]*<\/td><td[^>]*font-size:16px;font-weight:700;[^>]*>\$132,000/);
     expect(email.html).not.toMatch(/>TOTAL<\/td>/);
   });
 
   it("emitida ANTES de cobrar: sin pagar dice «TOTAL A PAGAR» arriba; cobrada, «Total pagado» con la propina de la orden", async () => {
     const pre = snap({ ...INC_8, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true });
     const unpaid = await renderInvoiceEmail({ snapshot: pre, invoiceNumber: 77, invoiceUrl, locale: "es", order: { tipCents: 0, paid: false } });
-    expect(unpaid.text).toContain("TOTAL A PAGAR: $120.000");
+    expect(unpaid.text).toContain("TOTAL A PAGAR: $120,000");
     expect(unpaid.text).not.toContain("Propina voluntaria");
     expect(unpaid.html).not.toContain("Total pagado");
     const paid = await renderInvoiceEmail({ snapshot: pre, invoiceNumber: 77, invoiceUrl, locale: "es", order: { tipCents: 1_200_000, paid: true } });
-    expect(paid.text).toContain("Propina voluntaria: $12.000");
-    expect(paid.text).toContain("TOTAL A PAGAR: $132.000");
+    expect(paid.text).toContain("Propina voluntaria: $12,000");
+    expect(paid.text).toContain("TOTAL A PAGAR: $132,000");
     expect(paid.html).toContain("Total pagado");
-    expect(paid.html).toMatch(/Total pagado<\/div>\s*<div[^>]*>\$132\.000/);
+    expect(paid.html).toMatch(/Total pagado<\/div>\s*<div[^>]*>\$132,000/);
   });
 });
 
@@ -650,6 +650,6 @@ describe("emitida con «Sin propina»: el datáfono tampoco sugiere propina", ()
     );
     expect(texts.join("\n")).not.toContain("Propina sugerida");
     expect(texts.join("\n")).not.toContain("Propina voluntaria");
-    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$ 120.000\n");
+    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$ 120,000\n");
   });
 });

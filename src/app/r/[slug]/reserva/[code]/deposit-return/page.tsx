@@ -6,6 +6,7 @@ import { getRestaurantPrivateKey } from "@/lib/payments";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { publishOrderEvent } from "@/lib/events";
 import { sendReservationConfirmation } from "@/lib/reservationEmail";
+import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +128,7 @@ export default async function DepositReturnPage({
     }
   }
 
-  const fmt = (cents: number) => "$" + Math.round(cents / 100).toLocaleString("es-CO");
+  const fmt = (cents: number) => "$" + formatNumber(Math.round(cents / 100));
 
   return (
     <main className="min-h-dvh bg-bone text-ink flex flex-col items-center justify-center px-6 py-12">

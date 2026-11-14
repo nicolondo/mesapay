@@ -78,7 +78,7 @@ export function useLineTaxText() {
   return (taxPct: number, incCents: number, currency: string) =>
     [
       taxPct > 0 ? t("poTaxIva", { pct: taxPct }) : null,
-      incCents > 0 ? t("poTaxIncShort", { amount: formatMoney(incCents, { currency, locale }) }) : null,
+      incCents > 0 ? t("poTaxIncShort", { amount: formatMoney(incCents, { currency, locale, fractionDigits: "auto" }) }) : null,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -152,7 +152,7 @@ export function LineTaxFields({
           onChange={(raw, isPct) => onChange({ incRaw: raw, incIsPct: isPct })}
           hint={
             incIsPct && incCents > 0
-              ? t("poTaxIncResult", { amount: formatMoney(incCents, { currency, locale }) })
+              ? t("poTaxIncResult", { amount: formatMoney(incCents, { currency, locale, fractionDigits: "auto" }) })
               : t("poTaxIncHint")
           }
           className="rounded-xl border border-op-border bg-op-surface px-3 py-2"
@@ -262,7 +262,7 @@ export function InvoiceRetentionsEditor({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const concepts = ctx?.concepts ?? [];
   const usedConcepts = new Set(state.lines.map((l) => l.conceptId).filter(Boolean));
   const addableConcepts = concepts.filter((c) => !usedConcepts.has(c.id) && PURCHASE_RETENTION_KINDS.includes(c.kind as PurchaseRetentionKind));

@@ -137,7 +137,7 @@ describe("elegir el insumo recuerda lo de este proveedor", () => {
 
   it("pedido suelto antes: en kg (aunque fueran 500 g), con la cantidad, el precio por kg y el IVA de la última vez", () => {
     const l = pickIngredient(blankLine(1), rice, catalog);
-    expect(l).toMatchObject({ unit: "kg", qtyRaw: "0,5", priceRaw: "4500", priceSource: "history", tax: { ivaPct: 5, inc: false } });
+    expect(l).toMatchObject({ unit: "kg", qtyRaw: "0.5", priceRaw: "4500", priceSource: "history", tax: { ivaPct: 5, inc: false } });
   });
 
   it("recuerda el impuesto al consumo de la última línea", () => {

@@ -254,7 +254,7 @@ function LineRow({ line: l, index, ctl }: { line: OcLine; index: number; ctl: Li
                     onChange={(incRaw, incIsPct) => ctl.patch(l.key, { incRaw, incIsPct })}
                   />
                   {amounts && amounts.incCents > 0 && (
-                    <span className="tabular-nums text-op-text">{formatMoney(amounts.incCents, { currency: ctl.currency, locale })}</span>
+                    <span className="tabular-nums text-op-text">{formatMoney(amounts.incCents, { currency: ctl.currency, locale, fractionDigits: "auto" })}</span>
                   )}
                 </span>
               )}

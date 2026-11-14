@@ -24,7 +24,7 @@ const EMPTY = { subtotalCents: 0, taxCents: 0, tipCents: 0 };
 const maxIncluded = maxFreeLineCents(EMPTY, { taxKind: null, taxPct: null });
 
 describe("FreeLineLimitNotice — el máximo de la cuenta, a la vista", () => {
-  it("no muestra nada si el valor cabe (el cargo de $12.345.678 en una cuenta vacía)", () => {
+  it("no muestra nada si el valor cabe (el cargo de $12,345,678 en una cuenta vacía)", () => {
     const html = render(createElement(FreeLineLimitNotice, {
       lineCents: 1_234_567_800, maxLineCents: maxIncluded, qty: 1,
     }));
@@ -36,7 +36,7 @@ describe("FreeLineLimitNotice — el máximo de la cuenta, a la vista", () => {
       lineCents: 1_900_000_000, maxLineCents: maxIncluded, qty: 1,
     }));
     expect(html).toContain('role="alert"');
-    expect(text(html)).toContain("El máximo para esta cuenta es $15.384.615.");
+    expect(text(html)).toContain("El máximo para esta cuenta es $15,384,615.");
     expect(text(html)).toContain(es.opTables.freeLineMaxSplitHint);
   });
 
@@ -44,14 +44,14 @@ describe("FreeLineLimitNotice — el máximo de la cuenta, a la vista", () => {
     const html = render(createElement(FreeLineLimitNotice, {
       lineCents: 2 * 800_000_000, maxLineCents: 1_000_000_000, qty: 2,
     }));
-    expect(text(html)).toContain("El máximo para esta cuenta es $10.000.000 en total (cantidad × precio).");
+    expect(text(html)).toContain("El máximo para esta cuenta es $10,000,000 en total (cantidad × precio).");
   });
 
   it.each([["en", en], ["pt", pt]] as const)("está traducido (%s)", (locale, messages) => {
     const html = render(createElement(FreeLineLimitNotice, {
       lineCents: 1_900_000_000, maxLineCents: maxIncluded, qty: 1,
     }), messages as unknown as typeof es, locale);
-    expect(text(html)).toContain("$15.384.615");
+    expect(text(html)).toContain("$15,384,615");
     expect(text(html)).toContain(messages.opTables.freeLineMaxSplitHint);
     expect(text(html)).not.toContain("El máximo");
   });

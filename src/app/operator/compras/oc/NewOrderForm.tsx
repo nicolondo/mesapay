@@ -104,7 +104,7 @@ export function NewOrderForm({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const dec = moneySeparators(locale).decimal;
+  const dec = moneySeparators().decimal;
   // Precios calculados (última orden, cambio de unidad) a pesos enteros en COP.
   const fmt = useMemo(() => ({ dec, step: isZeroDecimalCurrency(currency) ? 100 : 1 }), [dec, currency]);
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -112,7 +112,7 @@ export function NewOrderForm({
   const country = usePurchaseCountry();
   const taxRates = useMemo(() => purchaseTaxRates(country), [country]);
   const rootRef = useRef<HTMLDivElement>(null);
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
 
   /* ── Proveedor ── */
   const [supplier, setSupplier] = useState<SupplierRef | null>(null);

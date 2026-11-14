@@ -34,6 +34,7 @@ const ROWS: SupplierReportRow[] = [
     invoices: 3,
     lastPurchase: "2026-10-05",
     payableCents: 250_000,
+    agreementCents: 30_000,
   },
   {
     supplierId: "s2",
@@ -47,6 +48,7 @@ const ROWS: SupplierReportRow[] = [
     invoices: 0,
     lastPurchase: null,
     payableCents: 0,
+    agreementCents: 0,
   },
 ];
 const totals = supplierReportTotals(ROWS, query.period.months);
@@ -80,13 +82,13 @@ describe("exportación — CSV", () => {
   it("una fila por proveedor, montos con coma decimal y fecha ISO, más la fila de total", () => {
     expect(lines).toHaveLength(2 + ROWS.length + 1);
     expect(lines[2]).toBe(
-      "Lácteos del Valle;NIT;900123456;7;credit(days=30);30;1000,04;12000,50;3;2026-10-05;2500,00;active",
+      "Lácteos del Valle;NIT;900123456;7;credit(days=30);30;1000,04;12000,50;3;2026-10-05;2500,00;300,00;active",
     );
-    expect(lines[4]).toBe("totalRow(n=2);;;;;;1000,04;12000,50;3;;2500,00;");
+    expect(lines[4]).toBe("totalRow(n=2);;;;;;1000,04;12000,50;3;;2500,00;300,00;");
   });
 
   it("un nombre que empieza como fórmula sale como texto; el documento conserva sus ceros", () => {
-    expect(lines[3]).toBe(`"'=HYPERLINK(""x"")";CC;0012345;;cash;0;0,00;0,00;0;;0,00;inactive`);
+    expect(lines[3]).toBe(`"'=HYPERLINK(""x"")";CC;0012345;;cash;0;0,00;0,00;0;;0,00;0,00;inactive`);
   });
 });
 
@@ -113,12 +115,17 @@ describe("exportación — Excel", () => {
     expect(r.getCell(10).value).toEqual(new Date("2026-10-05T00:00:00Z"));
     expect(r.getCell(10).numFmt).toBe("yyyy-mm-dd");
     expect(r.getCell(11).value).toBe(2500);
+    // Recibido por acuerdos comerciales: plata, antes del estado.
+    expect(r.getCell(12).value).toBe(300);
+    expect(r.getCell(12).numFmt).toBe("#,##0");
+    expect(r.getCell(13).value).toBe("active");
     // Texto tal cual: en un .xlsx una celda de texto no es fórmula.
     expect(ws.getRow(3).getCell(1).value).toBe("=HYPERLINK(\"x\")");
     expect(ws.getRow(3).getCell(3).value).toBe("0012345");
     const total = ws.getRow(4);
     expect(total.getCell(1).value).toBe("totalRow(n=2)");
     expect(total.getCell(8).value).toBe(12000.5);
+    expect(total.getCell(12).value).toBe(300);
     expect(total.font?.bold).toBe(true);
     expect(ws.rowCount).toBe(4);
   });
@@ -140,6 +147,7 @@ describe("exportación — Excel", () => {
     expect(pairs.get("infoInclude")).toBe("includeAll");
     expect(pairs.get("infoRows")).toBe(2);
     expect([...pairs.keys()]).toContain(`definitionBody(from=${NOV},to=${OCT},months=12)`);
+    expect([...pairs.keys()]).toContain("definitionAgreements");
   });
 
   it("nombre del archivo con el período", () => {

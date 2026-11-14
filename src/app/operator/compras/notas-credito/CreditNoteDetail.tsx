@@ -54,7 +54,7 @@ export function CreditNoteDetail({
 }) {
   const t = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const date = (iso: string) => formatDate(iso, { locale, timeStyle: undefined });
   const [note, setNote] = useState<Detail | null>(null);
   const [loadErr, setLoadErr] = useState(false);

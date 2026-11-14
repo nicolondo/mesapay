@@ -69,7 +69,7 @@ export function CreditNotesClient({
   const t = useTranslations("opSupplierCredit");
   const locale = useLocale() as Locale;
   const nav = useListNavigation();
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const [form, setForm] = useState<{ reading: InitialReading | null } | null>(
     initialReading ? { reading: initialReading } : null,
   );

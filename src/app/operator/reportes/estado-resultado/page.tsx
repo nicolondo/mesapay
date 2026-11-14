@@ -1,6 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import { buildIncomeStatement } from "@/lib/erp/reports/incomeStatement";
 import { incomeStatementQuery, periodFromQuery } from "@/lib/erp/reports/params";
 import { periodToUtcRange, resolveReportPeriod, todayIso } from "@/lib/erp/reports/period";
@@ -77,7 +77,7 @@ export default async function EstadoResultadoPage({ searchParams }: { searchPara
 
   const loc = locale as Locale;
   const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc });
-  const pct = new Intl.NumberFormat(localeTag(loc), { maximumFractionDigits: 1 });
+  const pct = numberFormatter(localeTag(loc), { maximumFractionDigits: 1 });
   const label = (l: StatementLabel) => labelText(l, t);
   const periodLabel = t("periodLabel", {
     from: fmtIsoDate(period.desde, loc),

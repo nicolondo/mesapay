@@ -21,6 +21,7 @@ import { isCashMethod } from "@/lib/payments/methods";
 import type { ShiftPolicy } from "@/lib/staffPolicies";
 import { publishOrderEvent } from "@/lib/events";
 import { recordAuditEvent } from "@/lib/auditLog";
+import { formatNumber } from "@/lib/format";
 
 export type MeseroBox = {
   userId: string;
@@ -92,9 +93,9 @@ export async function recordCashMovement(args: {
     kind: "cash.movement",
     restaurantId: args.restaurantId,
     target: { type: "restaurant", id: args.restaurantId },
-    summary: `${args.kind === "egreso" ? "Egreso" : "Ingreso"} de caja $${Math.round(
+    summary: `${args.kind === "egreso" ? "Egreso" : "Ingreso"} de caja $${formatNumber(Math.round(
       args.amountCents / 100,
-    ).toLocaleString("es-CO")} — ${args.concept}`,
+    ))} — ${args.concept}`,
   });
   return mv;
 }

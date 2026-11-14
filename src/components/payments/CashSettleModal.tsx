@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { displayOrderCode } from "@/lib/orderCode";
 import { MoneyInput } from "@/components/MoneyInput";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOP, formatNumber } from "@/lib/format";
 
 /**
  * Confirmar un cobro en EFECTIVO que el comensal pidió desde su QR (pago
@@ -220,7 +220,7 @@ export function CashSettleModal({
               onClick={() => setReceivedSmart(String(bill))}
               className="h-8 px-3 rounded-full bg-op-bg border border-op-border text-xs font-medium hover:border-ok"
             >
-              {tr("cashReceivedBill", { bill: bill.toLocaleString("es-CO") })}
+              {tr("cashReceivedBill", { bill: formatNumber(bill) })}
             </button>
           ))}
         </div>

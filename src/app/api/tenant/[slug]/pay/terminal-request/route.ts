@@ -16,6 +16,7 @@ import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 import { collectorUserIdFor } from "@/lib/payments/staffCheckout";
 import { prepareStaffCharge } from "@/lib/payments/staffCharge";
 import { kushkiTerminalAvailability } from "@/lib/payments/terminalAvailability";
+import { formatNumber } from "@/lib/format";
 
 /**
  * "Tarjeta con datáfono" — the diner taps this and we create a pending
@@ -109,7 +110,7 @@ async function POSTHandler(
           message:
             cap.reason === "order_already_paid"
               ? "Esta cuenta ya fue pagada."
-              : `Quedan $${(cap.outstandingCents / 100).toLocaleString("es-CO")} pendientes — intenta de nuevo con un monto menor.`,
+              : `Quedan $${formatNumber(cap.outstandingCents / 100)} pendientes — intenta de nuevo con un monto menor.`,
         },
         { status: 409 },
       );
@@ -174,7 +175,7 @@ async function POSTHandler(
     const totalCop = parsed.data.amountCents / 100;
     await sendPushToMeserosForTable(tenant.id, table.number, {
       title: `${where} pidió datáfono`,
-      body: `Cobro con tarjeta · ${totalCop.toLocaleString("es-CO")} COP`,
+      body: `Cobro con tarjeta · ${formatNumber(totalCop)} COP`,
       tag: `terminal-${order.id}`,
       url: "/mesero/salon",
     });

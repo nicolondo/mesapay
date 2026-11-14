@@ -33,7 +33,13 @@ import { isModuleEnabled } from "@/lib/modules";
 import { dianEnvironment } from "@/lib/dian/config";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import { kushkiTerminalSetup, terminalDeviceUsable } from "@/lib/payments/terminalAvailability";
-import { printOnCloudTerminal, type PrintCommand, type PrintJobResult } from "@/lib/payments/kushki/cloudPrint";
+import {
+  printOnCloudTerminal,
+  waitForCloudPrintJob,
+  type CloudPrintOutcome,
+  type PrintCommand,
+  type PrintJobResult,
+} from "@/lib/payments/kushki/cloudPrint";
 import type { KushkiMode } from "@/lib/platformConfig";
 import { buildInvoiceDocument } from "./invoiceQueue";
 import { invoicePrintArgs, type InvoiceDianPrintData } from "./routing";
@@ -71,7 +77,12 @@ export type TerminalPrintResult =
       deviceId: string;
       deviceLabel: string;
       printJobId: string;
-      status: string;
+      /**
+       * `printed`: el datáfono respondió COMPLETED. `queued`: Kushki la
+       * encoló pero el datáfono todavía no la imprime (se reintenta con el
+       * mismo `printJobId`, sin duplicar).
+       */
+      state: "printed" | "queued";
       /** Modo mock: no se llamó a Kushki. */
       simulated: boolean;
       /** Para el rastro: qué se imprimió ("factura FE-12", "precuenta A4F2"). */
@@ -83,6 +94,10 @@ export type TerminalPrintResult =
       devices?: Array<{ id: string; label: string }>;
       /** Detalle de Kushki (timeout, network_error, http_400…). */
       reason?: string;
+      /** El datáfono la intentó y falló: el código de Kushki (OUT_OF_PAPER…). */
+      errorCode?: string;
+      errorMessage?: string;
+      printJobId?: string;
     };
 
 type BuiltCommands =
@@ -198,8 +213,39 @@ export function chooseTerminalDevice(
   return { ok: false, error: "choose_device" };
 }
 
+/**
+ * Los datáfonos a los que se puede mandar una impresión AHORA (para mostrar
+ * «Datáfono» en «Imprimir en» y elegir cuál): activos y, con datáfono real,
+ * con serial; ninguno si falta el Business-Code o si es el mock en
+ * producción.
+ */
+export async function listTerminalPrintDevices(
+  restaurantId: string,
+  opts: { isProduction?: boolean } = {},
+): Promise<Array<{ id: string; label: string }>> {
+  const tenant = await db.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { id: true, kushkiMode: true, cloudTerminalBusinessCode: true },
+  });
+  if (!tenant) return [];
+  const { businessCode, useRealTerminal } = await kushkiTerminalSetup(tenant);
+  if (useRealTerminal && !businessCode) return [];
+  const isProduction = opts.isProduction ?? process.env.NODE_ENV === "production";
+  if (!useRealTerminal && isProduction) return [];
+  const rows = await db.terminalDevice.findMany({
+    where: { restaurantId: tenant.id, active: true },
+    orderBy: { createdAt: "asc" },
+    select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true },
+  });
+  return rows
+    .filter((d) => terminalDeviceUsable(d, useRealTerminal))
+    .map((d) => ({ id: d.kushkiDeviceId, label: d.label }));
+}
+
 export type TerminalPrintDeps = {
   send?: (args: Parameters<typeof printOnCloudTerminal>[0]) => Promise<PrintJobResult>;
+  /** Sondeo del estado real (`/sync/print_job`) hasta ~30 s. */
+  waitJob?: (args: Parameters<typeof waitForCloudPrintJob>[0]) => Promise<CloudPrintOutcome>;
   /** Para los tests: `process.env.NODE_ENV === "production"`. */
   isProduction?: boolean;
 };
@@ -211,6 +257,8 @@ export async function printOnTerminalDevice(
     userId: string;
     target: TerminalPrintTarget;
     deviceId?: string | null;
+    /** Reintento de un trabajo que quedó encolado: el MISMO id (no duplica). */
+    printJobId?: string | null;
   },
   deps: TerminalPrintDeps = {},
 ): Promise<TerminalPrintResult> {
@@ -256,26 +304,39 @@ export async function printOnTerminalDevice(
       ok: true,
       deviceId: device.kushkiDeviceId,
       deviceLabel: device.label,
-      printJobId: `mock-${Date.now()}`,
-      status: "PENDING",
+      printJobId: args.printJobId ?? `mock-${Date.now()}`,
+      state: "printed",
       simulated: true,
       reference: built.reference,
     };
   }
 
+  const target = { serialNumber: device.serialNumber!, businessCode, mode: mode as KushkiMode };
   const send = deps.send ?? printOnCloudTerminal;
   const result = await send({
-    serialNumber: device.serialNumber!,
+    ...target,
     commands: built.commands,
-    businessCode,
-    mode: mode as KushkiMode,
     externalReference: built.externalReference,
+    ...(args.printJobId && { printJobId: args.printJobId }),
   });
   if (!result.ok) {
     return {
       ok: false,
       error: "print_failed",
       reason: result.message ?? (result.httpStatus ? `http_${result.httpStatus}` : "unknown"),
+      printJobId: result.printJobId,
+    };
+  }
+  // 202 = encolado, NO impreso: el estado real se pregunta hasta ~30 s.
+  const outcome = await (deps.waitJob ?? waitForCloudPrintJob)({ ...target, printJobId: result.printJobId });
+  if (outcome.state === "failed") {
+    return {
+      ok: false,
+      error: "print_failed",
+      reason: outcome.errorCode ?? "FAILED",
+      ...(outcome.errorCode && { errorCode: outcome.errorCode }),
+      ...(outcome.errorMessage && { errorMessage: outcome.errorMessage }),
+      printJobId: result.printJobId,
     };
   }
   return {
@@ -283,7 +344,7 @@ export async function printOnTerminalDevice(
     deviceId: device.kushkiDeviceId,
     deviceLabel: device.label,
     printJobId: result.printJobId,
-    status: result.status ?? "PENDING",
+    state: outcome.state === "completed" ? "printed" : "queued",
     simulated: false,
     reference: built.reference,
   };

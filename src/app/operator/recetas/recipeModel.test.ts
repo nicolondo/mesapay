@@ -173,10 +173,10 @@ describe("buscador de insumos", () => {
 });
 
 describe("textos de unidades", () => {
-  it("el mínimo de la unidad usa el separador del idioma", () => {
-    expect(minQtyLabel("count", "un", "es")).toBe("0,001 un");
+  it("el mínimo de la unidad usa el punto decimal en todos los idiomas", () => {
+    expect(minQtyLabel("count", "un", "es")).toBe("0.001 un");
     expect(minQtyLabel("count", "un", "en")).toBe("0.001 un");
-    expect(minQtyLabel("mass", "kg", "es")).toBe("0,001 kg");
+    expect(minQtyLabel("mass", "kg", "pt")).toBe("0.001 kg");
   });
 
   it("el costo unitario se rotula por kg, L o un", () => {

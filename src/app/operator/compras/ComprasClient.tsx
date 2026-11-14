@@ -299,7 +299,7 @@ function TaxBreakdown({
     : [{ label: t("invLineRetentions"), cents: retainedCents }];
   const discount = discountCents ?? 0;
   const showBreakdown = alwaysBreakdown || taxCents > 0 || discount > 0 || incCents > 0 || retainedCents > 0;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   return (
     <div className="bg-op-bg/50">
       {showBreakdown && (
@@ -791,7 +791,7 @@ function SuggestedSheet({
                             <div className="text-sm font-medium tabular-nums shrink-0">
                               {cost == null
                                 ? "—"
-                                : formatMoney(cost, { currency, locale })}
+                                : formatMoney(cost, { currency, locale, fractionDigits: "auto" })}
                             </div>
                           </div>
                           <div className="flex items-center justify-end gap-2 mt-1">
@@ -832,7 +832,7 @@ function SuggestedSheet({
                         {t("orderTotalLabel")}
                       </span>
                       <span className="text-sm font-medium tabular-nums">
-                        {formatMoney(subtotal, { currency, locale })}
+                        {formatMoney(subtotal, { currency, locale, fractionDigits: "auto" })}
                       </span>
                     </div>
                   </div>
@@ -2096,7 +2096,7 @@ function InvoiceReviewSheet({
 
             {unplacedDiscount != null && (
               <div role="status" className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
-                {t("invDiscUnplaced", { amount: formatMoney(unplacedDiscount, { currency, locale }) })}
+                {t("invDiscUnplaced", { amount: formatMoney(unplacedDiscount, { currency, locale, fractionDigits: "auto" }) })}
               </div>
             )}
             {taxBeforeDiscount && (
@@ -2107,8 +2107,8 @@ function InvoiceReviewSheet({
             {discountTaxMismatch && printedTaxCents != null && (
               <div role="status" className="rounded-xl border border-[#C98A2E]/30 bg-[#C98A2E]/10 p-3 text-[11px] text-[#7F5A1F]">
                 {t("invDiscTaxMismatch", {
-                  computed: formatMoney(resolved.taxCents, { currency, locale }),
-                  printed: formatMoney(printedTaxCents, { currency, locale }),
+                  computed: formatMoney(resolved.taxCents, { currency, locale, fractionDigits: "auto" }),
+                  printed: formatMoney(printedTaxCents, { currency, locale, fractionDigits: "auto" }),
                 })}
               </div>
             )}
@@ -2190,7 +2190,7 @@ function InvoiceReviewSheet({
               )}
               <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
                 <span>{t("invTaxGrandTotal")}</span>
-                <span>{formatMoney(payableCents, { currency, locale })}</span>
+                <span>{formatMoney(payableCents, { currency, locale, fractionDigits: "auto" })}</span>
               </div>
             </div>
 
@@ -2476,7 +2476,7 @@ function OrderDetailSheet({
       ...o.items.map((it) => orderLineText(it, locale)),
       ...(o.notes ? ["", o.notes] : []),
       "",
-      `${t("orderTotalLabel")}: ${formatMoney(total, { currency, locale })}`,
+      `${t("orderTotalLabel")}: ${formatMoney(total, { currency, locale, fractionDigits: "auto" })}`,
     ].join("\n");
   }
 
@@ -2491,7 +2491,7 @@ function OrderDetailSheet({
         (it) =>
           `<tr><td>${escapeHtml(orderLineText(it, locale))}</td>` +
           `<td class="num">${escapeHtml(
-            formatMoney((useReceived ? receivedPurchaseLineAmounts(it) : purchaseLineAmounts(it)).totalCents, { currency, locale }),
+            formatMoney((useReceived ? receivedPurchaseLineAmounts(it) : purchaseLineAmounts(it)).totalCents, { currency, locale, fractionDigits: "auto" }),
           )}</td></tr>`,
       )
       .join("");
@@ -2500,7 +2500,7 @@ function OrderDetailSheet({
     const totalRow = (label: string, cents: number) =>
       `<tr><td>${escapeHtml(label)}</td>` +
       `<td class="num">${escapeHtml(
-        formatMoney(cents, { currency, locale }),
+        formatMoney(cents, { currency, locale, fractionDigits: "auto" }),
       )}</td></tr>`;
     const printTotalsRows = totalRow(t("subtotalLabel"), detailDiscount?.listSubtotalCents ?? printTotals.subtotalCents)
       + (detailDiscount ? totalRow(t("discountLabel"), -detailDiscount.discountCents) : "")
@@ -2728,6 +2728,7 @@ function OrderDetailSheet({
                           {formatMoney(purchaseLineAmounts(it).totalCents, {
                             currency,
                             locale,
+                            fractionDigits: "auto",
                           })}
                         </div>
                         {(it.taxPct > 0 || it.expectedIncCents > 0) && (
@@ -2746,6 +2747,7 @@ function OrderDetailSheet({
                             )} · ${formatMoney(receivedPurchaseLineAmounts(it).totalCents, {
                               currency,
                               locale,
+                              fractionDigits: "auto",
                             })}`}
                           </div>
                         )}
@@ -2801,7 +2803,7 @@ function OrderDetailSheet({
                           )}`}
                         </div>
                         <div className="text-[11px] text-op-muted tabular-nums">
-                          {formatMoney(m.valueCents, { currency, locale })}
+                          {formatMoney(m.valueCents, { currency, locale, fractionDigits: "auto" })}
                         </div>
                       </div>
                     </div>
@@ -2865,12 +2867,12 @@ function OrderDetailSheet({
                           {t("cxpTotalLabel")}
                         </span>
                         <span className="text-sm tabular-nums">
-                          {formatMoney(cxpTotal, { currency, locale })}
+                          {formatMoney(cxpTotal, { currency, locale, fractionDigits: "auto" })}
                         </span>
                       </div>
                       {cxpTotals.retentionsCents > 0 && (
                         <div className="px-3 py-1 border-b border-op-border text-[10px] text-op-muted" data-testid="cxp-retained">
-                          {t("poCxpRetainedHint", { amount: formatMoney(cxpTotals.retentionsCents, { currency, locale }) })}
+                          {t("poCxpRetainedHint", { amount: formatMoney(cxpTotals.retentionsCents, { currency, locale, fractionDigits: "auto" }) })}
                         </div>
                       )}
                       <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
@@ -2878,7 +2880,7 @@ function OrderDetailSheet({
                           {t("cxpPaidLabel")}
                         </span>
                         <span className="text-sm tabular-nums">
-                          {formatMoney(order.paidCents, { currency, locale })}
+                          {formatMoney(order.paidCents, { currency, locale, fractionDigits: "auto" })}
                         </span>
                       </div>
                       <div className="flex items-center justify-between px-3 py-1.5">
@@ -2886,7 +2888,7 @@ function OrderDetailSheet({
                           {t("cxpBalanceLabel")}
                         </span>
                         <span className="text-sm font-medium tabular-nums">
-                          {formatMoney(balance, { currency, locale })}
+                          {formatMoney(balance, { currency, locale, fractionDigits: "auto" })}
                         </span>
                       </div>
                     </div>
@@ -2904,6 +2906,7 @@ function OrderDetailSheet({
                                 {formatMoney(p.amountCents, {
                                   currency,
                                   locale,
+                                  fractionDigits: "auto",
                                 })}
                               </div>
                               <div className="text-[11px] text-op-muted mt-0.5 truncate">
@@ -3730,7 +3733,7 @@ function PaymentForm({
             {t("cxpTotalLabel")}
           </span>
           <span className="text-sm tabular-nums">
-            {formatMoney(totalCents, { currency, locale })}
+            {formatMoney(totalCents, { currency, locale, fractionDigits: "auto" })}
           </span>
         </div>
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-op-border">
@@ -3738,7 +3741,7 @@ function PaymentForm({
             {t("cxpPaidLabel")}
           </span>
           <span className="text-sm tabular-nums">
-            {formatMoney(paidCents, { currency, locale })}
+            {formatMoney(paidCents, { currency, locale, fractionDigits: "auto" })}
           </span>
         </div>
         <div className="flex items-center justify-between px-3 py-1.5">
@@ -3746,7 +3749,7 @@ function PaymentForm({
             {t("cxpBalanceLabel")}
           </span>
           <span className="text-sm font-medium tabular-nums">
-            {formatMoney(outstanding, { currency, locale })}
+            {formatMoney(outstanding, { currency, locale, fractionDigits: "auto" })}
           </span>
         </div>
       </div>
@@ -3756,6 +3759,7 @@ function PaymentForm({
           <MoneyInput
             value={amount}
             onChange={setAmount}
+            fractionDigits={2}
             className={inputCls}
           />
         </Field>

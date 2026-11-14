@@ -64,7 +64,7 @@ describe("«Ventas hoy» with what is still to collect", () => {
   it("hides the line when nothing is open", async () => {
     h.uncollected = { netCents: 0, orderCount: 0 };
     const tile = await salesTile();
-    expect(tile).toContain("$94.167");
+    expect(tile).toContain("$94,167");
     expect(tile).toContain("salesBasis");
     expect(tile).not.toContain("mp-kpi-detail");
   });
@@ -72,8 +72,8 @@ describe("«Ventas hoy» with what is still to collect", () => {
   it("adds the amount and the number of tables without changing the main figure", async () => {
     h.uncollected = { netCents: 6_000_000, orderCount: 3 };
     const tile = await salesTile();
-    expect(tile).toContain('<span class="mp-kpi-value">$94.167</span>');
-    expect(tile).toContain('<span class="mp-kpi-detail-amount">+ $60.000</span> salesUncollectedTables <span class="mp-kpi-detail-nowrap">3</span>');
+    expect(tile).toContain('<span class="mp-kpi-value">$94,167</span>');
+    expect(tile).toContain('<span class="mp-kpi-detail-amount">+ $60,000</span> salesUncollectedTables <span class="mp-kpi-detail-nowrap">3</span>');
     // Same basis note, once, after both figures.
     expect(tile.indexOf("mp-kpi-detail")).toBeLessThan(tile.indexOf("salesBasis"));
     expect(tile.match(/salesBasis/g)).toHaveLength(1);

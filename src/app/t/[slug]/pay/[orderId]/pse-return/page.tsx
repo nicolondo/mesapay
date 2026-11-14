@@ -11,6 +11,7 @@ import { activateOpenRounds } from "@/lib/prepaidRounds";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { publishOrderEvent } from "@/lib/events";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Si todavía estamos en pending y tenemos un token en la URL (lo
@@ -198,7 +199,7 @@ export default async function PseReturnPage({
   // payment.amountCents YA es el TOTAL (food + tip).
   const total = payment.amountCents;
   const fmt = (cents: number) =>
-    "$" + (cents / 100).toLocaleString("es-CO");
+    "$" + formatNumber(cents / 100);
 
   // Approved → mandamos al diner directo al /done. Esa es la página
   // canónica post-pago con los botones de factura electrónica /

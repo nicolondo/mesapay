@@ -26,7 +26,7 @@ describe("renderVoucherStatementEmail", () => {
     expect(r.subject).toContain("Son y Melona");
     expect(r.html).toContain("https://mesapay.co/r/son-y-melona/pago/tok-st");
     expect(r.text).toContain("https://mesapay.co/r/son-y-melona/pago/tok-st");
-    expect(r.text).toContain("420.000");
+    expect(r.text).toContain("420,000");
     expect(r.html).toContain("SM-7K3Q-9X2A");
     // La cuenta va con el código corto (primer grupo) en el correo; el CSV
     // adjunto conserva el código completo para conciliar.

@@ -3,7 +3,7 @@
 // ("YYYY-MM-DD"), así que se formatean en UTC al mediodía: nunca retroceden
 // un día por la zona horaria de quien mira.
 import type { Locale } from "@/i18n/config";
-import { formatDate, localeTag } from "@/lib/format";
+import { formatDate, localeTag, numberFormatter } from "@/lib/format";
 import { isoWeekNumber } from "@/lib/isoWeek";
 import type { DayRange, Granularity } from "@/lib/salesAnalysis/period";
 
@@ -78,17 +78,17 @@ export function bucketLabel(
 
 /** «▲ 12,3 %» / «▼ 4,1 %» / «= 0 %». La flecha acompaña al color: nunca color solo. */
 export function fmtDelta(delta: number, locale: Locale): string {
-  const pct = new Intl.NumberFormat(localeTag(locale), { style: "percent", maximumFractionDigits: 1 }).format(Math.abs(delta));
+  const pct = numberFormatter(localeTag(locale), { style: "percent", maximumFractionDigits: 1 }).format(Math.abs(delta));
   if (Math.abs(delta) < 0.0005) return `= ${pct}`;
   return `${delta > 0 ? "▲" : "▼"} ${pct}`;
 }
 
 export function fmtPercent(value: number, locale: Locale): string {
-  return new Intl.NumberFormat(localeTag(locale), { style: "percent", maximumFractionDigits: 1 }).format(value);
+  return numberFormatter(localeTag(locale), { style: "percent", maximumFractionDigits: 1 }).format(value);
 }
 
 export function fmtNumber(value: number, locale: Locale, digits = 0): string {
-  return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: digits }).format(value);
+  return numberFormatter(localeTag(locale), { maximumFractionDigits: digits }).format(value);
 }
 
 /** «1 h 15 min» / «48 min». */

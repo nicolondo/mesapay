@@ -11,7 +11,7 @@
 
 import { sendEmail } from "./mailer";
 import { getEmailTranslator } from "./emailIntl";
-import { localeTag } from "./format";
+import { localeTag, formatNumber } from "./format";
 
 const OFFSET_MS = -5 * 60 * 60 * 1000; // Bogotá UTC-5
 
@@ -56,7 +56,7 @@ export async function sendReservationConfirmation(args: {
   const personas = t("people", { count: args.partySize });
   const depositPesos =
     args.depositPaidCents && args.depositPaidCents > 0
-      ? "$" + Math.round(args.depositPaidCents / 100).toLocaleString(tag)
+      ? "$" + formatNumber(Math.round(args.depositPaidCents / 100))
       : null;
   const statusText = args.autoConfirmed
     ? t("statusConfirmed")

@@ -149,7 +149,7 @@ export default async function ManualInvoicesPage({
     )
   ).filter((r): r is NonNullable<typeof r> => r !== null);
 
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
   const day = (date: Date) => formatDate(date, { locale, dateStyle: "medium", timeStyle: undefined });
 
   return (

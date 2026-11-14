@@ -93,7 +93,7 @@ describe("issueSimpleInvoice — impuesto congelado en el snapshot", () => {
     expect(s).toMatchObject({
       salesTaxKind: "inc",
       salesTaxPct: 8,
-      // Bandeja de $30.000: base 27.777,78 + impoconsumo 2.222,22.
+      // Bandeja de $30,000: base 27.777,78 + impoconsumo 2.222,22.
       embeddedTaxCents: 222_222,
       embeddedBaseCents: 2_777_778,
     });
@@ -108,7 +108,7 @@ describe("issueSimpleInvoice — impuesto congelado en el snapshot", () => {
 
   it("una factura manual armada con un cargo 'impuesto incluido' congela el MISMO impoconsumo que ese valor en platos de una mesa", async () => {
     m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
-    // Mesa: bandeja de $30.000 del menú.
+    // Mesa: bandeja de $30,000 del menú.
     const dish = { qty: 1, nameSnapshot: "Bandeja paisa", priceCentsSnapshot: 3_000_000, taxKind: null, taxPct: null, cancelledAt: null };
     m.orderFindUnique.mockResolvedValue({ ...order(), items: [dish], subtotalCents: 3_000_000, taxCents: 0, totalCents: 3_000_000 });
     const table = await issuedSnapshot();
@@ -282,7 +282,7 @@ describe("issueSimpleInvoice — factura ANTES de cobrar (beforePayment)", () =>
   });
 
   it("con un pago parcial que dejó propina, la factura es la VENTA: sin esa propina", async () => {
-    // Una parte de la mesa ya pagó $1.000.000 + $100.000 de propina: la
+    // Una parte de la mesa ya pagó $1,000,000 + $100,000 de propina: la
     // orden lleva tipCents y totalCents con esa propina. La factura no.
     m.orderFindUnique.mockResolvedValue({ ...openOrder(), status: "paying", tipCents: 100_000, totalCents: 4_290_000 });
     m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
@@ -416,8 +416,8 @@ describe("sendSimpleInvoiceEmail — el TOTAL A PAGAR del correo", () => {
   it("emitida al cobrar: la propina del snapshot, sin leer la orden", async () => {
     await send({ ...base, tipCents: 1_200_000, totalCents: 13_200_000 });
     expect(m.invoiceFindUnique).not.toHaveBeenCalled();
-    expect(text()).toContain("Propina voluntaria: $12.000");
-    expect(text()).toContain("TOTAL A PAGAR: $132.000");
+    expect(text()).toContain("Propina voluntaria: $12,000");
+    expect(text()).toContain("TOTAL A PAGAR: $132,000");
   });
 
   it("emitida ANTES de cobrar: la propina REAL de la orden ya cobrada", async () => {
@@ -426,7 +426,7 @@ describe("sendSimpleInvoiceEmail — el TOTAL A PAGAR del correo", () => {
     expect(m.invoiceFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "inv-1" } }),
     );
-    expect(text()).toContain("Total comprobante: $120.000");
-    expect(text()).toContain("TOTAL A PAGAR: $132.000");
+    expect(text()).toContain("Total comprobante: $120,000");
+    expect(text()).toContain("TOTAL A PAGAR: $132,000");
   });
 });

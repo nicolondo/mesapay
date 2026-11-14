@@ -43,7 +43,7 @@ describe("renderManualInvoicePayLinkEmail", () => {
       methods: ["kushki_card", "kushki_apple_pay", "kushki_pse", "kushki_bre_b"],
       dueDate: new Date("2026-12-02T15:00:00Z"),
     });
-    expect(r.subject).toMatch(/^Restaurante Demo: factura FE-120 por \$\s108\.000$/);
+    expect(r.subject).toMatch(/^Restaurante Demo: factura FE-120 por \$\s108,000$/);
     expect(r.html).toContain("Factura FE-120");
     expect(r.html).toContain("https://mesapay.co/factura/inv1");
     expect(r.html).toContain("CUFE: abc123cufe");
@@ -72,7 +72,7 @@ describe("renderManualInvoicePayLinkEmail", () => {
       invoice: { kind: "on_payment", electronic: true },
       methods: ["kushki_card", "kushki_pse"],
     });
-    expect(r.subject).toMatch(/^Restaurante Demo: link para pagar la cuenta ABC123 por \$\s108\.000$/);
+    expect(r.subject).toMatch(/^Restaurante Demo: link para pagar la cuenta ABC123 por \$\s108,000$/);
     expect(r.html).toContain("Cuenta por pagar");
     expect(r.text).toContain("La factura electrónica se emite cuando pagues y te llega por correo.");
     expect(r.text).toContain("Puedes pagar con tarjeta de crédito o débito o PSE.");

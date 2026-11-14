@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, numberFormatter } from "@/lib/format";
 import { displayUnitFor } from "@/lib/erp/units";
 import type { StockResetSnapshot } from "@/lib/erp/stockTracking";
 
@@ -26,7 +26,7 @@ export function StockResetConfirmation({ snapshot, name, currency, busy, onCance
   const unit = displayUnitFor(Math.abs(snapshot.qtyBase), snapshot.measureKind);
   // Base units are integers; three decimals preserve every gram/ml or
   // thousandth of a unit, even for negative stock.
-  const quantity = `${new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(snapshot.qtyBase / unit.factor)} ${unit.symbol}`;
+  const quantity = `${numberFormatter(locale, { maximumFractionDigits: 3 }).format(snapshot.qtyBase / unit.factor)} ${unit.symbol}`;
   const money = (value: number) => formatMoney(value, { currency, locale, fractionDigits: 2 });
 
   return (

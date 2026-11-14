@@ -73,8 +73,8 @@ function tallRows(paper: Paper) {
 
 /**
  * La FESM6723 tal como está en producción (orden cmuj1w9c60069g2jhjox90kjc):
- * subtotal $159.600 con impoconsumo 8% incluido, propina $15.960, total
- * $175.560 y UN pago en efectivo con amountCents 17556000 (propina
+ * subtotal $159,600 con impoconsumo 8% incluido, propina $15.960, total
+ * $175,560 y UN pago en efectivo con amountCents 17556000 (propina
  * incluida) y tipCents 1596000.
  */
 const FESM6723: InvoiceSnapshot = {
@@ -166,7 +166,7 @@ describe("factura — invariantes del papel", () => {
 
 describe("FESM6723 de punta a punta — del pago real al papel", () => {
   for (const mm of [80, 58]) {
-    it(`la forma de pago dice el TOTAL ($ 175.560), no $ 191.520 (${mm} mm)`, async () => {
+    it(`la forma de pago dice el TOTAL ($ 175,560), no $ 191,520 (${mm} mm)`, async () => {
       const { t } = await getEmailTranslator("es", "emailInvoice");
       const doc = buildThermalInvoice({
         snapshot: FESM6723,
@@ -182,12 +182,12 @@ describe("FESM6723 de punta a punta — del pago real al papel", () => {
       const text = flat(readPaper(renderInvoice(doc)).text);
       expect(text).not.toContain("191.520");
       const total = doc.totals.find((r) => r.strong)!;
-      expect(flat(total.amount)).toBe("$ 175.560");
+      expect(flat(total.amount)).toBe("$ 175,560");
       expect(doc.paymentRows).toHaveLength(1);
       expect(doc.paymentRows[0].amount).toBe(total.amount);
       // En el papel: el renglón del pago termina en el mismo monto.
       const payLine = text.split("\n").find((l) => l.includes("Efectivo"))!;
-      expect(payLine.endsWith("$ 175.560")).toBe(true);
+      expect(payLine.endsWith("$ 175,560")).toBe(true);
     });
   }
 });
@@ -209,31 +209,31 @@ const PREBILL: ThermalPrebill = {
     {
       qty: 2,
       name: "Hamburguesa Melona con tocineta y queso",
-      amount: "$ 72.000",
-      unit: "$ 36.000",
+      amount: "$ 72,000",
+      unit: "$ 36,000",
       modifiers: ["Término: 1/2", "Guarniciones: Ensalada fresca"],
       notes: "sin cebolla",
     },
     {
       qty: 1,
       name: "Churrasco a la parrilla con chimichurri de la casa",
-      amount: "$ 58.000",
+      amount: "$ 58,000",
       unit: null,
       modifiers: [],
       notes: null,
     },
   ],
   totals: [
-    { label: "Subtotal", amount: "$ 159.600" },
-    { label: "Base gravable", amount: "$ 147.778" },
-    { label: "Incl. impoconsumo 8%", amount: "$ 11.822" },
-    { label: "TOTAL", amount: "$ 159.600", strong: true },
-    { label: "Pagado", amount: "-$ 50.000" },
-    { label: "Pendiente por pagar", amount: "$ 109.600", strong: true },
+    { label: "Subtotal", amount: "$ 159,600" },
+    { label: "Base gravable", amount: "$ 147,778" },
+    { label: "Incl. impoconsumo 8%", amount: "$ 11,822" },
+    { label: "TOTAL", amount: "$ 159,600", strong: true },
+    { label: "Pagado", amount: "-$ 50,000" },
+    { label: "Pendiente por pagar", amount: "$ 109,600", strong: true },
   ],
   tipRows: [
-    { label: "Propina sugerida 10%", amount: "$ 10.960" },
-    { label: "Total con propina", amount: "$ 120.560" },
+    { label: "Propina sugerida 10%", amount: "$ 10,960" },
+    { label: "Total con propina", amount: "$ 120,560" },
   ],
   tipNotice: "La propina es voluntaria: podés aceptarla, rechazarla o cambiarla.",
   footerLines: ["¡Gracias por tu visita!"],
@@ -246,9 +246,9 @@ const PREBILL_CASES: Array<{ name: string; doc: ThermalPrebill }> = [
     doc: {
       ...PREBILL,
       totals: [
-        { label: "Subtotal", amount: "$ 1.234.567.890" },
-        { label: "TOTAL", amount: "$ 1.234.567.890", strong: true },
-        { label: "Pendiente por pagar", amount: "$ 1.234.567.890", strong: true },
+        { label: "Subtotal", amount: "$ 1,234,567,890" },
+        { label: "TOTAL", amount: "$ 1,234,567,890", strong: true },
+        { label: "Pendiente por pagar", amount: "$ 1,234,567,890", strong: true },
       ],
     },
   },

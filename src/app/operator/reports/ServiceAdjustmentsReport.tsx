@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { defaultLocale, isLocale } from "@/i18n/config";
-import { formatDate, formatMoney, localeTag } from "@/lib/format";
+import { formatDate, formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import { displayOrderCode } from "@/lib/orderCode";
 import { getServiceReport } from "@/lib/reports/serviceAdjustmentsQuery";
 import {
@@ -30,7 +30,7 @@ export default async function ServiceAdjustmentsReport({ report, searchParams }:
   }
   const [result, currency] = await Promise.all([getServiceReport(ctx.restaurantId, filters), getCurrencyForCountry(ctx.country)]);
   const money = (amount: number | null) => amount === null ? t("unknownAmount") : formatMoney(amount, { currency, locale });
-  const number = (value: number) => new Intl.NumberFormat(localeTag(locale)).format(value);
+  const number = (value: number) => numberFormatter(localeTag(locale)).format(value);
   const orders = filters.view === "orders";
   const representation = report === "representation";
   const exportParams = serviceReportSearchParams(filters, { page: 1 });

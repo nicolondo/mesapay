@@ -45,7 +45,7 @@ export function OrderFooter({
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
   const [open, setOpen] = useState(false);
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const retained = (totals.retentions ?? []).reduce((s, r) => s + r.cents, 0);
   const rows: { label: string; value: string; tone?: "ok" | "muted" }[] = [
     { label: t("subtotalLabel"), value: money(totals.subtotalCents) },

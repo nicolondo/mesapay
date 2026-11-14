@@ -351,7 +351,7 @@ export function DiscountCaption({ cents, currency }: { cents: number; currency: 
   if (cents <= 0) return null;
   return (
     <span className="block text-[10px] leading-none text-ok tabular-nums mt-0.5 text-right">
-      {`− ${formatMoney(cents, { currency, locale })}`}
+      {`− ${formatMoney(cents, { currency, locale, fractionDigits: "auto" })}`}
     </span>
   );
 }

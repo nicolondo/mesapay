@@ -70,7 +70,7 @@ describe("renderDianInvoiceEmail — lo que el adquiriente tiene que ver", () =>
       expect(mail.text).toContain(fragment);
     }
     // El total va formateado, no en centavos.
-    expect(mail.html).toContain("123.456");
+    expect(mail.html).toContain("123,456");
     expect(mail.html).not.toContain("12345600");
     // Fecha en hora Colombia: 20:04 UTC del 14 es todavía el 14 en Bogotá.
     expect(mail.text).toContain("2026");
@@ -192,7 +192,7 @@ describe("renderDianInvoiceEmail — total factura, propina y TOTAL A PAGAR", ()
   it("sin propina no hay renglón de propina y el total a pagar es el de la factura", async () => {
     const { text } = await renderDianInvoiceEmail({ ...base, locale: "es" });
     expect(text).not.toContain("Propina voluntaria");
-    expect(text).toMatch(/Total factura: .*123\.456/);
-    expect(text).toMatch(/Total a pagar: .*123\.456/);
+    expect(text).toMatch(/Total factura: .*123,456/);
+    expect(text).toMatch(/Total a pagar: .*123,456/);
   });
 });

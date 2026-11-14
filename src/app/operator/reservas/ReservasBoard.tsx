@@ -4,6 +4,7 @@ import { useClock } from "@/lib/browser/clock";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { formatNumber } from "@/lib/format";
 
 export type ReservationRow = {
   id: string;
@@ -24,7 +25,7 @@ export type ReservationRow = {
 const OFFSET_MS = -5 * 60 * 60 * 1000;
 
 const fmtCOP = (cents: number) =>
-  "$" + Math.round(cents / 100).toLocaleString("es-CO");
+  "$" + formatNumber(Math.round(cents / 100));
 
 const DEPOSIT_META: Record<string, { labelKey: string; tint: string }> = {
   pending: { labelKey: "depositPending", tint: "bg-[#C98A2E]/15 text-[#8F6828]" },

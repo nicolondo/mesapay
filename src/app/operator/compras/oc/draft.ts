@@ -108,13 +108,13 @@ export type ResolvedOcLine = {
 export const NO_TAX: LineTaxChoice = { ivaPct: 0, inc: false };
 
 /**
- * Cómo se escriben los números en la pantalla: el separador decimal del
- * idioma y el paso al que se redondea un precio CALCULADO (de la última
+ * Cómo se escriben los números en la pantalla: el separador decimal (el
+ * punto de la convención de `@/lib/format`) y el paso al que se redondea un precio CALCULADO (de la última
  * orden o de un cambio de unidad): 100 centavos en monedas sin decimales
  * (COP), para no proponer «$ 5.916,67/kg»; 1 en las demás.
  */
 export type DraftFmt = { dec: string; step: number };
-export const DEFAULT_FMT: DraftFmt = { dec: ",", step: 1 };
+export const DEFAULT_FMT: DraftFmt = { dec: ".", step: 1 };
 
 function roundTo(cents: number, step: number): number {
   return step > 1 ? Math.round(cents / step) * step : Math.round(cents);
@@ -145,7 +145,7 @@ export function centsToRaw(cents: number): string {
 }
 
 /** Cantidad para mostrar en un input (hasta 3 decimales, con el separador del idioma). */
-export function formatQty(n: number, decimalSep = ","): string {
+export function formatQty(n: number, decimalSep = "."): string {
   return String(Math.round(n * 1000) / 1000).replace(".", decimalSep);
 }
 

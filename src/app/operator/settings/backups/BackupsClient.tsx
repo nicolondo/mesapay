@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatDate, localeTag } from "@/lib/format";
+import { formatDate, localeTag, numberFormatter } from "@/lib/format";
 
 export type BackupDto = {
   id: string;
@@ -35,7 +35,7 @@ export function BackupsClient({ initial }: { initial: BackupDto[] }) {
   const [confirmText, setConfirmText] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
 
-  const numberFmt = new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 1 });
+  const numberFmt = numberFormatter(localeTag(locale), { maximumFractionDigits: 1 });
   const when = (iso: string) => formatDate(iso, { locale });
   const size = (bytes: number) =>
     bytes < 1024

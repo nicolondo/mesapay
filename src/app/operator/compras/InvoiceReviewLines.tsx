@@ -9,7 +9,7 @@
 import { useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, numberFormatter } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { sanitizeDecimalInput } from "@/lib/decimalInput";
 import { chooseInvoiceIngredient } from "@/lib/erp/invoiceReviewAlias";
@@ -173,7 +173,7 @@ function TableRow({ line: l, index, ...props }: Props & { line: InvoiceReviewLin
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const view = lineView(l);
-  const money = (cents: number) => formatMoney(cents, { currency: props.currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency: props.currency, locale, fractionDigits: "auto" });
   const change = (changes: Partial<InvoiceReviewLine>) => props.onChange(l.key, changes);
   const name = l.ingredientName.trim() || t("invReviewNewIngredientName");
   const label = (col: string) => `${col} · ${name}`;
@@ -290,7 +290,7 @@ function CompactRow({ line: l, index, ...props }: Props & { line: InvoiceReviewL
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const view = lineView(l);
-  const money = (cents: number) => formatMoney(cents, { currency: props.currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency: props.currency, locale, fractionDigits: "auto" });
   const change = (changes: Partial<InvoiceReviewLine>) => props.onChange(l.key, changes);
   const name = l.ingredientName.trim() || t("invReviewNewIngredientName");
   const label = (col: string) => `${col} · ${name}`;
@@ -442,8 +442,8 @@ function LineDetails({
   const discountDetail = reviewLineDiscountDetail(l, amounts);
   const priceQuantity = reviewPriceQuantity(l);
   const unitCents = lineView(l).unitCents;
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
-  const readQtyStr = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(l.readQty);
+  const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
+  const readQtyStr = numberFormatter(locale, { maximumFractionDigits: 3 }).format(l.readQty);
   const incName = columns.consumo?.header?.trim() || t("invRecColumnConsumo");
 
   return (

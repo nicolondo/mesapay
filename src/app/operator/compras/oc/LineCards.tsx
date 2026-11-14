@@ -36,7 +36,7 @@ export function LineCards({
 }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency: ctl.currency, locale });
+  const money = (c: number) => formatMoney(c, { currency: ctl.currency, locale, fractionDigits: "auto" });
   const shown = lines.filter((l) => l.ingredient);
   if (shown.length === 0) return null;
   return (
@@ -267,7 +267,7 @@ export function LineEditorSheet({
                     onChange={(incRaw, incIsPct) => ctl.patch(l.key, { incRaw, incIsPct })}
                     hint={
                       amounts && amounts.incCents > 0
-                        ? t("poTaxIncResult", { amount: formatMoney(amounts.incCents, { currency: ctl.currency, locale }) })
+                        ? t("poTaxIncResult", { amount: formatMoney(amounts.incCents, { currency: ctl.currency, locale, fractionDigits: "auto" }) })
                         : t("poTaxIncHint")
                     }
                     className="mt-2 rounded-xl border border-op-border bg-op-surface px-3 py-2"

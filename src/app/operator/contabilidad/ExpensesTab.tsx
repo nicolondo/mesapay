@@ -128,7 +128,7 @@ export function ExpensesTab({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
 
   // Filtros = la URL; sin período en la URL, el mes del selector compartido.
   const sp = new URLSearchParams(searchParams.toString());
@@ -665,7 +665,7 @@ function Chevron({ dir }: { dir: "left" | "right" }) {
 function ExpenseRow({ e, currency, onOpen }: { e: ExpenseRowDto; currency: string; onOpen: (e: ExpenseDto) => void }) {
   const t = useTranslations("opErp");
   const locale = useLocale() as Locale;
-  const money = (c: number) => formatMoney(c, { currency, locale });
+  const money = (c: number) => formatMoney(c, { currency, locale, fractionDigits: "auto" });
   const number = formatExpenseNumber(e.number);
   const payable = expensePayableCents(e);
   const status = rowStatus(e);
@@ -846,7 +846,7 @@ function TemplatesSection({
               </span>
             </span>
             <span className="shrink-0 font-mono text-sm tabular-nums">
-              {formatMoney(expensePayableCents(e), { currency, locale })}
+              {formatMoney(expensePayableCents(e), { currency, locale, fractionDigits: "auto" })}
             </span>
           </button>
         ))}

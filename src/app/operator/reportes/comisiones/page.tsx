@@ -1,7 +1,7 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n/config";
-import { formatMoney, localeTag } from "@/lib/format";
+import { formatMoney, localeTag, numberFormatter } from "@/lib/format";
 import { commissionPeriodFromQuery, commissionsQuery } from "@/lib/erp/reports/params";
 import { currentMonthPeriod, todayIso } from "@/lib/erp/reports/period";
 import { loadSealedCommissions } from "@/lib/erp/reports/waiterCommissionQueries";
@@ -72,7 +72,7 @@ export default async function ComisionesPage({ searchParams }: { searchParams: S
 
   const loc = locale as Locale;
   const money = (c: number) => formatMoney(c, { currency: gate.currency, locale: loc });
-  const pctFmt = new Intl.NumberFormat(localeTag(loc), {
+  const pctFmt = numberFormatter(localeTag(loc), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

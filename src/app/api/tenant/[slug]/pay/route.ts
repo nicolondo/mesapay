@@ -22,6 +22,7 @@ import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
 import { welcomeIfFirstTime } from "@/lib/mailer";
 import { CASH_METHOD, isCashMethod } from "@/lib/payments/methods";
 import { prepareStaffCharge } from "@/lib/payments/staffCharge";
+import { formatNumber } from "@/lib/format";
 
 const schema = z.object({
   orderId: z.string().min(1),
@@ -106,7 +107,7 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ slug: s
       if (!table || table.number < 0) return;
       await sendPushToMeserosForTable(tenant.id, table.number, {
         title: `${table.label ?? `Mesa ${table.number}`} pidió cobrar`,
-        body: `Pago en efectivo · ${(amountCents / 100).toLocaleString("es-CO")} COP`,
+        body: `Pago en efectivo · ${formatNumber(amountCents / 100)} COP`,
         tag: `cash-${order.id}`, url: "/mesero/salon",
       });
     })().catch(() => console.error("push_cash_failed"));

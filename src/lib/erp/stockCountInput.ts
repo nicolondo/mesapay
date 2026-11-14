@@ -1,5 +1,6 @@
 import { DEFAULT_INPUT_UNIT, displayUnitFor, toBaseQty, type MeasureKind } from './units';
 import { effectiveCountParts, MAX_COUNT_PARTS, MAX_COUNT_QTY } from './stockCountParts';
+import { numberFormatter } from "@/lib/format";
 
 export type CountEntry = { raw: string; unit: string };
 
@@ -55,5 +56,5 @@ export function nextCountEntry(entries: readonly CountEntry[], kind: MeasureKind
 
 export function formatCountQty(value: number, kind: MeasureKind, locale: string): string {
   const unit = displayUnitFor(value, kind);
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: unit.factor > 1 ? 3 : 0 }).format(value / unit.factor)} ${unit.symbol}`;
+  return `${numberFormatter(locale, { maximumFractionDigits: unit.factor > 1 ? 3 : 0 }).format(value / unit.factor)} ${unit.symbol}`;
 }

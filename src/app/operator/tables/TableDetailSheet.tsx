@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { fmtCOP, pesosToCents } from "@/lib/format";
+import { fmtCOP, fmtCOPauto, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
@@ -889,7 +889,7 @@ export function TableDetailSheet({
                       : tr("summaryTotal")}
                   </div>
                   <div className="font-display text-2xl tabular leading-tight">
-                    {fmtCOP(
+                    {fmtCOPauto(
                       outstandingCents != null
                         ? outstandingCents
                         : subtotalCents ?? 0,
@@ -900,7 +900,7 @@ export function TableDetailSheet({
                     subtotalCents != null &&
                     subtotalCents !== outstandingCents && (
                       <div className="font-mono text-[10px] text-op-muted mt-0.5">
-                        {tr("summaryOfTotal", { amount: fmtCOP(subtotalCents) })}
+                        {tr("summaryOfTotal", { amount: fmtCOPauto(subtotalCents) })}
                       </div>
                     )}
                   {discountCents > 0 && (
@@ -908,12 +908,12 @@ export function TableDetailSheet({
                       {discountPct
                         ? tr("discountApplied", { pct: discountPct })
                         : tr("discountAppliedNoPct")}{" "}
-                      {"− " + fmtCOP(discountCents)}
+                      {"− " + fmtCOPauto(discountCents)}
                       {grossSubtotalCents != null && (
                         <>
                           {" · "}
                           {tr("discountBefore", {
-                            amount: fmtCOP(grossSubtotalCents),
+                            amount: fmtCOPauto(grossSubtotalCents),
                           })}
                         </>
                       )}
@@ -1255,7 +1255,7 @@ export function TableDetailSheet({
                     <PreInvoiceAction
                       orderId={orderId}
                       tenantSlug={tenantSlug}
-                      totalLabel={fmtCOP(subtotalCents ?? 0)}
+                      totalLabel={fmtCOPauto(subtotalCents ?? 0)}
                       initialIntent={invoiceIntent}
                       sameTab={isMeseroView}
                       canConfigurePrinters={!isMeseroView}
@@ -1360,7 +1360,7 @@ export function TableDetailSheet({
                               contra la mesa obligaba a abrir la carta. Las
                               líneas libres de más abajo ya lo mostraban. */}
                           <span className="font-mono tabular text-sm shrink-0">
-                            {fmtCOP(it.priceCents * it.qty)}
+                            {fmtCOPauto(it.priceCents * it.qty)}
                           </span>
                           {/* En una factura manual el "servido" es un
                               sello técnico — mostrarlo confundiría. */}
@@ -1382,7 +1382,7 @@ export function TableDetailSheet({
                             unitario y repetirlo es ruido. */}
                         {it.qty > 1 && (
                           <div className="mt-0.5 font-mono tabular text-[11px] text-op-muted">
-                            {tr("unitEach", { amount: fmtCOP(it.priceCents) })}
+                            {tr("unitEach", { amount: fmtCOPauto(it.priceCents) })}
                           </div>
                         )}
                         {(it.notes || it.guestName) && (
@@ -1608,7 +1608,7 @@ export function TableDetailSheet({
                             {l.name}
                           </span>
                           <span className="font-mono tabular text-sm shrink-0">
-                            {fmtCOP(lineCents)}
+                            {fmtCOPauto(lineCents)}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between gap-2">
@@ -1620,7 +1620,7 @@ export function TableDetailSheet({
                                       ? tr("taxKindInc")
                                       : tr("taxKindIva"),
                                   pct: l.taxPct ?? 0,
-                                  amount: fmtCOP(taxCents),
+                                  amount: fmtCOPauto(taxCents),
                                 })
                               : includedCents > 0 && salesTax
                                 ? tr("freeLineTaxIncludedSummary", {
@@ -1629,7 +1629,7 @@ export function TableDetailSheet({
                                         ? tr("taxKindInc")
                                         : tr("taxKindIva"),
                                     pct: salesTax.pct,
-                                    amount: fmtCOP(includedCents),
+                                    amount: fmtCOPauto(includedCents),
                                   })
                                 : tr("freeLineNoTax")}
                           </span>
@@ -2100,6 +2100,7 @@ function FreeLineSheet({
             </div>
             <MoneyInput
               value={priceDigits}
+              fractionDigits={2}
               onChange={(digits) => {
                 setErr(null);
                 setPriceDigits(digits);
@@ -2164,7 +2165,7 @@ function FreeLineSheet({
         <div className="rounded-xl border border-hairline bg-op-bg p-3 space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-op-muted">{tr("freeLinePreviewBase")}</span>
-            <span className="font-mono tabular">{fmtCOP(previewBaseCents)}</span>
+            <span className="font-mono tabular">{fmtCOPauto(previewBaseCents)}</span>
           </div>
           {taxCents > 0 && (
             <div className="flex items-center justify-between text-xs">
@@ -2174,7 +2175,7 @@ function FreeLineSheet({
                   pct: taxPct,
                 })}
               </span>
-              <span className="font-mono tabular">{fmtCOP(taxCents)}</span>
+              <span className="font-mono tabular">{fmtCOPauto(taxCents)}</span>
             </div>
           )}
           {includedCents > 0 && salesTax && (
@@ -2186,13 +2187,13 @@ function FreeLineSheet({
                   pct: salesTax.pct,
                 })}
               </span>
-              <span className="font-mono tabular">{fmtCOP(includedCents)}</span>
+              <span className="font-mono tabular">{fmtCOPauto(includedCents)}</span>
             </div>
           )}
           <div className="flex items-center justify-between text-sm font-medium pt-1 border-t border-hairline">
             <span>{tr("freeLinePreviewTotal")}</span>
             <span className="font-mono tabular">
-              {fmtCOP(lineCents + taxCents)}
+              {fmtCOPauto(lineCents + taxCents)}
             </span>
           </div>
         </div>

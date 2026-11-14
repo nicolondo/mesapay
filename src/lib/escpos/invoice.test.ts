@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readPaper, rowCapacity } from "./testPaper";
+import { formatNumber } from "@/lib/format";
 import { columnsForWidth, padRow, qr } from "./commands";
 import {
   INVOICE_PAYLOAD_VERSION,
@@ -44,12 +45,12 @@ const base: ThermalInvoice = {
   ],
   customerLines: [],
   items: [
-    { qty: 2, name: "Bandeja paisa", amount: "$ 49.000" },
-    { qty: 1, name: "Limonada de coco", amount: "$ 12.000" },
+    { qty: 2, name: "Bandeja paisa", amount: "$ 49,000" },
+    { qty: 1, name: "Limonada de coco", amount: "$ 12,000" },
   ],
   totals: [
-    { label: "Subtotal", amount: "$ 61.000" },
-    { label: "TOTAL", amount: "$ 61.000", strong: true },
+    { label: "Subtotal", amount: "$ 61,000" },
+    { label: "TOTAL", amount: "$ 61,000", strong: true },
   ],
   paymentTitle: null,
   paymentRows: [],
@@ -141,19 +142,19 @@ describe("renderInvoice — factura nominativa, impuestos y pagos", () => {
       "Carrera 43A #1-50, Medellín",
     ],
     items: [
-      { qty: 2, name: "Bandeja paisa con chicharrón", amount: "$ 49.000" },
-      { qty: 1, name: "Ñoquis con champiñón", amount: "$ 18.000" },
-      { qty: 3, name: "Limonada de coco", amount: "$ 27.000" },
+      { qty: 2, name: "Bandeja paisa con chicharrón", amount: "$ 49,000" },
+      { qty: 1, name: "Ñoquis con champiñón", amount: "$ 18,000" },
+      { qty: 3, name: "Limonada de coco", amount: "$ 27,000" },
     ],
     totals: [
-      { label: "Subtotal", amount: "$ 94.000" },
-      { label: "Impoconsumo", amount: "$ 7.520" },
-      { label: "Descuento 10%", amount: "-$ 9.400" },
-      { label: "Propina", amount: "$ 8.460" },
-      { label: "TOTAL", amount: "$ 100.580", strong: true },
+      { label: "Subtotal", amount: "$ 94,000" },
+      { label: "Impoconsumo", amount: "$ 7,520" },
+      { label: "Descuento 10%", amount: "-$ 9,400" },
+      { label: "Propina", amount: "$ 8,460" },
+      { label: "TOTAL", amount: "$ 100,580", strong: true },
     ],
     paymentTitle: "Forma de pago",
-    paymentRows: [{ label: "Efectivo", amount: "$ 100.580" }],
+    paymentRows: [{ label: "Efectivo", amount: "$ 100,580" }],
     footerLines: [
       "Resolución DIAN: 18764012345678",
       "Numeración del 1 al 5000",
@@ -174,10 +175,10 @@ describe("renderInvoice — factura nominativa, impuestos y pagos", () => {
   it("imprime impuesto, descuento, propina y total", () => {
     const paper = readable(completa);
     expect(paper).toContain("Impoconsumo");
-    expect(paper).toContain("-$ 9.400");
+    expect(paper).toContain("-$ 9,400");
     expect(paper).toContain("Propina");
     expect(paper).toContain("TOTAL");
-    expect(paper).toContain("$ 100.580");
+    expect(paper).toContain("$ 100,580");
   });
 
   it("imprime la forma de pago y la resolución DIAN", () => {
@@ -194,8 +195,8 @@ describe("renderInvoice — acentos y ñ (CP850)", () => {
     businessName: "CAFÉ PIÑÓN",
     businessLines: ["NIT 900.111.222-3", "Medellín · Antioquia"],
     items: [
-      { qty: 1, name: "Ñoquis con champiñón", amount: "$ 32.000" },
-      { qty: 2, name: "Pão de queijo com requeijão", amount: "$ 18.000" },
+      { qty: 1, name: "Ñoquis con champiñón", amount: "$ 32,000" },
+      { qty: 2, name: "Pão de queijo com requeijão", amount: "$ 18,000" },
     ],
     footerLines: ["¡Gracias por tu visita!"],
   };
@@ -224,7 +225,7 @@ describe("renderInvoice — 58mm vs 80mm", () => {
       {
         qty: 1,
         name: "Hamburguesa doble con tocineta y queso cheddar derretido",
-        amount: "$ 45.000",
+        amount: "$ 45,000",
       },
     ],
   };
@@ -247,7 +248,7 @@ describe("renderInvoice — 58mm vs 80mm", () => {
     const paper = readable(base);
     const l = paper.split("\n").find((x) => x.includes("Bandeja paisa"))!;
     expect(l.startsWith("2x Bandeja paisa")).toBe(true);
-    expect(l.endsWith("$ 49.000")).toBe(true);
+    expect(l.endsWith("$ 49,000")).toBe(true);
   });
 
   it("en 80mm el mismo nombre largo se parte en menos renglones que en 58mm", () => {
@@ -262,7 +263,7 @@ describe("renderInvoice — 58mm vs 80mm", () => {
   it("el monto va en el PRIMER renglón del ítem y el resto del nombre usa todo el ancho", () => {
     const lines = readable({ ...largo, paperWidthMm: 58 }).split("\n");
     const first = lines.findIndex((x) => x.includes("Hamburguesa"));
-    expect(lines[first].endsWith("$ 45.000")).toBe(true);
+    expect(lines[first].endsWith("$ 45,000")).toBe(true);
     expect(lines[first]).toHaveLength(32);
     // Los colgados no reservan la columna del precio: llegan más allá de
     // donde empieza el monto (col 24) y no lo repiten.
@@ -282,7 +283,7 @@ describe("renderInvoice — factura electrónica (bloque fiscal)", () => {
     documentLabel: "FACTURA ELECTRÓNICA DE VENTA",
     customerLines: ["Cliente: Consumidor final"],
     paymentTitle: "Forma de pago",
-    paymentRows: [{ label: "Efectivo", amount: "$ 61.000" }],
+    paymentRows: [{ label: "Efectivo", amount: "$ 61,000" }],
     footerLines: [
       "Resolución DIAN: 18764012345678",
       "Numeración del 1 al 5000",
@@ -455,23 +456,23 @@ describe("parseInvoicePayload — bloque fiscal", () => {
 
 describe("padRow", () => {
   it("pega el valor al borde derecho", () => {
-    expect(padRow("Subtotal", "$ 61.000", 24)).toEqual([
-      "Subtotal        $ 61.000",
+    expect(padRow("Subtotal", "$ 61,000", 24)).toEqual([
+      "Subtotal        $ 61,000",
     ]);
   });
 
   it("cuelga el texto largo y deja el valor en el último renglón", () => {
-    const out = padRow("2x Hamburguesa doble con tocineta", "$ 45.000", 24, {
+    const out = padRow("2x Hamburguesa doble con tocineta", "$ 45,000", 24, {
       cont: "   ",
     });
     expect(out.length).toBeGreaterThan(1);
     expect(out.every((l) => l.length <= 24)).toBe(true);
-    expect(out[out.length - 1].endsWith("$ 45.000")).toBe(true);
+    expect(out[out.length - 1].endsWith("$ 45,000")).toBe(true);
   });
 
   it("un valor que no deja lugar al texto se baja a su propio renglón", () => {
-    const out = padRow("TOTAL", "$ 1.234.567.890", 16);
-    expect(out[out.length - 1]).toBe(" $ 1.234.567.890");
+    const out = padRow("TOTAL", "$ 1,234,567,890", 16);
+    expect(out[out.length - 1]).toBe(" $ 1,234,567,890");
     expect(out.every((l) => l.length <= 16)).toBe(true);
   });
 });
@@ -599,7 +600,7 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
     customer: null,
   };
   const money = (cents: number) =>
-    `$ ${Math.round(cents / 100).toLocaleString("es-CO")}`;
+    `$ ${formatNumber(Math.round(cents / 100))}`;
   const t = (key: string) => (key === "receiptLabel" ? "Comprobante" : key);
   const paper = (snap: InvoiceSnapshot, paperWidthMm = 80) =>
     buildThermalInvoice({
@@ -624,7 +625,7 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
   it("antes eran dos renglones '1x Bretaña'; ahora uno '2x' con el importe de las dos", () => {
     const lines = itemLines(paper(snapshot));
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/^2x Bretaña +\$ 12\.000$/);
+    expect(lines[0]).toMatch(/^2x Bretaña +\$ 12,000$/);
     expect(readable(paper(snapshot))).not.toContain("1x Bretaña");
   });
 
@@ -640,9 +641,9 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
     };
     // Modificador y nota JUNTOS, en un renglón de fuente B con sangría.
     expect(itemLines(paper(snap))).toEqual([
-      "2x Hamburguesa                          $ 56.000",
+      "2x Hamburguesa                          $ 56,000",
       "    Término: Medio",
-      "1x Hamburguesa                          $ 28.000",
+      "1x Hamburguesa                          $ 28,000",
       '    Término: Bien asado · "Sin cebolla"',
     ]);
     expect(hex(paper(snap, 58))).toMatchSnapshot();
@@ -671,7 +672,7 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
     });
     const back = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: inv });
     expect(back?.items).toEqual([
-      { qty: 1, name: "Bretaña", amount: "$ 6.000", modifiers: ["Tamaño: 330 ml"], notes: "Fría" },
+      { qty: 1, name: "Bretaña", amount: "$ 6,000", modifiers: ["Tamaño: 330 ml"], notes: "Fría" },
     ]);
     expect(renderInvoice(back!).equals(renderInvoice(inv))).toBe(true);
     const plain = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: base });

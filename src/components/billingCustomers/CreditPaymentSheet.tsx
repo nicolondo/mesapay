@@ -42,7 +42,7 @@ export function CreditPaymentSheet({ customer, currency, creditChargeId, onClose
   const [accountsFailed, setAccountsFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const money = (cents: number) => formatMoney(cents, { currency, locale });
+  const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,7 +97,7 @@ export function CreditPaymentSheet({ customer, currency, creditChargeId, onClose
       <fieldset disabled={busy} className="space-y-4">
         <div>
           <label htmlFor={`${id}-amount`} className="block text-sm text-muted mb-1.5">{t("abonoAmount")}</label>
-          <MoneyInput id={`${id}-amount`} value={amount} onChange={setAmount} className={inputClass} />
+          <MoneyInput id={`${id}-amount`} value={amount} onChange={setAmount} fractionDigits={2} className={inputClass} />
           {amountCents > debt && <p className="text-xs text-danger mt-1">{t("abonoErr_exceeds_debt", { amount: money(debt) })}</p>}
         </div>
         <div>

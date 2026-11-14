@@ -5,7 +5,7 @@
  * digan lo mismo. Sin dependencias de React ni de la base.
  */
 import type { Locale } from "@/i18n/config";
-import { localeTag } from "@/lib/format";
+import { localeTag, numberFormatter } from "@/lib/format";
 import { makeSourceLabel } from "./labels";
 import type { CheckResult } from "./taxesChecks";
 import type { TaxesExportLabels } from "./taxesExport";
@@ -18,7 +18,7 @@ type Translator = {
 
 /** Porcentaje con la coma o el punto del idioma (2,5 / 2.5), sin ceros de más. */
 export function fmtPct(pct: number, locale: Locale): string {
-  return new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits: 2 }).format(pct);
+  return numberFormatter(localeTag(locale), { maximumFractionDigits: 2 }).format(pct);
 }
 
 export function makeRateLabel(t: Translator, locale: Locale) {

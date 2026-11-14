@@ -4,7 +4,7 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { fmtCOPauto } from "@/lib/format";
 import type { CompPolicyView } from "@/lib/staffPolicies";
 import type { RestaurantTax } from "@/lib/salesTax";
 import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
@@ -174,7 +174,7 @@ export function ManualInvoiceTile({
           {displayOrderCode(tile.order.shortCode)}
         </div>
         <div className="font-mono text-[12px] tabular leading-tight mt-1">
-          {fmtCOP(tile.order.outstandingCents)}
+          {fmtCOPauto(tile.order.outstandingCents)}
         </div>
         <div className="font-mono text-[9px] text-op-muted mt-0.5 truncate w-full">
           {who}

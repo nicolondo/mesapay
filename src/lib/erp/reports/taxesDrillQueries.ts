@@ -29,6 +29,7 @@ import type { SaleTaxInput } from "./taxesDocuments";
 import type { DianState, RetentionConceptFull } from "./taxesChecks";
 import type { EngineEntry, EngineOrder } from "./taxesReconcile";
 import { ORIGIN_SOURCE } from "./taxesDrill";
+import { conceptRateBps } from "../retencionesCore";
 
 export type DrillTenant = {
   cutoffHour: number;
@@ -64,11 +65,23 @@ export async function loadDrillTenant(restaurantId: string): Promise<DrillTenant
 }
 
 export async function loadRetentionConceptsFull(restaurantId: string): Promise<(RetentionConceptFull & { accountCode: string })[]> {
-  return db.retentionConcept.findMany({
+  const rows = await db.retentionConcept.findMany({
     where: { restaurantId },
-    select: { kind: true, name: true, rateBps: true, base: true, thresholdUvt: true, active: true, accountCode: true },
+    select: {
+      kind: true,
+      name: true,
+      rateBps: true,
+      ratePpm: true,
+      base: true,
+      thresholdUvt: true,
+      active: true,
+      accountCode: true,
+      catalogKey: true,
+    },
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
+  // Tarifa efectiva (con decimales finos: 4,14 ‰ = 41,4 bps).
+  return rows.map(({ ratePpm, ...c }) => ({ ...c, rateBps: conceptRateBps({ rateBps: c.rateBps, ratePpm }) }));
 }
 
 /** Una línea libre viva tal como la arma `ORDER_FREE_LINES`. */

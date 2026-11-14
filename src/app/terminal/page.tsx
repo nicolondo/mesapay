@@ -12,7 +12,8 @@ import {
   wasPaidFromPhone,
 } from "@/lib/tables/phonePaid";
 import { salonVisualStateOf } from "@/lib/tables/salonVisualState";
-import { withReplaceable } from "@/lib/payments/pendingRequests";
+import { terminalAmountViews, withReplaceable } from "@/lib/payments/pendingRequests";
+import { isTerminalAmountMismatch } from "@/lib/payments/terminalAmount";
 import { terminalChargeState } from "@/lib/tables/terminalCharge";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,13 @@ export default async function TerminalPage() {
         tables.flatMap((t) => (t.orders[0]?.payments ?? []).filter((p) => p.status === "pending")),
       )
     ).map((p) => [p.id, p.replaceable]),
+  );
+
+  // Cobros del datáfono que Kushki aprobó por OTRO monto (propina o parcial,
+  // o «monto cobrado distinto» por resolver): el aviso de la ficha.
+  const amountById = await terminalAmountViews(
+    db,
+    tables.flatMap((t) => t.orders[0]?.payments ?? []),
   );
 
   const cards = tables.map((t) => {
@@ -241,6 +249,9 @@ export default async function TerminalPage() {
         // Ya enviado al datáfono (o pago en línea en curso): no se vuelve
         // a ofrecer "Cobrar con datáfono" para este pago.
         inFlight: !(replaceableById.get(p.id) ?? false),
+        // Kushki aprobó otro monto que no se liquidó solo: «monto cobrado
+        // distinto» en vez de "esperando el datáfono".
+        amountMismatch: isTerminalAmountMismatch(amountById.get(p.id)?.check) ? amountById.get(p.id)! : null,
       })),
       // amountCents YA es el TOTAL (food + tip). Sumarlo de nuevo
       // duplica la propina en la pantalla del datáfono.
@@ -270,6 +281,8 @@ export default async function TerminalPage() {
         amountCents: p.amountCents,
         tipCents: p.tipCents,
         settledAt: p.settledAt?.toISOString() ?? null,
+        // Aprobado por otro monto (propina del datáfono o parcial).
+        amount: amountById.get(p.id) ?? null,
       })),
       visualState,
       charge: terminalChargeState({

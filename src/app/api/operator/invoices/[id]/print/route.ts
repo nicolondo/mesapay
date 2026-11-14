@@ -11,6 +11,7 @@ import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import {
   buildInvoiceCommands,
   printOnCloudTerminal,
+  waitForCloudPrintJob,
 } from "@/lib/payments/kushki/cloudPrint";
 
 /**
@@ -111,10 +112,27 @@ async function POSTHandler(
       { status: 502 },
     );
   }
+  // 202 = encolado, NO impreso: se espera el estado real (hasta ~30 s).
+  const outcome = await waitForCloudPrintJob({
+    serialNumber: device.serialNumber!,
+    businessCode: tenant?.cloudTerminalBusinessCode,
+    mode: await getRestaurantKushkiMode(tenant),
+    printJobId: result.printJobId,
+  });
+  if (outcome.state === "failed") {
+    return NextResponse.json(
+      {
+        error: "print_failed",
+        message: outcome.errorCode ?? "FAILED",
+        ...(outcome.errorCode && { errorCode: outcome.errorCode }),
+      },
+      { status: 502 },
+    );
+  }
   return NextResponse.json({
     ok: true,
     printJobId: result.printJobId,
-    status: result.status ?? "PENDING",
+    state: outcome.state === "completed" ? "printed" : "queued",
   });
 }
 

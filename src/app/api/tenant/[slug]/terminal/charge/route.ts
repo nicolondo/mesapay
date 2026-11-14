@@ -16,6 +16,7 @@ import {
 } from "@/lib/payments/kushki/cloudTerminal";
 import { publishOrderEvent } from "@/lib/events";
 import { recoverTerminalOutcome } from "@/lib/payments/terminalRecovery";
+import { settleTerminalApproval } from "@/lib/payments/terminalApproval";
 import { processKushkiWebhook } from "@/lib/payments/webhookHandler";
 import { kushkiTerminalSetup, terminalDeviceUsable } from "@/lib/payments/terminalAvailability";
 import { terminalClaimKey } from "@/lib/payments/methods";
@@ -224,13 +225,26 @@ async function POSTHandler(
         pushedAt,
       });
       if (recovered.status === "approved") {
-        return NextResponse.json({ ok: true, status: "approved", providerRef: recovered.providerRef, recovered: true });
+        return NextResponse.json({
+          ok: true,
+          status: "approved",
+          providerRef: recovered.providerRef,
+          recovered: true,
+          ...(recovered.adjustment ? { adjustment: recovered.adjustment } : {}),
+        });
       }
       if (recovered.status === "declined") {
         return NextResponse.json({ ok: false, status: "declined", recovered: true }, { status: 402 });
       }
       await leaveUncertain(tenant.id, payment);
-      return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
+      return NextResponse.json(
+        {
+          pending: true,
+          error: "payment_pending",
+          ...(recovered.last === "amount_mismatch" ? { terminal: "amount_mismatch" } : {}),
+        },
+        { status: 202 },
+      );
     };
 
     let result;
@@ -254,16 +268,30 @@ async function POSTHandler(
 
 
     if (result.status === "approved") {
-      const processed = await processKushkiWebhook({
-        eventId: `cloudterm:${payment.id}:ok`,
-        type: "terminal.approved",
+      // Kushki aprobó: se liquida por lo que de verdad autorizó. Igual a la
+      // cuenta → como siempre; de más → propina del datáfono; de menos →
+      // parcial con saldo pendiente; otro caso → a conciliar con «monto
+      // cobrado distinto» (nunca «sin respuesta»: el cobro SÍ salió).
+      const approval = await settleTerminalApproval({
         restaurantId: tenant.id,
         paymentId: payment.id,
+        expectedCents: payment.amountCents,
         providerRef: result.providerRef,
+        authorizedCents: result.authorizedCents,
+        approvalCode: result.approvalCode ?? null,
+        confirmed: result.approvalConfirmed === true,
+        source: "sync_charge",
         message: result.message,
         raw: result.raw,
       });
-      if (processed.status === "error" || processed.requiresReview) {
+      if (approval.status === "amount_mismatch") {
+        await leaveUncertain(tenant.id, payment);
+        return NextResponse.json(
+          { pending: true, error: "payment_pending", terminal: "amount_mismatch" },
+          { status: 202 },
+        );
+      }
+      if (approval.status === "settle_failed") {
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
@@ -271,6 +299,7 @@ async function POSTHandler(
         ok: true,
         status: "approved",
         providerRef: result.providerRef,
+        ...(approval.adjustment ? { adjustment: approval.adjustment } : {}),
       });
     }
 

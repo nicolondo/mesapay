@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { fmtCOP } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { fmtCOP, formatMoney } from "@/lib/format";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { TERMINAL_CANCELED_REASON, type TerminalAttemptView } from "@/lib/payments/terminalAttempt";
 import { TerminalAttemptActions } from "@/components/payments/TerminalAttemptActions";
@@ -35,6 +37,8 @@ type PaymentState = {
   nextPaymentId: string | null;
   /** Sólo para el staff: qué se sabe del intento enviado al datáfono. */
   terminalAttempt: TerminalAttemptView | null;
+  /** Aprobado por OTRO monto (propina del datáfono o parcial). */
+  terminalAmount: TerminalAmountView | null;
 };
 
 /**
@@ -59,6 +63,8 @@ export function TerminalWait({
   initialNextPaymentId = null,
   initialAttempt = null,
   canResolveTerminal = false,
+  initialAmount = null,
+  currency = "COP",
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -80,16 +86,22 @@ export function TerminalWait({
   initialAttempt?: TerminalAttemptView | null;
   /** Staff administrador: "Resolver cobro" si el datáfono no respondió. */
   canResolveTerminal?: boolean;
+  /** Aprobado por otro monto: cuánto se cobró de verdad (terminalAmount.ts). */
+  initialAmount?: TerminalAmountView | null;
+  currency?: string;
 }) {
   const router = useRouter();
   const t = useTranslations("wait");
-  const [{ status, orderStatus, declineReason, nextPaymentId, terminalAttempt }, setPayment] =
+  const locale = useLocale() as Locale;
+  const money = (cents: number) => formatMoney(cents, { locale, currency, fractionDigits: cents % 100 ? 2 : 0 });
+  const [{ status, orderStatus, declineReason, nextPaymentId, terminalAttempt, terminalAmount }, setPayment] =
     useState<PaymentState>({
       status: initialStatus,
       orderStatus: initialOrderStatus,
       declineReason: initialDeclineReason,
       nextPaymentId: initialNextPaymentId,
       terminalAttempt: initialAttempt,
+      terminalAmount: initialAmount,
     });
   const redirected = useRef(false);
   const canceled = status === "declined" && declineReason === TERMINAL_CANCELED_REASON;
@@ -115,12 +127,15 @@ export function TerminalWait({
       declineReason,
     );
     if (!href) return;
+    // Aprobado por otro monto: un rato más, para que se alcance a leer cuánto
+    // se cobró de verdad.
+    const delay = status === "approved" ? (terminalAmount ? 6000 : 1200) : 1500;
     const timer = setTimeout(() => {
       redirected.current = true;
       router.push(href);
-    }, status === "approved" ? 1200 : 1500);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [status, orderStatus, declineReason, nextPaymentId, router, doneHref, continueHref, retryHref, canceledHref]);
+  }, [status, orderStatus, declineReason, nextPaymentId, terminalAmount, router, doneHref, continueHref, retryHref, canceledHref]);
 
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -140,6 +155,7 @@ export function TerminalWait({
         declineReason?: string;
         nextPaymentId?: string;
         terminalAttempt?: TerminalAttemptView | null;
+        terminalAmount?: TerminalAmountView | null;
       };
       if (aliveRef.current) {
         setPayment((prev) => ({
@@ -149,6 +165,7 @@ export function TerminalWait({
           nextPaymentId: j.nextPaymentId ?? null,
           // Sólo el staff lo recibe; si no viene, se conserva lo que había.
           terminalAttempt: j.terminalAttempt !== undefined ? j.terminalAttempt : prev.terminalAttempt,
+          terminalAmount: j.terminalAmount ?? null,
         }));
       }
     } catch {}
@@ -179,7 +196,24 @@ export function TerminalWait({
           <h1 className="font-display text-4xl tracking-[-0.015em] mt-5">
             {t("terminalApprovedTitle")}
           </h1>
-          <p className="text-muted mt-3">{t("terminalApprovedBody")}</p>
+          {terminalAmount?.authorizedCents != null && (terminalAmount.check === "tip" || terminalAmount.check === "partial") ? (
+            // El datáfono aprobó otro monto: lo que de verdad se cobró.
+            <p className="text-ink mt-3 rounded-2xl border border-hairline bg-paper px-4 py-3 text-sm leading-snug" role="status">
+              {terminalAmount.check === "tip"
+                ? t("terminalApprovedTipBody", {
+                    extra: money(terminalAmount.authorizedCents - terminalAmount.expectedCents),
+                    expected: money(terminalAmount.expectedCents),
+                    authorized: money(terminalAmount.authorizedCents),
+                  })
+                : t("terminalApprovedPartialBody", {
+                    authorized: money(terminalAmount.authorizedCents),
+                    expected: money(terminalAmount.expectedCents),
+                    missing: money(terminalAmount.expectedCents - terminalAmount.authorizedCents),
+                  })}
+            </p>
+          ) : (
+            <p className="text-muted mt-3">{t("terminalApprovedBody")}</p>
+          )}
         </div>
       </main>
     );

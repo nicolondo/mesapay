@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { fmtCOP } from "@/lib/format";
+import { terminalChargeOutcomeText } from "@/components/payments/TerminalAmountNote";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
 import { isRefreshMessage } from "@/lib/liveRefresh";
@@ -780,6 +781,7 @@ function TerminalPendingCard({
   onOutcome: (message: string) => void;
 }) {
   const tr = useTranslations("serve");
+  const tAttempt = useTranslations("terminalAttempt");
   const apiError = useApiError();
   const [err, setErr] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -812,6 +814,13 @@ function TerminalPendingCard({
       body: JSON.stringify({ paymentId: pending.id, deviceId: device.id }),
     });
     onBusyChange(null);
+    if (res.ok) {
+      // Aprobado por otro monto (propina del datáfono, parcial) o «monto
+      // cobrado distinto»: el aviso queda en el tablero aunque la tarjeta se vaya.
+      const okJson = (await res.clone().json().catch(() => ({}))) as Record<string, unknown>;
+      const amountOutcome = terminalChargeOutcomeText(okJson, title, tAttempt, fmtCOP);
+      if (amountOutcome) onOutcome(amountOutcome);
+    }
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       // j.message trae el detalle real del datáfono (rechazo/error); j.error

@@ -88,6 +88,8 @@ export function buildOperatorNav(input: OperatorNavInput): NavEntryDef[] {
   ];
   const ordersGroup: NavLeafDef[] = [
     leaf("/operator/orders", "navOrders"),
+    // Facturas manuales: no viven en Mesas (no son mesas), viven acá.
+    leaf("/operator/facturas-manuales", "navManualInvoices"),
     leaf("/operator/clientes", "navCustomers"),
     leaf("/operator/payments", "navPayments"),
     leaf("/operator/facturas", "navInvoices"),

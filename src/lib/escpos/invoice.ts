@@ -83,10 +83,12 @@ export type ThermalInvoiceRow = {
   label: string;
   amount: string;
   /**
-   * El TOTAL: negrita a doble ALTO con el ancho normal, así nunca se
-   * desborda. Ver `totalRowChunks` y `TOTAL_SIZE` en `compact.ts`.
+   * El TOTAL A PAGAR: negrita a doble ALTO con el ancho normal, así nunca
+   * se desborda. Ver `totalRowChunks` y `TOTAL_SIZE` en `compact.ts`.
    */
   strong?: boolean;
+  /** Negrita al tamaño normal ("Pendiente de pago"). Ignorado con `strong`. */
+  bold?: boolean;
 };
 
 /**
@@ -137,7 +139,12 @@ export type ThermalInvoice = {
    * en `items`. Ausente en el comprobante y en los payloads viejos.
    */
   itemsNote?: string | null;
-  /** Subtotal, impuestos, descuento, propina y TOTAL — en ese orden. */
+  /**
+   * Subtotal, descuento e impuestos, y los renglones finales de
+   * `payableRows`: total de la factura, propina voluntaria (si hay) y el
+   * TOTAL A PAGAR (`strong`) — en ese orden. Los payloads viejos traen
+   * "Propina" y "TOTAL" y se imprimen tal cual.
+   */
   totals: ThermalInvoiceRow[];
   /** Encabezado del bloque de pago ("Forma de pago"). null = no se imprime. */
   paymentTitle: string | null;
@@ -145,17 +152,19 @@ export type ThermalInvoice = {
   paymentRows: ThermalInvoiceRow[];
   /**
    * Factura emitida ANTES de cobrar y todavía sin saldar: "Pendiente de
-   * pago $ X", en negrita, en lugar de (o debajo de) la forma de pago.
-   * Opcional: ausente en toda factura emitida al cobrar.
+   * pago $ X", en negrita (`bold`), en lugar de (o debajo de) la forma de
+   * pago. Opcional: ausente en toda factura emitida al cobrar. Los payloads
+   * anteriores lo traen `strong` y se imprimen como entonces.
    */
   pendingRow?: ThermalInvoiceRow | null;
   /**
-   * Propina sugerida sobre lo pendiente y "TOTAL CON PROPINA", como en la
-   * precuenta: esta hoja la reemplaza cuando el comensal pide la factura
-   * antes de pagar. Vacío/ausente fuera de ese caso.
+   * La propina sugerida sobre lo pendiente ("Propina sugerida (voluntaria)
+   * 10%"), aparte y SIN sumarse al TOTAL A PAGAR: todavía nadie la decidió.
+   * Vacío/ausente fuera de ese caso. Los payloads anteriores traen además
+   * "TOTAL CON PROPINA" (`strong`) y se imprimen tal cual.
    */
   tipRows?: ThermalInvoiceRow[];
-  /** "La propina es voluntaria…" debajo de `tipRows`. */
+  /** "La propina es voluntaria…" debajo de `tipRows` (sólo payloads viejos). */
   tipNotice?: string | null;
   /** Resolución DIAN, numeración autorizada, agradecimiento. */
   footerLines: string[];
@@ -228,6 +237,7 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
         label: row.label,
         amount: row.amount,
         ...(row.strong === true ? { strong: true } : {}),
+        ...(row.bold === true ? { bold: true } : {}),
       });
     }
     return out;
@@ -410,16 +420,12 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
   }
 
   // ── Factura emitida ANTES de cobrar ─────────────────────────────────
-  // "Pendiente de pago" fuerte (como el TOTAL) y, aparte, la propina
-  // sugerida con el TOTAL CON PROPINA, como en la precuenta: la propina
-  // NO está en el TOTAL de arriba y el aviso lo dice en letras.
+  // "Pendiente de pago" en negrita y, aparte, la propina sugerida: NO está
+  // sumada al TOTAL A PAGAR de arriba (todavía nadie la decidió).
   if (invoice.pendingRow) chunks.push(...totalRowChunks(invoice.pendingRow, cols));
   if (invoice.tipRows && invoice.tipRows.length > 0) {
     chunks.push(separator(cols));
-    for (const row of invoice.tipRows) {
-      if (row.strong) chunks.push(...totalRowChunks(row, cols));
-      else for (const l of padRow(row.label, row.amount, cols)) chunks.push(line(l));
-    }
+    for (const row of invoice.tipRows) chunks.push(...totalRowChunks(row, cols));
     if (invoice.tipNotice) {
       chunks.push(selectFont("B"));
       for (const l of wrap(invoice.tipNotice, smallCols)) chunks.push(line(l));

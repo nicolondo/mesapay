@@ -63,6 +63,7 @@ import type {
   SaleTaxInput,
 } from "./taxesDocuments";
 import { expenseBaseCents, expenseHref } from "../expenseTax";
+import { conceptRateBps } from "../retencionesCore";
 
 export { expenseHref };
 import { centsToNumber, type StoredCents } from "../ledgerCents";
@@ -72,6 +73,7 @@ import { FREE_LINES_INCLUDE, toFreeLines } from "../accountingData";
 import { orderFreeLineTaxSlices } from "../salesTaxSlices";
 import type { RetentionLedgerLine } from "./taxesDetail";
 import type { TaxAccount } from "./taxesModel";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumberFormat";
 
 /** Consecutivo de la OC como documento cuando no se capturó la factura del proveedor. */
 export function purchaseDocumentLabel(
@@ -268,6 +270,7 @@ export async function loadExpenseTaxDocs(
       id: true,
       date: true,
       category: true,
+      number: true,
       documentType: true,
       documentNumber: true,
       amountCents: true,
@@ -281,14 +284,14 @@ export async function loadExpenseTaxDocs(
       reteIcaCents: true,
       retentions: {
         orderBy: { createdAt: "asc" },
-        select: { kind: true, name: true, rateBps: true, baseCents: true, amountCents: true },
+        select: { kind: true, name: true, rateBps: true, ratePpm: true, baseCents: true, amountCents: true },
       },
       supplier: { select: { name: true, taxId: true } },
     },
   });
   return rows.map((e) => ({
     expenseId: e.id,
-    document: e.documentNumber?.trim() || e.category,
+    document: expenseDocumentLabel(e, e.category),
     dateIso: e.date.toISOString(),
     category: e.category,
     documentType: e.documentType,
@@ -302,7 +305,8 @@ export async function loadExpenseTaxDocs(
     retefuenteCents: e.retefuenteCents,
     reteIvaCents: e.reteIvaCents,
     reteIcaCents: e.reteIcaCents,
-    retentions: e.retentions,
+    // Tarifa efectiva (con decimales finos si la foto trae ratePpm).
+    retentions: e.retentions.map(({ ratePpm, ...r }) => ({ ...r, rateBps: conceptRateBps({ rateBps: r.rateBps, ratePpm }) })),
     href: expenseHref(e.id, e.date),
   }));
 }

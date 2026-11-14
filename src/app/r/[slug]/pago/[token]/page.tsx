@@ -6,22 +6,26 @@ import { formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
 import { isModuleEnabled } from "@/lib/modules";
 import { getPaymentProvider } from "@/lib/payments";
-import {
-  DEPOSIT_CAPABLE_SLUGS,
-  resolveEnabledPaymentMethods,
-} from "@/lib/paymentMethods";
+import { DEPOSIT_CAPABLE_SLUGS, offerablePaymentMethods } from "@/lib/paymentMethods";
 import { paymentLinkIsOpen } from "@/lib/paymentLinks";
 import { getRestaurantKushkiMode } from "@/lib/platformConfig";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { PayLinkOpenedBeacon } from "@/components/manualInvoice/PayLinkOpenedBeacon";
+import { refreshReceivablePayLink } from "@/lib/manualInvoiceReceivable";
+import { displayOrderCode } from "@/lib/orderCode";
+import { formatInvoiceNumber, type InvoiceSnapshot } from "@/lib/invoice";
+import { invoiceUrlFor } from "@/lib/simpleInvoice";
 import { PayLinkClient } from "./PayLinkClient";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Página pública de un LINK DE PAGO: /r/[slug]/pago/[token]. Le llega a
- * la empresa por correo (emisión de bonos prepagados; corte a crédito).
- * Muestra qué se cobra y ofrece tarjeta / Apple Pay / PSE según los
- * medios online que el comercio tenga habilitados. Pagado, cancelado o
+ * la empresa por correo (emisión de bonos prepagados; corte a crédito; la
+ * factura manual emitida por cobrar, a la que se entra por
+ * /r/[slug]/cuenta/[token]).
+ * Muestra qué se cobra y ofrece tarjeta / Apple Pay / PSE / Bre-B según
+ * los medios online que el comercio tenga habilitados. Pagado, cancelado o
  * vencido: lo dice y no cobra.
  */
 export default async function PayLinkPage({
@@ -45,6 +49,9 @@ export default async function PayLinkPage({
       kushkiMode: true,
       enabledPaymentMethods: true,
       enabledModules: true,
+      // Bre-B cobra con las llaves de SU comercio de Kushki.
+      kushkiBreBPublicKey: true,
+      kushkiBreBPrivateKeyEnc: true,
     },
   });
   if (!tenant) return notFound();
@@ -59,16 +66,30 @@ export default async function PayLinkPage({
           billingCustomer: { select: { customerName: true } },
         },
       },
+      order: {
+        select: {
+          shortCode: true,
+          simpleInvoice: { select: { id: true, invoiceNumber: true, snapshot: true } },
+        },
+      },
     },
   });
   if (!link || link.restaurantId !== tenant.id) return notFound();
+  // Factura manual: sólo la emitida por cobrar se paga acá (la abierta se
+  // paga en el checkout de la orden). Su estado y su monto salen del saldo
+  // vivo del cargo a crédito (un abono parcial registrado desde Cartera, una
+  // nota crédito que la anuló).
+  if (link.kind === "order" && !link.creditPaymentId) return notFound();
+  const receivable = link.kind === "order" ? await refreshReceivablePayLink(link) : null;
+  const amountCents = receivable?.amountCents ?? link.amountCents;
+  const invoice = link.order?.simpleInvoice ?? null;
   // Un link de bonos con el módulo apagado no cobra: la pantalla no existe.
   if (link.kind.startsWith("voucher_") && !isModuleEnabled(tenant.enabledModules, "vouchers")) {
     return notFound();
   }
 
   const currency = link.currency || (await getCurrencyForCountry(tenant.country));
-  const amount = formatMoney(link.amountCents, { currency, locale });
+  const amount = formatMoney(amountCents, { currency, locale });
   const concept =
     link.kind === "voucher_batch" && link.voucherBatch
       ? t("conceptVoucherBatch", {
@@ -76,7 +97,21 @@ export default async function PayLinkPage({
           value: formatMoney(link.voucherBatch.unitValueCents, { currency, locale }),
           customer: link.voucherBatch.billingCustomer.customerName,
         })
-      : t("conceptGeneric");
+      : link.kind === "order" && invoice
+        ? t("conceptInvoice", {
+            number: formatInvoiceNumber(invoice.snapshot as unknown as InvoiceSnapshot, invoice.invoiceNumber),
+          })
+        : link.kind === "order" && link.order
+          ? t("conceptOrder", { code: displayOrderCode(link.order.shortCode) })
+          : t("conceptGeneric");
+  // La factura emitida, a un toque (la representación gráfica pública).
+  const invoiceLink = link.kind === "order" && invoice ? (
+    <p className="text-sm mt-3">
+      <a href={invoiceUrlFor(invoice.id)} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+        {t("viewInvoice")}
+      </a>
+    </p>
+  ) : null;
 
   const header = (
     <div className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted mb-2">
@@ -84,7 +119,7 @@ export default async function PayLinkPage({
     </div>
   );
 
-  if (link.status === "paid") {
+  if (link.status === "paid" || receivable?.state === "paid") {
     return (
       <Shell>
         {header}
@@ -97,11 +132,12 @@ export default async function PayLinkPage({
         {link.kind === "voucher_batch" && (
           <p className="text-xs text-muted mt-4">{t("paidVoucherNote")}</p>
         )}
+        {invoiceLink}
       </Shell>
     );
   }
 
-  if (!paymentLinkIsOpen(link)) {
+  if (!paymentLinkIsOpen(link) || (receivable && receivable.state !== "open")) {
     return (
       <Shell>
         {header}
@@ -113,11 +149,14 @@ export default async function PayLinkPage({
 
   const kushkiMode = await getRestaurantKushkiMode(tenant);
   const onboarded = tenant.kushkiOnboardingStatus === "active" || kushkiMode === "mock";
-  const methods = onboarded
-    ? resolveEnabledPaymentMethods(tenant.enabledPaymentMethods).filter((m) =>
-        DEPOSIT_CAPABLE_SLUGS.includes(m),
-      )
-    : [];
+  // Tarjeta / Apple Pay / PSE piden el comercio de tarjeta activo. Bre-B no:
+  // tiene su propio comercio (sus llaves ya las exige `offerablePaymentMethods`)
+  // y sólo cobra en pesos.
+  const offerable = offerablePaymentMethods(tenant.enabledPaymentMethods, tenant);
+  const methods: string[] = [
+    ...(onboarded ? offerable.filter((m) => DEPOSIT_CAPABLE_SLUGS.includes(m)) : []),
+    ...(offerable.includes("kushki_bre_b") && currency === "COP" ? ["kushki_bre_b"] : []),
+  ];
 
   // Bancos PSE pre-cargados (cacheados 1h en la API) — best-effort.
   let pseBanks: { code: string; name: string }[] = [];
@@ -134,7 +173,11 @@ export default async function PayLinkPage({
     <Shell wide>
       {header}
       <h1 className="font-display text-3xl mb-1">{t("titlePending")}</h1>
-      <p className="text-sm text-muted mb-6">{concept}</p>
+      <div className="mb-6">
+        <p className="text-sm text-muted">{concept}</p>
+        {invoiceLink}
+      </div>
+      {link.kind === "order" && <PayLinkOpenedBeacon slug={slug} token={token} />}
       <div className="rounded-2xl border border-hairline bg-paper p-4 mb-6 text-left">
         <div className="font-mono text-[10px] tracking-wider uppercase text-muted">
           {t("amountLabel")}
@@ -145,7 +188,7 @@ export default async function PayLinkPage({
         tenantSlug={slug}
         tenantName={tenant.name}
         token={token}
-        amountCents={link.amountCents}
+        amountCents={amountCents}
         amountLabel={amount}
         methods={methods}
         kushkiPublicKey={tenant.kushkiPublicKey}

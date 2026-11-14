@@ -51,6 +51,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "pagos-pendientes-del-comensal",
   ],
   "/operator/orders": ["buscar-y-revisar-ordenes", "imprimir-y-enviar-facturas"],
+  "/operator/facturas-manuales": ["factura-manual"],
   "/operator/orders/[id]": [
     "buscar-y-revisar-ordenes",
     "cobrar-una-cuenta",
@@ -77,11 +78,13 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/reports/no-cobrados": ["cortesias-y-productos-no-cobrados"],
   "/operator/reports/gastos-representacion": ["cortesias-y-productos-no-cobrados"],
   "/operator/shifts": ["abrir-y-cerrar-el-turno"],
-  "/operator/shifts/[id]": ["abrir-y-cerrar-el-turno"],
+  "/operator/shifts/[id]": ["abrir-y-cerrar-el-turno", "imprimir-en-este-dispositivo"],
+  "/operator/shifts/[id]/tirilla": { internal: "Vista de impresión (tirilla del cierre de turno)." },
   "/operator/clientes": ["clientes-de-facturacion", "cobrar-a-credito", "descuentos-para-clientes"],
   "/operator/clientes/[id]": ["descuentos-para-clientes"],
-  "/terminal": ["cobrar-con-datafono", "datafonos"],
+  "/terminal": ["cobrar-con-datafono", "datafonos", "imprimir-en-este-dispositivo"],
   "/terminal/cobrar/[orderId]": ["cobrar-con-datafono", "cobrar-una-cuenta", "cobrar-en-efectivo"],
+  "/terminal/precuenta/[id]": { internal: "Vista de impresión (precuenta desde el datáfono)." },
 
   /* ── App del mesero ── */
   "/mesero": { internal: "Solo redirige a Salón." },
@@ -180,14 +183,16 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
     "conteo-de-inventario",
     "archivar-o-eliminar-un-insumo",
   ],
-  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra"],
+  "/operator/compras": ["ordenes-de-compra", "cargar-facturas-de-compra", "documento-soporte"],
 
   /* ── Facturación ── */
   "/operator/settings/impuestos": ["impuesto-de-ventas"],
   "/operator/settings/facturacion-dian": [
     "resolucion-de-facturacion",
     "activar-la-facturacion-electronica",
+    "documento-soporte",
   ],
+  "/operator/documento-soporte/[id]": ["documento-soporte"],
   "/operator/facturas": [
     "solicitudes-de-factura",
     "emision-automatica-de-facturas",
@@ -199,6 +204,7 @@ export const HELP_COVERAGE: Record<string, HelpCoverage> = {
   "/operator/contabilidad": [
     "como-funciona-la-contabilidad",
     "registrar-gastos",
+    "documento-soporte",
     "pyg-y-libros-del-mes",
     "plan-de-cuentas",
     "cerrar-el-mes-contable",

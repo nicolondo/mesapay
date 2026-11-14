@@ -3,7 +3,9 @@
 // Admins decide which payment methods appear on the diner-facing
 // checkout for a given restaurant. The Restaurant.enabledPaymentMethods
 // column stores an array of slugs; null means "everything we know is
-// enabled" so existing tenants don't lose buttons after this rolls out.
+// enabled" so existing tenants don't lose buttons after this rolls out —
+// EXCEPT the methods flagged `defaultOff` (Bre-B): those are opt-in per
+// restaurant and also need their own credentials.
 //
 // Demo methods (demo_card, demo_nequi) are NOT user-toggleable from this
 // surface — they're for dev / sandbox and gated by `demoPaymentsAllowed`.
@@ -17,6 +19,7 @@ export type PaymentMethodSlug =
   | "kushki_card"
   | "kushki_apple_pay"
   | "kushki_pse"
+  | "kushki_bre_b"
   | "external_terminal"
   | "cash";
 
@@ -24,6 +27,17 @@ export type PaymentMethodConfig = {
   slug: PaymentMethodSlug;
   label: string;
   description: string;
+  /**
+   * APAGADO por defecto: no entra en el "todo habilitado" de
+   * `enabledPaymentMethods = null`. Hay que prenderlo a mano en /admin.
+   */
+  defaultOff?: boolean;
+  /**
+   * Lo que el comercio tiene que tener cargado para poder prenderlo.
+   * `bre_b_credentials` = las llaves del comercio Bre-B de Kushki
+   * (`Restaurant.kushkiBreB*`), distintas de las de tarjeta/PSE.
+   */
+  requires?: "bre_b_credentials";
 };
 
 export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
@@ -58,6 +72,16 @@ export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
       "El diner elige su banco, va a la web del banco a autenticarse y vuelve. Resultado por webhook.",
   },
   {
+    slug: "kushki_bre_b",
+    // El panel de /admin muestra estos dos textos traducidos
+    // (`opAdmin.pm_kushki_bre_b_*`); esto es sólo el respaldo.
+    label: "Bre-B (QR de pago inmediato)",
+    description:
+      "MESAPAY muestra un QR con el monto y el cliente lo escanea desde la app de su banco. Necesita las llaves del comercio Bre-B de Kushki.",
+    defaultOff: true,
+    requires: "bre_b_credentials",
+  },
+  {
     slug: "cash",
     label: "Efectivo",
     description: "Diner llama al mesero y paga con billetes (el mesero confirma el monto en /salón).",
@@ -65,6 +89,41 @@ export const PAYMENT_METHOD_CATALOG: PaymentMethodConfig[] = [
 ];
 
 export const PAYMENT_METHOD_SLUGS = PAYMENT_METHOD_CATALOG.map((m) => m.slug);
+
+/**
+ * Lo que significa `enabledPaymentMethods = null` ("todo habilitado"): el
+ * catálogo SIN los medios apagados por defecto. Bre-B nace apagado para
+ * todos los comercios, también los que ya existían.
+ */
+export const DEFAULT_ENABLED_PAYMENT_METHOD_SLUGS = PAYMENT_METHOD_CATALOG.filter(
+  (m) => !m.defaultOff,
+).map((m) => m.slug);
+
+/** Medios que exigen las llaves del comercio Bre-B para poder habilitarse. */
+export const BRE_B_CREDENTIAL_METHODS: readonly PaymentMethodSlug[] = PAYMENT_METHOD_CATALOG.filter(
+  (m) => m.requires === "bre_b_credentials",
+).map((m) => m.slug);
+
+/** ¿El comercio tiene cargadas las DOS llaves del comercio Bre-B? */
+export function hasBreBCredentials(
+  tenant: { kushkiBreBPublicKey?: string | null; kushkiBreBPrivateKeyEnc?: string | null } | null | undefined,
+): boolean {
+  return !!tenant?.kushkiBreBPublicKey?.trim() && !!tenant?.kushkiBreBPrivateKeyEnc;
+}
+
+/**
+ * Los medios habilitados que el comercio de verdad PUEDE ofrecer: quita los
+ * que exigen las llaves Bre-B si no están cargadas (p. ej. se borraron
+ * después de habilitarlo). Es lo que usan las pantallas de cobro.
+ */
+export function offerablePaymentMethods(
+  stored: unknown,
+  tenant: { kushkiBreBPublicKey?: string | null; kushkiBreBPrivateKeyEnc?: string | null } | null | undefined,
+): PaymentMethodSlug[] {
+  const enabled = resolveEnabledPaymentMethods(stored);
+  if (hasBreBCredentials(tenant)) return enabled;
+  return enabled.filter((m) => !BRE_B_CREDENTIAL_METHODS.includes(m));
+}
 
 /**
  * Métodos que se pueden cobrar de forma REMOTA (el cliente no está en el
@@ -104,8 +163,8 @@ export function resolveDepositMethods(
 export function resolveEnabledPaymentMethods(
   stored: unknown,
 ): PaymentMethodSlug[] {
-  if (stored == null) return PAYMENT_METHOD_SLUGS.slice();
-  if (!Array.isArray(stored)) return PAYMENT_METHOD_SLUGS.slice();
+  if (stored == null) return DEFAULT_ENABLED_PAYMENT_METHOD_SLUGS.slice();
+  if (!Array.isArray(stored)) return DEFAULT_ENABLED_PAYMENT_METHOD_SLUGS.slice();
   const valid = new Set<PaymentMethodSlug>(PAYMENT_METHOD_SLUGS);
   const out: PaymentMethodSlug[] = [];
   for (const raw of stored) {
@@ -128,6 +187,6 @@ export async function getEnabledPaymentMethods(
     where: { id: restaurantId },
     select: { enabledPaymentMethods: true },
   });
-  if (!r) return PAYMENT_METHOD_SLUGS.slice();
+  if (!r) return DEFAULT_ENABLED_PAYMENT_METHOD_SLUGS.slice();
   return resolveEnabledPaymentMethods(r.enabledPaymentMethods);
 }

@@ -4,6 +4,12 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import type { ModuleSlug } from "@/lib/modules";
+import { normalizeDocumentNumber } from "@/lib/erp/documentNumber";
+import {
+  assertNotDuplicateDocument,
+  DuplicateDocumentError,
+  duplicateDocumentResponse,
+} from "@/lib/erp/duplicateDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +31,7 @@ const patchSchema = z.object({
 async function loadOwned(id: string, restaurantId: string) {
   const po = await db.purchaseOrder.findUnique({
     where: { id },
-    select: { id: true, restaurantId: true, status: true },
+    select: { id: true, restaurantId: true, status: true, supplierId: true, supplierInvoiceNumber: true },
   });
   if (!po || po.restaurantId !== restaurantId) return null;
   return po;
@@ -164,18 +170,40 @@ async function PATCHHandler(
       return NextResponse.json({ order });
     }
     case "update_invoice": {
-      const order = await db.purchaseOrder.update({
-        where: { id },
-        data: {
-          ...(b.supplierInvoiceNumber !== undefined
-            ? { supplierInvoiceNumber: b.supplierInvoiceNumber }
-            : {}),
-          ...(b.invoiceDueAt !== undefined
-            ? { invoiceDueAt: b.invoiceDueAt ? new Date(b.invoiceDueAt) : null }
-            : {}),
-        },
-      });
-      return NextResponse.json({ order });
+      // Sólo si el número CAMBIA se revisa que esa factura no esté ya
+      // registrada (cambiar el vencimiento de una factura vieja repetida no
+      // se bloquea). Revisión bajo candado, en la misma transacción.
+      const numberChanged =
+        b.supplierInvoiceNumber !== undefined &&
+        normalizeDocumentNumber(b.supplierInvoiceNumber) !== normalizeDocumentNumber(po.supplierInvoiceNumber);
+      try {
+        const order = await db.$transaction(async (tx) => {
+          const updated = await tx.purchaseOrder.update({
+            where: { id },
+            data: {
+              ...(b.supplierInvoiceNumber !== undefined
+                ? { supplierInvoiceNumber: b.supplierInvoiceNumber }
+                : {}),
+              ...(b.invoiceDueAt !== undefined
+                ? { invoiceDueAt: b.invoiceDueAt ? new Date(b.invoiceDueAt) : null }
+                : {}),
+            },
+          });
+          if (numberChanged) {
+            await assertNotDuplicateDocument(tx, {
+              restaurantId: ctx.restaurantId,
+              supplierId: po.supplierId,
+              number: b.supplierInvoiceNumber,
+              exclude: { kind: "purchase", id },
+            });
+          }
+          return updated;
+        });
+        return NextResponse.json({ order });
+      } catch (err) {
+        if (err instanceof DuplicateDocumentError) return duplicateDocumentResponse(err);
+        throw err;
+      }
     }
   }
 }

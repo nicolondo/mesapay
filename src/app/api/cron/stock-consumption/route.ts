@@ -5,11 +5,12 @@ import { sweepUnconsumedOrders } from "@/lib/erp/consumption";
 import type { PaymentMethod } from "@prisma/client";
 import { isReplaceablePending } from "@/lib/payments/methods";
 import { terminalClaimedIds } from "@/lib/payments/pendingRequests";
+import { sweepBreBCharges } from "@/lib/payments/breB/service";
 
 export const dynamic = "force-dynamic";
 
 /** Métodos cuyo pendiente viejo puede ser plata en vuelo en un proveedor. */
-const STALE_PROVIDER_METHODS: readonly PaymentMethod[] = ["kushki_card", "kushki_apple_pay", "kushki_card_terminal", "kushki_pse"];
+const STALE_PROVIDER_METHODS: readonly PaymentMethod[] = ["kushki_card", "kushki_apple_pay", "kushki_card_terminal", "kushki_pse", "kushki_bre_b"];
 
 /**
  * Cron de respaldo del consumo automático de inventario (ERP A4).
@@ -25,6 +26,11 @@ const STALE_PROVIDER_METHODS: readonly PaymentMethod[] = ["kushki_card", "kushki
  * También es el barrido de 30 minutos de los cobros con proveedor: marca
  * `reconciliationRequired` en los pendientes viejos para que Pagos ofrezca
  * conciliarlos.
+ *
+ * Y el barrido de Bre-B: los QR vencidos que nadie está mirando se consultan
+ * en Kushki y se cierran (o se saldan, si se pagaron), para que una cuenta
+ * no quede bloqueada por un QR abandonado. Va ANTES del barrido de 30
+ * minutos: lo que Kushki ya resolvió no llega a conciliación.
  */
 async function POSTHandler(req: Request) {
   const secret = req.headers.get("x-cron-secret");
@@ -35,6 +41,11 @@ async function POSTHandler(req: Request) {
   const summary = await sweepUnconsumedOrders();
   await db.rateLimitBucket.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await db.platformEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86400_000) } } });
+  // Bre-B: nunca tumba el resto del cron (Kushki puede no responder).
+  const breB = await sweepBreBCharges().catch((err) => {
+    console.error("[cron] bre-b sweep failed", err instanceof Error ? err.name : "unknown");
+    return { checked: 0, resolved: 0 };
+  });
   // A process can die after the provider accepts, before the local result commits.
   const staleAt = new Date(Date.now() - 30 * 60_000);
   const operations = await db.financialOperation.findMany({ where: { status: "pending", createdAt: { lt: staleAt } }, select: { key: true, paymentId: true }, take: 500 });
@@ -59,7 +70,7 @@ async function POSTHandler(req: Request) {
     }, data: { reconciliationRequired: true } });
   });
   const reconciliationRequired = await db.payment.count({ where: { reconciliationRequired: true } });
-  return NextResponse.json({ ...summary, reconciliationRequired });
+  return NextResponse.json({ ...summary, reconciliationRequired, breB });
 }
 
 export const POST = secureApi(POSTHandler);

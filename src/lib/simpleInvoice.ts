@@ -45,6 +45,11 @@ export function invoiceUrlFor(id: string): string {
   return `${base.replace(/\/$/, "")}/factura/${id}`;
 }
 
+/** Un porcentaje de propina válido para guardar en el snapshot (0–100, entero). */
+function isTipPct(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100;
+}
+
 /**
  * Emite (o devuelve, idempotente) la factura simple imprimible de una orden
  * pagada. Fuente ÚNICA de la numeración + snapshot — la usan la tirilla
@@ -74,6 +79,12 @@ export async function issueSimpleInvoice(opts: {
   customer?: InvoiceCustomer | null;
   /** Emitir sobre la cuenta ABIERTA, antes de cobrar. Ver arriba. */
   beforePayment?: boolean;
+  /**
+   * Antes de cobrar: la propina elegida en el cobro (0 = «Sin propina»).
+   * Queda en el snapshot (`suggestedTipPct`); ausente = la sugerida de
+   * siempre.
+   */
+  suggestedTipPct?: number | null;
 }): Promise<IssueSimpleInvoiceResult> {
   const order = await db.order.findUnique({
     where: { id: opts.orderId },
@@ -269,6 +280,7 @@ export async function issueSimpleInvoice(opts: {
     ...(beforePayment && {
       issuedBeforePayment: true,
       orderItemIds: order.items.map((i) => i.id),
+      ...(isTipPct(opts.suggestedTipPct) && { suggestedTipPct: opts.suggestedTipPct }),
     }),
   };
 
@@ -379,11 +391,25 @@ export async function sendSimpleInvoiceEmail(opts: {
   locale: string | null;
 }): Promise<void> {
   try {
+    // Emitida ANTES de cobrar: la propina del TOTAL A PAGAR es la REAL de
+    // la orden (el snapshot no la tiene), y si ya se saldó. Emitida al
+    // cobrar, el snapshot ya trae la propina final.
+    const order = isIssuedBeforePayment(opts.snapshot)
+      ? await db.simpleInvoice
+          .findUnique({
+            where: { id: opts.invoiceId },
+            select: { order: { select: { tipCents: true, status: true } } },
+          })
+          .then((r) =>
+            r?.order ? { tipCents: r.order.tipCents, paid: r.order.status === "paid" } : null,
+          )
+      : null;
     const { subject, html, text } = await renderInvoiceEmail({
       snapshot: opts.snapshot,
       invoiceNumber: opts.invoiceNumber,
       invoiceUrl: opts.invoiceUrl,
       locale: opts.locale ?? undefined,
+      order,
     });
     const from = brandedInvoiceFrom(opts.snapshot.restaurantName);
     const ok = await sendEmail({

@@ -18,12 +18,13 @@ import {
 } from "./methods";
 
 describe("isOnlinePaymentMethod", () => {
-  it("tarjeta, billeteras y PSE (Kushki y Wompi) y la tarjeta demo son pasarela en línea", () => {
+  it("tarjeta, billeteras, PSE y Bre-B (Kushki y Wompi) y la tarjeta demo son pasarela en línea", () => {
     for (const m of [
       "kushki_card",
       "kushki_apple_pay",
       "kushki_google_pay",
       "kushki_pse",
+      "kushki_bre_b",
       "wompi_card",
       "wompi_pse",
       "wompi_nequi",
@@ -115,13 +116,14 @@ describe("isReplaceablePendingMethod / REPLACEABLE_PENDING_METHODS", () => {
     for (const m of REPLACEABLE_PENDING_METHODS) expect(isReplaceablePendingMethod(m), m).toBe(true);
   });
 
-  it("los pagos con proveedor externo en curso NUNCA se reemplazan", () => {
+  it("los pagos con proveedor externo en curso NUNCA se reemplazan (también un QR Bre-B vivo)", () => {
     for (const m of [
       "kushki_card_terminal",
       "kushki_card",
       "kushki_apple_pay",
       "kushki_google_pay",
       "kushki_pse",
+      "kushki_bre_b",
       "wompi_card",
       "wompi_pse",
       "wompi_nequi",

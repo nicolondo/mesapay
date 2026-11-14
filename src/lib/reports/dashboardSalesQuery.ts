@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { NOT_MANUAL_INVOICE } from "@/lib/manualInvoice";
 import type { RestaurantTax } from "@/lib/salesTax";
 import {
   DASHBOARD_OPEN_ORDER_STATUSES,
@@ -88,17 +89,26 @@ export async function loadDashboardSales(
  * would otherwise inflate the figure day after day. It still counts in
  * «Abiertas ahora».
  */
+/**
+ * Cuentas abiertas del Resumen («Abiertas ahora» y lo que falta cobrar):
+ * las del salón, nunca una factura manual (vive en Facturas manuales y,
+ * emitida, en Cartera).
+ */
+export function dashboardOpenOrdersWhere(restaurantId: string) {
+  return {
+    restaurantId,
+    status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
+    ...NOT_MANUAL_INVOICE,
+  } satisfies Prisma.OrderWhereInput;
+}
+
 export async function loadDashboardUncollected(
   restaurantId: string,
   openedSince: Date,
   currentTax: RestaurantTax,
 ): Promise<{ netCents: number; orderCount: number }> {
   const orders = await db.order.findMany({
-    where: {
-      restaurantId,
-      status: { in: DASHBOARD_OPEN_ORDER_STATUSES },
-      createdAt: { gte: openedSince },
-    },
+    where: { ...dashboardOpenOrdersWhere(restaurantId), createdAt: { gte: openedSince } },
     select: {
       id: true, subtotalCents: true, taxCents: true, discountCents: true,
       payments: { where: { status: "approved" }, select: { amountCents: true, tipCents: true } },

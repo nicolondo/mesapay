@@ -45,6 +45,7 @@ import {
   type CarteraPayment,
 } from "./cartera";
 import { isoDateUtc, periodToUtcRange } from "./period";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumberFormat";
 
 /** Límite EXCLUSIVO del corte: 00:00Z del día siguiente a `hasta`. */
 export function cutoffEnd(hasta: string): Date {
@@ -75,6 +76,8 @@ const PO_SELECT = {
   // Junto con las tres de arriba (ver PURCHASE_ORDER_TAX_SELECT): sin esto,
   // las retenciones practicadas al recibir seguirían el avance de la recepción.
   receptionRetentionCents: true,
+  // El ajuste al peso de la factura: el saldo es el Total impreso.
+  roundingCents: true,
   supplier: { select: { id: true, name: true, taxId: true, paymentTermsDays: true } },
   items: { select: PURCHASE_LINE_AMOUNTS_SELECT },
   movements: {
@@ -98,6 +101,7 @@ type PoRow = {
   reteIvaCents: number;
   reteIcaCents: number;
   receptionRetentionCents: number;
+  roundingCents: number;
   items: PurchaseLineAmountsInput[];
   movements: { createdAt: Date }[];
   payments: { id: string; amountCents: number; paidAt: Date; method: string | null; note: string | null }[];
@@ -132,6 +136,7 @@ type ExpenseRow = {
   amountCents: number;
   /** Total a pagar (base + IVA + INC − retenciones); 0 en gastos viejos = su valor. */
   payableCents?: number | null;
+  number?: number | null;
   documentNumber?: string | null;
   date: Date;
   dueAt: Date | null;
@@ -147,7 +152,7 @@ function expenseToDoc(e: ExpenseRow): CarteraDoc {
     partnerId: e.supplier?.id ?? NO_SUPPLIER_ID,
     partnerName: e.supplier?.name ?? "",
     partnerTaxId: e.supplier?.taxId ?? null,
-    number: e.documentNumber || e.description || e.category,
+    number: expenseDocumentLabel(e, e.description || e.category),
     date,
     dueDate: e.dueAt ? isoDateUtc(e.dueAt) : date,
     // Lo que se le debe al PROVEEDOR: lo retenido se le debe a la DIAN.
@@ -210,6 +215,7 @@ export async function loadPayablesDocs(restaurantId: string, hasta: string): Pro
         description: true,
         amountCents: true,
         payableCents: true,
+        number: true,
         documentNumber: true,
         date: true,
         dueAt: true,
@@ -318,6 +324,10 @@ type CreditAbonoRow = {
   amountCents: number;
   accountCode: string;
   note: string | null;
+  /** Abono dirigido a un cargo (link de pago de una factura manual). */
+  creditChargeId?: string | null;
+  /** Lo dejó el pago en línea de un link. */
+  paymentLinkId?: string | null;
 };
 
 const CREDIT_CHARGE_SELECT = {
@@ -348,6 +358,8 @@ const CREDIT_ABONO_SELECT = {
   amountCents: true,
   accountCode: true,
   note: true,
+  creditChargeId: true,
+  paymentLinkId: true,
 } as const;
 
 /** Estados que siguen pesando en la deuda (un cargo devuelto pesa 0 y no sale). */
@@ -379,6 +391,7 @@ export function creditMovementsFor(
     id: a.id,
     date: a.paidAt,
     amountCents: a.amountCents,
+    chargeId: a.creditChargeId ?? null,
   }));
   const fifo = allocateFifo(creditCharges, creditAbonos);
   const outstanding = new Map(fifo.charges.map((c) => [c.chargeId, c.outstandingCents]));
@@ -415,6 +428,7 @@ export function creditMovementsFor(
       date: isoDateUtc(a.paidAt),
       amountCents: a.amountCents,
       note: a.note ?? a.accountCode,
+      ...(a.paymentLinkId ? { viaPayLink: true } : {}),
     });
   }
   return { docs, payments };
@@ -650,6 +664,7 @@ export async function loadPartnerMovements(
         description: true,
         amountCents: true,
         payableCents: true,
+        number: true,
         documentNumber: true,
         date: true,
         dueAt: true,

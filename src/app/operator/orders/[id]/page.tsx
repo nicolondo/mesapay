@@ -15,10 +15,11 @@ import { TableActions } from "../../tables/TableActions";
 import { hasPreparationStarted } from "@/lib/orders/cancellationPolicy";
 import { InvoiceActions } from "../InvoiceActions";
 import { RefundButton } from "./RefundButton";
-import { PayLinkPanel, type PayLinkView } from "./PayLinkPanel";
-import { manualInvoicePayLinkAvailability, manualInvoicePayLinkPath, payLinkState } from "@/lib/manualInvoicePayLink";
+import { ManualInvoiceSendCard } from "@/components/manualInvoice/ManualInvoiceSend";
+import { loadManualInvoiceSendInfo } from "@/lib/manualInvoiceSendInfo";
+import { terminalAmountViews } from "@/lib/payments/pendingRequests";
+import { TerminalAmountNote } from "@/components/payments/TerminalAmountNote";
 import { appOrigin } from "@/lib/http/publicOrigin";
-import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { headers } from "next/headers";
 
 import type { Locale } from "@/i18n/config";
@@ -28,6 +29,8 @@ export const dynamic = "force-dynamic";
 
 // Métodos Kushki con tarjeta que se pueden devolver (mismo criterio que el
 // endpoint /api/operator/payments/[id]/refund). Efectivo y PSE quedan fuera.
+// Bre-B también: Kushki no documenta devoluciones para Bre-B, así que el
+// detalle del pago dice cómo devolverlo a mano (`breBRefundManual`).
 const REFUNDABLE_METHODS = new Set([
   "kushki_card",
   "kushki_apple_pay",
@@ -41,14 +44,18 @@ export default async function OperatorOrderDetail({
   params: Promise<{ id: string }>;
   // `conciliar=<paymentId>`: llega desde el aviso «Conciliar pago» de la mesa
   // o del cobro; ese pago abre su formulario de conciliación.
-  searchParams: Promise<{ conciliar?: string }>;
+  // `enviada=1`: llega de "Emitir y enviar factura" en Mesas (la cuenta ya
+  // salió de ahí); la ficha lo dice arriba.
+  searchParams: Promise<{ conciliar?: string; enviada?: string }>;
 }) {
   const t = await getTranslations("opOrders");
+  const tSend = await getTranslations("manualInvoiceSend");
+  const tManual = await getTranslations("manualInvoices");
   const locale = (await getLocale()) as Locale;
   const fmtDateTime = (date: Date) => formatDate(date, { locale });
   const fmtTime = (date: Date) => formatDate(date, { locale, dateStyle: undefined, timeStyle: "short" });
   const { id } = await params;
-  const { conciliar } = await searchParams;
+  const { conciliar, enviada } = await searchParams;
   const restaurantId = await getActiveRestaurantId();
   if (!restaurantId) return <div className="p-6">{t("noRestaurant")}</div>;
 
@@ -71,15 +78,6 @@ export default async function OperatorOrderDetail({
           dianDocument: { select: { id: true, state: true } },
         },
       },
-      // Link de pago de la factura manual (si alguna vez se generó) y la
-      // factura pedida, cuyo correo prellena el envío del link.
-      payLink: { select: { token: true, status: true, expiresAt: true, payerEmail: true, emailSentAt: true } },
-      invoiceRequests: {
-        where: { status: "pending" },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { email: true },
-      },
     },
   });
   if (!order || order.restaurantId !== restaurantId) return notFound();
@@ -97,6 +95,9 @@ export default async function OperatorOrderDetail({
     },
   });
   const counterMode = tenant?.serviceMode === "counter";
+  // Datáfono Kushki aprobado por OTRO monto (propina del datáfono, parcial o
+  // «monto cobrado distinto»): el aviso bajo el pago, junto a «Conciliar».
+  const amountById = await terminalAmountViews(db, order.payments);
   // La factura de la cuenta, si ya se cobró. El número sale del snapshot
   // (prefijo congelado al emitir), igual que en /factura/[id]. El reenvío
   // por correo sólo con facturación electrónica y la factura ACEPTADA.
@@ -151,32 +152,16 @@ export default async function OperatorOrderDetail({
   );
   const outstandingCents = Math.max(0, chargeableCents - paidFood);
 
-  // Link de pago (sólo factura manual): el botón existe si la cuenta está
-  // abierta con saldo y el comercio tiene Kushki activo; un link ya creado se
-  // muestra con su estado (enviado / pagado / anulado / vencido) aunque la
-  // acción ya no aplique. Mismo gate que la API.
-  const manualInvoice = order.table.kind === "manual";
-  const payLinkAvailability = tenant
-    ? manualInvoicePayLinkAvailability({
-        tableKind: order.table.kind,
-        orderStatus: order.status,
-        // Lo cobrable del checkout incluye el impuesto por línea.
-        outstandingCents: Math.max(0, order.subtotalCents + order.taxCents - order.discountCents - paidFood),
-        tenant,
-      })
-    : null;
-  const payLinkView: PayLinkView | null =
-    manualInvoice && order.payLink && tenant
-      ? {
-          url: `${appOrigin(await headers())}${manualInvoicePayLinkPath(tenant.slug, order.payLink.token)}`,
-          expiresAt: (order.payLink.expiresAt ?? new Date()).toISOString(),
-          sentTo: order.payLink.payerEmail,
-          sentAt: order.payLink.emailSentAt?.toISOString() ?? null,
-          state: payLinkState(order.payLink, order),
-        }
+  // FACTURA MANUAL: "Emitir y enviar factura" / su link de pago y cómo va
+  // (enviada, abierta, por cobrar, pagada, vencida). Mismo gate que la API.
+  const sendInfo =
+    order.table.kind === "manual"
+      ? await loadManualInvoiceSendInfo({ restaurantId, orderId: order.id, origin: appOrigin(await headers()) })
       : null;
-  const showPayLink = manualInvoice && tenant && (payLinkAvailability?.ok === true || payLinkView !== null);
-  const payLinkCurrency = showPayLink && tenant ? await getCurrencyForCountry(tenant.country) : "COP";
+  const showSend =
+    !!sendInfo &&
+    (sendInfo.canSend || sendInfo.link !== null || sendInfo.receivable !== null ||
+      (sendInfo.open && sendInfo.unavailable === "online_payments_unavailable"));
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
@@ -211,8 +196,17 @@ export default async function OperatorOrderDetail({
             </span>
           </div>
         </div>
-        <StatusPill status={order.status} />
+        <div className="flex items-center gap-2">
+          <StatusPill status={order.status} />
+          {sendInfo?.receivable && <ReceivableChip info={sendInfo} />}
+        </div>
       </div>
+
+      {enviada === "1" && sendInfo?.receivable && (
+        <div role="status" className="mt-4 rounded-2xl border border-[#2E6B4C]/30 bg-[#2E6B4C]/10 p-3 text-sm text-[#1E5339]">
+          {tSend("sentBanner")}
+        </div>
+      )}
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={t("statSubtotal")} value={fmtCOP(chargeableCents)} />
@@ -261,6 +255,17 @@ export default async function OperatorOrderDetail({
           <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1">
             {t("actions")}
           </div>
+          {/* Factura manual: no está en Mesas; su ficha (platos, cargos,
+              cliente, emitir) está en Facturas manuales. */}
+          {order.table.kind === "manual" && (
+            // Carga completa: la ficha abre al cargar con `?open=`.
+            <a
+              href={`/operator/facturas-manuales?open=${encodeURIComponent(order.tableId)}`}
+              className="mb-3 mt-1 inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-medium text-bone hover:bg-ink/90"
+            >
+              {tManual("continueEditing")}
+            </a>
+          )}
           <TableActions
             orderId={order.id}
             tenantSlug={tenant!.slug}
@@ -273,18 +278,7 @@ export default async function OperatorOrderDetail({
         </div>
       )}
 
-      {showPayLink && tenant && (
-        <PayLinkPanel
-          orderId={order.id}
-          initial={payLinkView}
-          canSend={payLinkAvailability?.ok === true}
-          suggestedEmail={order.invoiceRequests[0]?.email ?? order.payLink?.payerEmail ?? null}
-          outstandingCents={Math.max(0, order.subtotalCents + order.taxCents - order.discountCents - paidFood)}
-          currency={payLinkCurrency}
-          tenantName={tenant.name}
-          orderCode={displayOrderCode(order.shortCode)}
-        />
-      )}
+      {showSend && sendInfo && <ManualInvoiceSendCard info={sendInfo} variant="panel" />}
 
       {invoice && (
         <div className="mt-4 bg-op-surface border border-op-border rounded-2xl p-4">
@@ -462,6 +456,9 @@ export default async function OperatorOrderDetail({
                       {fmtDateTime(p.createdAt)}
                       {p.providerRef ? ` · ${p.providerRef}` : ""}
                     </div>
+                    {amountById.get(p.id) && (
+                      <TerminalAmountNote amount={amountById.get(p.id)!} className="mt-1 max-w-md" />
+                    )}
                     {canReconcile && p.reconciliationRequired && (
                       // Ancla del enlace «Conciliar pago» (reconcilePaymentHref).
                       <div id={`conciliar-${p.id}`} className="scroll-mt-24">
@@ -471,6 +468,13 @@ export default async function OperatorOrderDetail({
                     {p.refundedCents > 0 && (
                       <div className="text-[11px] text-danger mt-0.5">
                         {t("refundedNote", { amount: fmtCOP(p.refundedCents) })}
+                      </div>
+                    )}
+                    {/* Bre-B no se devuelve por MESAPAY ni por Kushki: se dice
+                        acá, donde saldría «Devolver», con el camino manual. */}
+                    {canReconcile && p.method === "kushki_bre_b" && p.status === "approved" && (
+                      <div className="text-[11px] text-op-muted mt-1 max-w-md leading-snug">
+                        {t("breBRefundManual")}
                       </div>
                     )}
                   </div>
@@ -635,6 +639,8 @@ function methodLabel(m: string, t: (key: string) => string) {
       return t("mExternalTerminal");
     case "kushki_pse":
       return t("mKushkiPse");
+    case "kushki_bre_b":
+      return t("mKushkiBreB");
     case "reservation_deposit":
       return t("mReservationDeposit");
     case "voucher":
@@ -644,4 +650,26 @@ function methodLabel(m: string, t: (key: string) => string) {
     default:
       return m;
   }
+}
+
+/**
+ * Factura manual emitida por cobrar: la orden figura "pagada" (se cerró a
+ * crédito del cliente), así que se aclara si sigue por cobrar, vencida o ya
+ * cobrada.
+ */
+async function ReceivableChip({ info }: { info: NonNullable<Awaited<ReturnType<typeof loadManualInvoiceSendInfo>>> }) {
+  const t = await getTranslations("manualInvoiceSend");
+  const r = info.receivable;
+  if (!r) return null;
+  const paid = r.outstandingCents <= 0 && r.totalCents > 0;
+  if (r.totalCents <= 0) return null;
+  const label = paid ? t("chipPaidByLink") : r.overdue ? t("chipOverdue") : t("chipReceivable");
+  const tone = paid
+    ? "bg-[#2E6B4C]/15 text-[#1E5339]"
+    : r.overdue
+      ? "bg-terracotta/15 text-terracotta"
+      : "bg-[#C9A227]/15 text-[#7A5E0A]";
+  return (
+    <span className={`font-mono text-[10px] tracking-[0.14em] uppercase px-2.5 py-1 rounded-full ${tone}`}>{label}</span>
+  );
 }

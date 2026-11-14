@@ -4,9 +4,19 @@
 // del mes se recupera en la próxima corrida del mismo mes.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ findMany: vi.fn(), create: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { expense: { findMany: m.findMany, create: m.create } } }));
+const m = vi.hoisted(() => ({ findMany: vi.fn(), create: vi.fn(), numberPending: vi.fn() }));
+vi.mock("@/lib/db", () => {
+  const tx = { expense: { create: m.create } };
+  return {
+    db: {
+      expense: { findMany: m.findMany, create: m.create },
+      $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
+    },
+  };
+});
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
+// La copia es un gasto: recibe su consecutivo en la misma transacción.
+vi.mock("@/lib/erp/expenseNumber", () => ({ numberPendingExpenses: m.numberPending }));
 
 import { POST } from "./route";
 import { materializeRecurring, recurringCopyDate } from "@/lib/erp/accounting";
@@ -36,6 +46,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("CRON_SECRET", "s");
   m.create.mockResolvedValue({});
+  m.numberPending.mockResolvedValue(new Map());
 });
 
 describe("cron de gastos recurrentes", () => {
@@ -45,6 +56,7 @@ describe("cron de gastos recurrentes", () => {
     m.findMany.mockResolvedValue([template()]);
     const res = await call();
     expect(await res.json()).toMatchObject({ created: 1 });
+    expect(m.numberPending).toHaveBeenCalledWith(expect.anything(), "r1");
     expect(m.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         restaurantId: "r1",

@@ -538,7 +538,8 @@ function CockpitTopbar({ navItems }: { navItems: NavEntry[] }) {
       }
       const j = (await res.json()) as { tableId: string };
       setChooserOpen(false);
-      router.push(`/operator/tables?open=${encodeURIComponent(j.tableId)}`);
+      // Carga completa: la ficha abre al cargar con `?open=`.
+      window.location.assign(`/operator/facturas-manuales?open=${encodeURIComponent(j.tableId)}`);
     } catch {
       setManualErr(t("newOrderManualFailed"));
     } finally {

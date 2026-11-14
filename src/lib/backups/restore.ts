@@ -45,6 +45,12 @@ export const RESTAURANT_SKIPPED_COLUMNS: ReadonlySet<string> = new Set([
   "kushkiWebhookSecretEnc",
   "kushkiPayoutPublicKey",
   "kushkiPayoutPrivateKeyEnc",
+  // Comercio Bre-B: credenciales de plataforma, como las de arriba.
+  "kushkiBreBMerchantId",
+  "kushkiBreBMerchantName",
+  "kushkiBreBPublicKey",
+  "kushkiBreBPrivateKeyEnc",
+  "kushkiBreBWebhookSecretEnc",
   "cloudTerminalBusinessCode",
   "kushkiMode",
   "kushkiCard3ds",
@@ -74,9 +80,10 @@ export const RESTAURANT_SKIPPED_COLUMNS: ReadonlySet<string> = new Set([
 /**
  * Consecutivos que sólo pueden crecer: los números de comprobante ya
  * emitidos (a la DIAN o impresos) después de la copia quedan quemados; si
- * el contador volviera atrás se repetirían.
+ * el contador volviera atrás se repetirían. Igual el consecutivo interno de
+ * gastos (G-0001): un número ya usado no se vuelve a dar.
  */
-export const RESTAURANT_MONOTONIC_COLUMNS = ["invoiceNextNumber"] as const;
+export const RESTAURANT_MONOTONIC_COLUMNS = ["invoiceNextNumber", "expenseNextNumber"] as const;
 
 export const RESTORE_TX_OPTIONS = { timeout: 10 * 60_000, maxWait: 30_000 };
 /** Palabra exacta que el operador tiene que escribir para restaurar (la valida el servidor). */
@@ -179,7 +186,14 @@ export async function restoreSnapshot(args: {
   }
 
   // Fiscal credit reservations and their global sequence cannot be rolled back.
-  if (data.tables.CreditNote?.length || await db.creditNote.count({ where: { restaurantId: args.restaurantId } })) {
+  // Lo mismo con los documentos soporte y sus notas de ajuste: un número ya
+  // transmitido a la DIAN no puede desaparecer ni repetirse.
+  if (
+    data.tables.CreditNote?.length ||
+    data.tables.SupportDocument?.length ||
+    await db.creditNote.count({ where: { restaurantId: args.restaurantId } }) ||
+    await db.supportDocument.count({ where: { restaurantId: args.restaurantId } })
+  ) {
     throw new BackupError("backup_fiscal_history_protected");
   }
 
@@ -190,6 +204,7 @@ export async function restoreSnapshot(args: {
     tables: {
       ...data.tables,
       ...(!("CreditNote" in data.tables) ? { CreditNote: [] } : {}),
+      ...(!("SupportDocument" in data.tables) ? { SupportDocument: [] } : {}),
       ...(!("SupplierInvoiceAlias" in data.tables) ? { SupplierInvoiceAlias: [] } : {}),
       IngredientBarcode: completeIngredientBarcodes(data, args.restaurantId),
     },
@@ -223,6 +238,7 @@ async function restoreInTransaction(
   // Recheck under the same lock used by credit-note creation, closing the
   // gap between pre-restore backup and destructive writes.
   if (await tx.creditNote.count({ where: { restaurantId } })) throw new BackupError("backup_fiscal_history_protected");
+  if (await tx.supportDocument.count({ where: { restaurantId } })) throw new BackupError("backup_fiscal_history_protected");
 
   // Bypass de los triggers de negocio sólo dentro de esta transacción.
   await tx.$executeRaw`SET LOCAL app.restoring = '1'`;
@@ -386,7 +402,7 @@ async function insertRows(tx: Client, model: TenantModel, rows: SnapshotRow[]): 
 async function updateRestaurantRow(tx: Client, restaurantId: string, snapshot: SnapshotRow): Promise<void> {
   const current = await tx.restaurant.findUniqueOrThrow({
     where: { id: restaurantId },
-    select: { invoiceNextNumber: true },
+    select: { invoiceNextNumber: true, expenseNextNumber: true },
   });
   const row = deserializeRow(restaurantFields(), snapshot);
   const patch: SnapshotRow = {};
@@ -394,7 +410,7 @@ async function updateRestaurantRow(tx: Client, restaurantId: string, snapshot: S
     if (!RESTAURANT_SKIPPED_COLUMNS.has(column)) patch[column] = value;
   }
   for (const column of RESTAURANT_MONOTONIC_COLUMNS) {
-    patch[column] = Math.max(current[column], Number(row[column] ?? 0));
+    patch[column] = Math.max(current[column] ?? 1, Number(row[column] ?? 0) || 0);
   }
   await tx.restaurant.update({
     where: { id: restaurantId },

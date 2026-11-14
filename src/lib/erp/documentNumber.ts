@@ -49,6 +49,8 @@ export type ExistingSupplierDocument = {
   number: string | null;
   /** Consecutivo de la compra (OC-0007); null en gastos. */
   purchaseNumber: number | null;
+  /** Consecutivo interno del gasto (G-0012); null/ausente en compras. */
+  expenseNumber?: number | null;
   /** Fecha del documento (compra: cuándo se registró; gasto: su fecha contable), ISO. */
   date: string;
   /** Total a pagar, en centavos. */
@@ -90,6 +92,8 @@ export function parseDuplicateConflict(body: unknown): DuplicateConflict | null 
       id: d.id,
       number: typeof d.number === "string" ? d.number : null,
       purchaseNumber: typeof d.purchaseNumber === "number" ? d.purchaseNumber : null,
+      // Consecutivo del gasto (G-0012): sólo si viene (las compras no lo traen).
+      ...(typeof d.expenseNumber === "number" ? { expenseNumber: d.expenseNumber } : {}),
       date: typeof d.date === "string" ? d.date : "",
       totalCents: typeof d.totalCents === "number" ? d.totalCents : 0,
       supplierName: typeof d.supplierName === "string" ? d.supplierName : null,

@@ -75,6 +75,7 @@ vi.mock("@/components/LocaleSwitcher", () => ({ LocaleSwitcher: () => null }));
 vi.mock("@/components/CashBox", () => ({ CashBox: () => null }));
 vi.mock("@/lib/cashBox", () => ({ buildCashSnapshot: async () => ({}) }));
 vi.mock("@/lib/reports/dashboardSalesQuery", () => ({
+  dashboardOpenOrdersWhere: (restaurantId: string) => ({ restaurantId }),
   loadDashboardSales: async () => [],
   loadDashboardUncollected: async () => ({ netCents: 0, orderCount: 0 }),
 }));
@@ -223,7 +224,7 @@ describe("staff navigation does not refetch every visible route on live refresh"
         { id: "recent", number: 2, label: null, qrToken: "qr-recent", state: "recently_paid", paidAt: "2026-10-14T11:59:00Z", paidFromPhone: false },
       ],
       phonePaidHighlightMinutes: 3,
-      tenantSlug: "test", counterMode: false, isMeseroView, manualTiles: [], canOpenManual: false,
+      tenantSlug: "test", counterMode: false, isMeseroView, manualPendingCount: 0, canOpenManual: false,
       chargeLocked: false, moveLocked: false, compPolicy: { locked: false, allowedRoles: ["operator"] },
       viewerRole: isMeseroView ? "mesero" : "operator", freeTables: [], allTables: [], country: "CO", salesTax: null,
     }));

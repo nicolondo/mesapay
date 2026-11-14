@@ -787,6 +787,21 @@
 .mp-table-grid :is(.text-\[9px\], .text-\[10px\]) {
   font-size: 11px;
 }
+/* Texto secundario de las fichas (zona, minutos, ítems, «libre»): sobre los
+   tintes de estado el gris --op-muted quedaba en 4.5:1 justo y en pantallas
+   pobres (datáfono, celulares baratos) se lavaba. Dentro de la ficha va un
+   gris más oscuro (≥ 7:1 en todos los estados). */
+.mp-table-grid > :is(button, a) .text-op-muted {
+  color: var(--ink-3);
+}
+/* Estado de la ficha en texto («En cocina», «Pidió la cuenta»…): el color y
+   el punto dejan de ser la única señal. El color lo pone textAccent. */
+.mp-tile-state {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
 .mp-table-filters {
   display: flex;
   flex-wrap: wrap;
@@ -795,6 +810,29 @@
 }
 .mp-table-filters button {
   min-height: 42px;
+}
+/* Vistas del personal (mesero, cocina, barra) en pantallas pobres: la
+   terracotta (#C9532E) y el ámbar (#C98A2E) de marca usados como color de
+   TEXTO dan 2.7–4.1:1 sobre los fondos claros (los minutos de cocina en ámbar
+   eran 2.7:1, la cuenta regresiva de la barra 4.0:1), el texto claro sobre un botón terracotta 3.9:1 y el gris
+   --muted-2 en letra de 10 px 3.4:1. Acá el texto usa el tono oscuro de cada
+   color (≥ 4.5:1); la marca sigue igual en bordes, puntos y tintes. */
+:is(.mesero-shell, .mp-staff-board) .text-terracotta {
+  color: var(--terracotta-2);
+}
+:is(.mesero-shell, .mp-staff-board) :is(.text-\[\#C98A2E\], .text-\[\#8F6828\]) {
+  color: #7f5a1f;
+}
+:is(.mesero-shell, .mp-staff-board) .text-muted-2 {
+  color: var(--muted);
+}
+:is(.mesero-shell, .mp-staff-board) .bg-terracotta.text-bone {
+  background-color: var(--terracotta-2);
+}
+/* Chip sin elegir: el borde --op-border (1.2:1 contra el fondo) desaparecía
+   en el datáfono y el chip parecía texto suelto. */
+.mp-table-filters button[aria-pressed="false"] {
+  border-color: var(--op-border-2);
 }
 /* Fila de filtros de Mesas en dos grupos: chips (izquierda) y acciones
    (derecha). En escritorio comparten la fila; en móvil cada grupo ocupa la
@@ -1529,6 +1567,11 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-filter-row > .mp-sales-field {
   flex: 0 1 200px;
 }
+/* Los segmentados (eje de tiempo, agrupar) miden lo que sus opciones: con
+   200 px se montaban sobre el campo siguiente. */
+.mp-sales-filter-row > .mp-sales-field--seg {
+  flex: 0 0 auto;
+}
 .mp-sales-range {
   display: flex;
   flex-wrap: wrap;
@@ -1545,6 +1588,18 @@ a.mp-viz-heat-cell:focus-visible {
 .mp-sales-filter-row .mp-sales-more {
   height: 40px;
   margin-left: auto;
+}
+/* Interruptor «Hora del pedido / Hora del pago»: en el celular ocupa el
+   ancho, mitad y mitad. Doble clase: .mp-seg se declara después (globals.css). */
+@media (max-width: 639px) {
+  .mp-seg.mp-sales-axis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-sales-axis .mp-seg__i {
+    justify-content: center;
+    padding: 0 10px;
+  }
 }
 .mp-sales-dims {
   display: grid;
@@ -1644,13 +1699,21 @@ a.mp-viz-heat-cell:focus-visible {
   margin-top: 12px;
   /* Siempre en una línea: «$ 209.393.685» no se parte. El tamaño baja con el
      ancho de la tarjeta (12cqi ≈ 13 caracteres de cifra en el ancho útil) y
-     nunca pasa de 26 px ni baja de 12 px. */
-  font-size: clamp(12px, 12cqi, 26px);
+     nunca pasa de 26 px ni baja de 12 px. Antes de Chrome 105 (datáfonos)
+     no hay cqi: queda un tamaño fijo que cabe en la tarjeta más angosta. El
+     cqi va bajo @supports porque el minificador junta dos `font-size`
+     seguidos y se quedaría sólo con el último. */
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
   white-space: nowrap;
+}
+@supports (font-size: 1cqi) {
+  .mp-sales-kpi-value {
+    font-size: clamp(12px, 12cqi, 26px);
+  }
 }
 .mp-sales-kpi-delta {
   display: block;
@@ -2100,6 +2163,47 @@ a.mp-viz-heat-cell:focus-visible {
 }
 .mp-conta-tabs[data-end="true"]::after {
   opacity: 0;
+}
+
+/* ─── Contabilidad › Gastos (ExpensesTab.tsx) ─────────────────────────────
+ *
+ *  La pestaña Gastos es una lista ancha (filas de una línea en columnas):
+ *  el contenedor de la página se abre sólo mientras está a la vista (las
+ *  demás pestañas siguen en su ancho de lectura). Sin :has (navegadores
+ *  viejos) queda angosta y la lista cae a tarjetas: nada se rompe.
+ *  .mp-exp-row       Columnas de la fila (y de su encabezado): consecutivo,
+ *                    fecha, proveedor, categoría, total a pagar, estado.
+ *  .mp-exp-filters   Barra de filtros: la lista de los buscadores de
+ *                    proveedor y cuenta flota encima de la página en vez de
+ *                    empujar la barra (en las hojas va en el flujo).
+ *  .mp-exp-pill--*   Tonos de «Pagado» / «Por pagar» legibles en oscuro.
+ */
+@supports selector(:has(*)) {
+  .op-contabilidad:has([data-conta-wide]) {
+    max-width: 72rem;
+  }
+}
+.mp-exp-row {
+  grid-template-columns: 5.25rem 4.75rem minmax(0, 1.1fr) minmax(0, 1.5fr) 8.5rem 9.5rem;
+  align-items: center;
+  column-gap: 0.875rem;
+}
+.mp-exp-filters [role="listbox"] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+}
+[data-op-theme="dark"] .mp-exp-pill--ok {
+  background: rgba(127, 201, 160, 0.14);
+  color: #8fd3ae;
+}
+[data-op-theme="dark"] .mp-exp-pill--warn {
+  color: #e0b46a;
+}
+[data-op-theme="dark"] span.mp-exp-pill--warn {
+  background: rgba(224, 180, 106, 0.14);
 }
 
 /* ─── Inventario (/operator/inventario) ───────────────────────────────────

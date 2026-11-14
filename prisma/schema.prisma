@@ -9,6 +9,7 @@ datasource db {
 
 model Restaurant {
   creditNotes CreditNote[]
+  supportDocuments SupportDocument[]
 
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -82,16 +83,16 @@ model Restaurant {
   // (src/lib/crypto.ts). El webhook secret es el que Kushki usa para
   // firmar las llamadas HMAC al endpoint /api/webhooks/kushki — cada
   // sub-merchant puede tener su propio secreto en producción.
-  kushkiMerchantId           String?
-  kushkiPublicKey            String?
-  kushkiPrivateKeyEnc        String?
-  kushkiWebhookSecretEnc     String?
+  kushkiMerchantId          String?
+  kushkiPublicKey           String?
+  kushkiPrivateKeyEnc       String?
+  kushkiWebhookSecretEnc    String?
   // Credenciales de Transfer Out (payouts/dispersiones). En PRODUCCIÓN Kushki
   // entrega un par de llaves DISTINTO al de cobros/Transfer In. Regla: se usa
   // este par sólo si AMBAS llaves están presentes; si no, fallback al par
   // principal (UAT opera con un solo par). Private cifrada AES-GCM.
-  kushkiPayoutPublicKey      String?
-  kushkiPayoutPrivateKeyEnc  String?
+  kushkiPayoutPublicKey     String?
+  kushkiPayoutPrivateKeyEnc String?
   // Bre-B (pagos inmediatos por QR) vía Kushki «Transfer In» — producto en
   // BETA en Kushki: se coordina con ellos antes de usarlo en producción.
   // Kushki entrega un comercio DISTINTO al de tarjeta/PSE para Bre-B: par de
@@ -110,30 +111,30 @@ model Restaurant {
   // vía cloud). Lo carga el comercio desde Configuración → Datáfonos. Va
   // en el cuerpo del push a cloudt.kushkipagos.com. La credencial de auth
   // (X-BP-AUTH) es a nivel plataforma (env), este código rutea al comercio.
-  cloudTerminalBusinessCode  String?
+  cloudTerminalBusinessCode String?
   // Modo Kushki por comercio: "mock" | "sandbox" | "production". Null =
   // hereda el modo global de PlatformConfig.kushkiMode. Controla a qué
   // host (uat vs prod) van TODAS las operaciones de pago de este comercio
   // —tarjeta, PSE, Apple Pay y el datáfono cloud— y si se usa el provider
   // mock o el real. Editable por comercio desde /admin/restaurants/[id]/pagos.
-  kushkiMode                 String?
+  kushkiMode                String?
   // 3DS en pagos con tarjeta del comensal: si true, la tokenización pide
   // authValidation:"url" y el diner pasa por el OTP del banco cuando la
   // tarjeta lo requiere. Editable desde /admin/restaurants/[id]/pagos.
-  kushkiCard3ds              Boolean                @default(true)
+  kushkiCard3ds             Boolean                @default(true)
   // Pulso (asistente de IA): override por comercio del gating por plan.
   // null = según plan (trial/pro habilitados, basic no). true/false = forzar.
-  aiInsightsEnabled          Boolean?
+  aiInsightsEnabled         Boolean?
   // Límite de mensajes/día del asistente para este comercio. null = usar el
   // default global de PlatformConfig.aiDailyMessageLimit.
-  aiDailyMessageLimit        Int?
+  aiDailyMessageLimit       Int?
   // Relaciones de Pulso
-  aiConversations            AiConversation[]
-  searchEvents               SearchEvent[]
-  kushkiOnboardingStatus     KushkiOnboardingStatus @default(not_started)
-  kushkiOnboardingNotes      String?
-  kushkiSubmittedAt          DateTime?
-  kushkiActivatedAt          DateTime?
+  aiConversations           AiConversation[]
+  searchEvents              SearchEvent[]
+  kushkiOnboardingStatus    KushkiOnboardingStatus @default(not_started)
+  kushkiOnboardingNotes     String?
+  kushkiSubmittedAt         DateTime?
+  kushkiActivatedAt         DateTime?
 
   // Bank info — populated by AI OCR of the bank certification then verified
   // by the operator. Shape: BankInfo (see src/lib/payments/types.ts).
@@ -231,7 +232,7 @@ model Restaurant {
   /// electrónica) o en el momento en que la DIAN la acepta (con el módulo
   /// `einvoicing`). false = sólo cuando alguien la reimprime a propósito
   /// desde Pedidos. Ver src/lib/print/invoiceQueue.ts.
-  invoiceAutoPrint Boolean  @default(true)
+  invoiceAutoPrint Boolean @default(true)
 
   // Marchado automático por estación. Un ítem que nace "placed" en una
   // estación con esto activo pasa solo a "in_kitchen" al llegar la ronda
@@ -254,12 +255,12 @@ model Restaurant {
   // logoUrl — PNG o SVG subido vía /api/operator/uploads. Se muestra
   // en el menú del cliente, en facturas y donde la app necesite
   // identidad de marca. Cuando es null, todo cae al logo MESAPAY.
-  logoUrl           String?
-  legalName         String? // Razón social
-  taxId             String? // NIT (solo dígitos; el DV se calcula al render)
-  legalAddress      String?
-  legalCity         String?
-  legalPhone        String?
+  logoUrl      String?
+  legalName    String? // Razón social
+  taxId        String? // NIT (solo dígitos; el DV se calcula al render)
+  legalAddress String?
+  legalCity    String?
+  legalPhone   String?
   // Representante legal: lo piden Kushki (formulario de alta) y no salía de
   // ningún documento; el operador lo escribe en el onboarding de pagos.
   legalRepName      String?
@@ -322,6 +323,10 @@ model Restaurant {
   // Contador del próximo consecutivo a asignar. Incrementa
   // atómicamente cuando se emite una factura simple.
   invoiceNextNumber       Int       @default(1)
+  /// Próximo consecutivo interno de GASTOS («G-0001»). Sólo crece: un gasto
+  /// borrado no devuelve su número (ver src/lib/erp/expenseNumber.ts) y
+  /// restaurar una copia nunca lo baja (RESTAURANT_MONOTONIC_COLUMNS).
+  expenseNextNumber       Int       @default(1)
 
   // Correo registrado ante la DIAN para la RECEPCIÓN de documentos e
   // instrumentos electrónicos. Viaja en el cac:Contact/cbc:ElectronicMail
@@ -336,7 +341,7 @@ model Restaurant {
   // (no se deriva de ningún otro campo — adivinarlo es exactamente el
   // rechazo que estamos evitando). Nulable: los comercios que ya existen
   // arrancan sin él y la emisión queda bloqueada hasta que lo carguen.
-  dianContactEmail String?
+  dianContactEmail        String?
 
   // === Políticas del staff ================================================
   //
@@ -569,7 +574,7 @@ model LegalEntity {
   // Correo de recepción de documentos electrónicos — mismo campo que en
   // Restaurant (FAJ71). Cuando el emisor es este LegalEntity, es el suyo
   // el que viaja al XML.
-  dianContactEmail String?
+  dianContactEmail        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -636,21 +641,21 @@ model PlanConfig {
 /// necesidad de redeploy, pero está pensado para crecer (otros
 /// toggles plataforma-wide). La fila usa id="singleton" como pk.
 model PlatformConfig {
-  id                            String                 @id @default("singleton")
+  id                            String   @id @default("singleton")
   /// "mock" | "sandbox" | "production". Usamos String en vez de enum
   /// para permitir modos futuros sin schema migration. Si el valor
   /// no matchea ninguno conocido, el helper cae a env.KUSHKI_MODE.
-  kushkiMode                    String                 @default("mock")
-  updatedAt                     DateTime               @updatedAt
+  kushkiMode                    String   @default("mock")
+  updatedAt                     DateTime @updatedAt
   updatedById                   String?
   // Default global de mensajes/día del asistente Pulso (override por comercio
   // en Restaurant.aiDailyMessageLimit).
-  aiDailyMessageLimit           Int                    @default(50)
+  aiDailyMessageLimit           Int      @default(50)
   // Shared menu description credentials, encrypted and platform-admin only.
-  menuAiKeyEnc                  String?
-  menuAiEnabled                 Boolean                @default(true)
+  menuAiKeyEnc                 String?
+  menuAiEnabled                Boolean  @default(true)
   // Default global de comisión en basis points; override por comercial y por comercio.
-  salesCommissionBps            Int                    @default(1000)
+  salesCommissionBps            Int      @default(1000)
   // Credenciales Kushki de plataforma para cobro de suscripciones a restaurantes.
   // La clave pública es segura (se pasa al browser para tokenizar tarjetas).
   // La clave privada se almacena cifrada con AES-GCM (ver src/lib/crypto.ts).
@@ -681,7 +686,7 @@ enum PlatformPayoutStatus {
 
 /// Immutable credential versions keep old transfers queryable after rotation.
 model PlatformWalletAccount {
-  id               String             @id @default(cuid())
+  id               String @id @default(cuid())
   label            String
   mode             PlatformWalletMode
   publicKey        String
@@ -689,7 +694,7 @@ model PlatformWalletAccount {
   webhookSecretEnc String
   createdById      String?
   createdByEmail   String?
-  createdAt        DateTime           @default(now())
+  createdAt        DateTime @default(now())
   activeConfigs    PlatformConfig[]
   payouts          PlatformPayout[]
 }
@@ -697,40 +702,39 @@ model PlatformWalletAccount {
 /// Platform money never belongs to a restaurant or its deletion lifecycle.
 model PlatformPayout {
   walletAccountFingerprint String?
-  providerVerifiedAt       DateTime?
-  id                       String                @id @default(cuid())
-  accountId                String
-  account                  PlatformWalletAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  idempotencyKey           String                @unique
-  payloadFingerprint       String
-  amountCents              BigInt
-  currency                 String                @default("COP")
-  bankId                   String
-  bankName                 String
-  accountType              String
-  accountLast4             String
-  holderName               String
-  description              String?
-  status                   PlatformPayoutStatus  @default(submitting)
-  reference                String                @unique
-  providerRef              String?
-  ticketNumber             String?
-  errorCode                String?
+  providerVerifiedAt DateTime?
+  id                 String @id @default(cuid())
+  accountId          String
+  account            PlatformWalletAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  idempotencyKey     String @unique
+  payloadFingerprint String
+  amountCents        BigInt
+  currency           String @default("COP")
+  bankId             String
+  bankName           String
+  accountType        String
+  accountLast4       String
+  holderName         String
+  description        String?
+  status             PlatformPayoutStatus @default(submitting)
+  reference          String @unique
+  providerRef        String?
+  ticketNumber       String?
+  errorCode          String?
   // A worker must claim init while its lease is valid; expiry can only release
   // preparation that provably never crossed the provider-init boundary.
-  submissionLeaseUntil     DateTime
-  initStartedAt            DateTime?
-  createdById              String?
-  createdByEmail           String?
-  createdAt                DateTime              @default(now())
-  updatedAt                DateTime              @updatedAt
-  settledAt                DateTime?
-
-  @@unique([accountId, providerRef])
-  @@unique([accountId, ticketNumber])
+  submissionLeaseUntil DateTime
+  initStartedAt      DateTime?
+  createdById        String?
+  createdByEmail     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  settledAt          DateTime?
   @@index([createdAt, id])
   @@index([status])
   @@index([accountId, createdAt])
+  @@unique([accountId, providerRef])
+  @@unique([accountId, ticketNumber])
 }
 
 /// Audit log de acciones administrativas. Lo escriben los endpoints
@@ -776,26 +780,26 @@ model AuditEvent {
 }
 
 model MembershipPayment {
-  id                    String              @id @default(cuid())
+  id              String           @id @default(cuid())
   /// null cuando el comercio se eliminó: el pago de la mensualidad es un
   /// ingreso de la PLATAFORMA y sobrevive al comercio (ver
   /// src/lib/restaurantDeletion). El nombre queda en `deletedRestaurantName`.
-  restaurantId          String?
-  restaurant            Restaurant?         @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurantId    String?
+  restaurant      Restaurant?      @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   /// Nombre del comercio, copiado al eliminarlo (restaurantId pasa a null).
   deletedRestaurantName String?
-  amountCents           Int
-  method                MembershipMethod
-  note                  String?
-  periodStart           DateTime
-  periodEnd             DateTime
-  recordedByEmail       String
-  createdAt             DateTime            @default(now())
-  providerRef           String? // id de transacción Kushki (null en pagos manuales)
-  kind                  String              @default("manual") // "initial" | "recurring" | "proration" | "manual"
-  currency              String?
-  walletTrackingKey     String?
-  walletTrackingMode    PlatformWalletMode?
+  amountCents     Int
+  method          MembershipMethod
+  note            String?
+  periodStart     DateTime
+  periodEnd       DateTime
+  recordedByEmail String
+  createdAt       DateTime         @default(now())
+  providerRef     String? // id de transacción Kushki (null en pagos manuales)
+  kind            String           @default("manual") // "initial" | "recurring" | "proration" | "manual"
+  currency        String?
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
 
   commissionEntry CommissionEntry?
 
@@ -809,51 +813,51 @@ model MembershipPayment {
 /// periodEndsAt/suspended); este modelo agrega el medio de pago + estado
 /// de cobro recurrente. Ver docs/superpowers/specs/2026-06-19-operator-subscription-billing-design.md
 model BillingSubscription {
-  walletTrackingKey    String?
-  walletTrackingMode   PlatformWalletMode?
-  id                   String              @id @default(cuid())
-  restaurantId         String              @unique
-  restaurant           Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  provider             String              @default("kushki")
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
+  id                   String     @id @default(cuid())
+  restaurantId         String     @unique
+  restaurant           Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  provider             String     @default("kushki")
   kushkiSubscriptionId String?
   plan                 Plan
   amountCents          Int
   currency             String // "COP" | "MXN"
-  status               String              @default("active") // "active" | "past_due" | "canceled"
+  status               String     @default("active") // "active" | "past_due" | "canceled"
   cardBrand            String?
   cardLast4            String?
   cardExpMonth         Int?
   cardExpYear          Int?
-  startedAt            DateTime            @default(now())
+  startedAt            DateTime   @default(now())
   currentPeriodEnd     DateTime?
   nextChargeAt         DateTime?
-  failedAttempts       Int                 @default(0)
+  failedAttempts       Int        @default(0)
   canceledAt           DateTime?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
   @@index([status, nextChargeAt])
 }
 
 model CommissionEntry {
-  id                    String            @id @default(cuid())
-  salesRepUserId        String
-  salesRep              User              @relation(fields: [salesRepUserId], references: [id], onDelete: Cascade)
+  id                  String            @id @default(cuid())
+  salesRepUserId      String
+  salesRep            User              @relation(fields: [salesRepUserId], references: [id], onDelete: Cascade)
   /// null cuando el comercio se eliminó: la comisión es una obligación de la
   /// PLATAFORMA con el comercial y sobrevive al comercio (pagada o no).
-  restaurantId          String?
-  restaurant            Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurantId        String?
+  restaurant          Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   /// Nombre del comercio, copiado al eliminarlo (restaurantId pasa a null).
   deletedRestaurantName String?
-  membershipPaymentId   String            @unique
-  membershipPayment     MembershipPayment @relation(fields: [membershipPaymentId], references: [id], onDelete: Cascade)
-  baseAmountCents       Int
-  bps                   Int
-  amountCents           Int
-  status                CommissionStatus  @default(pending)
-  createdAt             DateTime          @default(now())
-  paidAt                DateTime?
-  paidNote              String?
+  membershipPaymentId String            @unique
+  membershipPayment   MembershipPayment @relation(fields: [membershipPaymentId], references: [id], onDelete: Cascade)
+  baseAmountCents     Int
+  bps                 Int
+  amountCents         Int
+  status              CommissionStatus  @default(pending)
+  createdAt           DateTime          @default(now())
+  paidAt              DateTime?
+  paidNote            String?
 
   @@index([salesRepUserId, createdAt])
   @@index([restaurantId])
@@ -914,25 +918,25 @@ enum CommissionStatus {
 model User {
   createdCreditNotes CreditNote[]
 
-  sessionVersion Int         @default(0)
-  id             String      @id @default(cuid())
-  email          String      @unique
-  name           String?
-  phone          String?
-  passwordHash   String
+  sessionVersion Int @default(0)
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  phone        String?
+  passwordHash String
   /// Sin `@default`: el rol se elige siempre a mano al crear el usuario.
   /// Antes el default era `customer`, que ya no tiene sentido en una tabla
   /// que es solo personal — y un default `operator` sería peor (crear un
   /// usuario sin especificar rol le daría permisos de administración).
-  role           Role
-  restaurantId   String?
-  restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  role         Role
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Mutuamente excluyente con restaurantId. Para users con
   // role=group_admin guardamos el grupo al que pertenecen — desde
   // ahí pueden impersonar cualquiera de sus restaurantes.
-  groupId        String?
-  group          Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  createdAt      DateTime    @default(now())
+  groupId      String?
+  group        Group?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
 
   uploadedKushkiDocuments KushkiDocument[] @relation("KushkiDocumentUploader")
   terminalDevices         TerminalDevice[]
@@ -963,6 +967,7 @@ model User {
   // ERP: movimientos de inventario / conteos creados por este usuario.
   stockMovements           StockMovement[]         @relation("StockMovementCreator")
   expensesCreated          Expense[]               @relation("ExpenseCreator")
+  supportDocumentsCreated  SupportDocument[]       @relation("SupportDocumentCreator")
   expensePaymentsCreated   ExpensePayment[]        @relation("ExpensePaymentCreator")
   productionBatchesCreated ProductionBatch[]       @relation("ProductionBatchCreator")
   purchaseInvoiceUploads   PurchaseInvoiceUpload[]
@@ -1001,18 +1006,18 @@ model User {
   team        User[]  @relation("SalesTeam")
 
   // CRM inverse relations
-  assignedCrmLeads              CrmLead[]               @relation("CrmAssigned")
-  createdCrmLeads               CrmLead[]               @relation("CrmCreated")
-  crmActivities                 CrmActivity[]
-  crmAppointments               CrmAppointment[]
-  crmEmailAccount               CrmEmailAccount?
-  crmDocuments                  CrmDocument[]
-  crmEmailTemplates             CrmEmailTemplate[]
-  crmWhatsappTemplates          CrmWhatsappTemplate[]
-  passwordResetTokens           PasswordResetToken[]
-  voucherBatchesIssued          VoucherBatch[]          @relation("VoucherBatchIssuer")
-  voucherRedemptions            VoucherRedemption[]     @relation("VoucherRedeemer")
-  voucherStatements             VoucherStatement[]      @relation("VoucherStatementCreator")
+  assignedCrmLeads     CrmLead[]             @relation("CrmAssigned")
+  createdCrmLeads      CrmLead[]             @relation("CrmCreated")
+  crmActivities        CrmActivity[]
+  crmAppointments      CrmAppointment[]
+  crmEmailAccount      CrmEmailAccount?
+  crmDocuments         CrmDocument[]
+  crmEmailTemplates    CrmEmailTemplate[]
+  crmWhatsappTemplates CrmWhatsappTemplate[]
+  passwordResetTokens  PasswordResetToken[]
+  voucherBatchesIssued VoucherBatch[]       @relation("VoucherBatchIssuer")
+  voucherRedemptions   VoucherRedemption[]  @relation("VoucherRedeemer")
+  voucherStatements    VoucherStatement[]   @relation("VoucherStatementCreator")
   customerCreditPaymentsCreated CustomerCreditPayment[] @relation("CustomerCreditPaymentCreator")
 
   @@index([restaurantId])
@@ -1240,7 +1245,7 @@ model Table {
   //              cobra como cualquier otra. Una fila por factura abierta,
   //              reutilizable cuando se cierra. Números desde -100 hacia
   //              abajo (ver src/lib/manualInvoice.ts).
-  kind TableKind @default(standard)
+  kind         TableKind  @default(standard)
 
   // Llamadas al mesero PRE-orden — cuando un cliente escanea el QR
   // y aprieta "Llamar mesero" sin haber pedido nada todavía no hay
@@ -1352,17 +1357,17 @@ model Reservation {
   //   hasta este instante; si vence sin pagar, deja de bloquear el slot.
   // appliedOrderId: orden a la que se acreditó el abono (status=applied).
   // depositPaymentId: el Payment-crédito que se creó al acreditar.
-  depositCents       Int?
-  depositStatus      DepositStatus       @default(none)
-  depositMethod      PaymentMethod?
-  depositTxId        String?
-  holdExpiresAt      DateTime?
-  appliedOrderId     String?
-  depositPaymentId   String?
+  depositCents     Int?
+  depositStatus    DepositStatus  @default(none)
+  depositMethod    PaymentMethod?
+  depositTxId      String?
+  holdExpiresAt    DateTime?
+  appliedOrderId   String?
+  depositPaymentId String?
   depositTrackingKey String?
-  depositSourceMode  PlatformWalletMode?
-  depositCurrency    String?
-  depositPaidAt      DateTime?
+  depositSourceMode PlatformWalletMode?
+  depositCurrency String?
+  depositPaidAt DateTime?
 
   // Idioma del comensal al reservar (cookie MESAPAY_LOCALE). El email de
   // confirmación se manda en este idioma aunque lo dispare un webhook de
@@ -1498,22 +1503,22 @@ model MenuItem {
   categoryId   String
   category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-  name           String
-  description    String?
-  priceCents     Int
-  tags           String[]
-  photoUrl       String?
-  modifiers      Json?
-  recipe         Recipe? // ERP A3 — receta del plato (costeo + consumo A4)
-  trackInventory Boolean      @default(true)
-  available      Boolean      @default(true)
-  sortOrder      Int          @default(0)
+  name        String
+  description String?
+  priceCents  Int
+  tags        String[]
+  photoUrl    String?
+  modifiers   Json?
+  recipe      Recipe? // ERP A3 — receta del plato (costeo + consumo A4)
+  trackInventory Boolean   @default(true)
+  available   Boolean      @default(true)
+  sortOrder   Int          @default(0)
   // Float: permite tiempos con decimales (ej. 1.5 min para bebidas).
-  prepMinutes    Float        @default(10)
+  prepMinutes Float        @default(10)
   // Override the category's default prep station for this specific item.
   // null = inherit from category.prepStation. Common case: "Bebidas" =
   // bar but "Jugo natural" overrides to kitchen because it requires prep.
-  prepStation    PrepStation?
+  prepStation PrepStation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1552,18 +1557,18 @@ enum OrderType {
 }
 
 model Order {
-  stockConsumptionAttempts Int        @default(0)
-  stockConsumptionRetryAt  DateTime?
-  id                       String     @id @default(cuid())
-  restaurantId             String
-  restaurant               Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  tableId                  String
-  table                    Table      @relation(fields: [tableId], references: [id])
+  stockConsumptionAttempts Int @default(0)
+  stockConsumptionRetryAt DateTime?
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableId      String
+  table        Table      @relation(fields: [tableId], references: [id])
   /// Comensal identificado en esta cuenta. Apunta a `Diner` (no a `User`):
   /// un comensal de ESTE comercio, nunca personal ni el comensal de otro
   /// local. Nulable — la mayoría de las cuentas son anónimas.
-  dinerId                  String?
-  diner                    Diner?     @relation("OrderDiner", fields: [dinerId], references: [id], onDelete: SetNull)
+  dinerId      String?
+  diner        Diner?     @relation("OrderDiner", fields: [dinerId], references: [id], onDelete: SetNull)
 
   status    OrderStatus @default(open)
   shortCode String      @unique
@@ -1661,17 +1666,17 @@ model Order {
   commissionCents     Int?
   commissionSealedAt  DateTime?
 
-  items              OrderItem[]
-  payments           Payment[]
-  rounds             Round[]
-  ratings            DishRating[]
-  invoiceRequests    InvoiceRequest[]
-  simpleInvoice      SimpleInvoice?
-  stockMovements     StockMovement[]
-  dianDocuments      DianDocument[]
+  items           OrderItem[]
+  payments        Payment[]
+  rounds          Round[]
+  ratings         DishRating[]
+  invoiceRequests InvoiceRequest[]
+  simpleInvoice   SimpleInvoice?
+  stockMovements  StockMovement[]
+  dianDocuments   DianDocument[]
   voucherRedemptions VoucherRedemption[]
   /// Link de pago de una factura manual (`PaymentLink.kind = order`).
-  payLink            PaymentLink?
+  payLink         PaymentLink?
 
   @@index([restaurantId, status])
   // Ventas por fecha de pago (análisis de ventas, Resumen, libros): cuentas
@@ -1743,41 +1748,41 @@ model OrderItem {
   menuItemId String?
   menuItem   MenuItem? @relation(fields: [menuItemId], references: [id])
 
-  qty                       Int          @default(1)
-  nameSnapshot              String
-  priceCentsSnapshot        Int
+  qty                  Int          @default(1)
+  nameSnapshot         String
+  priceCentsSnapshot   Int
   /// Impuesto de la línea. null en los platos del menú: esos usan el del
   /// comercio (salesTaxKind/salesTaxPct) y va EMBEBIDO en el precio.
   /// En las líneas libres es explícito y se SUMA ENCIMA del precio, que es
   /// como se cotiza un servicio ("$2.400.000 + IVA").
-  taxKind                   String? // inc | iva | none
-  taxPct                    Int?
-  modifierSelections        Json?
-  notes                     String?
-  guestName                 String?
-  kitchenStatus             KitchenState @default(placed)
-  categoryKind              CategoryKind @default(other)
+  taxKind              String? // inc | iva | none
+  taxPct               Int?
+  modifierSelections   Json?
+  notes                String?
+  guestName            String?
+  kitchenStatus        KitchenState @default(placed)
+  categoryKind         CategoryKind @default(other)
   // Snapshot of the resolved station at send time. We freeze it on the
   // ticket so re-routing the menu later doesn't yank already-fired items
   // between boards mid-service.
-  station                   PrepStation  @default(kitchen)
+  station              PrepStation  @default(kitchen)
   // Same snapshot logic for the bar sub-station. Null when not a bar
   // item or when the restaurant has no sub-stations configured.
-  barSubStation             String?
+  barSubStation        String?
   // Snapshot of prepMinutes at send time. Used by the bar board for the
   // countdown timer; the kitchen board ignores this and lets the cook
   // mark ready manually. We snapshot (vs. reading from MenuItem live)
   // because editing the menu mid-service shouldn't shift the timer on
   // tickets that are already on the board.
-  prepMinutesSnapshot       Float        @default(10)
+  prepMinutesSnapshot  Float        @default(10)
   // When the item moved placed → in_kitchen. Drives the bar countdown
   // (remaining = prepMinutesSnapshot - (now - preparationStartedAt)).
   // Survives page reloads so the countdown picks up where it left off.
-  preparationStartedAt      DateTime?
+  preparationStartedAt DateTime?
   // Irreversible history for cancellation permissions, independent of the
   // restartable KDS timer. Preserved when a dish moves to another table.
   preparationFirstStartedAt DateTime?
-  servedAt                  DateTime?
+  servedAt             DateTime?
 
   // "Apurar" — el mesero / operador marca un plato como urgente
   // desde la vista de mesa cuando el cliente pregunta dónde está
@@ -1917,28 +1922,28 @@ enum PaymentStatus {
 }
 
 model Payment {
-  walletTrackingKey      String?
-  walletTrackingMode     PlatformWalletMode?
+  walletTrackingKey String?
+  walletTrackingMode PlatformWalletMode?
   walletTrackingCurrency String?
-  id                     String              @id @default(cuid())
-  orderId                String
-  order                  Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method                 PaymentMethod
-  status                 PaymentStatus       @default(pending)
-  amountCents            Int
-  tipCents               Int                 @default(0)
-  requestKey             String?             @unique
-  reconciliationRequired Boolean             @default(false)
-  refundReservedCents    Int                 @default(0)
-  splitOfCount           Int?
-  providerRef            String?
+  id              String        @id @default(cuid())
+  orderId         String
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method          PaymentMethod
+  status          PaymentStatus @default(pending)
+  amountCents     Int
+  tipCents        Int           @default(0)
+  requestKey      String? @unique
+  reconciliationRequired Boolean @default(false)
+  refundReservedCents Int @default(0)
+  splitOfCount    Int?
+  providerRef     String?
   // Only set for cash payments where the diner declared upfront with how
   // much they'd pay (e.g. "voy a pagar con $100k"). Lets the waiter bring
   // exact change on the first trip. Operator can overwrite at settle time
   // if the diner changes their mind.
-  cashTenderCents        Int?
-  createdAt              DateTime            @default(now())
-  settledAt              DateTime?
+  cashTenderCents Int?
+  createdAt       DateTime      @default(now())
+  settledAt       DateTime?
 
   // Devoluciones (solo Kushki tarjeta). refundedCents acumula lo reintegrado;
   // cuando alcanza amountCents el pago pasa a status=refunded. El neto cobrado
@@ -1979,6 +1984,12 @@ model Payment {
   kushkiTransactions KushkiTransaction[]
   voucherRedemption  VoucherRedemption?
   breBCharge         BreBCharge?
+  /// Sólo en method=customer_credit de una FACTURA MANUAL emitida por cobrar:
+  /// el link de pago que cobra este cargo (ver src/lib/manualInvoiceReceivable.ts).
+  receivablePayLink      PaymentLink?            @relation("PaymentLinkCreditCharge")
+  /// Abonos dirigidos a ESTE cargo (link de pago o "registrar pago" de la
+  /// factura). Los abonos sin cargo se aplican FIFO.
+  targetedCreditPayments CustomerCreditPayment[] @relation("CustomerCreditPaymentCharge")
 
   @@index([orderId])
   @@index([shiftId])
@@ -2015,14 +2026,14 @@ model Shift {
   userId String?
   user   User?   @relation("ShiftsOfUser", fields: [userId], references: [id])
 
-  openedAt         DateTime  @default(now())
+  openedAt         DateTime @default(now())
   // Jornada de la apertura en Bogotá, descontando el corte del comercio.
   // El trigger de INSERT la fija también para versiones anteriores del app;
   // no cambia al cerrar ni al modificar la política de corte. Es una fecha,
   // no un instante: al mostrarla se conserva el día UTC de este DATE.
   businessDate     DateTime? @db.Date
   openedById       String
-  openedBy         User      @relation("ShiftsOpened", fields: [openedById], references: [id])
+  openedBy         User     @relation("ShiftsOpened", fields: [openedById], references: [id])
   // Fondo de caja inicial — efectivo con el que arrancó el turno para dar
   // vueltas. Suma al efectivo esperado al cerrar.
   openingCashCents BigInt
@@ -2101,43 +2112,43 @@ enum MeasureKind {
 /// compras (A2) y recetas (A3). Soft-delete vía active — las fases
 /// siguientes referencian estas filas desde movimientos/recetas/OCs.
 model Ingredient {
-  id                  String      @id @default(cuid())
-  restaurantId        String
-  restaurant          Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  name                String
+  id               String      @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name             String
   // Categoría libre ("Proteínas", "Lácteos", "Empaques"…) — sin taxonomía
   // impuesta; la UI sugiere las existentes del comercio con un datalist.
-  category            String?
-  measureKind         MeasureKind
-  sku                 String?
+  category         String?
+  measureKind      MeasureKind
+  sku              String?
   // Principal, compatible con la ficha existente. IngredientBarcode guarda
   // TODOS los códigos (principal y adicionales), únicos por comercio. Un
   // trigger sincroniza este campo incluso desde versiones anteriores.
-  barcode             String?
-  notes               String?
-  active              Boolean     @default(true)
-  trackInventory      Boolean     @default(true)
+  barcode          String?
+  notes            String?
+  active           Boolean     @default(true)
+  trackInventory   Boolean     @default(true)
   // Precio manual de referencia por 1000 unidades base: 1 kg, 1 L o 1 un.
   // Null = sin referencia; 0 = gratuito explícito. Nunca revaloriza stock.
   referencePriceCents Int?
   // A4 — punto de reorden en unidad base (null = sin aviso) y cantidad
   // sugerida de compra (null = pedir hasta cubrir el punto).
-  reorderPointBase    Int?
-  reorderQtyBase      Int?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  reorderPointBase Int?
+  reorderQtyBase   Int?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-  supplierItems           SupplierIngredient[]
-  barcodes                IngredientBarcode[]
-  supplierInvoiceAliases  SupplierInvoiceAlias[]
-  stockLevel              StockLevel?
-  stockMovements          StockMovement[]
-  stockCountItems         StockCountItem[]
-  purchaseOrderItems      PurchaseOrderItem[]
-  recipe                  Recipe?                  @relation("IngredientRecipe")
-  recipeItems             RecipeItem[]
-  modifierRecipeItems     ModifierRecipeItem[]
-  productionBatches       ProductionBatch[]        @relation("BatchOutput")
+  supplierItems       SupplierIngredient[]
+  barcodes            IngredientBarcode[]
+  supplierInvoiceAliases SupplierInvoiceAlias[]
+  stockLevel          StockLevel?
+  stockMovements      StockMovement[]
+  stockCountItems     StockCountItem[]
+  purchaseOrderItems  PurchaseOrderItem[]
+  recipe              Recipe?              @relation("IngredientRecipe")
+  recipeItems         RecipeItem[]
+  modifierRecipeItems ModifierRecipeItem[]
+  productionBatches   ProductionBatch[]    @relation("BatchOutput")
   supplierCreditNoteLines SupplierCreditNoteLine[]
 
   @@unique([restaurantId, name])
@@ -2179,6 +2190,19 @@ model Supplier {
   paymentTermsDays Int? // condiciones de pago en días; null = contado
   notes            String?
   active           Boolean    @default(true)
+
+  // ─── Documento soporte DIAN (Res. 000167/2021) ─────────────────────
+  /// Sujeto NO obligado a expedir factura de venta o documento equivalente:
+  /// a sus compras y gastos se les genera el documento soporte electrónico.
+  notObligatedToInvoice Boolean @default(false)
+  /// Municipio DANE (DIVIPOLA, 5 dígitos) del vendedor residente.
+  cityCode              String?
+  /// Código postal (tabla 16.4.4 del anexo técnico) del vendedor residente.
+  postalCode            String?
+  /// País ISO 3166 alfa-2. null o "CO" = residente en Colombia.
+  countryCode           String?
+  /// Ciudad (texto libre) del vendedor NO residente.
+  foreignCityName       String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -2293,33 +2317,33 @@ model StockLevel {
 /// Libro de movimientos — APPEND-ONLY. Correcciones = movimiento contrario.
 /// qtyBase y valueCents llevan SIGNO (+entra / −sale).
 model StockMovement {
-  id                   String              @id @default(cuid())
-  restaurantId         String
-  restaurant           Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  ingredientId         String
-  ingredient           Ingredient          @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-  kind                 StockMovementKind
-  qtyBase              Int
-  valueCents           Int
-  wasteReason          WasteReason?
-  note                 String?
-  stockCountId         String?
-  stockCount           StockCount?         @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
+  id                String            @id @default(cuid())
+  restaurantId      String
+  restaurant        Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredientId      String
+  ingredient        Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  kind              StockMovementKind
+  qtyBase           Int
+  valueCents        Int
+  wasteReason       WasteReason?
+  note              String?
+  stockCountId      String?
+  stockCount        StockCount?       @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
   // A2: recepciones de OC — el libro ES el registro de recepción (spec D3).
-  purchaseOrderId      String?
-  purchaseOrder        PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  purchaseOrderId   String?
+  purchaseOrder     PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   // A4: consumo por venta — orden pagada que originó el sale_consumption.
-  orderId              String?
-  order                Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId           String?
+  order             Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
   // A5: producción — batch que originó el production_in/out.
-  productionBatchId    String?
-  productionBatch      ProductionBatch?    @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
+  productionBatchId String?
+  productionBatch   ProductionBatch?  @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   /// Devolución a proveedor (`purchase_return`): la nota crédito que la originó.
   supplierCreditNoteId String?
   supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: SetNull)
-  createdById          String?
-  createdBy            User?               @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt            DateTime            @default(now())
+  createdById       String?
+  createdBy         User?             @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime          @default(now())
 
   @@index([restaurantId, createdAt])
   @@index([ingredientId, createdAt])
@@ -2337,20 +2361,20 @@ enum StockCountStatus {
 /// que no haya movimientos hasta confirmar; solo el cierre genera ajustes.
 /// Máx. 1 sesión draft por comercio (lock transaccional en la API).
 model StockCount {
-  id               String           @id @default(cuid())
-  restaurantId     String
-  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  status           StockCountStatus @default(draft)
-  notes            String?
-  createdById      String?
-  createdBy        User?            @relation("StockCountCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt        DateTime         @default(now())
-  closedAt         DateTime?
-  revision         Int              @default(0)
-  preliminaryAt    DateTime?
+  id           String           @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  status       StockCountStatus @default(draft)
+  notes        String?
+  createdById  String?
+  createdBy    User?            @relation("StockCountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  closedAt     DateTime?
+  revision     Int              @default(0)
+  preliminaryAt DateTime?
   recountStartedAt DateTime?
-  recountSnapshot  Json?
-  finalReview      Json?
+  recountSnapshot Json?
+  finalReview Json?
 
   items     StockCountItem[]
   movements StockMovement[]
@@ -2359,16 +2383,16 @@ model StockCount {
 }
 
 model StockCountItem {
-  id               String     @id @default(cuid())
-  countId          String
-  count            StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
-  ingredientId     String
-  ingredient       Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-  expectedQty      Int // snapshot del teórico al crear la sesión
-  countedQty       Int? // null = todavía sin contar
-  countedParts     Int[]      @default([]) // parciales en unidad base; su suma es countedQty
-  preliminaryQty   Int? // primer conteo inmutable, sin ajustes
-  preliminaryParts Int[]      @default([]) // desglose inmutable del primer conteo
+  id           String     @id @default(cuid())
+  countId      String
+  count        StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  expectedQty  Int // snapshot del teórico al crear la sesión
+  countedQty   Int? // null = todavía sin contar
+  countedParts Int[] @default([]) // parciales en unidad base; su suma es countedQty
+  preliminaryQty Int? // primer conteo inmutable, sin ajustes
+  preliminaryParts Int[] @default([]) // desglose inmutable del primer conteo
   finalExpectedQty Int? // saldo al iniciar el conteo definitivo
 
   @@unique([countId, ingredientId])
@@ -2424,16 +2448,21 @@ model PurchaseOrder {
   // Impuestos de la factura capturados/verificados por el operador (ERP A3).
   // El IVA se deriva de las líneas (taxPct); estos son los demás que la
   // factura discrimina a nivel documento, para la contabilidad/reportes.
-  incCents                Int @default(0) // Impuesto al consumo (impoconsumo)
-  retefuenteCents         Int @default(0) // Retención en la fuente
-  reteIvaCents            Int @default(0) // Retención de IVA
-  reteIcaCents            Int @default(0) // Retención de ICA
+  incCents        Int @default(0) // Impuesto al consumo (impoconsumo)
+  retefuenteCents Int @default(0) // Retención en la fuente
+  reteIvaCents    Int @default(0) // Retención de IVA
+  reteIcaCents    Int @default(0) // Retención de ICA
   /// Parte de las tres retenciones de arriba practicada AL RECIBIR (compras
   /// manuales: cada entrega, sobre lo recibido). Ya está sumada en ellas. A
   /// diferencia del resto —las de una factura importada como borrador, que
   /// siguen el avance de la recepción— cuenta completa en la cuenta por pagar
   /// desde la entrega en que se practicó. Ver `purchaseOrderTotals`.
   receptionRetentionCents Int @default(0)
+  /// «Ajustes» / ajuste al peso impreso en la factura del proveedor, CON
+  /// signo. Suma al total a pagar (la CxP queda igual al Total impreso) pero a
+  /// ninguna línea: no es costo de inventario ni impuesto. Lo fija la
+  /// importación con IA al confirmar. Ver `purchaseOrderTotals`.
+  roundingCents Int @default(0)
 
   createdById String?
   createdBy   User?    @relation("PurchaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -2446,6 +2475,7 @@ model PurchaseOrder {
   invoiceUploads PurchaseInvoiceUpload[]
   payments       PurchasePayment[]
   creditNoteRefs SupplierCreditNoteInvoice[]
+  supportDocuments SupportDocument[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId, status])
@@ -2483,21 +2513,21 @@ model PurchaseOrderItem {
   // IVA % de la línea (0/5/19 CO, 0/8/16 MX). El bruto se deriva: neto + IVA.
   taxPct             Int  @default(0)
   /// IVA documental total de la línea, después de descuentos. Null usa taxPct.
-  expectedTaxCents   Int?
+  expectedTaxCents    Int?
   /// Consumo fijo total de la línea (ya incluido en PurchaseOrder.incCents).
-  expectedIncCents   Int  @default(0)
+  expectedIncCents    Int  @default(0)
 
   // Acumulado por recepciones parciales (spec D3). Sobre-recepción permitida.
-  receivedQtyBase                           Int       @default(0)
+  receivedQtyBase   Int @default(0)
   /// Actual reception time, independent of later invoice/payment edits.
   /// Legacy rows remain null; cost provenance uses existing receipt evidence.
-  lastReceivedAt                            DateTime?
+  lastReceivedAt    DateTime?
   // NETO acumulado recibido (sin IVA). El bruto de la CxP se deriva con taxPct.
-  nonInventoryReceivedCostCents             Int       @default(0)
-  nonInventoryReceivedNonDeductibleTaxCents Int       @default(0)
+  nonInventoryReceivedCostCents Int @default(0)
+  nonInventoryReceivedNonDeductibleTaxCents Int @default(0)
   /// Consumo de recepciones no inventariables, congelado al recibir.
-  nonInventoryReceivedIncCents              Int       @default(0)
-  receivedCostCents                         Int       @default(0)
+  nonInventoryReceivedIncCents Int @default(0)
+  receivedCostCents Int @default(0)
 
   creditNoteLines SupplierCreditNoteLine[]
 
@@ -2508,19 +2538,19 @@ model PurchaseOrderItem {
 /// por OC; el saldo = total bruto − Σ abonos. Cuando el saldo llega a 0
 /// la OC queda pagada (PurchaseOrder.paidAt). Historial para auditoría.
 model PurchasePayment {
-  id                   String              @id @default(cuid())
-  restaurantId         String
-  restaurant           Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  purchaseOrderId      String
-  purchaseOrder        PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  amountCents          Int
-  paidAt               DateTime // fecha del abono (editable)
-  method               String? // efectivo / transferencia / … (texto libre)
+  id              String        @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  amountCents     Int
+  paidAt          DateTime // fecha del abono (editable)
+  method          String? // efectivo / transferencia / … (texto libre)
   /// Cuenta del PUC de donde SALE la plata (caja, banco, pasarela). Null sólo
   /// en abonos anteriores a que existiera el campo; el asiento los resuelve
   /// con una heurística sobre `method` (ver erp/paymentAccounts.ts).
-  accountCode          String?
-  note                 String?
+  accountCode     String?
+  note            String?
   /// Cruce con una nota crédito del proveedor: este «abono» no es plata que
   /// salió sino la parte de la nota aplicada a esta compra. No va al asiento
   /// «Pagos a proveedores» (la nota ya debitó Proveedores) y no se borra
@@ -2529,18 +2559,21 @@ model PurchasePayment {
   supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
   /// Comprobante de egreso que creó esta fila (pago en dinero, o cruce de una
   /// nota o de un anticipo hecho al pagar). Anular el comprobante la borra.
-  supplierPaymentId    String?
-  supplierPayment      SupplierPayment?    @relation("SupplierPaymentRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
+  supplierPaymentId String?
+  supplierPayment   SupplierPayment? @relation("SupplierPaymentRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
   /// Anticipo (excedente de un pago anterior) que esta fila consume.
-  supplierAdvanceId    String?
-  supplierAdvance      SupplierPayment?    @relation("SupplierAdvanceUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
-  createdById          String?
-  createdBy            User?               @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt            DateTime            @default(now())
+  supplierAdvanceId String?
+  supplierAdvance   SupplierPayment? @relation("SupplierAdvanceUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
+  createdById     String?
+  createdBy       User?         @relation("PurchasePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
 
   @@index([purchaseOrderId])
   @@index([restaurantId, paidAt])
   @@index([supplierCreditNoteId])
+  @@index([supplierPaymentId])
+  @@index([supplierAdvanceId])
+
 }
 
 /// Comprobante de egreso: un pago a un proveedor («Pagar a proveedor»). Primero
@@ -2829,7 +2862,7 @@ model ProductionBatch {
   // Cantidad producida, en unidad base del elaborado.
   outputQtyBase      Int
   // Σ consumos — lo que entró el production_in.
-  partialCost        Boolean    @default(false)
+  partialCost Boolean @default(false)
   costCents          Int
   note               String?
 
@@ -3034,6 +3067,29 @@ model DianConfig {
   environment String @default("habilitacion") // habilitacion | produccion
   status      String @default("pending") // pending | testing | enabled
 
+  // ─── Documento soporte en adquisiciones a no obligados (Res. 000167/2021)
+  // Va APARTE de la factura: el software se registra en el portal DIAN por
+  // tipo de documento, la autorización de numeración es otra (tipo
+  // "DOCUMENTO SOPORTE") y el ambiente avanza por su cuenta (un comercio que
+  // ya factura en producción puede seguir probando el documento soporte).
+  // El certificado de firma es el mismo de arriba.
+  supportDocEnabled          Boolean   @default(false)
+  supportDocEnvironment      String    @default("habilitacion") // habilitacion | produccion
+  supportDocStatus           String    @default("pending") // pending | testing | enabled
+  supportDocSoftwareId       String?
+  supportDocSoftwarePinEnc   String? // encriptado (entra al CUDS)
+  supportDocTestSetId        String?
+  /// Número de la autorización de numeración (Formato 1876).
+  supportDocResolutionNumber String?
+  supportDocPrefix           String?
+  supportDocFrom             Int?
+  supportDocTo               Int?
+  supportDocValidFrom        DateTime?
+  supportDocValidTo          DateTime?
+  /// Prefijo de la numeración INTERNA de las notas de ajuste (art. 5
+  /// Res. 000167: consecutivo interno de quien la genera).
+  supportDocAdjustmentPrefix String    @default("NAS")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -3042,12 +3098,12 @@ model DianConfig {
 /// XML firmado viven acá; SimpleInvoice sigue siendo la representación
 /// gráfica y enlaza 1:1.
 model DianDocument {
-  creditNoteId       String?     @unique
-  creditNote         CreditNote? @relation(fields: [creditNoteId], references: [id], onDelete: Restrict)
-  leaseToken         String?
-  leaseExpiresAt     DateTime?
-  issuedAt           DateTime?
-  deliveryXml        String?
+  creditNoteId   String?     @unique
+  creditNote     CreditNote? @relation(fields: [creditNoteId], references: [id], onDelete: Restrict)
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  issuedAt       DateTime?
+  deliveryXml    String?
   submissionFileName String?
 
   id           String     @id @default(cuid())
@@ -3076,19 +3132,19 @@ model DianDocument {
   /// (el proceso murió a mitad) se re-reclama pasada `STALE_CLAIM_MS`.
   state String @default("to_send")
 
-  cufe                String?
+  cufe        String?
   // XML firmado, comprimido (zip) — lo que se envió a la DIAN.
-  xmlZip              Bytes?
-  responseXml         String?
+  xmlZip      Bytes?
+  responseXml String?
   // zipKey/trackId del envío (asíncrono en habilitación).
-  trackId             String?
-  errors              Json?
+  trackId     String?
+  errors      Json?
   /// Notificaciones de la DIAN («Regla: X, Notificación: …»). NO son
   /// rechazos —el anexo técnico las define como indicios que no impiden el
   /// procesamiento— y por eso no van a `errors` de una factura aceptada;
   /// quedan acá para diagnóstico.
-  warnings            Json?
-  attempts            Int       @default(0)
+  warnings    Json?
+  attempts    Int     @default(0)
   /// Notas crédito: respuestas «no encontrado» (66/90) SEGUIDAS de la
   /// consulta de estado DIAN. Cualquier otra respuesta de la DIAN la vuelve a
   /// 0; un fallo de canal no la cambia. Con el umbral de
@@ -3097,16 +3153,16 @@ model DianDocument {
   /// Facturas: consultas por CUFE sin confirmar de una factura que la DIAN
   /// dijo tener (regla 90, `dian_duplicate_unverified`); con el tope de
   /// `invoiceReconcile.MAX_VERIFY_CHECKS` el barrido deja de consultarla.
-  statusNotFoundCount Int       @default(0)
+  statusNotFoundCount Int @default(0)
   /// Barrido: antes de este instante no se reintenta (backoff exponencial
   /// tras un error de canal; espera fija tras un bloqueo de configuración).
   /// null ⇒ se puede intentar ya.
-  nextAttemptAt       DateTime?
+  nextAttemptAt DateTime?
   /// Por qué NO salió la última vez: un guard de configuración
   /// (resolution_incomplete, contact_email_incomplete…), numbering_exhausted,
   /// o la primera regla/error que devolvió la DIAN o el canal. Es lo que la
   /// pantalla muestra como "N facturas esperando emisión — falta X".
-  lastError           String?
+  lastError     String?
 
   /// Envío automático del AttachedDocument al adquiriente. Se marca al
   /// reclamar el envío (updateMany con emailedAt: null), así los DOS rieles
@@ -3141,14 +3197,22 @@ model Expense {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  category    String
-  description String?
+  /// Consecutivo interno por comercio («G-0012», ver expenseNumber.ts). Lo
+  /// asigna el servidor en la transacción del alta, bajo el candado de
+  /// `Restaurant.expenseNextNumber`: sin huecos por carreras y nunca se
+  /// reutiliza. null = plantilla recurrente (no es un gasto) o un gasto que
+  /// creó una versión anterior del código durante un despliegue: el próximo
+  /// alta o la lista lo numeran en orden de creación.
+  number       Int?
+
+  category     String
+  description  String?
   /// COSTO del gasto que va al PYG y a la cuenta de gasto: base + INC + IVA
   /// no descontable. Sin impuestos es simplemente el valor del gasto. NO es
   /// lo que se paga cuando hay IVA o retenciones: eso es `payableCents`.
-  amountCents Int
+  amountCents  Int
   // Fecha CONTABLE del gasto (editable) — no confundir con createdAt.
-  date        DateTime
+  date         DateTime
 
   // ─── Documento soporte (opcional) ─────────────────────────────────
   /// e_invoice (factura electrónica) | charge_account (cuenta de cobro) |
@@ -3163,26 +3227,27 @@ model Expense {
 
   // ─── Impuestos (misma convención que las compras, ver expenseTax.ts) ──
   /// Base gravable NETA (después del descuento). Los gastos viejos: = amountCents.
-  baseCents       Int     @default(0)
+  baseCents      Int       @default(0)
   /// Descuento impreso en el documento (informativo: la base ya lo trae).
-  discountCents   Int     @default(0)
+  discountCents  Int       @default(0)
   /// Tarifa de IVA elegida (0/5/19). Informativa si el IVA vino impreso.
-  ivaPct          Int     @default(0)
-  ivaCents        Int     @default(0)
+  ivaPct         Int       @default(0)
+  ivaCents       Int       @default(0)
   /// Foto de `Restaurant.purchaseIvaDeductible` al crear el gasto: cambiar
   /// la configuración después no reescribe gastos anteriores.
-  ivaDeductible   Boolean @default(false)
-  incCents        Int     @default(0)
+  ivaDeductible  Boolean   @default(false)
+  incCents       Int       @default(0)
   /// Totales por tipo de las retenciones practicadas (cache de `retentions`).
-  retefuenteCents Int     @default(0)
-  reteIvaCents    Int     @default(0)
-  reteIcaCents    Int     @default(0)
+  retefuenteCents Int      @default(0)
+  reteIvaCents    Int      @default(0)
+  reteIcaCents    Int      @default(0)
   /// TOTAL A PAGAR al proveedor = base + IVA + INC − retenciones. Es lo que
   /// queda en cuentas por pagar y lo que cancelan los abonos. Los gastos
   /// viejos: = amountCents.
-  payableCents    Int     @default(0)
+  payableCents    Int      @default(0)
 
   retentions ExpenseRetention[]
+  supportDocuments SupportDocument[]
 
   supplierId   String?
   supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
@@ -3220,6 +3285,7 @@ model Expense {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([restaurantId, number])
   @@index([restaurantId, date])
   @@index([restaurantId, recurring])
 }
@@ -3230,9 +3296,9 @@ model Expense {
 /// gastos ya registrados. En una plantilla recurrente es la configuración
 /// que se recalcula en cada copia (umbral UVT del año de la copia).
 model ExpenseRetention {
-  id        String            @id @default(cuid())
+  id        String  @id @default(cuid())
   expenseId String
-  expense   Expense           @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   conceptId String?
   concept   RetentionConcept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
 
@@ -3240,7 +3306,7 @@ model ExpenseRetention {
   name        String
   rateBps     Int
   /// subtotal | tax — sobre qué se calculó.
-  base        String @default("subtotal")
+  base        String  @default("subtotal")
   /// Cuenta del PUC que se acredita (2365xx / 2367xx / 2368xx).
   accountCode String
   /// Tarifa exacta en partes por millón (null = la de `rateBps`): la foto
@@ -3406,17 +3472,17 @@ enum PayoutStatus {
 /// payouts a approved/declined. El número de cuenta NO se guarda completo
 /// (solo los últimos 4) — es PII y no hace falta para el historial.
 model Payout {
-  idempotencyKey           String?             @unique
-  payloadFingerprint       String?
+  idempotencyKey String? @unique
+  payloadFingerprint String?
   walletAccountFingerprint String?
-  sourceMode               PlatformWalletMode?
-  initStartedAt            DateTime?
-  submissionLeaseUntil     DateTime?
-  providerVerifiedAt       DateTime?
-  webhookSecretEnc         String?
-  id                       String              @id @default(cuid())
-  restaurantId             String
-  restaurant               Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  sourceMode PlatformWalletMode?
+  initStartedAt DateTime?
+  submissionLeaseUntil DateTime?
+  providerVerifiedAt DateTime?
+  webhookSecretEnc String?
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   amountCents Int
   currency    String @default("COP")
@@ -3569,14 +3635,14 @@ model BillingCustomer {
   // este cliente (Payment.method = customer_credit). creditLimitCents null
   // = sin tope; creditTermsDays = plazo para el vencimiento en cartera y
   // la fecha de pago de la factura DIAN.
-  creditEnabled    Boolean @default(false)
-  creditLimitCents Int?
-  creditTermsDays  Int     @default(30)
+  creditEnabled     Boolean        @default(false)
+  creditLimitCents  Int?
+  creditTermsDays   Int            @default(30)
   // Descuento comercial fijo del cliente, en puntos base (1000 = 10 %). Se
   // aplica a la cuenta al asociarla al cliente (cobro o factura nominativa)
   // con el mismo mecanismo del descuento por comensal (Order.discount*).
-  discountEnabled  Boolean @default(false)
-  discountBps      Int     @default(0)
+  discountEnabled   Boolean        @default(false)
+  discountBps       Int            @default(0)
 
   voucherBatches    VoucherBatch[]
   voucherStatements VoucherStatement[]
@@ -3602,17 +3668,26 @@ model CustomerCreditPayment {
   billingCustomer   BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Cascade)
   amountCents       Int
   paidAt            DateTime
-  /**
-   * Cuenta de dinero (11xx) donde entró la plata.
-   */
+  /** Cuenta de dinero (11xx) donde entró la plata. */
   accountCode       String
   note              String?
   createdById       String?
   createdBy         User?           @relation("CustomerCreditPaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt         DateTime        @default(now())
+  /// Cargo a crédito (Payment customer_credit) al que se aplica PRIMERO este
+  /// abono — el de una factura manual pagada por su link o saldada desde su
+  /// ficha. null = abono general: se aplica FIFO al cargo más viejo
+  /// (`customerCredit.allocateFifo`).
+  creditChargeId    String?
+  creditCharge      Payment?        @relation("CustomerCreditPaymentCharge", fields: [creditChargeId], references: [id], onDelete: SetNull)
+  /// El link de pago que originó el abono (pago en línea por Kushki). Único:
+  /// un link se liquida una sola vez.
+  paymentLinkId     String?         @unique
+  paymentLink       PaymentLink?    @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, paidAt])
   @@index([billingCustomerId])
+  @@index([creditChargeId])
 }
 
 model InvoiceRequest {
@@ -3977,17 +4052,17 @@ model LedgerAccount {
 /// de negocio (`date`), y las mensuales una vez al mes; regenerar un mes borra
 /// y recrea por `(source, sourceRef)`.
 model JournalEntry {
-  id              String     @id @default(cuid())
-  restaurantId    String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  date            DateTime
-  source          String
-  sourceRef       String?
-  memo            String?
-  status          String     @default("posted")
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date          DateTime
+  source        String
+  sourceRef     String?
+  memo          String?
+  status        String     @default("posted")
   /// Número de comprobante consecutivo por comercio. Se asigna al CERRAR el
   /// mes (los meses abiertos se regeneran y no pueden numerar en firme).
-  voucherNumber   Int?
+  voucherNumber Int?
   /// Tercero del comprobante, DESNORMALIZADO (nombre + NIT/CC). MESAPAY no
   /// tiene una entidad "tercero" única (hay Supplier y BillingCustomer), así
   /// que el asiento guarda el texto tal cual se eligió/escribió. Hoy lo
@@ -4005,7 +4080,7 @@ model JournalEntry {
   /// Columna simple con índice, sin relación Prisma: el original puede
   /// desaparecer si su mes se reabre y el motor lo regenera.
   reversalOfId    String?
-  createdAt       DateTime   @default(now())
+  createdAt     DateTime   @default(now())
 
   lines JournalLine[]
 
@@ -4274,19 +4349,19 @@ model ExogenaHolding {
 
 /// Movimiento de un asiento: débito O crédito sobre una cuenta.
 model JournalLine {
-  id           String        @id @default(cuid())
-  entryId      String
-  entry        JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  accountId    String
-  account      LedgerAccount @relation(fields: [accountId], references: [id])
-  accountCode  String
-  debitCents   BigInt        @default(0)
-  creditCents  BigInt        @default(0)
-  memo         String?
+  id          String        @id @default(cuid())
+  entryId     String
+  entry       JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     LedgerAccount @relation(fields: [accountId], references: [id])
+  accountCode String
+  debitCents  BigInt        @default(0)
+  creditCents BigInt        @default(0)
+  memo        String?
   /// Centro de costos de la línea (opcional; hoy sólo lo asignan los
   /// comprobantes manuales). Si el centro se borra, la línea queda sin él.
   costCenterId String?
-  costCenter   CostCenter?   @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  costCenter   CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
   @@index([entryId])
   @@index([accountId])
@@ -4304,25 +4379,22 @@ model ExpensePayment {
   expenseId    String
   expense      Expense    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
 
-  amountCents          Int
+  amountCents Int
   /// Fecha del abono (editable) — define el mes contable del pago.
-  paidAt               DateTime
+  paidAt      DateTime
   /// Cuenta del PUC de donde SALE la plata (caja, banco, pasarela…).
-  accountCode          String
-  note                 String?
-  /// Cruce con una nota crédito del proveedor (ver PurchasePayment). Su
-  /// `accountCode` es Proveedores (220505): el asiento «Pagos de gastos» lo
-  /// lleva como D costos y gastos por pagar · C proveedores, que es la
-  /// reclasificación del cruce.
+  accountCode String
+  note        String?
+  /// Cruce con una nota crédito del proveedor (ver PurchasePayment).
   supplierCreditNoteId String?
   supplierCreditNote   SupplierCreditNote? @relation(fields: [supplierCreditNoteId], references: [id], onDelete: Cascade)
   /// Comprobante de egreso que creó esta fila (pago en dinero, o cruce de una
   /// nota o de un anticipo hecho al pagar). Anular el comprobante la borra.
-  supplierPaymentId    String?
-  supplierPayment      SupplierPayment?    @relation("SupplierPaymentExpenseRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
+  supplierPaymentId String?
+  supplierPayment   SupplierPayment? @relation("SupplierPaymentExpenseRows", fields: [supplierPaymentId], references: [id], onDelete: Cascade)
   /// Anticipo (excedente de un pago anterior) que esta fila consume.
-  supplierAdvanceId    String?
-  supplierAdvance      SupplierPayment?    @relation("SupplierAdvanceExpenseUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
+  supplierAdvanceId String?
+  supplierAdvance   SupplierPayment? @relation("SupplierAdvanceExpenseUses", fields: [supplierAdvanceId], references: [id], onDelete: Cascade)
 
   createdById String?
   createdBy   User?    @relation("ExpensePaymentCreator", fields: [createdById], references: [id], onDelete: SetNull)
@@ -4331,51 +4403,52 @@ model ExpensePayment {
   @@index([expenseId])
   @@index([restaurantId, paidAt])
   @@index([supplierCreditNoteId])
+  @@index([supplierPaymentId])
+  @@index([supplierAdvanceId])
+
 }
 
 // Shared event log. Order changes are inserted transactionally by SQL trigger.
 model PlatformEvent {
-  id           BigInt   @id @default(autoincrement())
+  id BigInt @id @default(autoincrement())
   restaurantId String
-  orderId      String?
-  payload      Json
-  createdAt    DateTime @default(now())
-
+  orderId String?
+  payload Json
+  createdAt DateTime @default(now())
   @@index([restaurantId, id])
   @@index([createdAt])
 }
 
 model RateLimitBucket {
-  key       String   @id
-  hits      Int      @default(1)
+  key String @id
+  hits Int @default(1)
   expiresAt DateTime
-
   @@index([expiresAt])
 }
 
 // One durable record per financial operation (including uncertain refunds).
 model FinancialOperation {
-  key                 String    @id
-  paymentId           String
-  kind                String
-  amountCents         Int
-  status              String    @default("pending")
-  providerRef         String?
+  key String @id
+  paymentId String
+  kind String
+  amountCents Int
+  status String @default("pending")
+  providerRef String?
   /// Sólo kind=terminal (cobro empujado al datáfono Kushki): a qué equipo se
   /// mandó (`TerminalDevice.kushkiDeviceId`). «Reintentar en el datáfono»
   /// vuelve a mandar el cobro a ese mismo equipo.
-  deviceId            String?
+  deviceId String?
   /// Sólo kind=terminal: lo que respondió el datáfono cuando NO aprobó
   /// ("TERMINAL/TER-004", y su mensaje). Con respuesta del equipo se sabe que
   /// el cobro terminó: el staff puede reintentar o cancelar sin esperar los
   /// 3 minutos de "Resolver cobro". Null = sin respuesta (todavía en curso,
   /// o timeout / red / 5xx: puede haber cobrado).
-  answerCode          String?
-  answerMessage       String?
-  answeredAt          DateTime?
+  answerCode String?
+  answerMessage String?
+  answeredAt DateTime?
   /// Sólo kind=terminal: el pago nuevo con el que se reintentó este cobro
   /// (la pantalla del comensal lo sigue en vez de volver a los métodos).
-  nextPaymentId       String?
+  nextPaymentId String?
   /// Sólo kind=terminal: el `client_transaction_id` (UUID) con el que se
   /// empujó el cobro. Se guarda ANTES de llamar a Kushki: si la respuesta no
   /// llega (504 del gateway, timeout, red), con él se busca el resultado real
@@ -4383,11 +4456,20 @@ model FinancialOperation {
   clientTransactionId String?
   /// Sólo kind=terminal: última consulta del resultado a Kushki y qué dijo
   /// ("not_found", "unknown:reversed", "error"…). Evita consultar de más.
-  checkedAt           DateTime?
-  checkStatus         String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
+  checkedAt DateTime?
+  checkStatus String?
+  /// Sólo kind=terminal: lo que Kushki dice que AUTORIZÓ (centavos), cuando no
+  /// es lo que se mandó (`amountCents`). Null = autorizó lo de la cuenta (o no
+  /// lo dijo). BIGINT: un error de unidades (×100) de una cuenta grande no
+  /// cabe en INT4.
+  authorizedCents BigInt?
+  /// Sólo kind=terminal: qué se hizo con esa diferencia
+  /// (src/lib/payments/terminalAmount.ts): "tip" (de más → propina), "partial"
+  /// (de menos → saldo pendiente), o por qué quedó para conciliar
+  /// ("over_cap", "units", "invalid", "unconfirmed").
+  amountCheck String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@index([status, createdAt])
 }
 
@@ -4510,7 +4592,7 @@ model Printer {
   /// sobrevive a cada republicación de la config local.
   supportsQr Boolean @default(false)
 
-  jobs              PrintJob[]
+  jobs PrintJob[]
   /// Comercios que la eligieron como impresora de facturas
   /// (Restaurant.invoicePrinterId). Es lista porque Prisma exige el lado
   /// inverso; en la práctica es su propio comercio o nadie.
@@ -4727,16 +4809,16 @@ enum VoucherRedemptionChannel {
 /// interruptor; esto son los defaults que precargan el formulario de
 /// emisión y el modo de cobro.
 model VoucherSettings {
-  id                String      @id @default(cuid())
-  restaurantId      String      @unique
-  restaurant        Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  mode              VoucherMode @default(prepaid)
+  id           String      @id @default(cuid())
+  restaurantId String      @unique
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  mode         VoucherMode @default(prepaid)
   /// Valor por defecto de cada bono (centavos). 0 = sin default.
-  defaultValueCents Int         @default(0)
+  defaultValueCents Int    @default(0)
   /// Vigencia por defecto en días desde la emisión. null = sin vencimiento.
   defaultExpiryDays Int?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 model VoucherBatch {
@@ -4888,31 +4970,31 @@ enum PaymentLinkStatus {
 }
 
 model PaymentLink {
-  walletTrackingKey  String?
+  walletTrackingKey String?
   walletTrackingMode PlatformWalletMode?
-  id                 String              @id @default(cuid())
-  restaurantId       String
-  restaurant         Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id           String            @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   /// Token público de la URL. Random, no enumerable.
-  token              String              @unique
-  kind               PaymentLinkKind
-  amountCents        Int
-  currency           String              @default("COP")
-  status             PaymentLinkStatus   @default(pending)
+  token        String            @unique
+  kind         PaymentLinkKind
+  amountCents  Int
+  currency     String            @default("COP")
+  status       PaymentLinkStatus @default(pending)
   /// Con qué se pagó (kushki_card / kushki_apple_pay / kushki_pse).
-  method             PaymentMethod?
+  method       PaymentMethod?
   /// Referencia del proveedor: el token PSE mientras está pendiente (para
   /// reconciliar en la página de retorno / webhook) y la transacción
   /// aprobada al pagarse.
-  providerRef        String?
-  payerEmail         String?
-  paidAt             DateTime?
-  expiresAt          DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  providerRef  String?
+  payerEmail   String?
+  paidAt       DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
-  voucherBatchId     String?           @unique
-  voucherBatch       VoucherBatch?     @relation(fields: [voucherBatchId], references: [id], onDelete: Cascade)
+  voucherBatchId String?       @unique
+  voucherBatch   VoucherBatch? @relation(fields: [voucherBatchId], references: [id], onDelete: Cascade)
   voucherStatementId String?           @unique
   voucherStatement   VoucherStatement? @relation(fields: [voucherStatementId], references: [id], onDelete: Cascade)
   /// `kind = order`: la cuenta (factura manual) a la que da entrada. Uno por
@@ -4921,10 +5003,23 @@ model PaymentLink {
   /// cobra el saldo VIVO de la orden y `status` queda en `pending`: el
   /// estado real (pagado / anulado / vencido) se deriva de la orden
   /// (`payLinkState`). `emailSentAt` / `payerEmail`: último envío por correo.
-  orderId            String?           @unique
-  order              Order?            @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  emailSentAt        DateTime?
-  breBCharges        BreBCharge[]
+  orderId     String? @unique
+  order       Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  emailSentAt DateTime?
+  /// Todos los destinatarios del último envío por correo (`payerEmail` guarda
+  /// el primero, para lo que ya lo leía).
+  emailRecipients String[] @default([])
+  /// Primera vez que el cliente abrió el link en un navegador (no el staff).
+  openedAt        DateTime?
+  /// `kind = order` de una factura manual EMITIDA POR COBRAR: el cargo a
+  /// crédito (Payment customer_credit) que este link salda. Con este campo
+  /// el link deja de abrir el checkout de la orden (ya cerrada) y cobra un
+  /// monto fijo en /r/[slug]/pago/[token]; pagado, deja un abono dirigido
+  /// a ese cargo (CustomerCreditPayment).
+  creditPaymentId String?                @unique
+  creditPayment   Payment?               @relation("PaymentLinkCreditCharge", fields: [creditPaymentId], references: [id], onDelete: SetNull)
+  creditAbono     CustomerCreditPayment?
+  breBCharges BreBCharge[]
 
   @@index([restaurantId, status])
   @@index([providerRef])
@@ -4976,9 +5071,9 @@ model BreBCharge {
   /// config de Kushki), para saber con cuál se cobró.
   processorName String?
   /// Imagen del QR tal como la entrega Kushki: `data:image/png;base64,…`.
-  qrImage       String?
+  qrImage   String?
   /// El QR de Kushki vence a los 10 minutos de pedirlo.
-  expiresAt     DateTime?
+  expiresAt DateTime?
 
   /// Quién pidió cancelar y cuándo; `canceledAt` = Kushki confirmó (204).
   cancelRequestedAt DateTime?
@@ -5036,7 +5131,7 @@ model CreditNoteSeries {
 }
 
 model CreditNote {
-  fiscalKey         String           @unique
+  fiscalKey String @unique
   publicToken       String           @unique @default(cuid())
   id                String           @id @default(cuid())
   restaurantId      String
@@ -5081,14 +5176,14 @@ model CreditNote {
   /// Propina que la nota le devuelve al cliente. Se fija al crear la nota
   /// (0 si no es anulación). null = nota anterior a la regla: se calcula y
   /// fija la primera vez que la contabilidad la ve.
-  tipRefundCents     Int?
+  tipRefundCents      Int?
   /// Parte de esa propina que canceló cartera de crédito de cliente
   /// (Payment.creditNoteCents). null = parte de la propina sin contabilizar.
-  tipReceivableCents Int?
+  tipReceivableCents  Int?
   /// Mes (YYYY-MM) del asiento «Notas crédito» que asentó la propina.
   /// null = pendiente. Igual a postedMonth salvo en notas ya asentadas en un
   /// mes cerrado antes de la regla (la propina va al primer mes abierto).
-  tipPostedMonth     String?
+  tipPostedMonth      String?
 
   @@unique([restaurantId, requestId])
   @@unique([seriesId, number])
@@ -5098,12 +5193,106 @@ model CreditNote {
 
 /// Global annual transport counter, independent of fiscal prefixes and restaurant backups.
 model CreditNoteFileSeries {
-  issuerNit   String
+  issuerNit String
   environment String
-  year        Int
-  lastNumber  Int    @default(0)
+  year Int
+  lastNumber Int @default(0)
 
   @@id([issuerNit, environment, year])
+}
+
+/// Consecutivo del documento soporte (rango autorizado) y de su nota de
+/// ajuste (numeración interna) por NIT, ambiente y prefijo. Tabla de
+/// PLATAFORMA, igual que CreditNoteSeries: restaurar una copia de un comercio
+/// nunca puede devolver el contador y repetir números ya usados.
+model SupportDocumentSeries {
+  id          String            @id @default(cuid())
+  issuerNit   String
+  /// "1" producción · "2" pruebas (ProfileExecutionID).
+  environment String
+  /// support_document | adjustment_note
+  kind        String
+  prefix      String
+  /// Próximo número a asignar (el DS arranca en el "desde" de la resolución).
+  nextNumber  Int               @default(1)
+  documents   SupportDocument[]
+
+  @@unique([issuerNit, environment, kind, prefix])
+}
+
+/// Documento soporte en adquisiciones efectuadas a sujetos no obligados a
+/// expedir factura (kind = support_document, Invoice tipo 05) y su nota de
+/// ajuste (kind = adjustment_note, CreditNote tipo 95). Resolución DIAN
+/// 000167 de 2021, anexo técnico v1.1. Es un documento FISCAL derivado de un
+/// gasto o de una compra que ya existen: no genera asientos (el gasto o la
+/// compra ya registraron el costo y la cuenta por pagar).
+model SupportDocument {
+  id               String                @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  /// support_document | adjustment_note
+  kind             String
+  /// expense | purchase_order
+  sourceType       String
+  expenseId        String?
+  expense          Expense?              @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  purchaseOrderId  String?
+  purchaseOrder    PurchaseOrder?        @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  /// Un solo documento soporte VIGENTE por gasto o compra: "expense:<id>" /
+  /// "purchase_order:<id>". Se libera (null) cuando una nota de ajuste de
+  /// anulación queda aceptada. Las notas de ajuste no lo usan.
+  activeKey        String?               @unique
+  /// Nota de ajuste: el documento soporte que ajusta.
+  adjustsId        String?
+  adjusts          SupportDocument?      @relation("SupportDocumentAdjustment", fields: [adjustsId], references: [id], onDelete: SetNull)
+  adjustments      SupportDocument[]     @relation("SupportDocumentAdjustment")
+  seriesId         String
+  series           SupportDocumentSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  number           Int
+  /// Prefijo + número ("DS1001", "NAS7"): el cbc:ID del XML.
+  documentNumber   String
+  /// "1" producción · "2" pruebas: con "2" nunca tiene validez fiscal.
+  environment      String
+  /// NIT del adquiriente (el comercio) sin DV.
+  issuerNit        String
+  /// Nota de ajuste: concepto (tabla 16.2.4) y descripción (≥ 20 caracteres).
+  reasonCode       String?
+  reasonText       String?
+  /// Foto de lo que se transmite (vendedor, líneas, totales, retenciones,
+  /// resolución, documento ajustado): representación gráfica y reintentos.
+  snapshot         Json
+  subtotalCents    Int
+  taxCents         Int
+  withholdingCents Int                   @default(0)
+  totalCents       Int
+  /// to_send | sent | pending | accepted | rejected | error. `sent` es
+  /// además el RECLAMO del envío (updateMany condicionado por estado).
+  state            String                @default("to_send")
+  /// CUDS (SHA-384) del último XML firmado.
+  cuds             String?
+  issuedAt         DateTime?
+  /// XML firmado, comprimido: lo que se envió a la DIAN.
+  xmlZip           Bytes?
+  submissionFileName String?
+  responseXml      String?
+  /// ZipKey del envío asíncrono (habilitación).
+  trackId          String?
+  errors           Json?
+  attempts         Int                   @default(0)
+  lastError        String?
+  /// Barrido: antes de este instante no se vuelve a consultar.
+  nextAttemptAt    DateTime?
+  createdById      String?
+  createdBy        User?                 @relation("SupportDocumentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([seriesId, number])
+  @@index([restaurantId, createdAt])
+  @@index([expenseId])
+  @@index([purchaseOrderId])
+  @@index([adjustsId])
+  @@index([state, nextAttemptAt])
 }
 
 /// Archivo final de un comercio ELIMINADO (ver src/lib/restaurantDeletion).
@@ -5120,126 +5309,124 @@ model CreditNoteFileSeries {
 /// crédito) y archivos/… (facturas de compra y documentos del alta). Los
 /// documentos fiscales se conservan al menos 5 años: no hay purga automática.
 model DeletedRestaurantArchive {
-  id                  String   @id @default(cuid())
+  id             String   @id @default(cuid())
   /// id que tenía el comercio. Ya no existe: texto, sin FK. NO se llama
   /// `restaurantId` a propósito: con ese nombre las copias de seguridad y el
   /// propio borrado la tratarían como tabla DEL comercio (tables.ts) y la
   /// borrarían junto con él.
-  deletedRestaurantId String   @unique
-  name                String
-  slug                String
-  legalName           String?
+  deletedRestaurantId String @unique
+  name           String
+  slug           String
+  legalName      String?
   /// NIT del comercio al momento de borrarlo.
-  taxId               String?
-  country             String?
-  deletedAt           DateTime @default(now())
+  taxId          String?
+  country        String?
+  deletedAt      DateTime @default(now())
   /// Quién lo borró. Sin FK: ese usuario puede borrarse después.
-  deletedById         String?
-  deletedByEmail      String
+  deletedById    String?
+  deletedByEmail String
   /// { summary: { orders, payments, … }, tables: { Order: 1234, … } }
-  counts              Json
+  counts         Json
   /// Versión del formato del ZIP (manifest.json → formatVersion).
-  formatVersion       Int      @default(1)
-  archive             Bytes
-  archiveBytes        Int
-  archiveSha256       String
+  formatVersion  Int      @default(1)
+  archive        Bytes
+  archiveBytes   Int
+  archiveSha256  String
 
   @@index([deletedAt])
   @@index([slug])
 }
 
+
 /// Separate estimate ledger. No entries in this ledger authorize transfers.
 /// Scope is retained independently of tenant deletion/restoration.
 model WalletTrackingAccount {
-  id                       String                  @id @default(cuid())
-  scopeKey                 String
-  scopeKind                String
-  restaurantId             String?
-  restaurant               Restaurant?             @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
-  trackingKey              String                  @unique
+  id String @id @default(cuid())
+  scopeKey String
+  scopeKind String
+  restaurantId String?
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  trackingKey String @unique
   walletAccountFingerprint String
-  platformWalletAccountId  String?
-  mode                     PlatformWalletMode
-  currency                 String
-  active                   Boolean                 @default(true)
-  startedAt                DateTime
-  baselineAvailableCents   BigInt
-  openingPendingCents      BigInt                  @default(0)
-  excludesEarlier          Boolean                 @default(true)
-  leaseToken               String?
-  leaseUntil               DateTime?
-  nextCheckAt              DateTime                @default(now())
-  lastSuccessAt            DateTime?
-  lastErrorCode            String?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
-  entries                  WalletTrackingEntry[]
-  snapshots                WalletBalanceSnapshot[]
-
+  platformWalletAccountId String?
+  mode PlatformWalletMode
+  currency String
+  active Boolean @default(true)
+  startedAt DateTime
+  baselineAvailableCents BigInt
+  openingPendingCents BigInt @default(0)
+  excludesEarlier Boolean @default(true)
+  leaseToken String?
+  leaseUntil DateTime?
+  nextCheckAt DateTime @default(now())
+  lastSuccessAt DateTime?
+  lastErrorCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries WalletTrackingEntry[]
+  snapshots WalletBalanceSnapshot[]
   @@index([scopeKey, active, createdAt])
   @@index([active, nextCheckAt])
 }
 
 model WalletTrackingEntry {
-  id                  BigInt                @id @default(autoincrement())
-  accountId           String
-  account             WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  id BigInt @id @default(autoincrement())
+  accountId String
+  account WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
   /// Includes owner + original source, not the credential version.
-  sourceKey           String                @unique
-  operationKey        String?               @unique
-  sourceKind          String
-  sourceId            String
-  kind                String
-  amountCents         BigInt
-  currency            String
-  payloadHash         String
-  sourceAmountCents   BigInt                @default(0)
-  sourceRefundedCents BigInt                @default(0)
-  occurredAt          DateTime
-  recordedAt          DateTime              @default(now())
-  dateBasis           String
-  evidence            String
-  actorId             String?
-  actorEmail          String?
-  reason              String?
-
+  sourceKey String @unique
+  operationKey String? @unique
+  sourceKind String
+  sourceId String
+  kind String
+  amountCents BigInt
+  currency String
+  payloadHash String
+  sourceAmountCents BigInt @default(0)
+  sourceRefundedCents BigInt @default(0)
+  occurredAt DateTime
+  recordedAt DateTime @default(now())
+  dateBasis String
+  evidence String
+  actorId String?
+  actorEmail String?
+  reason String?
   @@index([accountId, id])
   @@index([accountId, kind])
   @@index([accountId, sourceKind, sourceId])
 }
 
 model WalletBalanceSnapshot {
-  id                       String                @id @default(cuid())
-  accountId                String
-  account                  WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  runKey                   String                @unique
-  requestedAt              DateTime
-  observedAt               DateTime
-  providerBalanceDate      DateTime?
-  availableCents           BigInt
-  ledgerWatermark          BigInt
-  chargesCents             BigInt
-  refundsCents             BigInt
-  registeredFeesCents      BigInt
-  effectiveOutgoingCents   BigInt
-  adjustmentsCents         BigInt
+  id String @id @default(cuid())
+  accountId String
+  account WalletTrackingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  runKey String @unique
+  requestedAt DateTime
+  observedAt DateTime
+  providerBalanceDate DateTime?
+  availableCents BigInt
+  ledgerWatermark BigInt
+  chargesCents BigInt
+  refundsCents BigInt
+  registeredFeesCents BigInt
+  effectiveOutgoingCents BigInt
+  adjustmentsCents BigInt
   incorporatedHistoryCents BigInt
-  signedDifferenceCents    BigInt?
-  status                   String
-  ambiguousOutgoingCount   Int                   @default(0)
-  excludedSourceCount      Int                   @default(0)
-  historicalChangeToken    String?
-  reasons                  String[]
-  algorithmVersion         Int                   @default(1)
-
+  signedDifferenceCents BigInt?
+  status String
+  ambiguousOutgoingCount Int @default(0)
+  excludedSourceCount Int @default(0)
+  historicalChangeToken String?
+  reasons String[]
+  algorithmVersion Int @default(1)
   @@index([accountId, observedAt])
 }
 
 /// Durable round-robin cursor prevents failed/new merchants starving later ones.
 model WalletTrackingJob {
-  id               String    @id @default("singleton")
+  id String @id @default("singleton")
   restaurantCursor String?
-  leaseToken       String?
-  leaseUntil       DateTime?
-  updatedAt        DateTime  @updatedAt
+  leaseToken String?
+  leaseUntil DateTime?
+  updatedAt DateTime @updatedAt
 }

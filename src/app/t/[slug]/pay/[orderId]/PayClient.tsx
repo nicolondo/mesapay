@@ -159,6 +159,7 @@ export function PayClient({
   approvedPayments = [],
   tableNumber = 0,
   payLinkMode = false,
+  manualInvoice = false,
 }: {
   tenantSlug: string;
   tenantName: string;
@@ -319,6 +320,8 @@ export function PayClient({
   // cuando el aparato lo admite; si no, tarjeta y después PSE
   // (lib/payments/defaultOnlineMethod.ts).
   payLinkMode?: boolean;
+  /** Cuenta de una factura manual (mesa `kind = manual`). */
+  manualInvoice?: boolean;
 }) {
   // Diner counter orders require prepayment; staff may combine methods.
   // The server activates preparation only after the whole balance is paid.
@@ -1105,7 +1108,8 @@ export function PayClient({
   }
 
   const hasGuests = guestTotals.length > 0;
-  const showDemoFallback = isMockMode && !kushkiReady;
+  // Nunca en el link de pago de una factura manual: el datáfono es presencial.
+  const showDemoFallback = isMockMode && !kushkiReady && !payLinkMode;
   // El sello "procesado por Kushki" sólo tiene sentido si hay algún método
   // Kushki habilitado. En un checkout de sólo-efectivo mostrarlo sería
   // engañoso, así que lo escondemos.
@@ -1574,6 +1578,10 @@ export function PayClient({
                 sameTab={printSameTab}
                 canConfigurePrinters={canConfigurePrinters}
                 onIssued={() => router.refresh()}
+                // La propina elegida arriba: con «Sin propina» la factura
+                // no sugiere ninguna en ninguna de sus representaciones.
+                suggestedTipPct={tipPct}
+                manualInvoice={manualInvoice}
                 className="w-full h-11 rounded-full border border-hairline bg-paper text-ink text-sm font-medium"
               />
             </div>

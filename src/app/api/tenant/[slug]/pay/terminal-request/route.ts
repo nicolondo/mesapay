@@ -6,6 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { announceBillRequestedOnPay } from "@/lib/billRequest";
 import { db } from "@/lib/db";
+import { isManualInvoiceTable } from "@/lib/manualInvoiceReceivable";
 import { publishOrderEvent } from "@/lib/events";
 import { validateNewPaymentAmount } from "@/lib/orderTotals";
 import { sendPushToMeserosForTable } from "@/lib/push";
@@ -93,6 +94,10 @@ async function POSTHandler(
   const foodPortion = parsed.data.amountCents - parsed.data.tipCents;
   const staff = await staffForRestaurant(tenant.id, COLLECTOR_ROLES);
   if (!staff) {
+    // Factura manual pagada por su link: remoto, sólo en línea.
+    if (await isManualInvoiceTable(order.tableId)) {
+      return NextResponse.json({ error: "online_only" }, { status: 409 });
+    }
     const cap = await validateNewPaymentAmount(order.id, foodPortion, {
       excludePending: false,
     });

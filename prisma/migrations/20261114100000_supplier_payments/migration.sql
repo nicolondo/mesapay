@@ -50,6 +50,18 @@ CREATE TABLE "SupplierPayment" (
 );
 
 -- CreateIndex
+CREATE INDEX "PurchasePayment_supplierPaymentId_idx" ON "PurchasePayment"("supplierPaymentId");
+
+-- CreateIndex
+CREATE INDEX "PurchasePayment_supplierAdvanceId_idx" ON "PurchasePayment"("supplierAdvanceId");
+
+-- CreateIndex
+CREATE INDEX "ExpensePayment_supplierPaymentId_idx" ON "ExpensePayment"("supplierPaymentId");
+
+-- CreateIndex
+CREATE INDEX "ExpensePayment_supplierAdvanceId_idx" ON "ExpensePayment"("supplierAdvanceId");
+
+-- CreateIndex
 CREATE INDEX "SupplierPayment_restaurantId_date_idx" ON "SupplierPayment"("restaurantId", "date");
 
 -- CreateIndex

@@ -21,6 +21,8 @@ import {
 } from "@/lib/tables/terminalOrder";
 import type { TableVisualState } from "@/lib/walkoutRisk";
 import type { TerminalChargeState } from "@/lib/tables/terminalCharge";
+import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
+import { TerminalAmountNote, terminalChargeOutcomeText } from "@/components/payments/TerminalAmountNote";
 import { TerminalPrintActions } from "./TerminalPrintActions";
 
 export type TableState = TerminalTableState;
@@ -38,6 +40,8 @@ export type PendingPayment = {
    * en curso). Hay que esperar su resultado; no se vuelve a enviar.
    */
   inFlight: boolean;
+  /** Kushki aprobó otro monto que no se liquidó solo (a conciliar). */
+  amountMismatch?: TerminalAmountView | null;
 };
 
 export type GuestGroup = {
@@ -79,6 +83,8 @@ export type TableCard = {
     amountCents: number;
     tipCents: number;
     settledAt: string | null;
+    /** El datáfono aprobó otro monto: propina o parcial (terminalAmount.ts). */
+    amount?: TerminalAmountView | null;
   }[];
   // Lo que mira el ORDEN de la grilla (regla del salón, ver
   // src/lib/tables/terminalOrder.ts). No cambia el color ni el rótulo.
@@ -121,6 +127,9 @@ export function TerminalGrid({
   const router = useRouter();
   const [, startTx] = useTransition();
   const [openTable, setOpenTable] = useState<TableCard | null>(null);
+  // Lo que dijo el último cobro sobre el monto (propina del datáfono, parcial
+  // o «monto cobrado distinto»): queda arriba aunque la ficha se cierre.
+  const [amountNotice, setAmountNotice] = useState<string | null>(null);
   // A qué datáfono va el cobro: el único, o el último elegido en este aparato.
   const terminalChoice = useTerminalChoice(devices, tenantSlug);
 
@@ -221,6 +230,18 @@ export function TerminalGrid({
         </div>
       </div>
 
+      {amountNotice && (
+        <div
+          role="status"
+          className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-terracotta/60 bg-terracotta/15 px-4 py-3 text-sm"
+        >
+          <span>{amountNotice}</span>
+          <button type="button" onClick={() => setAmountNotice(null)} className="shrink-0 text-xs underline opacity-80">
+            {tr("close")}
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {sortedTables.map((t) => (
           <TableTile
@@ -241,8 +262,9 @@ export function TerminalGrid({
           chosenDevice={terminalChoice.selected}
           onChooseDevice={terminalChoice.choose}
           onClose={() => setOpenTable(null)}
-          onChargedQueued={() => {
+          onChargedQueued={(message) => {
             setOpenTable(null);
+            if (message) setAmountNotice(message);
             startTx(() => router.refresh());
           }}
         />
@@ -508,9 +530,11 @@ function DetailSheet({
   chosenDevice: { id: string; label: string } | null;
   onChooseDevice: (deviceId: string) => void;
   onClose: () => void;
-  onChargedQueued: () => void;
+  /** `message`: qué pasó con el monto si el datáfono aprobó otro. */
+  onChargedQueued: (message?: string) => void;
 }) {
   const tr = useTranslations("opTerminal");
+  const tAttempt = useTranslations("terminalAttempt");
   const apiError = useApiError();
   const [busyPaymentId, setBusyPaymentId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -540,7 +564,10 @@ function DetailSheet({
       setErr(apiError(j, j.error ?? tr("sendToTerminalFailed")));
       return;
     }
-    onChargedQueued();
+    const j = await res.json().catch(() => ({}));
+    onChargedQueued(
+      terminalChargeOutcomeText(j, tr("tableNumber", { number: table.number }), tAttempt, fmtCOP) ?? undefined,
+    );
   }
 
   async function settleCash(
@@ -603,6 +630,9 @@ function DetailSheet({
               <div className="text-sm mt-1">
                 {tr("sheetTotal", { amount: fmtCOP(table.subtotalCents) })}
               </div>
+              {table.approvedSummaries.map((p) =>
+                p.amount ? <TerminalAmountNote key={p.id} amount={p.amount} tone="inherit" className="mt-2" /> : null,
+              )}
             </div>
           ) : (
             <>
@@ -685,9 +715,18 @@ function DetailSheet({
                           )}
 
                         {isTerminal && p.inFlight && (
-                          <div className="mt-3 text-[13px] font-medium text-ink-2">
-                            {tr("sentToTerminalWaiting")}
-                          </div>
+                          p.amountMismatch ? (
+                            // Kushki aprobó otro monto: no es "esperando", es
+                            // «monto cobrado distinto» y lo resuelve un administrador.
+                            <div className="mt-3 space-y-1">
+                              <div className="text-[13px] font-medium text-danger">{tAttempt("amountMismatchKicker")}</div>
+                              <TerminalAmountNote amount={p.amountMismatch} />
+                            </div>
+                          ) : (
+                            <div className="mt-3 text-[13px] font-medium text-ink-2">
+                              {tr("sentToTerminalWaiting")}
+                            </div>
+                          )
                         )}
                         {canPush && (
                           <div className="mt-3">
@@ -845,19 +884,22 @@ function DetailSheet({
                     {table.approvedSummaries.map((p) => (
                       <li
                         key={p.id}
-                        className="flex justify-between bg-paper border border-hairline rounded-lg px-3 py-2"
+                        className="bg-paper border border-hairline rounded-lg px-3 py-2"
                       >
-                        <span className="truncate">
-                          {p.tipCents > 0
-                            ? tr("previousPaymentTip", {
-                                method: humanMethod(p.method, tr),
-                                tip: fmtCOP(p.tipCents),
-                              })
-                            : humanMethod(p.method, tr)}
-                        </span>
-                        <span className="font-mono tabular">
-                          {fmtCOP(p.amountCents)}
-                        </span>
+                        <div className="flex justify-between gap-2">
+                          <span className="truncate">
+                            {p.tipCents > 0
+                              ? tr("previousPaymentTip", {
+                                  method: humanMethod(p.method, tr),
+                                  tip: fmtCOP(p.tipCents),
+                                })
+                              : humanMethod(p.method, tr)}
+                          </span>
+                          <span className="font-mono tabular">
+                            {fmtCOP(p.amountCents)}
+                          </span>
+                        </div>
+                        {p.amount && <TerminalAmountNote amount={p.amount} className="mt-1" />}
                       </li>
                     ))}
                   </ul>

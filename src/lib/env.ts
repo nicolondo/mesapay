@@ -51,6 +51,12 @@ const schema = z.object({
   // lo valida (rechaza valores libres como "MESAPAY"). Default: el que funciona
   // en el Postman del comercio. Override si el equipo es otro modelo Sunmi.
   KUSHKI_CLOUD_TERMINAL_DEVICE: z.string().default("SUNMI-T2"),
+  // Tope de lo que el datáfono puede cobrar DE MÁS sobre la cuenta y aun así
+  // liquidarse solo como propina (src/lib/payments/terminalAmount.ts). Por
+  // encima, el cobro queda para conciliar. Defaults: 30 % / $200.000 COP
+  // (20000000 centavos). Un valor inválido cae al default (nunca tumba la app).
+  KUSHKI_TERMINAL_TIP_MAX_PERCENT: z.coerce.number().min(0).max(1000).optional().catch(undefined),
+  KUSHKI_TERMINAL_TIP_MAX_CENTS: z.coerce.number().int().min(0).optional().catch(undefined),
   // Clave privada de la cuenta de plataforma para cobros de suscripción.
   // Requerida en sandbox/production; no necesaria en mode=mock.
   KUSHKI_BILLING_PRIVATE_KEY: z.string().optional(),

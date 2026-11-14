@@ -8,7 +8,7 @@ const m = vi.hoisted(() => ({
   transaction: vi.fn(),
   uploadFind: vi.fn(),
   assertPurchase: vi.fn(),
-  poUpdate: vi.fn(),
+  orderUpdate: vi.fn(),
 }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (h: unknown) => h }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "user-1", role: "operator" } }) }));
@@ -35,7 +35,7 @@ const tx = {
   purchaseInvoiceUpload: { updateMany: async () => ({ count: 1 }), update: async () => ({}) },
   supplier: { findUnique: async () => ({ restaurantId: "r1" }) },
   ingredient: { findUnique: async () => ({ restaurantId: "r1" }) },
-  purchaseOrder: { update: (...a: unknown[]) => m.poUpdate(...a), findUniqueOrThrow: async () => ({ items: [] }) },
+  purchaseOrder: { update: (...a: unknown[]) => m.orderUpdate(...a), findUniqueOrThrow: async () => ({ items: [] }) },
 };
 vi.mock("@/lib/db", () => ({
   db: {
@@ -70,7 +70,7 @@ beforeEach(() => {
   m.transaction.mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx));
   m.createPurchaseOrder.mockResolvedValue({ id: "po-1" });
   m.assertPurchase.mockResolvedValue(undefined);
-  m.poUpdate.mockResolvedValue({});
+  m.orderUpdate.mockResolvedValue({});
 });
 
 describe("an invoice that was already registered", () => {
@@ -82,7 +82,7 @@ describe("an invoice that was already registered", () => {
   it("keeps the invoice number on a draft too and checks it after writing", async () => {
     const response = await post(body([line()], { supplierInvoiceNumber: "FE 42" }));
     expect(response.status).toBe(201);
-    expect(m.poUpdate).toHaveBeenCalledWith({ where: { id: "po-1" }, data: { supplierInvoiceNumber: "FE 42" } });
+    expect(m.orderUpdate).toHaveBeenCalledWith({ where: { id: "po-1" }, data: { supplierInvoiceNumber: "FE 42" } });
     expect(m.assertPurchase).toHaveBeenCalledWith(expect.anything(), {
       restaurantId: "r1", purchaseOrderId: "po-1", supplierId: "sup-1", number: "FE 42", possibleDuplicate: undefined,
     });
@@ -98,7 +98,7 @@ describe("an invoice that was already registered", () => {
   it("forwards the soft-warning choice for invoices without a number", async () => {
     await post(body([line()], { possibleDuplicate: "allow" }));
     expect(m.assertPurchase.mock.calls[0]![1]).toMatchObject({ number: undefined, possibleDuplicate: "allow" });
-    expect(m.poUpdate).not.toHaveBeenCalled();
+    expect(m.orderUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -140,5 +140,56 @@ describe("confirming an imported invoice with supplier discounts", () => {
 
   it.each([{ discountPct: 101 }, { discountPct: 12.5 }, { discountCents: -1 }])("validates the discount fields %j", async (fields) => {
     expect((await post(body([line({ listCostCents: 2_000_000, ...fields })]))).status).toBe(400);
+  });
+});
+
+describe("confirming against the printed invoice total", () => {
+  // Neto $18.000 + IVA $3.420 + consumo $3.000 − retefuente $450 = $23.970,
+  // y la factura imprime «Ajustes −0,32» y un Total de $23.969,68.
+  const lines = [line({ expectedIncCents: 300_000 })];
+  const totals = { incCents: 300_000, retefuenteCents: 45_000 };
+  beforeEach(() => {
+    m.uploadFind.mockResolvedValue({ id: "up-1", restaurantId: "r1", status: "pending",
+      extraction: { invoiceTotalCents: 2_396_968 } });
+  });
+
+  it("stores the printed rounding adjustment on the purchase so the payable equals the invoice Total", async () => {
+    const response = await post(body(lines, { ...totals, roundingCents: -32 }));
+    expect(response.status).toBe(201);
+    expect(m.orderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ incCents: 300_000, retefuenteCents: 45_000, roundingCents: -32 }),
+    }));
+  });
+
+  it("refuses a payable that differs from the printed Total without explicit confirmation", async () => {
+    const response = await post(body(lines, totals));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "totals_unconfirmed" });
+    // Checked inside the (rolled back) transaction, before any purchase is created.
+    expect(m.createPurchaseOrder).not.toHaveBeenCalled();
+    expect(m.receivePurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it("never hides a tenant validation error behind the totals check", async () => {
+    const supplier = vi.spyOn(tx.supplier, "findUnique").mockResolvedValueOnce({ restaurantId: "other-restaurant" });
+    try {
+      const response = await post(body(lines, totals));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "supplier_not_found" });
+    } finally { supplier.mockRestore(); }
+  });
+
+  it("saves the reviewed amounts when the operator explicitly accepts the difference", async () => {
+    const response = await post(body(lines, { ...totals, acknowledgedDifferences: true }));
+    expect(response.status).toBe(201);
+  });
+
+  it("does not block uploads that never read a printed total", async () => {
+    m.uploadFind.mockResolvedValue({ id: "up-1", restaurantId: "r1", status: "pending", extraction: { invoiceTotalCents: null } });
+    expect((await post(body(lines, totals))).status).toBe(201);
+  });
+
+  it.each([100_001, -100_001, 0.5])("rejects a rounding adjustment of %s cents", async (roundingCents) => {
+    expect((await post(body(lines, { ...totals, roundingCents }))).status).toBe(400);
   });
 });

@@ -142,6 +142,7 @@ const PURCHASE_REF_SELECT = {
 
 const EXPENSE_REF_SELECT = {
   id: true,
+  number: true,
   date: true,
   documentNumber: true,
   amountCents: true,
@@ -179,6 +180,7 @@ function expenseRef(e: ExpenseRefRow): ExistingSupplierDocument {
     id: e.id,
     number: e.documentNumber,
     purchaseNumber: null,
+    expenseNumber: e.number,
     date: e.date.toISOString(),
     totalCents: expensePayableCents(e),
     supplierName: e.supplier?.name ?? null,

@@ -109,6 +109,11 @@ beforeEach(() => {
 });
 
 describe("preIssueInvoice — sin facturación electrónica (comprobante)", () => {
+  it("la propina elegida en el cobro («Sin propina» = 0) llega a la factura", async () => {
+    await preIssueInvoice({ restaurantId: "rest-1", orderId: "order-1", suggestedTipPct: 0 });
+    expect(m.issueSimpleInvoice).toHaveBeenCalledWith(expect.objectContaining({ beforePayment: true, suggestedTipPct: 0 }));
+  });
+
   it("emite sobre la cuenta abierta (beforePayment) a consumidor final y la manda a la impresora", async () => {
     const r = await call();
     expect(r).toEqual({
@@ -125,6 +130,8 @@ describe("preIssueInvoice — sin facturación electrónica (comprobante)", () =
       orderId: "order-1",
       email: null,
       beforePayment: true,
+      // Sin elección del cobro (la ficha de la mesa): la sugerida de siempre.
+      suggestedTipPct: null,
       customer: null,
     });
     // Queda constancia de "pidieron la genérica" (sin correo), sin pisar nada.

@@ -9,12 +9,20 @@ import {
 } from "@/lib/erp/accounting";
 import {
   accountingMonthRange,
-  calendarRangeOf,
   loadPurchasesBook,
   loadSalesBook,
 } from "@/lib/erp/accountingData";
 import { reportingPaymentMethod } from "@/lib/payments/methods";
 import { expenseBaseCents, expensePayableCents, isExpenseDocumentType } from "@/lib/erp/expenseTax";
+import { bogotaTodayIso } from "@/lib/bogota";
+import {
+  expenseListWhere,
+  hasExpenseFilters,
+  matchesStatus,
+  parseExpenseListParams,
+  type ExpenseListFilters,
+} from "@/lib/erp/expenseList";
+import { ensureExpenseNumbers, formatExpenseNumber } from "@/lib/erp/expenseNumber";
 import type { ModuleSlug } from "@/lib/modules";
 
 export const dynamic = "force-dynamic";
@@ -41,17 +49,26 @@ async function GETHandler(req: Request) {
   const { searchParams } = new URL(req.url);
   const book = searchParams.get("book");
   const month = searchParams.get("month") ?? "";
+  // Gastos: además del mes, la lista FILTRADA tal como se ve en pantalla
+  // (período libre, búsqueda, proveedor, concepto, cuenta, estado; mismos
+  // parámetros que la lista, ver expenseList.ts).
+  const expenseFilters: ExpenseListFilters | null =
+    book === "expenses" ? parseExpenseListParams(searchParams) : null;
   // Mes de NEGOCIO del comercio para ventas y compras (como el libro); los
   // gastos viven en una FECHA y van por el mes calendario (`calendar`).
   const range = await accountingMonthRange(ctx.restaurantId, month);
-  if (!range || !["sales", "purchases", "expenses"].includes(book ?? "")) {
+  if (
+    !["sales", "purchases", "expenses"].includes(book ?? "") ||
+    (book === "expenses" ? !expenseFilters : !range)
+  ) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   const t = await getTranslations("opErp");
+  let filename = `mesapay-${book}-${month}.csv`;
 
   let csv: string;
   if (book === "sales") {
-    const { orders, creditNotes } = await loadSalesBook(ctx.restaurantId, range);
+    const { orders, creditNotes } = await loadSalesBook(ctx.restaurantId, range!);
     csv = toCsv(
       [
         t("csvDate"),
@@ -93,7 +110,7 @@ async function GETHandler(req: Request) {
       ],
     );
   } else if (book === "purchases") {
-    const { rows } = await loadPurchasesBook(ctx.restaurantId, range);
+    const { rows } = await loadPurchasesBook(ctx.restaurantId, range!);
     csv = toCsv(
       [
         t("csvDate"),
@@ -137,17 +154,28 @@ async function GETHandler(req: Request) {
       }),
     );
   } else {
-    const calendar = calendarRangeOf(range);
-    const expenses = await db.expense.findMany({
-      where: {
-        restaurantId: ctx.restaurantId,
-        recurring: false,
-        date: { gte: calendar.from, lt: calendar.to },
-      },
-      orderBy: { date: "asc" },
-      include: { supplier: { select: { name: true, taxId: true } } },
-    });
-    const purchases = await loadPurchasesBook(ctx.restaurantId, range);
+    const filters = expenseFilters!;
+    // El mes solo, sin filtros, es el libro de siempre (con las compras que
+    // no van al inventario al final); con filtros, exactamente la lista.
+    const wholeMonth = filters.period.kind === "month" && !hasExpenseFilters(filters);
+    await ensureExpenseNumbers(ctx.restaurantId);
+    const today = bogotaTodayIso();
+    const expenses = (
+      await db.expense.findMany({
+        where: await expenseListWhere(ctx.restaurantId, filters),
+        orderBy: [{ date: "asc" }, { number: "asc" }],
+        include: { supplier: { select: { name: true, taxId: true } } },
+      })
+    ).filter((e) => matchesStatus(e, filters.status, today));
+    const purchases = wholeMonth && range
+      ? await loadPurchasesBook(ctx.restaurantId, range)
+      : { rows: [] as Awaited<ReturnType<typeof loadPurchasesBook>>["rows"] };
+    filename =
+      filters.period.kind === "month"
+        ? `mesapay-expenses-${filters.period.month}.csv`
+        : filters.period.kind === "range"
+          ? `mesapay-expenses-${filters.period.desde}_${filters.period.hasta}.csv`
+          : "mesapay-expenses.csv";
     // «Monto» sigue siendo el COSTO del gasto (lo del PYG); a la derecha,
     // el documento y los impuestos, y el total a pagar al proveedor.
     const docLabel = (type: string, number: string | null) => {
@@ -156,6 +184,7 @@ async function GETHandler(req: Request) {
     };
     csv = toCsv(
       [
+        t("csvExpenseNumber"),
         t("csvDate"),
         t("csvCategory"),
         t("csvDescription"),
@@ -172,6 +201,7 @@ async function GETHandler(req: Request) {
         t("csvPayable"),
       ],
       [...expenses.map((e) => [
+        formatExpenseNumber(e.number) ?? "",
         isoDate(e.date),
         e.category,
         e.description ?? "",
@@ -188,7 +218,7 @@ async function GETHandler(req: Request) {
         centsToCsvAmount(expensePayableCents(e)),
       ]), ...purchases.rows
         .filter((p) => p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents > 0)
-        .map((p) => [isoDate(p.receivedAt), t("nonInventoryPurchases"),
+        .map((p) => ["", isoDate(p.receivedAt), t("nonInventoryPurchases"),
           `${p.supplierInvoiceNumber ?? p.number} · ${t("nonInventoryPurchasesTiming")}`, p.supplierName,
           centsToCsvAmount(p.nonInventoryReceivedCents + p.nonInventoryIncCents + p.nonInventoryNonDeductibleTaxCents),
           "", "", "", "", "", "", "", "", ""])],
@@ -198,7 +228,7 @@ async function GETHandler(req: Request) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="mesapay-${book}-${month}.csv"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
 }

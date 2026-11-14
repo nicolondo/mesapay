@@ -173,6 +173,25 @@ describe("restoreSnapshot", () => {
       expect(patch).not.toHaveProperty(skipped);
     }
   });
+  it("never lowers the expense counter (G-0001…): an old snapshot without it keeps the live one, a newer one raises it", async () => {
+    mocks.restaurantFind.mockResolvedValue({ invoiceNextNumber: 9, expenseNextNumber: 41 });
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: snapshot() });
+    await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
+    expect(mocks.restaurantUpdate.mock.calls[0][0].data).toMatchObject({ expenseNextNumber: 41 });
+
+    mocks.restaurantUpdate.mockClear();
+    const newer = snapshot();
+    (newer.restaurant as Record<string, unknown>).expenseNextNumber = 12;
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: newer });
+    await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
+    expect(mocks.restaurantUpdate.mock.calls[0][0].data).toMatchObject({ expenseNextNumber: 41 });
+
+    mocks.restaurantUpdate.mockClear();
+    mocks.restaurantFind.mockResolvedValue({ invoiceNextNumber: 9, expenseNextNumber: 5 });
+    mocks.backupFind.mockResolvedValue({ restaurantId: "r1", data: newer });
+    await restoreSnapshot({ restaurantId: "r1", backupId: "b1" });
+    expect(mocks.restaurantUpdate.mock.calls[0][0].data).toMatchObject({ expenseNextNumber: 12 });
+  });
   it.each([undefined, null])("derives an old shift's missing business date (%s) from the snapshot cutoff", async (businessDate) => {
     const original = snapshot({
       Shift: [{

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
-import { monthRange } from "@/lib/erp/accounting";
+import { bogotaTodayIso } from "@/lib/bogota";
 import {
   EXPENSE_INCLUDE,
   dateInRange,
@@ -14,6 +14,8 @@ import {
   taxPayloadFromBody,
 } from "@/lib/erp/expenseShared";
 import { loadAccountMap } from "@/lib/erp/ledger";
+import { loadExpenseList, parseExpenseListParams } from "@/lib/erp/expenseList";
+import { ensureExpenseNumbers, numberPendingExpenses } from "@/lib/erp/expenseNumber";
 import {
   assertNotDuplicateDocument,
   DuplicateDocumentError,
@@ -26,29 +28,25 @@ export const dynamic = "force-dynamic";
 const GATE: ModuleSlug[] = ["accounting"];
 
 /**
- * Gastos del mes (recurring:false) + TODAS las plantillas (no dependen
- * del mes) + categorías existentes para el datalist (criterio insumos).
+ * Lista de gastos con búsqueda, filtros y páginas (ver `expenseList.ts`
+ * para los parámetros): la página pedida, los totales del conjunto
+ * FILTRADO completo y el conteo de cada estado de pago. Además, TODAS las
+ * plantillas (no dependen del período) y las categorías existentes (datalist
+ * del formulario y filtro «Concepto»). `?month=YYYY-MM` solo sigue siendo
+ * «los gastos de ese mes».
  */
 async function GETHandler(req: Request) {
   const ctx = await getErpContext(GATE);
   if (isDenied(ctx)) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const { searchParams } = new URL(req.url);
-  // `Expense.date` es una FECHA contable: mes calendario, no de negocio.
-  const range = monthRange(searchParams.get("month") ?? "");
-  if (!range) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const filters = parseExpenseListParams(new URL(req.url).searchParams);
+  if (!filters) return NextResponse.json({ error: "invalid" }, { status: 400 });
 
-  const [expenses, templates, categories] = await Promise.all([
-    db.expense.findMany({
-      where: {
-        restaurantId: ctx.restaurantId,
-        recurring: false,
-        date: { gte: range.from, lt: range.to },
-      },
-      orderBy: { date: "desc" },
-      include: EXPENSE_INCLUDE,
-    }),
+  // Un gasto que creó la versión anterior durante un despliegue sale ya numerado.
+  await ensureExpenseNumbers(ctx.restaurantId);
+  const [list, templates, categories] = await Promise.all([
+    loadExpenseList(ctx.restaurantId, filters, bogotaTodayIso()),
     db.expense.findMany({
       where: { restaurantId: ctx.restaurantId, recurring: true },
       orderBy: { category: "asc" },
@@ -61,7 +59,12 @@ async function GETHandler(req: Request) {
     }),
   ]);
   return NextResponse.json({
-    expenses,
+    expenses: list.expenses,
+    summary: list.summary,
+    counts: list.counts,
+    page: list.page,
+    pageCount: list.pageCount,
+    pageSize: list.pageSize,
     templates,
     categories: categories.map((c) => c.category),
   });
@@ -167,6 +170,11 @@ async function POSTHandler(req: Request) {
         exclude: { kind: "expense", id: created.id },
         possibleDuplicate: b.possibleDuplicate,
       });
+      // Consecutivo interno (G-0001): en esta misma transacción, bajo el
+      // candado del comercio. Va DESPUÉS de la revisión de duplicados (mismo
+      // orden de candados en el alta y la edición) y un duplicado deshace
+      // todo sin consumir número. Las plantillas no llevan número.
+      await numberPendingExpenses(tx, ctx.restaurantId);
     }
     if (payNow) {
       // Se paga el TOTAL A PAGAR (lo retenido no sale de caja: se le debe a la DIAN).

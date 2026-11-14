@@ -45,6 +45,7 @@ import {
   type CarteraPayment,
 } from "./cartera";
 import { isoDateUtc, periodToUtcRange } from "./period";
+import { expenseDocumentLabel } from "@/lib/erp/expenseNumberFormat";
 
 /** Límite EXCLUSIVO del corte: 00:00Z del día siguiente a `hasta`. */
 export function cutoffEnd(hasta: string): Date {
@@ -135,6 +136,7 @@ type ExpenseRow = {
   amountCents: number;
   /** Total a pagar (base + IVA + INC − retenciones); 0 en gastos viejos = su valor. */
   payableCents?: number | null;
+  number?: number | null;
   documentNumber?: string | null;
   date: Date;
   dueAt: Date | null;
@@ -150,7 +152,7 @@ function expenseToDoc(e: ExpenseRow): CarteraDoc {
     partnerId: e.supplier?.id ?? NO_SUPPLIER_ID,
     partnerName: e.supplier?.name ?? "",
     partnerTaxId: e.supplier?.taxId ?? null,
-    number: e.documentNumber || e.description || e.category,
+    number: expenseDocumentLabel(e, e.description || e.category),
     date,
     dueDate: e.dueAt ? isoDateUtc(e.dueAt) : date,
     // Lo que se le debe al PROVEEDOR: lo retenido se le debe a la DIAN.
@@ -213,6 +215,7 @@ export async function loadPayablesDocs(restaurantId: string, hasta: string): Pro
         description: true,
         amountCents: true,
         payableCents: true,
+        number: true,
         documentNumber: true,
         date: true,
         dueAt: true,
@@ -661,6 +664,7 @@ export async function loadPartnerMovements(
         description: true,
         amountCents: true,
         payableCents: true,
+        number: true,
         documentNumber: true,
         date: true,
         dueAt: true,

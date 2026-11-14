@@ -36,6 +36,9 @@ import {
   type SupplierTaxIdType,
 } from "@/lib/erp/supplierTaxId";
 import { MoneyInput } from "@/components/MoneyInput";
+import { formatExpenseNumber } from "@/lib/erp/expenseNumberFormat";
+import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
+import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
 import { SupplierCombobox } from "@/components/suppliers/SupplierCombobox";
 import { AccountCombobox } from "@/components/accounts/AccountCombobox";
 
@@ -67,6 +70,8 @@ export type ExpenseRetentionDto = {
 
 export type ExpenseDto = {
   id: string;
+  /** Consecutivo interno (G-0012). null: plantilla, o recién creado por una versión anterior. */
+  number?: number | null;
   category: string;
   description: string | null;
   /** Costo del gasto (PYG): base + INC + IVA no descontable. */
@@ -274,6 +279,9 @@ export function ExpenseSheet({
   const [paidNow, setPaidNow] = useState(true);
   const [payAccountCode, setPayAccountCode] = useState("");
   const [accounts, setAccounts] = useState<ChartAccountRef[]>([]);
+  // Mientras el plan de cuentas carga no se sabe la caja del pago de
+  // contado: guardar en ese instante dejaba el gasto «por pagar» sin aviso.
+  const [accountsLoading, setAccountsLoading] = useState(true);
   useEffect(() => {
     let alive = true;
     fetch("/api/operator/accounting/chart")
@@ -285,7 +293,10 @@ export function ExpenseSheet({
         // Default del pago: la primera cuenta de caja/bancos del plan.
         setPayAccountCode((prev) => prev || (rows.find((a) => a.code.startsWith("11"))?.code ?? ""));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setAccountsLoading(false);
+      });
     return () => {
       alive = false;
     };
@@ -376,6 +387,8 @@ export function ExpenseSheet({
   const [busy, setBusy] = useState(false);
   const [deletingBusy, setDeletingBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Documento del proveedor repetido (409 del servidor, en compras o gastos).
+  const [dup, setDup] = useState<DuplicateConflict | null>(null);
   const [aiNote, setAiNote] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
   const [prefillName, setPrefillName] = useState<{ name: string; taxId: string | null } | null>(null);
 
@@ -540,8 +553,14 @@ export function ExpenseSheet({
     setAiNote({ tone: "ok", text: notes.join(" ") });
   }
 
-  async function save() {
+  /**
+   * `possibleDuplicate`: "check" pide al servidor la advertencia de un
+   * documento sin número igual a otro (mismo proveedor, día y total);
+   * "allow" guarda igual, después de que el operador la vio.
+   */
+  async function save(possibleDuplicate: "check" | "allow" = "check") {
     setErr(null);
+    setDup(null);
     // No guardar impuestos con IVA descontable/sugerencias aún desconocidos.
     if (taxMode && !taxCtx) {
       setErr(t(taxLoadError ? "expenseTaxLoadError" : "loading"));
@@ -577,6 +596,10 @@ export function ExpenseSheet({
         setErr(t("errExpenseSupplierRequired"));
         return;
       }
+    }
+    if (!expense && !recurring && paidNow && accountsLoading) {
+      setErr(t("loading"));
+      return;
     }
     const outstandingNow = expense ? expenseOutstandingCents(expense) : 0;
     // recurringDay: null explícito al apagar recurrente — el PATCH valida
@@ -615,6 +638,7 @@ export function ExpenseSheet({
       // Solo al CREAR: el abono de contado se hace en la misma transacción.
       // Editando, los pagos se registran por su propia ruta.
       ...(expense ? {} : { payFromAccountCode: !recurring && paidNow ? payAccountCode || null : null }),
+      possibleDuplicate,
     };
     setBusy(true);
     const r = await fetch(
@@ -628,6 +652,13 @@ export function ExpenseSheet({
     setBusy(false);
     if (!r || !r.ok) {
       const j = r ? await r.json().catch(() => ({})) : {};
+      // Factura del proveedor ya registrada (o un gasto sin número igual a
+      // otro): se dice cuál, con su enlace, en vez de «No se pudo guardar».
+      const conflict = r?.status === 409 ? parseDuplicateConflict(j) : null;
+      if (conflict) {
+        setDup(conflict);
+        return;
+      }
       const key = API_ERROR_KEYS[(j as { error?: string }).error ?? ""];
       setErr(key ? t(key) : t("errSaveFailed"));
       return;
@@ -659,6 +690,31 @@ export function ExpenseSheet({
   }
 
   const anyBusy = busy || deletingBusy || uploadBusy || aiBusy;
+  // Aviso temprano mientras se digita: esa factura de ese proveedor ya está
+  // registrada (como compra o como gasto). Sólo avisa; el servidor bloquea.
+  const earlyDup = useDuplicateDocumentCheck({
+    supplierId: !recurring && documentType !== "none" ? supplierId || null : null,
+    number: documentNumber,
+    excludeExpenseId: expense?.id ?? null,
+  });
+  const expenseNumber = formatExpenseNumber(expense?.number);
+  const title = expenseNumber
+    ? t("expenseSheetTitleNumbered", { number: expenseNumber })
+    : expense
+      ? expense.recurring
+        ? t("expenseSheetTitleTemplate")
+        : t("editExpense")
+      : t("newExpense");
+  const subtitle = !expense
+    ? t("expenseSheetNumberOnSave")
+    : expense.recurring
+      ? t("expenseSheetTemplateHint")
+      : expenseOutstandingCents(expense) > 0
+        ? t("expenseOutstandingBadge", { amount: money(expenseOutstandingCents(expense)) })
+        : expense.paidAt
+          ? t("expensePaidFull", { date: formatDate(expense.paidAt, { locale, timeStyle: undefined }) })
+          : t("expenseSheetEditHint");
+  const showCenters = centers.length > 0 || costCenterId !== "";
   const taxSummary = taxMode
     ? t("expenseTaxSummaryCollapsed", { amount: money(amounts.payableCents) })
     : t("expenseTaxSectionHint");
@@ -677,68 +733,96 @@ export function ExpenseSheet({
       className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6"
     >
       <div
-        className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto overscroll-contain"
-        // Hoja pegada al borde inferior: el padding reserva la franja del
-        // indicador de inicio en la PWA de iOS (env() = 0 en escritorio).
-        style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
+        // Más ancha en escritorio: los campos van de a dos o tres por fila y
+        // el formulario cabe casi sin desplazarse. Las acciones quedan fijas
+        // abajo (ver el pie), así Guardar siempre está a la vista.
+        className="w-full md:max-w-2xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border px-5 pt-5 sm:px-6 max-h-[92dvh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={expense ? t("editExpense") : t("newExpense")}
+        aria-label={title}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="font-display text-2xl">
-            {expense ? t("editExpense") : t("newExpense")}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl">{title}</h2>
+            <p className="text-xs text-op-muted mt-0.5">{subtitle}</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-op-muted text-sm shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2"
+            className="inline-flex items-center justify-center text-op-muted hover:text-op-text shrink-0 min-h-[44px] min-w-[44px] -mt-2 -mr-2 rounded-[var(--radius-btn)]"
             aria-label={t("cancel")}
           >
-            {"✕"}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
+              <path d="m6 6 12 12M6 18 18 6" />
+            </svg>
           </button>
         </div>
 
         <div className="space-y-3">
-          <Field label={t("fieldCategory")} required>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder={t("expenseCategoryPlaceholder")}
-              maxLength={60}
-              list="expense-categories"
-              className={inputCls}
-            />
-            <datalist id="expense-categories">
-              {categories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </Field>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field
-              label={taxMode ? t("expenseSubtotalLabel") : t("fieldAmount")}
-              required
-              hint={taxMode ? t("expenseSubtotalHint") : undefined}
-            >
-              <MoneyInput
-                value={amountRaw}
-                onChange={setAmountRaw}
-                className={inputCls}
+          {/* Lo esencial en una grilla: escritorio, Categoría | Fecha y
+              Proveedor | Valor; celular, Categoría, Proveedor y Valor | Fecha. */}
+          <div className="grid grid-cols-6 gap-3">
+            <div className="col-span-6 order-1 sm:col-span-4">
+              <Field label={t("fieldCategory")} required>
+                <input
+                  type="text"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder={t("expenseCategoryPlaceholder")}
+                  maxLength={60}
+                  list="expense-categories"
+                  className={inputCls}
+                />
+                <datalist id="expense-categories">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </Field>
+            </div>
+            <div className={(taxMode ? "col-span-6" : "col-span-3") + " order-4 sm:col-span-2 sm:order-2"}>
+              <Field label={t("fieldDate")} required>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+            </div>
+            {/* Proveedor: UN solo campo (valor = id) que elige o pide crear
+                ahí mismo. `onCreateRequested(texto)` abre el alta rápida con
+                ese nombre, sin salir del gasto. */}
+            <div className="col-span-6 order-2 sm:col-span-3 sm:order-3">
+              <SupplierSlot
+                label={t("fieldSupplier")}
+                required={taxMode && (amounts.ivaCents > 0 || amounts.retentionsCents > 0)}
+                value={supplierId}
+                options={supplierOptions}
+                onChange={selectSupplier}
+                onCreateRequested={(text) => setCreateSupplierText(text)}
               />
-            </Field>
-
-            <Field label={t("fieldDate")} required>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={inputCls}
-              />
-            </Field>
+              {prefillName && !supplierId && (
+                <p className="text-[11px] text-op-muted mt-0.5">
+                  {t("expenseAiSupplierNew", { name: prefillName.name })}
+                </p>
+              )}
+            </div>
+            {/* Con impuestos el rótulo y la ayuda son largos: a todo el ancho en el celular. */}
+            <div className={(taxMode ? "col-span-6" : "col-span-3") + " order-3 sm:col-span-3 sm:order-4"}>
+              <Field
+                label={taxMode ? t("expenseSubtotalLabel") : t("fieldAmount")}
+                required
+                hint={taxMode ? t("expenseSubtotalHint") : undefined}
+              >
+                <MoneyInput
+                  value={amountRaw}
+                  onChange={setAmountRaw}
+                  className={inputCls}
+                />
+              </Field>
+            </div>
           </div>
 
           <Field label={t("fieldDescription")}>
@@ -751,25 +835,6 @@ export function ExpenseSheet({
             />
           </Field>
 
-          {/* Proveedor: UN solo campo (valor = id) que elige o pide crear
-              ahí mismo. `onCreateRequested(texto)` abre el alta rápida con
-              ese nombre, sin salir del gasto. */}
-          <div>
-            <SupplierSlot
-              label={t("fieldSupplier")}
-              required={taxMode && (amounts.ivaCents > 0 || amounts.retentionsCents > 0)}
-              value={supplierId}
-              options={supplierOptions}
-              onChange={selectSupplier}
-              onCreateRequested={(text) => setCreateSupplierText(text)}
-            />
-            {prefillName && !supplierId && (
-              <p className="text-[11px] text-op-muted mt-0.5">
-                {t("expenseAiSupplierNew", { name: prefillName.name })}
-              </p>
-            )}
-          </div>
-
           {/* ── Documento soporte ── */}
           <Disclosure
             title={t("expenseDocSection")}
@@ -777,6 +842,8 @@ export function ExpenseSheet({
             open={docOpen}
             onToggle={() => setDocOpen((v) => !v)}
           >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className={documentType !== "none" ? "col-span-2 sm:col-span-1" : "col-span-2 sm:col-span-3"}>
             <Field label={t("fieldDocType")}>
               <select
                 value={documentType}
@@ -794,8 +861,9 @@ export function ExpenseSheet({
                 ))}
               </select>
             </Field>
+            </div>
             {documentType !== "none" && (
-              <div className="grid grid-cols-2 gap-2">
+              <>
                 <Field label={t("fieldDocNumber")}>
                   <input
                     type="text"
@@ -813,7 +881,11 @@ export function ExpenseSheet({
                     className={inputCls}
                   />
                 </Field>
-              </div>
+              </>
+            )}
+            </div>
+            {earlyDup && !dup && (
+              <DuplicateDocumentAlert code="early" existing={earlyDup} currency={currency} />
             )}
             <input
               ref={fileRef}
@@ -883,10 +955,6 @@ export function ExpenseSheet({
               setTaxOpen((v) => !v);
             }}
           >
-            <Field label={t("fieldDiscount")}>
-              <MoneyInput value={discountRaw} onChange={setDiscountRaw} className={inputCls} />
-            </Field>
-
             <div>
               <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted mb-1">
                 {t("fieldIvaRate")}
@@ -912,7 +980,10 @@ export function ExpenseSheet({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label={t("fieldDiscount")} hint={t("fieldDiscountHint")}>
+                <MoneyInput value={discountRaw} onChange={setDiscountRaw} className={inputCls} />
+              </Field>
               <Field label={t("fieldIvaPrinted")} hint={t("fieldIvaPrintedHint")}>
                 <MoneyInput
                   value={ivaPrintedRaw}
@@ -1050,8 +1121,26 @@ export function ExpenseSheet({
             </dl>
           </Disclosure>
 
+          <div className={showCenters && accounts.length > 0 ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "space-y-3"}>
+          {/* Cuenta contable del gasto. Vacío = se deriva de la categoría por
+              palabras clave, que es lo que se hacía siempre; con plan de
+              cuentas propio conviene fijarla. */}
+          {accounts.length > 0 && (
+            <ComboField label={t("fieldExpenseAccount")} htmlFor="expense-account" hint={t("expenseAccountHint")}>
+              {/* Se escribe el código («5135») o el nombre; la primera
+                  opción, vacía, es «Automática (por la categoría)». */}
+              <AccountCombobox
+                id="expense-account"
+                accounts={accounts.filter((a) => a.type === "gasto" || a.type === "costo")}
+                value={accountCode || null}
+                onChange={(code) => setAccountCode(code ?? "")}
+                emptyLabel={t("expenseAccountAuto")}
+              />
+            </ComboField>
+          )}
+
           {/* Centro de costos (opcional) — solo si el comercio creó alguno. */}
-          {(centers.length > 0 || costCenterId !== "") && (
+          {showCenters && (
             <Field label={t("fieldCostCenter")}>
               <select
                 value={costCenterId}
@@ -1073,25 +1162,10 @@ export function ExpenseSheet({
             </Field>
           )}
 
-          {/* Cuenta contable del gasto. Vacío = se deriva de la categoría por
-              palabras clave, que es lo que se hacía siempre; con plan de
-              cuentas propio conviene fijarla. */}
-          {accounts.length > 0 && (
-            <ComboField label={t("fieldExpenseAccount")} htmlFor="expense-account" hint={t("expenseAccountHint")}>
-              {/* Se escribe el código («5135») o el nombre; la primera
-                  opción, vacía, es «Automática (por la categoría)». */}
-              <AccountCombobox
-                id="expense-account"
-                accounts={accounts.filter((a) => a.type === "gasto" || a.type === "costo")}
-                value={accountCode || null}
-                onChange={(code) => setAccountCode(code ?? "")}
-                emptyLabel={t("expenseAccountAuto")}
-              />
-            </ComboField>
-          )}
+          </div>
 
           {!recurring && !expense && (
-            <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 space-y-2">
+            <div className="rounded-2xl border border-op-border bg-op-bg/50 p-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] sm:items-end sm:gap-3">
               <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
                 <input
                   type="checkbox"
@@ -1149,6 +1223,7 @@ export function ExpenseSheet({
             </>
           )}
 
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start sm:gap-3">
           <label className="flex items-center gap-2 min-h-[44px] cursor-pointer">
             <input
               type="checkbox"
@@ -1177,6 +1252,7 @@ export function ExpenseSheet({
               />
             </Field>
           )}
+          </div>
 
           {inactiveRecurringNames.length > 0 && (
             <div role="note" className="rounded-xl border border-op-border bg-op-bg p-3 space-y-2 text-xs text-op-muted">
@@ -1188,25 +1264,58 @@ export function ExpenseSheet({
             </div>
           )}
 
+          {dup && (
+            <DuplicateDocumentAlert
+              code={dup.code}
+              existing={dup.existing}
+              currency={currency}
+              busy={busy}
+              onConfirm={dup.code === "possible_duplicate" ? () => void save("allow") : undefined}
+            />
+          )}
+
           {err && (
             <div role="alert" className="text-xs text-danger">
               {err}
             </div>
           )}
 
-          {/* Acciones: en el celular, Cancelar | Guardar en una fila de dos
-              a todo el ancho y Eliminar debajo; en escritorio, una sola
-              fila con Eliminar a la izquierda. */}
-          <div className="pt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {expense && (
+          {/* Eliminar, en el celular, al final del formulario: el pie fijo
+              queda en una sola fila (Cancelar | Guardar). */}
+          {expense && (
+            <div className="sm:hidden pt-1">
               <button
                 type="button"
                 onClick={remove}
                 disabled={anyBusy}
-                className="mp-btn mp-btn--danger order-last sm:order-none"
+                className="mp-btn mp-btn--danger mp-btn--block"
               >
                 {deletingBusy ? t("deleting") : t("deleteItem")}
               </button>
+            </div>
+          )}
+
+          {/* Acciones fijas al pie de la hoja (siempre a la vista): en el
+              celular, Cancelar | Guardar en una fila de dos; en escritorio,
+              una sola fila con Eliminar a la izquierda. El padding reserva
+              la franja del indicador de inicio en la PWA de iOS (env() = 0
+              en escritorio). */}
+          <div
+            className="sticky bottom-0 z-10 -mx-5 sm:-mx-6 px-5 sm:px-6 pt-3 mt-1 border-t border-op-border bg-op-surface flex flex-col gap-3 sm:flex-row sm:items-center"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
+          >
+            {expense && (
+              // .mp-btn fija su display: el «sólo en escritorio» va en el envoltorio.
+              <span className="hidden sm:block">
+                <button
+                  type="button"
+                  onClick={remove}
+                  disabled={anyBusy}
+                  className="mp-btn mp-btn--danger"
+                >
+                  {deletingBusy ? t("deleting") : t("deleteItem")}
+                </button>
+              </span>
             )}
             <div className="hidden sm:block sm:flex-1" />
             <div className="grid grid-cols-2 gap-3 sm:flex">
@@ -1219,8 +1328,14 @@ export function ExpenseSheet({
               </button>
               <button
                 type="button"
-                onClick={save}
-                disabled={anyBusy || (taxMode && !taxCtx) || category.trim() === "" || amountRaw.trim() === ""}
+                onClick={() => void save()}
+                disabled={
+                  anyBusy ||
+                  (taxMode && !taxCtx) ||
+                  (!expense && !recurring && paidNow && accountsLoading) ||
+                  category.trim() === "" ||
+                  amountRaw.trim() === ""
+                }
                 className="mp-btn mp-btn--primary"
               >
                 {busy ? t("saving") : t("save")}
@@ -1361,13 +1476,8 @@ function ExpensePaymentPanel({
   const [err, setErr] = useState<string | null>(null);
   const accountCode = account || cashAccounts[0]?.code || "";
 
-  if (outstanding <= 0) {
-    return expense.paidAt ? (
-      <div className="rounded-2xl border border-op-border bg-op-bg/50 px-3 py-2.5 text-sm text-op-muted">
-        {t("expensePaidFull", { date: formatDate(expense.paidAt, { locale, timeStyle: undefined }) })}
-      </div>
-    ) : null;
-  }
+  // Saldado: lo dice el encabezado de la hoja («Pagado el …»).
+  if (outstanding <= 0) return null;
 
   async function pay() {
     setErr(null);
@@ -1408,6 +1518,7 @@ function ExpensePaymentPanel({
           {t("expensePayOutstanding", { amount: formatMoney(outstanding, { currency, locale }) })}
         </span>
       </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <Field label={t("expensePayAmount")} required>
         <MoneyInput value={amountRaw} onChange={setAmountRaw} className={inputCls} />
       </Field>
@@ -1419,6 +1530,7 @@ function ExpensePaymentPanel({
           className={inputCls}
         />
       </Field>
+      <div className="col-span-2 sm:col-span-1">
       <CashAccountField
         id={`expense-pay-${expense.id}`}
         label={t("fieldPayFromAccount")}
@@ -1427,7 +1539,9 @@ function ExpensePaymentPanel({
         value={accountCode}
         onChange={setAccount}
       />
-      {err && <div className="text-xs text-danger">{err}</div>}
+      </div>
+      </div>
+      {err && <div role="alert" className="text-xs text-danger">{err}</div>}
       <button
         type="button"
         onClick={pay}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
+import { formatExpenseNumber } from "@/lib/erp/expenseNumberFormat";
 import {
   normalizeDocumentNumber,
   type DuplicateConflictCode,
@@ -40,10 +41,13 @@ export function DuplicateDocumentAlert({
   const locale = useLocale() as Locale;
   const soft = code === "possible_duplicate";
 
+  const expenseNumber = existing.kind === "expense" ? formatExpenseNumber(existing.expenseNumber) : null;
   const doc =
     existing.kind === "purchase" && existing.purchaseNumber != null
       ? t("refPurchase", { number: tErp("poNumber", { number: String(existing.purchaseNumber).padStart(4, "0") }) })
-      : t("refExpense");
+      : expenseNumber
+        ? t("refExpenseNumbered", { number: expenseNumber })
+        : t("refExpense");
   const facts = [
     existing.number ? t("refInvoice", { number: existing.number }) : t("refNoNumber"),
     existing.supplierName,

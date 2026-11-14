@@ -15,6 +15,7 @@ import {
   type ExpenseTaxPayload,
 } from "@/lib/erp/expenseShared";
 import { expenseBaseCents, expensePayableCents } from "@/lib/erp/expenseTax";
+import { numberPendingExpenses } from "@/lib/erp/expenseNumber";
 import type { ModuleSlug } from "@/lib/modules";
 import { normalizeDocumentNumber } from "@/lib/erp/documentNumber";
 import {
@@ -67,6 +68,27 @@ function mergedPayload(e: Owned, b: Partial<ReturnType<typeof patchSchema.parse>
     incCents: b.incCents ?? e.incCents,
     retentions: b.retentions ?? storedRetentionInputs(e),
   };
+}
+
+/**
+ * Un gasto (o plantilla) por id: lo abren los enlaces de los reportes
+ * (`?expense=`) aunque no esté en la página visible de la lista.
+ */
+async function GETHandler(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const ctx = await getErpContext(GATE);
+  if (isDenied(ctx)) {
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  }
+  const { id } = await params;
+  const expense = await db.expense.findFirst({
+    where: { id, restaurantId: ctx.restaurantId },
+    include: EXPENSE_INCLUDE,
+  });
+  if (!expense) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  return NextResponse.json({ expense });
 }
 
 async function PATCHHandler(
@@ -211,6 +233,12 @@ async function PATCHHandler(
         possibleDuplicate: b.possibleDuplicate,
       });
     }
+    // Una plantilla que pasa a ser gasto normal recibe su consecutivo
+    // (después de la revisión de duplicados: mismo orden de candados que el alta).
+    if (!recurring && updated.number == null) {
+      const assigned = await numberPendingExpenses(tx, ctx.restaurantId);
+      return { ...updated, number: assigned.get(id) ?? null };
+    }
     return updated;
   }).catch((err: unknown) => {
     if (err instanceof DuplicateDocumentError) return err;
@@ -237,6 +265,8 @@ async function DELETEHandler(
   await db.expense.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = secureApi(GETHandler);
 
 export const PATCH = secureApi(PATCHHandler);
 

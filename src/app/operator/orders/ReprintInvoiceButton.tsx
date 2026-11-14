@@ -20,6 +20,10 @@ import { invoicePrintHref } from "@/lib/print/staffPrint";
  * para elegir una impresora del agente — el driver de Windows es el que
  * cortaba las facturas largas en dos tiras.
  *
+ * Arriba, «Imprimir en: Impresora de caja · Este dispositivo» (recordado
+ * en el equipo): con «Este dispositivo» la tirilla se imprime acá, al papel
+ * del equipo, sin pasar por el agente.
+ *
  * Toda la lógica vive en `StaffPrintButton` / `staffPrint.ts`, la misma de
  * los demás botones "Imprimir factura" del staff. Va pensado para vivir
  * dentro de un contenedor `flex flex-wrap`: el aviso ocupa la fila entera
@@ -40,6 +44,8 @@ export function ReprintInvoiceButton({
       label={t("reprintInvoice")}
       className="mp-btn mp-btn--secondary mp-btn--sm"
       statusClassName="basis-full text-[11px]"
+      // «Imprimir en: …» en su propia fila, arriba de los botones.
+      destinationClassName="basis-full order-first"
       canConfigurePrinters
     />
   );

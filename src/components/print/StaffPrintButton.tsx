@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   BrowserPrintStatus,
@@ -13,6 +14,26 @@ import {
   type StaffPrintDoc,
   type StaffPrintFallbackReason,
 } from "@/lib/print/staffPrint";
+import {
+  printOnTerminal,
+  readRememberedPrintTerminal,
+  rememberPrintTerminal,
+  terminalPrintMessage,
+  type TerminalPrintDevice,
+} from "@/lib/print/terminalPrintClient";
+import {
+  devicePrintHelpHref,
+  otherDestination,
+  type DevicePaperMm,
+  type PrintDestination,
+} from "@/lib/print/printDestination";
+import {
+  PrintDestinationPicker,
+  usePrintPreference,
+  type PrintDestinationVariant,
+  type PrintPreferenceState,
+  type PrintViewer,
+} from "./PrintDestinationPicker";
 
 export type StaffPrintTone = "ok" | "warn" | "error";
 type Tone = StaffPrintTone;
@@ -22,18 +43,36 @@ type Notice = {
   text: string;
   /** Por qué se cayó al navegador (para el aviso de configurar). */
   fallback?: StaffPrintFallbackReason;
+  /**
+   * Por «Este dispositivo», con este papel; `opened` cuando el diálogo de
+   * impresión ya salió (ahí va la pista de cómo activar la impresora).
+   */
+  device?: { paperMm: DevicePaperMm; opened: boolean };
+  /** A dónde se intentó: para ofrecer «Reintentar» y el otro destino. */
+  destination?: PrintDestination;
+  /** Datáfono: hay varios y hay que decir cuál es éste (una vez). */
+  chooseDevices?: TerminalPrintDevice[];
+  /** Datáfono: quedó encolada sin imprimir; reintentar con el MISMO trabajo. */
+  retryJob?: { deviceId: string; printJobId: string };
 };
 
 /**
- * Botón "Imprimir factura" (o precuenta) del STAFF: por el AGENTE, como las
- * comandas, y el navegador sólo como respaldo (ver `staffPrint.ts`).
+ * Botón "Imprimir factura" (o precuenta, o cierre) del STAFF, con el
+ * selector «Imprimir en: Impresora de caja · Este dispositivo» encima (ver
+ * `lib/print/printDestination.ts`; se recuerda por equipo y comercio).
+ *
+ *   - Impresora de caja: por el AGENTE, como las comandas, y el navegador
+ *     sólo como respaldo (ver `staffPrint.ts`). Sin cambios.
+ *   - Este dispositivo: la tirilla al ancho del papel del equipo, en el
+ *     diálogo de impresión de este navegador (en el datáfono Sunmi, su
+ *     impresora integrada).
  *
  * Debajo, en una línea, lo que pasó: "Enviada a Caja ✓" (se va sola), que
- * salió el comprobante porque la DIAN todavía no aceptó la electrónica, o
- * que no hay impresora de facturas y se imprime desde el navegador — con
- * el estado de esa impresión y, para quien puede, el link a elegir una
- * impresora del agente (`canConfigurePrinters`; el mesero ve a quién
- * pedírselo).
+ * salió el comprobante porque la DIAN todavía no aceptó la electrónica,
+ * que no hay impresora de facturas y se imprime desde el navegador, o que
+ * se abrió la impresión de este dispositivo (con cómo activar la impresora
+ * del equipo si no aparece). Si falla, «Reintentar» y la opción de imprimir
+ * por el otro destino.
  *
  * NO es para el comensal: su pantalla abre la vista de la factura como
  * siempre. La ruta de todos modos exige sesión de staff.
@@ -46,6 +85,10 @@ export function StaffPrintButton({
   sameTab = false,
   canConfigurePrinters = false,
   openTab,
+  showDestination = true,
+  destinationVariant = "op",
+  destinationClassName = "",
+  viewer,
 }: {
   doc: StaffPrintDoc;
   /** El texto del botón, ya traducido ("Imprimir factura"). */
@@ -58,12 +101,31 @@ export function StaffPrintButton({
   canConfigurePrinters?: boolean;
   /** Cómo abrir la pestaña de respaldo (en la PWA, navegación in-app). */
   openTab?: (url: string) => boolean;
+  /** Mostrar «Imprimir en: …» encima del botón. */
+  showDestination?: boolean;
+  destinationVariant?: PrintDestinationVariant;
+  destinationClassName?: string;
+  /** Rol y comercio de quien mira, si la pantalla ya los sabe. */
+  viewer?: PrintViewer | null;
 }) {
   const t = useTranslations("staffPrint");
-  const print = useStaffPrint(doc, { openTab });
+  const print = useStaffPrint(doc, { openTab, viewer });
   return (
     <>
-      <button type="button" onClick={print.run} disabled={print.busy} className={className}>
+      {showDestination && (
+        <PrintDestinationPicker
+          pref={print.pref}
+          disabled={print.busy}
+          variant={destinationVariant}
+          className={destinationClassName}
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => void print.run()}
+        disabled={print.busy || !print.pref.ready}
+        className={className}
+      >
         {print.busy ? t("sending") : label}
       </button>
       <StaffPrintNotice
@@ -77,22 +139,41 @@ export function StaffPrintButton({
 }
 
 export type StaffPrintState = {
+  /** Imprime en el destino elegido en este equipo. */
   run: () => Promise<void>;
+  /** Imprime en `destination` sin cambiar lo elegido («Reintentar»). */
+  runAt: (destination: PrintDestination) => Promise<void>;
+  /** Cambia el destino recordado e imprime ahí. */
+  switchTo: (destination: PrintDestination) => Promise<void>;
+  /** Datáfono: elige cuál es este equipo e imprime ahí. */
+  chooseTerminal: (deviceId: string) => Promise<void>;
+  /** Datáfono: reintenta un trabajo encolado (el mismo `printJobId`). */
+  retryTerminal: (job: { deviceId: string; printJobId: string }) => Promise<void>;
   busy: boolean;
   notice: Notice | null;
   browser: BrowserPrintState | null;
+  pref: PrintPreferenceState;
 };
 
 /**
  * La lógica del botón, sin el botón: para disparar la misma impresión
  * desde otro control (el menú «⋯» de una fila de Facturas) y mostrar el
- * aviso donde convenga con <StaffPrintNotice>.
+ * aviso donde convenga con <StaffPrintNotice>. Imprime en el destino
+ * recordado en este equipo.
  */
 export function useStaffPrint(
   doc: StaffPrintDoc,
-  { openTab }: { openTab?: (url: string) => boolean } = {},
+  {
+    openTab,
+    viewer,
+  }: {
+    openTab?: (url: string) => boolean;
+    /** El rol y el comercio, si la pantalla ya los sabe (si no, la sesión). */
+    viewer?: PrintViewer | null;
+  } = {},
 ): StaffPrintState {
   const t = useTranslations("staffPrint");
+  const pref = usePrintPreference(viewer);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [browser, setBrowser] = useState<BrowserPrintState | null>(null);
@@ -104,60 +185,184 @@ export function useStaffPrint(
     [],
   );
 
-  async function run() {
+  /**
+   * «Este dispositivo» del usuario DATÁFONO: la impresora integrada del
+   * Smart POS por el Print API cloud de Kushki (su app instalada en Firefox
+   * no abre la impresión del sistema). Ver `lib/print/terminalPrint.ts`.
+   */
+  async function runOnTerminal(deviceId?: string, printJobId?: string) {
     if (busy) return;
     if (timer.current) clearTimeout(timer.current);
     setBusy(true);
-    setNotice(null);
     setBrowser(null);
+    // El destino con el que se reintenta: «Datáfono», o el «Este
+    // dispositivo» del usuario Datáfono.
+    const dest: PrintDestination = pref.role === "terminal" ? "device" : "terminal";
+    setNotice({ tone: "ok", text: t("terminalSending"), destination: dest });
+    const scope = pref.scope;
     try {
-      const result = await printAsStaff(doc, {
-        openTab,
-        onBrowserFallback: (reason) => {
-          setNotice({
-            tone: "warn",
-            text: t(reason === "agent_offline" ? "agentOffline" : "noPrinter"),
-            fallback: reason,
-          });
-          setBrowser({ step: "preparing" });
-        },
+      const result = await printOnTerminal(doc, {
+        deviceId: deviceId ?? readRememberedPrintTerminal(scope),
+        printJobId,
       });
-      if (result.via === "agent") {
-        const m = agentMessage(result);
-        setNotice({ tone: m.tone, text: t(m.key, m.values) });
-        // El éxito se va solo; el aviso de la DIAN se queda (pide algo).
-        if (m.tone === "ok") timer.current = setTimeout(() => setNotice(null), 4000);
-      } else if (result.via === "browser") {
-        setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
+      if (result.via === "terminal") {
+        rememberPrintTerminal(scope, result.deviceId);
+        // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
+        setNotice(
+          result.state === "printed"
+            ? { tone: "ok", text: t("terminalSent", { device: result.deviceLabel }), destination: dest }
+            : {
+                tone: "warn",
+                text: t("terminalQueued", { device: result.deviceLabel }),
+                destination: dest,
+                retryJob: { deviceId: result.deviceId, printJobId: result.printJobId },
+              },
+        );
+      } else if (result.via === "choose_device") {
+        setNotice({
+          tone: "warn",
+          text: t("terminalChoose"),
+          destination: dest,
+          chooseDevices: result.devices,
+        });
       } else {
-        setBrowser(null);
-        setNotice({ tone: "error", text: t("failed") });
+        const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
+        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
       }
     } catch {
-      setBrowser(null);
-      setNotice({ tone: "error", text: t("failed") });
+      setNotice({ tone: "error", text: t("terminalFailed"), destination: dest });
     } finally {
       setBusy(false);
     }
   }
 
-  return { run, busy, notice, browser };
+  async function runAt(destination: PrintDestination) {
+    if (busy || !pref.ready) return;
+    // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
+    // mismo): la impresora del datáfono por Kushki.
+    if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
+      await runOnTerminal();
+      return;
+    }
+    if (timer.current) clearTimeout(timer.current);
+    const paperMm = pref.paperMm;
+    setBusy(true);
+    setNotice(null);
+    setBrowser(null);
+    try {
+      const result = await printAsStaff(
+        doc,
+        {
+          openTab,
+          onBrowserFallback: (reason) => {
+            setNotice({
+              tone: "warn",
+              text: t(reason === "agent_offline" ? "agentOffline" : "noPrinter"),
+              fallback: reason,
+              destination,
+            });
+            setBrowser({ step: "preparing" });
+          },
+          onDevicePrint: () => {
+            setNotice({
+              tone: "ok",
+              text: t("deviceOpening"),
+              device: { paperMm, opened: false },
+              destination,
+            });
+          },
+        },
+        { destination, paperMm },
+      );
+      if (result.via === "agent") {
+        const m = agentMessage(result);
+        setNotice({ tone: m.tone, text: t(m.key, m.values), destination: "caja" });
+        // El éxito se va solo; el aviso de la DIAN se queda (pide algo).
+        if (m.tone === "ok") timer.current = setTimeout(() => setNotice(null), 4000);
+      } else if (result.via === "browser") {
+        setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
+      } else if (result.via === "device") {
+        if (result.outcome.kind === "printed") {
+          setBrowser(null);
+          setNotice({
+            tone: "ok",
+            text: t("deviceOpened", { mm: result.paperMm }),
+            device: { paperMm: result.paperMm, opened: true },
+            destination,
+          });
+        } else {
+          setNotice({
+            tone: result.outcome.kind === "failed" ? "error" : "warn",
+            text: "",
+            device: { paperMm: result.paperMm, opened: false },
+            destination,
+          });
+          setBrowser(browserPrintStateFrom(result.outcome, result.tabUrl));
+        }
+      } else {
+        setBrowser(null);
+        setNotice({ tone: "error", text: t("failed"), destination });
+      }
+    } catch {
+      setBrowser(null);
+      setNotice({ tone: "error", text: t("failed"), destination });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Sin argumentos a propósito: se usa directo como `onClick`.
+  const run = () => runAt(pref.destination);
+
+  async function switchTo(destination: PrintDestination) {
+    pref.setDestination(destination);
+    await runAt(destination);
+  }
+
+  /** Datáfono: «este datáfono es X» — se recuerda e imprime ahí. */
+  async function chooseTerminal(deviceId: string) {
+    rememberPrintTerminal(pref.scope, deviceId);
+    await runOnTerminal(deviceId);
+  }
+
+  return {
+    run,
+    runAt,
+    switchTo,
+    chooseTerminal,
+    retryTerminal: (job: { deviceId: string; printJobId: string }) => runOnTerminal(job.deviceId, job.printJobId),
+    busy,
+    notice,
+    browser,
+    pref,
+  };
 }
 
-/** El aviso de una impresión del staff (lo que pasó, en una línea). */
+/**
+ * El aviso de una impresión del staff (lo que pasó, en una línea) y, si
+ * falló, la salida: reintentar o imprimir por el otro destino.
+ */
 export function StaffPrintNotice({
   print,
   className = "block text-[11px]",
   sameTab = false,
   canConfigurePrinters = false,
 }: {
-  print: Pick<StaffPrintState, "notice" | "browser">;
+  print: Pick<
+    StaffPrintState,
+    "notice" | "browser" | "busy" | "runAt" | "switchTo" | "chooseTerminal" | "retryTerminal" | "pref"
+  >;
   className?: string;
   sameTab?: boolean;
   canConfigurePrinters?: boolean;
 }) {
+  const t = useTranslations("staffPrint");
   const { notice, browser } = print;
   if (!notice) return null;
+  const failed = notice.tone === "error" || browser?.step === "error";
+  const deviceOpened = !!notice.device?.opened && !browser;
+  const helpHref = devicePrintHelpHref(print.pref.role);
+  const actionClass = "underline font-medium disabled:opacity-50";
   return (
     <span
       role="status"
@@ -174,7 +379,7 @@ export function StaffPrintNotice({
       {notice.text}
       {browser && (
         <>
-          {" "}
+          {notice.text ? " " : null}
           <BrowserPrintStatus
             state={browser}
             sameTab={sameTab}
@@ -187,6 +392,79 @@ export function StaffPrintNotice({
             }
           />
         </>
+      )}
+      {deviceOpened && (
+        <>
+          {" "}
+          {t("deviceHint")}
+          {helpHref && (
+            <>
+              {" "}
+              <Link href={helpHref} className="underline" prefetch={false}>
+                {t("deviceHelpLink")}
+              </Link>
+            </>
+          )}
+        </>
+      )}
+      {failed && notice.destination && (
+        <>
+          {" "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.runAt(notice.destination!)}
+          >
+            {t("retry")}
+          </button>
+          {" · "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.switchTo(otherDestination(notice.destination!))}
+          >
+            {otherDestination(notice.destination) === "caja" ? t("useCaja") : t("useDevice")}
+          </button>
+        </>
+      )}
+      {notice.retryJob && (
+        <>
+          {" "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.retryTerminal(notice.retryJob!)}
+          >
+            {t("retry")}
+          </button>
+          {" · "}
+          <button
+            type="button"
+            className={actionClass}
+            disabled={print.busy}
+            onClick={() => void print.switchTo("caja")}
+          >
+            {t("useCaja")}
+          </button>
+        </>
+      )}
+      {notice.chooseDevices && notice.chooseDevices.length > 0 && (
+        <span className="mt-1 flex flex-wrap gap-1.5">
+          {notice.chooseDevices.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              disabled={print.busy}
+              onClick={() => void print.chooseTerminal(d.id)}
+              className="min-h-9 px-3 rounded-full border border-ink bg-paper text-ink text-xs disabled:opacity-50"
+            >
+              {d.label}
+            </button>
+          ))}
+        </span>
       )}
     </span>
   );

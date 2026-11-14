@@ -32,7 +32,10 @@ import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/inv
 import { DEFAULT_TIP_PCT, tipCentsFor } from "@/lib/prebill";
 import {
   formatInvoiceNumber,
+  invoicePayableOf,
   isIssuedBeforePayment,
+  payableLabelsFrom,
+  payableRows,
   summaryLabelsFrom,
   summaryRows,
   type InvoiceSnapshot,
@@ -111,7 +114,7 @@ export type InvoiceDianDocData = {
  * contaba dos veces: en la factura FESM6723 de Son y Melona (subtotal
  * $159.600 + propina $15.960 = TOTAL $175.560, un pago en efectivo) la
  * tirilla decía "Forma de pago: Efectivo $ 191.520". Con los pagos
- * aprobados de una cuenta saldada, la suma de las filas es el TOTAL.
+ * aprobados de una cuenta saldada, la suma de las filas es el TOTAL A PAGAR.
  */
 export function paymentRowsFor(
   payments: InvoicePaymentLine[],
@@ -140,18 +143,25 @@ export function paymentRowsFor(
  * que lo cobrado que cuenta es la porción de COMIDA de cada pago —
  * `amountCents − tipCents`, el contrato de toda la app. null cuando la
  * factura no se emitió antes de cobrar: esas se imprimen como siempre.
+ *
+ * La propina sugerida es INFORMATIVA: se muestra aparte («Propina sugerida
+ * (voluntaria) 10%») y NO se suma al TOTAL A PAGAR, que lleva sólo la
+ * propina que de verdad se cobró (`invoicePayableOf`). Antes la hoja
+ * sumaba un «TOTAL CON PROPINA» con la sugerida: con el TOTAL A PAGAR
+ * destacado eran dos totales grandes que no coincidían.
  */
 export function pendingPaymentOf(
-  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents">,
+  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents" | "suggestedTipPct">,
   payments: readonly InvoicePaymentLine[],
-  tipPct: number = DEFAULT_TIP_PCT,
+  // La que se eligió en el cobro al emitirla (0 = «Sin propina»: ninguna
+  // sugerida, en ninguna representación); sin elección, la de siempre.
+  tipPct: number = snapshot.suggestedTipPct ?? DEFAULT_TIP_PCT,
 ): {
   outstandingCents: number;
   paidFoodCents: number;
   paidTipCents: number;
   suggestedTipPct: number;
   suggestedTipCents: number;
-  totalWithTipCents: number;
 } | null {
   if (!isIssuedBeforePayment(snapshot)) return null;
   let paidFoodCents = 0;
@@ -161,14 +171,12 @@ export function pendingPaymentOf(
     paidTipCents += Math.max(0, p.tipCents);
   }
   const outstandingCents = Math.max(0, snapshot.totalCents - paidFoodCents);
-  const suggestedTipCents = tipCentsFor(outstandingCents, tipPct);
   return {
     outstandingCents,
     paidFoodCents,
     paidTipCents,
     suggestedTipPct: tipPct,
-    suggestedTipCents,
-    totalWithTipCents: outstandingCents + suggestedTipCents,
+    suggestedTipCents: tipCentsFor(outstandingCents, tipPct),
   };
 }
 
@@ -185,6 +193,11 @@ export function buildThermalInvoice(args: {
   t: InvoiceTranslator;
   /** Factura electrónica ACEPTADA. null/ausente = el comprobante. */
   dian?: InvoiceDianDocData | null;
+  /**
+   * La orden HOY, para la propina REAL de una factura emitida antes de
+   * cobrar (ver `invoicePayableOf`). Ausente = sin propina cobrada.
+   */
+  order?: { tipCents: number } | null;
 }): ThermalInvoice {
   const { snapshot: s, money, t } = args;
   const dian = args.dian ?? null;
@@ -230,47 +243,35 @@ export function buildThermalInvoice(args: {
   for (const row of summaryRows(s, summaryLabelsFrom(t))) {
     totals.push({ label: row.label, amount: (row.negative ? "-" : "") + money(row.cents) });
   }
-  if (s.tipCents > 0) {
-    totals.push({ label: t("tip"), amount: money(s.tipCents) });
+  // Total factura (la venta, sin propina: lo del XML), la propina que se
+  // cobró y el TOTAL A PAGAR destacado = factura + propina.
+  for (const row of payableRows(
+    invoicePayableOf(s, args.order),
+    payableLabelsFrom(t, { einvoice: !!dian }),
+  )) {
+    totals.push({
+      label: row.label,
+      amount: money(row.cents),
+      ...(row.strong && { strong: true }),
+    });
   }
-  totals.push({
-    label: t("total"),
-    amount: money(s.totalCents),
-    strong: true,
-  });
 
-  // Factura emitida ANTES de cobrar: el TOTAL de arriba es la venta (sin
-  // propina). Lo cobrado se lista por su porción de comida, así las filas
-  // suman contra ese TOTAL; la propina que dejaron va en su propio renglón.
-  // Mientras falte plata: "Pendiente de pago" en vez de la forma de pago, y
-  // el bloque de propina sugerida de la precuenta (voluntaria), para que
-  // esta hoja pueda reemplazarla.
+  // La forma de pago es lo cobrado en cada pago, propina incluida: suma el
+  // TOTAL A PAGAR. Factura emitida ANTES de cobrar y sin saldar: además
+  // "Pendiente de pago" (lo que falta de la venta) y, aparte, la propina
+  // sugerida de la precuenta, voluntaria y sin sumar.
   const pending = pendingPaymentOf(s, args.payments);
-  const paymentRows = paymentRowsFor(
-    pending
-      ? args.payments.map((p) => ({ ...p, amountCents: Math.max(0, p.amountCents - p.tipCents), tipCents: 0 }))
-      : args.payments,
-    t,
-    money,
-  );
-  if (pending && pending.paidTipCents > 0) {
-    paymentRows.push({ label: t("tip"), amount: money(pending.paidTipCents) });
-  }
+  const paymentRows = paymentRowsFor(args.payments, t, money);
   const pendingRow: ThermalInvoiceRow | null =
     pending && pending.outstandingCents > 0
-      ? { label: t("paymentPending"), amount: money(pending.outstandingCents), strong: true }
+      ? { label: t("paymentPending"), amount: money(pending.outstandingCents), bold: true }
       : null;
   const tipRows: ThermalInvoiceRow[] =
     pendingRow && pending && pending.suggestedTipCents > 0
       ? [
           {
-            label: t("prebillSuggestedTip", { pct: pending.suggestedTipPct }),
+            label: t("suggestedTipVoluntary", { pct: pending.suggestedTipPct }),
             amount: money(pending.suggestedTipCents),
-          },
-          {
-            label: t("prebillTotalWithTip"),
-            amount: money(pending.totalWithTipCents),
-            strong: true,
           },
         ]
       : [];
@@ -338,11 +339,7 @@ export function buildThermalInvoice(args: {
     totals,
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
     paymentRows,
-    ...(pending && {
-      pendingRow,
-      tipRows,
-      tipNotice: tipRows.length > 0 ? t("prebillTipVoluntary") : null,
-    }),
+    ...(pending && { pendingRow, tipRows }),
     footerLines,
     fiscal,
   };

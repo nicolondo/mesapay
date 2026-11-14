@@ -203,12 +203,15 @@ export class MockKushkiProvider implements PaymentProvider {
       const pending = m.pendingTerminalRequests.get(providerRef);
       if (!pending) return;
       m.pendingTerminalRequests.delete(providerRef);
-      const approved = Math.random() < 0.9;
+      // KUSHKI_MOCK_TERMINAL_AUTHORIZED: el datáfono simulado autoriza otro
+      // monto (y siempre aprueba), para ver propina / parcial / conciliar.
+      const authorizedCents = mockTerminalAuthorizedCents(pending.req.amount.amountCents);
+      const approved = authorizedCents !== undefined || Math.random() < 0.9;
       if (approved) {
         recordMovement(m, {
           externalRef: providerRef,
           kind: "credit",
-          amountCents: pending.req.amount.amountCents,
+          amountCents: authorizedCents ?? pending.req.amount.amountCents,
           description: `Datáfono mesa orden ${pending.req.metadata.orderId.slice(0, 6)}`,
           occurredAt: new Date(),
         });
@@ -222,6 +225,7 @@ export class MockKushkiProvider implements PaymentProvider {
         amountCents: pending.req.amount.amountCents,
         orderId: pending.req.metadata.orderId,
         paymentId: pending.req.metadata.paymentId,
+        ...(approved && authorizedCents !== undefined ? { authorizedCents } : {}),
       });
     }, 3000);
 
@@ -287,6 +291,29 @@ export class MockKushkiProvider implements PaymentProvider {
 }
 
 // ---- Mock webhook bus ------------------------------------------------------
+/**
+ * Sólo desarrollo (KUSHKI_MODE=mock): cuánto "autoriza" el datáfono simulado,
+ * con `KUSHKI_MOCK_TERMINAL_AUTHORIZED`:
+ *   - "+500" / "-100000": la cuenta más / menos esos centavos (propina del
+ *     datáfono, parcial, o sobre el tope);
+ *   - "x100" / "/100": error de unidades (pesos ↔ centavos).
+ * Sin la variable (o con un valor que no se entiende): undefined, el mock de
+ * siempre (autoriza la cuenta, 90 % aprobado).
+ */
+export function mockTerminalAuthorizedCents(
+  amountCents: number,
+  spec: string | undefined = process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED,
+): number | undefined {
+  const v = spec?.trim().toLowerCase();
+  if (!v) return undefined;
+  if (v === "x100") return amountCents * 100;
+  if (v === "/100") return Math.max(1, Math.round(amountCents / 100));
+  const m = /^([+-])(\d{1,10})$/.exec(v);
+  if (!m) return undefined;
+  const delta = Number(m[2]) * (m[1] === "-" ? -1 : 1);
+  return Math.max(1, amountCents + delta);
+}
+
 // Routes that would normally receive Kushki webhooks subscribe here to react
 // to mock events as if they came from Kushki. This is opt-in from the route
 // — production webhook handler does not depend on this.
@@ -299,6 +326,8 @@ type MockWebhookEvent =
       amountCents: number;
       orderId: string;
       paymentId: string;
+      /** Sólo con KUSHKI_MOCK_TERMINAL_AUTHORIZED: lo que "autorizó" el equipo. */
+      authorizedCents?: number;
     }
   | {
       type: "pse.approved" | "pse.declined";

@@ -104,17 +104,36 @@ describe("buildThermalInvoice — el cliente", () => {
 });
 
 describe("buildThermalInvoice — totales", () => {
-  it("una cuenta simple es subtotal y TOTAL, nada más", () => {
-    expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
+  it("una cuenta simple es subtotal, total del comprobante y TOTAL A PAGAR, nada más", () => {
+    expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "receiptTotal", "totalToPay"]);
   });
 
-  it("el TOTAL va marcado para imprimirse grande y es el último", () => {
+  it("el TOTAL A PAGAR va marcado para imprimirse grande y es el último", () => {
     const totals = build().totals;
     expect(totals[totals.length - 1]).toMatchObject({
-      label: "total",
+      label: "totalToPay",
       strong: true,
     });
     expect(totals.filter((r) => r.strong)).toHaveLength(1);
+  });
+
+  it("total factura SIN propina, la propina voluntaria y el TOTAL A PAGAR con ella", () => {
+    // Emitida al cobrar: el snapshot trae el total de la orden, que incluye
+    // la propina. La factura (lo del XML) es la venta: $120.000.
+    const doc = build({
+      subtotalCents: 12_000_000,
+      salesTaxKind: "inc",
+      salesTaxPct: 8,
+      embeddedTaxCents: 888_889,
+      embeddedBaseCents: 11_111_111,
+      tipCents: 1_200_000,
+      totalCents: 13_200_000,
+    });
+    expect(doc.totals.slice(-3)).toEqual([
+      { label: "receiptTotal", amount: "$120000" },
+      { label: "tipVoluntary", amount: "$12000" },
+      { label: "totalToPay", amount: "$132000", strong: true },
+    ]);
   });
 
   it("sin impuesto sumado encima NO hay fila de impuesto (va embebido en el precio)", () => {
@@ -130,7 +149,8 @@ describe("buildThermalInvoice — totales", () => {
       "subtotal",
       "taxInc",
       "taxIva",
-      "total",
+      "receiptTotal",
+      "totalToPay",
     ]);
   });
 
@@ -168,8 +188,9 @@ describe("buildThermalInvoice — totales", () => {
       { label: "discountRowPct(20)", amount: "-$22680" },
       { label: "taxBase", amount: "$84000" },
       { label: "taxIncIncluded(8)", amount: "$6720" },
-      { label: "tip", amount: "$9072" },
-      { label: "total", amount: "$99792", strong: true },
+      { label: "receiptTotal", amount: "$90720" },
+      { label: "tipVoluntary", amount: "$9072" },
+      { label: "totalToPay", amount: "$99792", strong: true },
     ]);
   });
 
@@ -190,16 +211,17 @@ describe("buildThermalInvoice — totales", () => {
       "taxBase",
       "taxIncIncluded(8)",
       "discountRowPct(20)",
-      "tip",
-      "total",
+      "receiptTotal",
+      "tipVoluntary",
+      "totalToPay",
     ]);
     expect(doc.totals[1]!.amount).toBe("$105000");
   });
 
   it("la propina sólo aparece si la hubo", () => {
-    expect(build().totals.map((r) => r.label)).not.toContain("tip");
-    expect(build({ tipCents: 846_000 }).totals.map((r) => r.label)).toContain(
-      "tip",
+    expect(build().totals.map((r) => r.label)).not.toContain("tipVoluntary");
+    expect(build({ tipCents: 846_000, totalCents: 6_946_000 }).totals.map((r) => r.label)).toContain(
+      "tipVoluntary",
     );
   });
 
@@ -396,7 +418,8 @@ describe("buildThermalInvoice — impuesto embebido congelado en la factura", ()
       "subtotal",
       "taxBase",
       "taxIncIncluded(8)",
-      "total",
+      "receiptTotal",
+      "totalToPay",
     ]);
     expect(doc.totals.find((r) => r.label === "taxBase")?.amount).toBe("$56481");
     expect(doc.totals.find((r) => r.label === "taxIncIncluded(8)")?.amount).toBe("$4519");
@@ -414,7 +437,8 @@ describe("buildThermalInvoice — impuesto embebido congelado en la factura", ()
       "taxBase",
       "taxIncIncluded(8)",
       "taxIva",
-      "total",
+      "receiptTotal",
+      "totalToPay",
     ]);
   });
 
@@ -422,8 +446,8 @@ describe("buildThermalInvoice — impuesto embebido congelado en la factura", ()
     expect(
       build({ salesTaxKind: "none", salesTaxPct: 0, embeddedTaxCents: 0, embeddedBaseCents: 6_100_000 })
         .totals.map((r) => r.label),
-    ).toEqual(["subtotal", "total"]);
-    expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "total"]);
+    ).toEqual(["subtotal", "receiptTotal", "totalToPay"]);
+    expect(build().totals.map((r) => r.label)).toEqual(["subtotal", "receiptTotal", "totalToPay"]);
   });
 });
 
@@ -492,7 +516,12 @@ describe("buildThermalInvoice — factura electrónica (dian)", () => {
     const comprobante = einvoice({}, null);
     const factura = einvoice();
     expect(factura.items).toEqual(comprobante.items);
-    expect(factura.totals).toEqual(comprobante.totals);
+    // Los mismos montos; sólo el rótulo del total sigue al del documento:
+    // «Total factura» en la electrónica, «Total comprobante» en el otro.
+    expect(factura.totals.map((r) => r.amount)).toEqual(comprobante.totals.map((r) => r.amount));
+    expect(factura.totals.map((r) => r.label)).toEqual(
+      comprobante.totals.map((r) => (r.label === "receiptTotal" ? "invoiceTotal" : r.label)),
+    );
     expect(factura.documentNumber).toBe(comprobante.documentNumber);
     expect(factura.footerLines).toEqual(comprobante.footerLines);
     expect(factura.businessLines).toEqual(comprobante.businessLines);

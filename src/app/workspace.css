@@ -787,6 +787,21 @@
 .mp-table-grid :is(.text-\[9px\], .text-\[10px\]) {
   font-size: 11px;
 }
+/* Texto secundario de las fichas (zona, minutos, ítems, «libre»): sobre los
+   tintes de estado el gris --op-muted quedaba en 4.5:1 justo y en pantallas
+   pobres (datáfono, celulares baratos) se lavaba. Dentro de la ficha va un
+   gris más oscuro (≥ 7:1 en todos los estados). */
+.mp-table-grid > :is(button, a) .text-op-muted {
+  color: var(--ink-3);
+}
+/* Estado de la ficha en texto («En cocina», «Pidió la cuenta»…): el color y
+   el punto dejan de ser la única señal. El color lo pone textAccent. */
+.mp-tile-state {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
 .mp-table-filters {
   display: flex;
   flex-wrap: wrap;
@@ -795,6 +810,29 @@
 }
 .mp-table-filters button {
   min-height: 42px;
+}
+/* Vistas del personal (mesero, cocina, barra) en pantallas pobres: la
+   terracotta (#C9532E) y el ámbar (#C98A2E) de marca usados como color de
+   TEXTO dan 2.7–4.1:1 sobre los fondos claros (los minutos de cocina en ámbar
+   eran 2.7:1, la cuenta regresiva de la barra 4.0:1), el texto claro sobre un botón terracotta 3.9:1 y el gris
+   --muted-2 en letra de 10 px 3.4:1. Acá el texto usa el tono oscuro de cada
+   color (≥ 4.5:1); la marca sigue igual en bordes, puntos y tintes. */
+:is(.mesero-shell, .mp-staff-board) .text-terracotta {
+  color: var(--terracotta-2);
+}
+:is(.mesero-shell, .mp-staff-board) :is(.text-\[\#C98A2E\], .text-\[\#8F6828\]) {
+  color: #7f5a1f;
+}
+:is(.mesero-shell, .mp-staff-board) .text-muted-2 {
+  color: var(--muted);
+}
+:is(.mesero-shell, .mp-staff-board) .bg-terracotta.text-bone {
+  background-color: var(--terracotta-2);
+}
+/* Chip sin elegir: el borde --op-border (1.2:1 contra el fondo) desaparecía
+   en el datáfono y el chip parecía texto suelto. */
+.mp-table-filters button[aria-pressed="false"] {
+  border-color: var(--op-border-2);
 }
 /* Fila de filtros de Mesas en dos grupos: chips (izquierda) y acciones
    (derecha). En escritorio comparten la fila; en móvil cada grupo ocupa la
@@ -1661,13 +1699,21 @@ a.mp-viz-heat-cell:focus-visible {
   margin-top: 12px;
   /* Siempre en una línea: «$ 209.393.685» no se parte. El tamaño baja con el
      ancho de la tarjeta (12cqi ≈ 13 caracteres de cifra en el ancho útil) y
-     nunca pasa de 26 px ni baja de 12 px. */
-  font-size: clamp(12px, 12cqi, 26px);
+     nunca pasa de 26 px ni baja de 12 px. Antes de Chrome 105 (datáfonos)
+     no hay cqi: queda un tamaño fijo que cabe en la tarjeta más angosta. El
+     cqi va bajo @supports porque el minificador junta dos `font-size`
+     seguidos y se quedaría sólo con el último. */
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
   white-space: nowrap;
+}
+@supports (font-size: 1cqi) {
+  .mp-sales-kpi-value {
+    font-size: clamp(12px, 12cqi, 26px);
+  }
 }
 .mp-sales-kpi-delta {
   display: block;
@@ -2840,6 +2886,64 @@ li.is-archived .mp-inv-name {
 .mp-tally-group b {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+/* Grupo plegable («Confirmados del preliminar»): toda la franja es el botón. */
+.mp-tally-group__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  margin: -5px -12px -4px;
+  padding: 5px 12px 4px;
+  width: calc(100% + 24px);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mp-tally-group__toggle:hover {
+  color: var(--op-text);
+}
+.mp-tally-group__toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--terracotta);
+}
+.mp-tally-group__toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.16s ease;
+}
+.mp-tally-group__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+/* Motivo por el que un insumo se recuenta (o «Confirmado») en el definitivo. */
+.mp-tally-tag {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 12%, var(--op-surface));
+  color: #7f5a1f;
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mp-tally-tag[data-tag="confirmed"] {
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 9%, var(--op-surface));
+  color: var(--ok);
+}
+.mp-tally-tag[data-tag="uncounted"] {
+  border-color: var(--op-border);
+  background: var(--paper);
+  color: var(--op-muted);
 }
 .mp-tally-row {
   min-height: 44px;

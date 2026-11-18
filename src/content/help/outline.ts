@@ -187,7 +187,7 @@ export const HELP_OUTLINE: Record<HelpCategoryId, HelpOutlineEntry[]> = {
       slug: "imprimir-la-precuenta",
       title: "Imprime la precuenta",
       covers:
-        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, la propina sugerida (siempre 10 %), que no es factura ni numera nada, y la impresión por la impresora de facturas del agente o por el navegador.",
+        "\"Imprimir precuenta\" y \"Ver precuenta\" desde la ficha de la mesa, la propina sugerida (siempre 10 % sobre el valor antes de impuestos), que no es factura ni numera nada, y la impresión por la impresora de facturas del agente o por el navegador.",
     },
     {
       slug: "factura-antes-de-cobrar",

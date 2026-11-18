@@ -26,6 +26,7 @@ vi.mock("@/lib/print/invoiceQueue", () => ({ enqueueInvoicePrintSafe: m.enqueue 
 
 import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "./simpleInvoice";
 import type { InvoiceSnapshot } from "./invoice";
+import { pendingPaymentOf } from "./print/invoiceDoc";
 
 function order() {
   return {
@@ -272,6 +273,25 @@ describe("issueSimpleInvoice — factura ANTES de cobrar (beforePayment)", () =>
     expect(snap.totalCents).toBe(4_190_000);
     expect(snap.tipCents).toBe(0);
     expect(m.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("congela la base de la propina sugerida: lo cobrable y su parte sin impuesto, con el reparto del XML", async () => {
+    m.orderFindUnique.mockResolvedValue(openOrder());
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    await issueSimpleInvoice({ tenantId: "rest-1", orderId: "order-1", beforePayment: true, suggestedTipPct: 10 });
+    const snap = (m.invoiceCreate.mock.calls[0][0] as { data: { snapshot: InvoiceSnapshot } }).data.snapshot;
+    // $30.000 de carta con INC 8 % adentro (base $27.777,78) + $10.000 de
+    // servicio con IVA 19 % encima: cobrable $41.900, sin impuesto $37.777,78.
+    expect(snap.suggestedTipBase).toEqual({ policy: "pre_tax", chargeableCents: 4_190_000, preTaxCents: 3_777_778 });
+    expect(snap.suggestedTipBase?.chargeableCents).toBe(snap.totalCents);
+    // 10 % de $37.777,78 = $3.777,78 → $3.778 (antes: $4.190).
+    expect(pendingPaymentOf(snap, [])?.suggestedTipCents).toBe(377_800);
+  });
+
+  it("la factura emitida AL COBRAR no lleva base de propina sugerida (no sugiere nada)", async () => {
+    m.restaurantUpdate.mockResolvedValue(restaurant({ salesTaxKind: "inc", salesTaxPct: 8 }));
+    const snap = await issuedSnapshot();
+    expect(snap.suggestedTipBase).toBeUndefined();
   });
 
   it("sin pedirlo explícitamente, una cuenta sin pagar sigue sin factura (order_not_paid)", async () => {

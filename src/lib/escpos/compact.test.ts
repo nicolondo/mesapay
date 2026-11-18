@@ -104,6 +104,9 @@ async function prebill(paperWidthMm: number) {
     totalCents: S.subtotalCents,
     paidCents: 0,
     outstandingCents: S.subtotalCents,
+    // Cuenta sin impuesto en la base: la sugerida es el 10 % de lo pendiente.
+    tipBase: { chargeableCents: S.subtotalCents, preTaxCents: S.subtotalCents },
+    suggestedTipBaseCents: S.subtotalCents,
     suggestedTipPct: 10,
     suggestedTipCents: S.tipCents,
     totalWithTipCents: S.subtotalCents + S.tipCents,

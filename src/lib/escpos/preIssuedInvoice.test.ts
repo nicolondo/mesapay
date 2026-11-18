@@ -45,7 +45,9 @@ const LABELS: Record<string, string> = {
 const t = (key: string, values?: Record<string, string | number>) =>
   key === "suggestedTipVoluntary"
     ? `Propina sugerida (voluntaria) ${values?.pct}%`
-    : (LABELS[key] ?? key);
+    : key === "suggestedTipBaseNote"
+      ? `Calculada sobre el valor antes de impuestos: ${values?.base}.`
+      : (LABELS[key] ?? key);
 const money = (cents: number) => `$ ${formatNumber(Math.round(cents / 100))}`;
 
 const snapshot: InvoiceSnapshot = {
@@ -106,6 +108,7 @@ describe("pendingPaymentOf", () => {
       paidFoodCents: 0,
       paidTipCents: 0,
       suggestedTipPct: 10,
+      suggestedTipBaseCents: 10_000_000,
       suggestedTipCents: 1_000_000,
     });
   });
@@ -115,6 +118,81 @@ describe("pendingPaymentOf", () => {
   });
   it("una factura emitida al cobrar no tiene nada pendiente que mostrar", () => {
     expect(pendingPaymentOf({ ...snapshot, issuedBeforePayment: undefined }, [])).toBeNull();
+  });
+});
+
+// $108.000 con INC 8 % embebido (base $100.000), emitida antes de cobrar.
+const incSnapshot: InvoiceSnapshot = {
+  ...snapshot,
+  items: [{ qty: 1, name: "Consumo", priceCents: 10_800_000 }],
+  subtotalCents: 10_800_000,
+  totalCents: 10_800_000,
+  salesTaxKind: "inc",
+  salesTaxPct: 8,
+  embeddedTaxCents: 800_000,
+  embeddedBaseCents: 10_000_000,
+};
+
+describe("propina sugerida de la factura emitida antes de cobrar: congelada en el snapshot", () => {
+  it("snapshot NUEVO (con `suggestedTipBase`): 10 % sobre el valor antes de impuestos — $10.000, no $10.800", () => {
+    const snap: InvoiceSnapshot = {
+      ...incSnapshot,
+      suggestedTipBase: { policy: "pre_tax", chargeableCents: 10_800_000, preTaxCents: 10_000_000 },
+    };
+    expect(pendingPaymentOf(snap, [])).toMatchObject({
+      outstandingCents: 10_800_000,
+      suggestedTipBaseCents: 10_000_000,
+      suggestedTipCents: 1_000_000,
+    });
+    const doc = build(snap);
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10,000" }]);
+    expect(doc.tipNotice).toBe("Calculada sobre el valor antes de impuestos: $ 100,000.");
+    expect(paper(doc)).toContain("Calculada sobre el valor antes de impuestos");
+  });
+
+  it("con un abono: la base es la parte sin impuesto de lo que falta", () => {
+    const snap: InvoiceSnapshot = {
+      ...incSnapshot,
+      suggestedTipBase: { policy: "pre_tax", chargeableCents: 10_800_000, preTaxCents: 10_000_000 },
+    };
+    const r = pendingPaymentOf(snap, [{ method: "cash", amountCents: 5_900_000, tipCents: 500_000 }]);
+    // Falta $54.000 → base $50.000 → $5.000.
+    expect(r).toMatchObject({ outstandingCents: 5_400_000, suggestedTipBaseCents: 5_000_000, suggestedTipCents: 500_000 });
+  });
+
+  it("«Sin propina» elegida al emitir (0 %): ninguna sugerida ni aviso de base", () => {
+    const snap: InvoiceSnapshot = {
+      ...incSnapshot,
+      suggestedTipPct: 0,
+      suggestedTipBase: { policy: "pre_tax", chargeableCents: 10_800_000, preTaxCents: 10_000_000 },
+    };
+    const doc = build(snap);
+    expect(doc.tipRows).toEqual([]);
+    expect(doc.tipNotice).toBeUndefined();
+  });
+
+  it("snapshot VIEJO (sin `suggestedTipBase`): sigue sugiriendo lo que imprimió — 10 % con impuesto, al centavo", () => {
+    expect(pendingPaymentOf(incSnapshot, [])).toMatchObject({
+      outstandingCents: 10_800_000,
+      suggestedTipBaseCents: 10_800_000,
+      suggestedTipCents: 1_080_000,
+    });
+    const doc = build(incSnapshot);
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10,800" }]);
+    expect(doc.tipNotice).toBeUndefined();
+    // El redondeo de entonces (al centavo, no al peso) tampoco cambia.
+    const odd: InvoiceSnapshot = { ...incSnapshot, totalCents: 10_805_050 };
+    expect(pendingPaymentOf(odd, [])?.suggestedTipCents).toBe(1_080_505);
+  });
+
+  it("cuenta sin impuesto con la marca: la base es lo pendiente y no hay aviso de impuestos", () => {
+    const snap: InvoiceSnapshot = {
+      ...snapshot,
+      suggestedTipBase: { policy: "pre_tax", chargeableCents: 10_000_000, preTaxCents: 10_000_000 },
+    };
+    const doc = build(snap);
+    expect(doc.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: "$ 10,000" }]);
+    expect(doc.tipNotice).toBeUndefined();
   });
 });
 

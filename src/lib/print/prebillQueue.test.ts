@@ -86,6 +86,9 @@ const data: PrebillData = {
   totalCents: 4_900_000,
   paidCents: 0,
   outstandingCents: 4_900_000,
+  // Cuenta sin impuesto en la base: la sugerida es el 10 % de lo pendiente.
+  tipBase: { chargeableCents: 4_900_000, preTaxCents: 4_900_000 },
+  suggestedTipBaseCents: 4_900_000,
   suggestedTipPct: 10,
   suggestedTipCents: 490_000,
   totalWithTipCents: 5_390_000,

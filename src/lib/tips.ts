@@ -67,10 +67,9 @@ export type TipBasePolicy = "pre_tax" | "with_tax";
  * son de Colombia. Para hacerla configurable, este es el único lugar que
  * hay que cambiar (y quien arma el `TipBase` ya le pasa el comercio).
  */
-export function tipBasePolicyFor(
-  // Reservado para la regla por país o comercio; hoy no cambia nada.
-  _place?: { country?: string | null } | null,
-): TipBasePolicy {
+export function tipBasePolicyFor(place?: { country?: string | null } | null): TipBasePolicy {
+  // `place` queda para la regla por país o comercio; hoy no cambia nada.
+  void place;
   return "pre_tax";
 }
 

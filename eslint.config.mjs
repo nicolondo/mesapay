@@ -104,6 +104,8 @@ const MIGRATED = [
   "src/components/invoice/**/*.{ts,tsx}",
   "src/app/mesero/yo/MisComisionesClient.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/PayClient.tsx",
+  // Previsualización de la propina del estado del pedido: migrada entera.
+  "src/app/t/\\[slug\\]/order/\\[orderId\\]/TipPreview.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/ApplePayButton.tsx",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/cash/*.{ts,tsx}",
   "src/app/t/\\[slug\\]/pay/\\[orderId\\]/terminal/*.{ts,tsx}",

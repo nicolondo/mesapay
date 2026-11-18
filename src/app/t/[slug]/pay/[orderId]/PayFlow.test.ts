@@ -226,3 +226,51 @@ describe("factura emitida antes de cobrar", () => {
     expect(m.invoiceView).not.toHaveBeenCalled();
   });
 });
+
+describe("base de la propina (sobre el valor antes de impuestos)", () => {
+  const item = (over: Record<string, unknown>) => ({
+    id: "i", nameSnapshot: "Plato", qty: 1, priceCentsSnapshot: 10_800_000, guestName: null,
+    taxKind: null, taxPct: null, cancelledAt: null, ...over,
+  });
+
+  it("el cobro recibe la cuenta y su parte sin impuesto con el reparto de la factura (INC 8 % → $108.000 / $100.000)", async () => {
+    m.tenant.mockResolvedValue({
+      id: "r1", slug: "sample", country: "CO", serviceMode: "table", enabledModules: [], compEnabled: false,
+      salesTaxKind: "inc", salesTaxPct: 8,
+    });
+    m.order.mockResolvedValue({
+      ...(await m.order()), subtotalCents: 10_800_000, taxCents: 0, discountCents: 0, discountPct: null,
+      items: [item({})], payments: [],
+    });
+    const page = await flow();
+    expect(page.props.tipBase).toEqual({ chargeableCents: 10_800_000, preTaxCents: 10_000_000 });
+    expect(page.props.subtotalCents).toBe(page.props.tipBase.chargeableCents);
+  });
+
+  it("con línea libre con IVA encima y descuento del cliente, lo cobrable coincide con el subtotal del cobro", async () => {
+    m.tenant.mockResolvedValue({
+      id: "r1", slug: "sample", country: "CO", serviceMode: "table", enabledModules: [], compEnabled: false,
+      salesTaxKind: "inc", salesTaxPct: 8,
+    });
+    m.order.mockResolvedValue({
+      ...(await m.order()),
+      // $108.000 de carta + $100.000 de servicio (+ IVA $19.000), 10 % de descuento sobre $208.000.
+      subtotalCents: 20_800_000, taxCents: 1_900_000, discountCents: 2_080_000, discountPct: 10,
+      items: [item({}), item({ id: "s", nameSnapshot: "Servicio", priceCentsSnapshot: 10_000_000, taxKind: "iva", taxPct: 19 })],
+      payments: [],
+    });
+    const page = await flow();
+    expect(page.props.subtotalCents).toBe(20_620_000);
+    expect(page.props.tipBase.chargeableCents).toBe(page.props.subtotalCents);
+    expect(page.props.tipBase.preTaxCents).toBeLessThan(page.props.tipBase.chargeableCents);
+  });
+
+  it("comercio sin impuesto: base = lo cobrable", async () => {
+    m.tenant.mockResolvedValue({
+      id: "r1", slug: "sample", country: "CO", serviceMode: "table", enabledModules: [], compEnabled: false,
+      salesTaxKind: "none", salesTaxPct: 0,
+    });
+    m.order.mockResolvedValue({ ...(await m.order()), subtotalCents: 10_800_000, taxCents: 0, discountCents: 0, items: [item({})], payments: [] });
+    expect((await flow()).props.tipBase).toEqual({ chargeableCents: 10_800_000, preTaxCents: 10_800_000 });
+  });
+});

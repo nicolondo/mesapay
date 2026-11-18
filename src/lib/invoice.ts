@@ -6,6 +6,7 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { fmtCOP, formatDate, localeTag } from "./format";
 import { getEmailTranslator } from "./emailIntl";
 import { groupInvoiceLines } from "./invoiceLines";
+import type { TipBasePolicy } from "./tips";
 
 type Translator = Awaited<ReturnType<typeof getEmailTranslator>>["t"];
 
@@ -151,6 +152,24 @@ export type InvoiceSnapshot = {
    * Nunca suma al TOTAL A PAGAR: ése lleva sólo la propina COBRADA.
    */
   suggestedTipPct?: number;
+  /**
+   * Factura emitida ANTES de cobrar: sobre qué base se calcula la «Propina
+   * sugerida (voluntaria)», CONGELADA al emitir para que una factura ya
+   * impresa nunca vuelva a mostrar otra cifra:
+   *   · presente ⇒ sobre el valor ANTES de impuestos (`tips.ts`): lo
+   *     cobrable de la factura y su parte sin impuesto, con el mismo reparto
+   *     por línea que el XML. La sugerida es el % de la parte sin impuesto
+   *     de lo pendiente, al peso (`tips.tipCentsFor`);
+   *   · ausente (facturas emitidas antes de 2026-11) ⇒ como se imprimieron:
+   *     el % sobre lo pendiente CON impuesto, al centavo
+   *     (`print/invoiceDoc.pendingPaymentOf`).
+   */
+  suggestedTipBase?: {
+    /** La política con la que se armó (`tips.tipBasePolicyFor`); los montos ya la reflejan. */
+    policy: TipBasePolicy;
+    chargeableCents: number;
+    preTaxCents: number;
+  };
   /**
    * Los `OrderItem` que cubre la factura emitida antes de cobrar. La cuenta
    * queda cerrada a cambios (ver `orders/invoicedOrder.ts`), y el XML de la

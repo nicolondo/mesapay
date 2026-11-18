@@ -164,7 +164,11 @@ export type ThermalInvoice = {
    * "TOTAL CON PROPINA" (`strong`) y se imprimen tal cual.
    */
   tipRows?: ThermalInvoiceRow[];
-  /** "La propina es voluntaria…" debajo de `tipRows` (sólo payloads viejos). */
+  /**
+   * Letra chica debajo de `tipRows`: «Calculada sobre el valor antes de
+   * impuestos: $X» cuando la factura tiene impuesto (los payloads viejos
+   * traían acá «La propina es voluntaria…»).
+   */
   tipNotice?: string | null;
   /** Resolución DIAN, numeración autorizada, agradecimiento. */
   footerLines: string[];

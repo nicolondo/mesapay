@@ -12,9 +12,12 @@ import {
   clampTipPct,
   hrefWithTip,
   parseTipPct,
+  tipBaseCentsOf,
+  tipBaseExcludesTax,
   tipCentsFor,
   tipStorageKey,
   totalWithTip,
+  type TipBase,
 } from "@/lib/tips";
 
 /**
@@ -22,10 +25,12 @@ import {
  * propina incluida (10 % por defecto) y un control para moverla y ver el
  * total en vivo ANTES de entrar a pagar.
  *
- * La base (`baseCents`) llega calculada del servidor con el mismo helper
- * que usa el flujo de pago (neto del descuento, menos lo ya pagado de
- * comida), y la propina se redondea con `tipCentsFor` — la misma función
- * que después cobra PayClient. Así el número que el comensal ve acá es
+ * Lo pendiente (`baseCents`) llega calculado del servidor con el mismo
+ * helper que usa el flujo de pago (neto del descuento, menos lo ya pagado
+ * de comida), junto con el `tipBase` de la cuenta (su parte sin impuesto,
+ * con el reparto de la factura). La propina es el % del valor ANTES de
+ * impuestos de lo pendiente, con `tipCentsFor` — la misma función que
+ * después cobra PayClient. Así el número que el comensal ve acá es
  * exactamente el que le van a cobrar en modo "Todo".
  *
  * El % elegido se recuerda por cuenta en sessionStorage y viaja también en
@@ -40,6 +45,7 @@ export function TipPreview({
   discountPct,
   paidFoodCents,
   baseCents,
+  tipBase,
   taxLine,
   payHref,
   addMoreHref,
@@ -54,8 +60,10 @@ export function TipPreview({
   discountPct: number | null;
   /** Comida ya pagada en pagos aprobados anteriores (split, parciales). */
   paidFoodCents: number;
-  /** Lo que FALTA de comida: la base sobre la que va la propina. */
+  /** Lo que FALTA de comida. La propina va sobre su parte sin impuesto. */
   baseCents: number;
+  /** La cuenta partida en lo cobrable y su parte sin impuesto (`tipBase.ts`). */
+  tipBase: TipBase | null;
   /** Impuesto que ya viene DENTRO de la base (informativo, no suma). */
   taxLine: { kind: "inc" | "iva"; pct: number; taxCents: number } | null;
   /** Link al flujo de pago, sin `?tip=` (se agrega acá con el % vivo). */
@@ -92,8 +100,12 @@ export function TipPreview({
   }
 
   const fmt = (cents: number) => formatMoney(cents, { currency, locale });
-  const tipCents = tipCentsFor(baseCents, tipPct);
-  const totalCents = totalWithTip(baseCents, tipPct);
+  const tipCents = tipCentsFor(baseCents, tipPct, tipBase);
+  const totalCents = totalWithTip(baseCents, tipPct, tipBase);
+  // «Sobre $X, el valor antes de impuestos» sólo si la cuenta tiene impuesto.
+  const tipBaseNote = tipPct > 0 && tipBaseExcludesTax(baseCents, tipBase)
+    ? tipBaseCentsOf(baseCents, tipBase)
+    : null;
   // El desglose sólo aporta cuando la base difiere del consumo (hay
   // descuento o ya se pagó parte); si no, "Consumo" ya es la base.
   const showLedger = discountCents > 0 || paidFoodCents > 0;
@@ -150,6 +162,11 @@ export function TipPreview({
           <span>{t("tipPreviewTip", { pct: tipPct })}</span>
           <span className="font-mono tabular">{fmt(tipCents)}</span>
         </div>
+        {tipBaseNote !== null && (
+          <p className="mt-1 text-xs text-muted-2" data-testid="tip-base-note">
+            {tPay("tipBaseNote", { base: fmt(tipBaseNote) })}
+          </p>
+        )}
         <div className="mt-2 flex flex-wrap gap-2">
           {TIP_OPTIONS.map((p) => (
             <button

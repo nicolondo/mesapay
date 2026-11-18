@@ -73,9 +73,12 @@ const data: PrebillData = {
   totalCents: 6_100_000,
   paidCents: 0,
   outstandingCents: 6_100_000,
+  // Sobre el valor antes de impuestos (`tips.ts`): 10 % de $56.481,48 → $5.648.
+  tipBase: { chargeableCents: 6_100_000, preTaxCents: 5_648_148 },
+  suggestedTipBaseCents: 5_648_148,
   suggestedTipPct: 10,
-  suggestedTipCents: 610_000,
-  totalWithTipCents: 6_710_000,
+  suggestedTipCents: 564_800,
+  totalWithTipCents: 6_664_800,
 };
 
 const build = (over: Partial<PrebillData> = {}, paperWidthMm = 80) =>
@@ -216,7 +219,7 @@ describe("buildPrebillTicket — totales", () => {
     const con = build();
     expect(con.totals.filter((r) => r.strong)).toHaveLength(0);
     expect(con.tipRows.filter((r) => r.strong)).toEqual([
-      { label: "prebillTotalWithTip", amount: "$67100", strong: true },
+      { label: "prebillTotalWithTip", amount: "$66648", strong: true },
     ]);
     const sin = build({ suggestedTipCents: 0, totalWithTipCents: 0 });
     expect(sin.totals.filter((r) => r.strong)).toHaveLength(1);
@@ -224,12 +227,24 @@ describe("buildPrebillTicket — totales", () => {
 });
 
 describe("buildPrebillTicket — propina sugerida", () => {
-  it("bloque aparte: sugerida, total con propina y el aviso de que es voluntaria", () => {
+  it("bloque aparte: sugerida, total con propina y el aviso de la base sin impuestos y de que es voluntaria", () => {
     const doc = build();
     expect(doc.tipRows).toEqual([
-      { label: "prebillSuggestedTip(10)", amount: "$6100" },
-      { label: "prebillTotalWithTip", amount: "$67100", strong: true },
+      { label: "prebillSuggestedTip(10)", amount: "$5648" },
+      { label: "prebillTotalWithTip", amount: "$66648", strong: true },
     ]);
+    expect(doc.tipNotice).toBe("suggestedTipBaseNote($56481) prebillTipVoluntary");
+  });
+
+  it("cuenta sin impuesto: la base es lo pendiente y el aviso no habla de impuestos", () => {
+    const doc = build({
+      embeddedTax: null,
+      tipBase: { chargeableCents: 6_100_000, preTaxCents: 6_100_000 },
+      suggestedTipBaseCents: 6_100_000,
+      suggestedTipCents: 610_000,
+      totalWithTipCents: 6_710_000,
+    });
+    expect(doc.tipRows[0]).toEqual({ label: "prebillSuggestedTip(10)", amount: "$6100" });
     expect(doc.tipNotice).toBe("prebillTipVoluntary");
   });
 

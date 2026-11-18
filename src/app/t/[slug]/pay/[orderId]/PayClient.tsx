@@ -48,15 +48,19 @@ import {
   type CheckoutTax,
   type PayMode,
 } from "@/lib/checkoutTax";
-// Chips, default y redondeo de la propina viven en lib/tips: el estado del
-// pedido previsualiza el total con la MISMA aritmética con la que acá se
-// cobra, así el comensal no ve un número allá y otro acá.
+// Chips, default, base sin impuestos y redondeo de la propina viven en
+// lib/tips: el estado del pedido previsualiza el total con la MISMA
+// aritmética con la que acá se cobra, así el comensal no ve un número allá
+// y otro acá.
 import {
   DEFAULT_TIP_PCT,
   TIP_OPTIONS,
   parseTipPct,
+  tipBaseCentsOf,
+  tipBaseExcludesTax,
   tipCentsFor,
   tipStorageKey,
+  type TipBase,
 } from "@/lib/tips";
 
 type PayItem = {
@@ -150,6 +154,7 @@ export function PayClient({
   salesTax = null,
   vouchersEnabled = false,
   initialTipPct = null,
+  tipBase = null,
   customerStepEnabled = false,
   creditEnabled = false,
   linkedCustomer = null,
@@ -171,6 +176,12 @@ export function PayClient({
    * esta cuenta (sessionStorage), esa pisa a ambas al montar.
    */
   initialTipPct?: number | null;
+  /**
+   * La cuenta partida en lo cobrable y su parte sin impuesto (`tipBase.ts`,
+   * mismo reparto que la factura). El % de propina va sobre la parte sin
+   * impuesto de lo que se paga en cada modo. null = sin impuesto.
+   */
+  tipBase?: TipBase | null;
   shortCode: string;
   tableId: string;
   locationLabel: string;
@@ -536,7 +547,7 @@ export function PayClient({
   // vive en checkoutTax.ts: siempre sobre lo PENDIENTE, nunca más que eso.
   // Acá sólo se le pasa lo que falta y lo de la persona elegida en "Lo mío".
   const mixed = operatorMode && mode === "mixed";
-  const mixedBudget = mixedPaymentBudget({ netSubtotalCents: subtotalCents, paidCents, paidTipCents, tipPct });
+  const mixedBudget = mixedPaymentBudget({ netSubtotalCents: subtotalCents, paidCents, paidTipCents, tipPct, tipBase });
   const balanceKey = `${subtotalCents}:${paidCents}:${paidTipCents}:${tipPct}`;
   const mixedValue = mixedInput?.balance === balanceKey ? mixedInput.value
     : useRemainder && mixedBudget.ok ? String(mixedBudget.outstandingGrossCents / 100) : "";
@@ -546,7 +557,16 @@ export function PayClient({
     : payModeSubtotalCents(mode === "mixed" ? "full" : mode, outstandingSubtotalCents, {
       splitCount, mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
     });
-  const amountTip = mixed ? mixedAllocation.ok ? mixedAllocation.tipCents : 0 : tipCentsFor(amountSubtotal, tipPct);
+  // El % va sobre el valor ANTES de impuestos de lo que se paga (la parte
+  // proporcional sin impuesto de la cuenta), al peso — la misma función de
+  // la previsualización, la precuenta y la factura.
+  const amountTip = mixed ? mixedAllocation.ok ? mixedAllocation.tipCents : 0 : tipCentsFor(amountSubtotal, tipPct, tipBase);
+  // «Sobre $X, el valor antes de impuestos»: la base de la propina de lo
+  // que se cobra ahora (en mixto, la de toda la cuenta).
+  const tipBaseAmount = mixed ? subtotalCents : amountSubtotal;
+  const tipBaseNote = tipPct > 0 && tipBaseExcludesTax(tipBaseAmount, tipBase)
+    ? tipBaseCentsOf(tipBaseAmount, tipBase)
+    : null;
   const amountCents = amountSubtotal + amountTip;
   const pendingBlocksMixed = pendingPayments.some(payment => !isCashMethod(payment.method));
   const interactionLocked = busy !== null || refreshing || cashUncertain;
@@ -1469,6 +1489,11 @@ export function PayClient({
             <span>{t("tipLine", { pct: tipPct })}</span>
             <span className="font-mono tabular">{mixed ? exactMoney(amountTip) : fmtCOP(amountTip)}</span>
           </div>
+          {tipBaseNote !== null && (
+            <p className="mt-1 text-xs text-muted-2" data-testid="tip-base-note">
+              {t("tipBaseNote", { base: mixed ? exactMoney(tipBaseNote) : fmtCOP(tipBaseNote) })}
+            </p>
+          )}
         </div>
         <div className="mt-4 pt-4 border-t border-hairline">
           <div className="flex items-baseline justify-between">

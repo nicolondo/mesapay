@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { allocateMixedPayment, mixedPaymentBudget, type MixedPaymentBudgetInput } from "./mixedAmount";
+import { tipCentsFor } from "@/lib/tips";
 
+// Sin impuesto en la base (`tipBase: null`): la propina va sobre la cuenta.
 const input: MixedPaymentBudgetInput = {
-  netSubtotalCents: 100_000, paidCents: 0, paidTipCents: 0, tipPct: 10,
+  netSubtotalCents: 100_000, paidCents: 0, paidTipCents: 0, tipPct: 10, tipBase: null,
 };
 
 const budget = (overrides: Partial<MixedPaymentBudgetInput> = {}) => mixedPaymentBudget({ ...input, ...overrides });
@@ -44,8 +46,20 @@ describe("mixedPaymentBudget", () => {
     expect(budget(overrides)).toEqual({ ok: false, error: "invalid_balance" });
   });
 
-  it("rounds the account tip half up at an exact cent", () => {
-    expect(budget({ netSubtotalCents: 1_005 })).toMatchObject({ targetTipCents: 101, outstandingGrossCents: 1_106 });
+  it("rounds the account tip half up to the whole peso (`tips.tipCentsFor`)", () => {
+    expect(budget({ netSubtotalCents: 5_500 })).toMatchObject({ targetTipCents: 600, outstandingGrossCents: 6_100 });
+    expect(budget({ netSubtotalCents: 5_490 })).toMatchObject({ targetTipCents: 500, outstandingGrossCents: 5_990 });
+  });
+
+  it("the account tip is the percentage of the PRE-TAX value: $108.000 with INC 8 % → $10.000", () => {
+    const inc = { chargeableCents: 10_800_000, preTaxCents: 10_000_000 };
+    expect(budget({ netSubtotalCents: 10_800_000, tipBase: inc })).toEqual({
+      ok: true, targetTipCents: 1_000_000, remainingTipCents: 1_000_000,
+      outstandingFoodCents: 10_800_000, outstandingGrossCents: 11_800_000,
+    });
+    // After a $54.000 + $5.000 payment, the rest of the agreed tip is $5.000.
+    expect(budget({ netSubtotalCents: 10_800_000, tipBase: inc, paidCents: 5_900_000, paidTipCents: 500_000 }))
+      .toMatchObject({ remainingTipCents: 500_000, outstandingFoodCents: 5_400_000, outstandingGrossCents: 5_900_000 });
   });
 });
 
@@ -55,7 +69,8 @@ describe("allocateMixedPayment", () => {
   });
 
   it("takes the exact remaining cents when selecting everything", () => {
-    expect(allocateMixedPayment(budget({ netSubtotalCents: 10_005, paidCents: 3_337, paidTipCents: 303 }), 7_669)).toEqual({ ok: true, amountCents: 7_669, tipCents: 698, foodCents: 6_971, remainingFoodCents: 0, remainingTipCents: 0, remainingGrossCents: 0 });
+    // Tip target: 10 % of $100,05 = $10,005 → $10 (whole peso).
+    expect(allocateMixedPayment(budget({ netSubtotalCents: 10_005, paidCents: 3_337, paidTipCents: 303 }), 7_668)).toEqual({ ok: true, amountCents: 7_668, tipCents: 697, foodCents: 6_971, remainingFoodCents: 0, remainingTipCents: 0, remainingGrossCents: 0 });
   });
 
   it.each([null, undefined])("distinguishes an empty input (%s)", (amount) => {
@@ -112,7 +127,7 @@ describe("allocateMixedPayment", () => {
     let paidTipCents = 0;
     let count = 0;
     while (count < 10_000) {
-      const current = mixedPaymentBudget({ netSubtotalCents, paidCents, paidTipCents, tipPct });
+      const current = mixedPaymentBudget({ netSubtotalCents, paidCents, paidTipCents, tipPct, tipBase: null });
       if (!current.ok) throw new Error("expected a valid balance");
       if (current.outstandingGrossCents === 0) break;
       const selected = Math.min(10_003 + count % 99, current.outstandingGrossCents);
@@ -128,7 +143,7 @@ describe("allocateMixedPayment", () => {
     }
     expect(count).toBeGreaterThan(900);
     expect(count).toBeLessThan(10_000);
-    expect(paidTipCents).toBe(Math.round(netSubtotalCents * tipPct / 100));
+    expect(paidTipCents).toBe(tipCentsFor(netSubtotalCents, tipPct, null));
     expect(paidCents - paidTipCents).toBe(netSubtotalCents);
   });
 

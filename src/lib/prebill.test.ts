@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_TIP_PCT,
   buildPrebillData,
   isLiveItem,
-  tipCentsFor,
   type PrebillOrder,
   type PrebillOrderItem,
   type PrebillRestaurant,
@@ -74,20 +72,6 @@ const build = (
   rest: Partial<PrebillRestaurant> = {},
   opts: { waiterName?: string | null; tipPct?: number } = {},
 ) => buildPrebillData({ ...order, ...over }, { ...restaurant, ...rest }, { now: NOW, ...opts });
-
-describe("tipCentsFor", () => {
-  it("10% por defecto, redondeado al centavo", () => {
-    expect(DEFAULT_TIP_PCT).toBe(10);
-    expect(tipCentsFor(6_100_000)).toBe(610_000);
-    expect(tipCentsFor(333)).toBe(33);
-  });
-
-  it("nada sobre cero o con porcentaje inválido", () => {
-    expect(tipCentsFor(0)).toBe(0);
-    expect(tipCentsFor(-100)).toBe(0);
-    expect(tipCentsFor(1000, 0)).toBe(0);
-  });
-});
 
 describe("buildPrebillData — ítems", () => {
   it("una línea por ítem vivo, con importe de línea, modificadores y nota", () => {
@@ -234,26 +218,82 @@ describe("buildPrebillData — totales", () => {
   });
 });
 
-describe("buildPrebillData — propina sugerida", () => {
-  it("10% de lo PENDIENTE, aparte del total", () => {
+describe("buildPrebillData — propina sugerida (sobre el valor antes de impuestos)", () => {
+  // La cuenta del fixture: $61.000 con INC 8 % embebido. Bases por línea
+  // (el reparto de la factura): 2× Bandeja $49.000 → $45.370,37 y la
+  // Limonada $12.000 → $11.111,11. Sin impuesto: $56.481,48.
+  const PRE_TAX = 4_537_037 + 1_111_111;
+
+  it("la base es la de la factura: lo cobrable y su parte sin impuesto", () => {
+    const d = build();
+    expect(d.tipBase).toEqual({ chargeableCents: 6_100_000, preTaxCents: PRE_TAX });
+    // La misma suma que declara el XML (`saleLines`).
+    expect(d.embeddedTax?.baseCents).toBe(PRE_TAX);
+    expect(d.suggestedTipBaseCents).toBe(PRE_TAX);
+    // 10 % de $56.481,48 = $5.648,15 → al peso: $5.648 (antes: $6.100).
+    expect(d.suggestedTipCents).toBe(564_800);
+    expect(d.totalWithTipCents).toBe(6_100_000 + 564_800);
+  });
+
+  it("10% de la parte sin impuesto de lo PENDIENTE, aparte del total", () => {
     const d = build({
       payments: [{ status: "approved", amountCents: 2_000_000, tipCents: 0 }],
     });
     expect(d.suggestedTipPct).toBe(10);
-    expect(d.suggestedTipCents).toBe(410_000);
-    expect(d.totalWithTipCents).toBe(4_100_000 + 410_000);
+    // $41.000 pendientes × 56.481,48 / 61.000 = $37.962,96.
+    expect(d.suggestedTipBaseCents).toBe(Math.round((4_100_000 * PRE_TAX) / 6_100_000));
+    expect(d.suggestedTipBaseCents).toBe(3_796_296);
+    // 10 % = $3.796,30 → $3.796.
+    expect(d.suggestedTipCents).toBe(379_600);
+    expect(d.totalWithTipCents).toBe(4_100_000 + 379_600);
     expect(d.totalCents).toBe(6_100_000);
   });
 
   it("acepta otro porcentaje", () => {
     const d = build({}, {}, { tipPct: 15 });
-    expect(d.suggestedTipCents).toBe(915_000);
+    // 15 % de $56.481,48 = $8.472,22 → $8.472.
+    expect(d.suggestedTipCents).toBe(847_200);
+  });
+
+  it("comercio sin impuesto ⇒ la base es lo pendiente", () => {
+    const d = build({}, { salesTaxKind: "none", salesTaxPct: 0 });
+    expect(d.tipBase).toEqual({ chargeableCents: 6_100_000, preTaxCents: 6_100_000 });
+    expect(d.suggestedTipBaseCents).toBe(6_100_000);
+    expect(d.suggestedTipCents).toBe(610_000);
+  });
+
+  it("una línea libre con IVA encima: su impuesto tampoco entra a la base", () => {
+    const d = build({
+      items: [
+        ...order.items,
+        menuItem({
+          nameSnapshot: "Alquiler del salón",
+          priceCentsSnapshot: 10_000_000,
+          taxKind: "iva",
+          taxPct: 19,
+          round: null,
+        }),
+      ],
+    });
+    // $180.000 cobrables = $61.000 de carta (INC adentro) + $100.000 + IVA $19.000.
+    expect(d.tipBase).toEqual({ chargeableCents: 18_000_000, preTaxCents: PRE_TAX + 10_000_000 });
+    // 10 % de $156.481,48 = $15.648,15 → $15.648.
+    expect(d.suggestedTipCents).toBe(1_564_800);
+  });
+
+  it("con descuento del cliente, la base es la neta (la de la factura)", () => {
+    const d = build({ discountPct: 10 });
+    // $61.000 − 10 % = $54.900 cobrables; sin impuesto, $50.833,33.
+    expect(d.tipBase.chargeableCents).toBe(5_490_000);
+    expect(d.tipBase.preTaxCents).toBe(d.embeddedTax?.baseCents);
+    expect(d.suggestedTipCents).toBe(508_300);
   });
 
   it("cuenta ya cubierta ⇒ sin propina sugerida", () => {
     const d = build({
       payments: [{ status: "approved", amountCents: 6_100_000, tipCents: 0 }],
     });
+    expect(d.suggestedTipBaseCents).toBe(0);
     expect(d.suggestedTipCents).toBe(0);
     expect(d.totalWithTipCents).toBe(0);
   });

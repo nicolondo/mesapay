@@ -23,6 +23,8 @@ import {
   paidFoodCents,
 } from "@/lib/checkoutTax";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
+import { tipBaseOfItems } from "@/lib/tipBase";
+import { tipBasePolicyFor } from "@/lib/tips";
 
 export default async function OrderView({
   params,
@@ -121,8 +123,13 @@ export default async function OrderView({
   const paidCents = approvedSums?._sum.amountCents ?? 0;
   const paidTipCents = approvedSums?._sum.tipCents ?? 0;
   const paidFood = paidFoodCents(paidCents, paidTipCents);
+  // Lo cobrable incluye el impuesto que las líneas libres suman ENCIMA
+  // (`Order.taxCents`, 0 en una cuenta sólo de carta), como el subtotal que
+  // recibe el flujo de pago: si no, la previsualización y el cobro diferían
+  // justo en ese impuesto (y en la propina sobre él).
+  const chargeableCents = Math.max(0, order.subtotalCents + order.taxCents - order.discountCents);
   const outstandingCents = outstandingSubtotalCents(
-    netSubtotalCents,
+    chargeableCents,
     paidCents,
     paidTipCents,
   );
@@ -134,6 +141,18 @@ export default async function OrderView({
   });
   const locale = (await getLocale()) as Locale;
   const currency = await getCurrencyForCountry(tenant.country);
+  // Base de la propina: la cuenta partida en lo cobrable y su parte sin
+  // impuesto, con el reparto de la factura — lo mismo que recibe el flujo de
+  // pago (`PayFlow`), así la previsualización y el cobro coinciden. Ítems
+  // vivos: sin cancelar y sin ronda cancelada (como el subtotal).
+  const tipBase = isOpen
+    ? tipBaseOfItems(
+        order.items.filter((i) => i.round?.status !== "cancelled"),
+        { kind: asSalesTaxKind(tenant.salesTaxKind), pct: tenant.salesTaxPct },
+        order.discountCents,
+        tipBasePolicyFor(tenant),
+      )
+    : null;
 
   return (
     <main className="flex flex-1 flex-col px-5 py-8 max-w-2xl mx-auto w-full">
@@ -419,11 +438,12 @@ export default async function OrderView({
           orderId={order.id}
           currency={currency}
           locale={locale}
-          grossSubtotalCents={order.subtotalCents}
+          grossSubtotalCents={order.subtotalCents + order.taxCents}
           discountCents={order.discountCents}
           discountPct={order.discountPct}
           paidFoodCents={paidFood}
           baseCents={outstandingCents}
+          tipBase={tipBase}
           taxLine={
             taxLine
               ? { kind: taxLine.kind, pct: taxLine.pct, taxCents: taxLine.taxCents }

@@ -1,4 +1,4 @@
-import { MAX_TIP_PCT } from "@/lib/tips";
+import { MAX_TIP_PCT, tipCentsFor, type TipBase } from "@/lib/tips";
 
 /** Same per-payment bounds as the existing payment APIs. All values are cents. */
 export const MIN_MIXED_PAYMENT_CENTS = 100;
@@ -12,6 +12,12 @@ export type MixedPaymentBudgetInput = Readonly<{
   paidTipCents: number;
   /** Explicit account-wide choice, not a fresh percentage per payment. */
   tipPct: number;
+  /**
+   * The account split into chargeable and pre-tax (`tipBase.ts`): the tip
+   * target is `tipPct` of the PRE-TAX value, the same `tips.tipCentsFor` the
+   * other checkout modes use. null = no tax data (base = the account).
+   */
+  tipBase: TipBase | null;
 }>;
 
 export type MixedPaymentBudget = Readonly<{
@@ -51,12 +57,12 @@ function roundedRatio(numerator: bigint, denominator: bigint): number {
  * payment is offered afterward, even if the selected target was higher.
  */
 export function mixedPaymentBudget(input: MixedPaymentBudgetInput): MixedPaymentBudget {
-  const { netSubtotalCents, paidCents, paidTipCents, tipPct } = input;
+  const { netSubtotalCents, paidCents, paidTipCents, tipPct, tipBase } = input;
   if (![netSubtotalCents, paidCents, paidTipCents].every(validCents)
     || paidTipCents > paidCents || !Number.isInteger(tipPct) || tipPct < 0 || tipPct > MAX_TIP_PCT) {
     return { ok: false, error: "invalid_balance" };
   }
-  const targetTipCents = roundedRatio(BigInt(netSubtotalCents) * BigInt(tipPct), BigInt(100));
+  const targetTipCents = tipCentsFor(netSubtotalCents, tipPct, tipBase);
   const outstandingFoodCents = Math.max(0, netSubtotalCents - (paidCents - paidTipCents));
   const remainingTipCents = outstandingFoodCents === 0 ? 0 : Math.max(0, targetTipCents - paidTipCents);
   const outstandingGrossCents = outstandingFoodCents + remainingTipCents;

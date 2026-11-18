@@ -509,7 +509,7 @@
     "tipPreviewBase": "Consumo",
     "tipPreviewTip": "Propina {pct} %",
     "tipPreviewTotal": "Total con propina",
-    "tipPreviewHint": "La propina es voluntaria; podés cambiarla al pagar.",
+    "tipPreviewHint": "La propina es voluntaria; puedes cambiarla al pagar.",
     "tipPreviewSlider": "Ajustar propina",
     "preparedCancellationAdminOnly": "La preparación ya empezó. Pide ayuda al administrador para cancelar este plato."
   },
@@ -557,6 +557,7 @@
     "tipDiner": "Propina sobre tu parte",
     "noTip": "Sin propina",
     "tipLine": "Propina {pct}%",
+    "tipBaseNote": "Sobre {base}, el valor antes de impuestos.",
     "totalToChargeNow": "A cobrar ahora",
     "totalToPay": "Total a pagar",
     "totalBreakdown": "{subtotal} + {tip} propina",
@@ -1303,7 +1304,7 @@
   },
   "emailInvoice": {
     "tipNoticeTitle": "ADVERTENCIA DE PROPINA",
-    "tipNoticeBody": "POR DISPOSICION DE LA SUPERINTENDENCIA DE INDUSTRIA Y COMERCIO SE INFORMA QUE LA PROPINA ES SUGUERIDA AL CONSUMIDOR LA CUAL PODRA SER ACEPTADA, RECHAZADA O MODIFICADO POR USTED, DE ACUERDO CON SU VALORACION DEL SERVICIO PRESTADO.",
+    "tipNoticeBody": "POR DISPOSICION DE LA SUPERINTENDENCIA DE INDUSTRIA Y COMERCIO SE INFORMA QUE LA PROPINA ES SUGERIDA AL CONSUMIDOR LA CUAL PODRA SER ACEPTADA, RECHAZADA O MODIFICADA POR USTED, DE ACUERDO CON SU VALORACION DEL SERVICIO PRESTADO.",
     "subject": "Tu comprobante de {brand} — {number}",
     "docTitle": "Comprobante {number} — {brand}",
     "emailIntro": "Recibimos tu pago — acá está el comprobante. Si necesitas imprimirlo con formato de tirilla, abre el botón al final del correo.",
@@ -1379,7 +1380,8 @@
     "receiptTotal": "Total comprobante",
     "tipVoluntary": "Propina voluntaria",
     "totalToPay": "TOTAL A PAGAR",
-    "suggestedTipVoluntary": "Propina sugerida (voluntaria) {pct}%"
+    "suggestedTipVoluntary": "Propina sugerida (voluntaria) {pct}%",
+    "suggestedTipBaseNote": "Calculada sobre el valor antes de impuestos: {base}."
   },
   "emailDianInvoice": {
     "subject": "Tu factura electrónica de {brand} — {number}",

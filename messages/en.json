@@ -557,6 +557,7 @@
     "tipDiner": "Tip on your share",
     "noTip": "No tip",
     "tipLine": "Tip {pct}%",
+    "tipBaseNote": "On {base}, the amount before taxes.",
     "totalToChargeNow": "To charge now",
     "totalToPay": "Total to pay",
     "totalBreakdown": "{subtotal} + {tip} tip",
@@ -1379,7 +1380,8 @@
     "receiptTotal": "Receipt total",
     "tipVoluntary": "Voluntary tip",
     "totalToPay": "TOTAL TO PAY",
-    "suggestedTipVoluntary": "Suggested tip (voluntary) {pct}%"
+    "suggestedTipVoluntary": "Suggested tip (voluntary) {pct}%",
+    "suggestedTipBaseNote": "Calculated on the amount before taxes: {base}."
   },
   "emailDianInvoice": {
     "subject": "Your electronic invoice from {brand} — {number}",

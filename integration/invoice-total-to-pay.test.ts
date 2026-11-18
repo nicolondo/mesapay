@@ -108,6 +108,9 @@ type Body = Record<string, any>;
 
 /** $ 120.000 de consumo con impoconsumo 8 % incluido y $ 12.000 de propina. */
 const SALE = 12_000_000;
+// Propina SUGERIDA de la factura emitida antes de cobrar: 10 % del valor
+// antes de impuestos ($120.000 con INC 8 % → $111.111,11), al peso: $11.111.
+const SUGGESTED_TIP = 1_111_100;
 const TIP = 1_200_000;
 
 const tenants: string[] = [];
@@ -400,12 +403,13 @@ describe("factura emitida ANTES de cobrar (#577): la propina es la REAL de la or
   it("emitida con propina elegida (15 %): la sugerida es ésa, aparte; sin cuerpo, la de siempre", async () => {
     const order = await account();
     await issue(order.id, { suggestedTipPct: 15 });
-    expect((await shown(order.id)).paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: money(1_800_000) }]);
+    // Sobre el valor antes de impuestos: 15 % de $111.111,11 → $16.667 (antes $18.000).
+    expect((await shown(order.id)).paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 15%", amount: money(1_666_700) }]);
     const other = await account();
     await issue(other.id);
     const plain = await shown(other.id);
     expect(plain.snapshot.suggestedTipPct).toBeUndefined();
-    expect(plain.paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: money(TIP) }]);
+    expect(plain.paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: money(SUGGESTED_TIP) }]);
   });
 
   it("sin cobrar: TOTAL A PAGAR = total factura; la propina sugerida va aparte, sin sumar", async () => {
@@ -416,7 +420,10 @@ describe("factura emitida ANTES de cobrar (#577): la propina es la REAL de la or
     expect(payable).toEqual({ invoiceTotalCents: SALE, tipCents: 0, totalToPayCents: SALE });
     expect(paper.totals.at(-1)).toEqual({ label: "TOTAL A PAGAR", amount: money(SALE), strong: true });
     expect(paper.pendingRow).toEqual({ label: "Pendiente de pago", amount: money(SALE), bold: true });
-    expect(paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: money(TIP) }]);
+    // 10 % del valor ANTES de impuestos, congelado en el snapshot al emitir.
+    expect(snapshot.suggestedTipBase).toEqual({ policy: "pre_tax", chargeableCents: SALE, preTaxCents: 11_111_111 });
+    expect(paper.tipRows).toEqual([{ label: "Propina sugerida (voluntaria) 10%", amount: money(SUGGESTED_TIP) }]);
+    expect(paper.tipNotice).toContain(money(11_111_111));
   });
 
   it.each([

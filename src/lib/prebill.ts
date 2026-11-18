@@ -37,19 +37,13 @@ import {
   type RestaurantTax,
 } from "./salesTax";
 import { saleLines } from "./dian/discountedLines";
+import { tipBaseOfSale } from "./tipBase";
+import { DEFAULT_TIP_PCT, tipBaseCentsOf, tipCentsFor, type TipBase } from "./tips";
 
-/**
- * Propina sugerida por defecto: 10 %, la misma que preselecciona el
- * checkout del comensal (`PayClient`). Es una SUGERENCIA — la precuenta lo
- * dice en letras — y nunca se suma al total cobrable.
- */
-export const DEFAULT_TIP_PCT = 10;
-
-/** Propina de `pct` % sobre una base, redondeada al centavo. */
-export function tipCentsFor(baseCents: number, pct = DEFAULT_TIP_PCT): number {
-  if (!(pct > 0) || baseCents <= 0) return 0;
-  return Math.round((baseCents * pct) / 100);
-}
+// La propina sugerida es la MISMA cuenta que hace el cobro (`tips.ts`): el
+// 10 % que preselecciona el checkout, sobre el valor antes de impuestos de
+// lo pendiente. Es una SUGERENCIA — la precuenta lo dice en letras — y
+// nunca se suma al total cobrable.
 
 /** Lo mínimo de `OrderItem` que hace falta para decidir si entra y cuánto vale. */
 export type PrebillOrderItem = {
@@ -160,8 +154,19 @@ export type PrebillData = {
   totalCents: number;
   /** Porción de comida (sin propina) de los pagos ya aprobados. */
   paidCents: number;
-  /** Lo que falta pagar. Es la base de la propina sugerida. */
+  /** Lo que falta pagar. La propina sugerida va sobre su parte sin impuesto. */
   outstandingCents: number;
+  /**
+   * La cuenta partida en lo cobrable y su parte sin impuesto, con el mismo
+   * reparto por línea que la factura (`tipBase.ts`).
+   */
+  tipBase: TipBase;
+  /**
+   * Base de la propina sugerida: la parte sin impuesto de lo pendiente
+   * (`tips.tipBaseCentsOf`). Igual a `outstandingCents` en una cuenta sin
+   * impuesto.
+   */
+  suggestedTipBaseCents: number;
   suggestedTipPct: number;
   suggestedTipCents: number;
   /** Pendiente + propina sugerida: lo que el comensal vería si acepta la sugerencia. */
@@ -265,7 +270,7 @@ export function buildPrebillData(
   // repartido en las líneas: es el mismo reparto que congela la factura y
   // que declara el XML (`saleLines`), así la precuenta y la factura dicen
   // la misma base y el mismo impuesto.
-  const { embedded } = saleLines(
+  const sale = saleLines(
     live.map((i) => ({
       nameSnapshot: i.nameSnapshot,
       qty: i.qty,
@@ -277,6 +282,7 @@ export function buildPrebillData(
     tax,
     discountCents,
   );
+  const { embedded } = sale;
   const embeddedTaxCents = tax.kind === "none" ? 0 : embedded.taxCents;
   const embeddedBaseCents = embedded.baseCents;
   const netSubtotalCents = Math.max(0, grossSubtotalCents - discountCents);
@@ -291,8 +297,13 @@ export function buildPrebillData(
   }
   const outstandingCents = Math.max(0, totalCents - paidCents);
 
+  // Sobre el valor antes de impuestos de lo pendiente, con el reparto de la
+  // factura (el mismo `saleLines` de arriba): lo que el comensal ve en el
+  // cobro con el mismo % (`tips.tipCentsFor`).
+  const tipBase = tipBaseOfSale(sale);
   const suggestedTipPct = opts.tipPct ?? DEFAULT_TIP_PCT;
-  const suggestedTipCents = tipCentsFor(outstandingCents, suggestedTipPct);
+  const suggestedTipBaseCents = tipBaseCentsOf(outstandingCents, tipBase);
+  const suggestedTipCents = tipCentsFor(outstandingCents, suggestedTipPct, tipBase);
 
   return {
     businessName: restaurant.legalName?.trim() || restaurant.name,
@@ -323,6 +334,8 @@ export function buildPrebillData(
     totalCents,
     paidCents,
     outstandingCents,
+    tipBase,
+    suggestedTipBaseCents,
     suggestedTipPct,
     suggestedTipCents,
     totalWithTipCents: outstandingCents + suggestedTipCents,

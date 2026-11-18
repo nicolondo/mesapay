@@ -83,7 +83,10 @@ export type ThermalPrebill = {
   totals: ThermalPrebillRow[];
   /** "Propina sugerida 10%" y "Total con propina". Vacío si no hay nada pendiente. */
   tipRows: ThermalPrebillRow[];
-  /** "La propina es voluntaria…". null si no hay filas de propina. */
+  /**
+   * "Calculada sobre el valor antes de impuestos: $X. La propina es
+   * voluntaria…". null si no hay filas de propina.
+   */
   tipNotice: string | null;
   footerLines: string[];
 };
@@ -240,7 +243,14 @@ export function buildPrebillTicket(args: {
     })),
     totals,
     tipRows,
-    tipNotice: tipRows.length > 0 ? t("prebillTipVoluntary") : null,
+    // Con impuesto en la cuenta, el aviso dice sobre qué base va el %
+    // («sobre el valor antes de impuestos: $100.000»); sin impuesto sobra.
+    tipNotice:
+      tipRows.length > 0
+        ? d.suggestedTipBaseCents < d.outstandingCents
+          ? `${t("suggestedTipBaseNote", { base: money(d.suggestedTipBaseCents) })} ${t("prebillTipVoluntary")}`
+          : t("prebillTipVoluntary")
+        : null,
     footerLines: [t("thanks")],
   };
 }

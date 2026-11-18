@@ -8,6 +8,8 @@ import {
 } from "@/lib/invoice";
 import { orderTaxTotals, type SalesTaxKind } from "@/lib/salesTax";
 import { discountInLinesOf, saleLines } from "@/lib/dian/discountedLines";
+import { tipBaseOfSale } from "@/lib/tipBase";
+import { tipBasePolicyFor } from "@/lib/tips";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
 import { invoicePrintArgs } from "@/lib/print/routing";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
@@ -216,6 +218,10 @@ export async function issueSimpleInvoice(opts: {
   );
   const embedded = fiscal.embedded;
   const discountInLines = discountInLinesOf(fiscal);
+  // Antes de cobrar, la base de la propina sugerida queda CONGELADA con el
+  // mismo reparto de la factura (ver `InvoiceSnapshot.suggestedTipBase`).
+  const tipBasePolicy = tipBasePolicyFor();
+  const tipBase = beforePayment ? tipBaseOfSale(fiscal, tipBasePolicy) : null;
 
   const snapshot: InvoiceSnapshot = {
     restaurantName: r.name,
@@ -281,6 +287,13 @@ export async function issueSimpleInvoice(opts: {
       issuedBeforePayment: true,
       orderItemIds: order.items.map((i) => i.id),
       ...(isTipPct(opts.suggestedTipPct) && { suggestedTipPct: opts.suggestedTipPct }),
+      ...(tipBase && {
+        suggestedTipBase: {
+          policy: tipBasePolicy,
+          chargeableCents: tipBase.chargeableCents,
+          preTaxCents: tipBase.preTaxCents,
+        },
+      }),
     }),
   };
 

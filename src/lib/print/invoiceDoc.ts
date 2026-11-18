@@ -29,7 +29,7 @@
 
 import { displayOrderCode } from "@/lib/orderCode";
 import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/invoiceLines";
-import { DEFAULT_TIP_PCT, tipCentsFor } from "@/lib/prebill";
+import { DEFAULT_TIP_PCT, tipBaseCentsOf, tipCentsFor } from "@/lib/tips";
 import {
   formatInvoiceNumber,
   invoicePayableOf,
@@ -135,14 +135,31 @@ export function paymentRowsFor(
 }
 
 /**
+ * Propina sugerida de una factura emitida antes de este cambio (sin
+ * `suggestedTipBase` en el snapshot): el % sobre lo pendiente CON impuesto,
+ * redondeado al centavo — exactamente lo que imprimió entonces. Congelada:
+ * reimprimirla o abrir `/factura/[id]` no puede mostrar otra cifra.
+ */
+function legacyTipCentsWithTax(outstandingCents: number, pct: number): number {
+  if (!(pct > 0) || outstandingCents <= 0) return 0;
+  return Math.round((outstandingCents * pct) / 100);
+}
+
+/**
  * Lo que falta cobrar de una factura emitida ANTES de cobrar, y la
- * propina sugerida sobre eso (la misma regla que la precuenta: 10 %,
- * `prebill.tipCentsFor`). Pura, para el papel y la vista del navegador.
+ * propina sugerida sobre eso (la misma regla que la precuenta y el cobro:
+ * 10 % sobre el valor antes de impuestos, `tips.tipCentsFor`). Pura, para
+ * el papel y la vista del navegador.
  *
  * La factura no incluye propina (la propina no es venta: no va al XML), así
  * que lo cobrado que cuenta es la porción de COMIDA de cada pago —
  * `amountCents − tipCents`, el contrato de toda la app. null cuando la
  * factura no se emitió antes de cobrar: esas se imprimen como siempre.
+ *
+ * La base de la sugerida es la CONGELADA en el snapshot al emitir
+ * (`suggestedTipBase`): la parte sin impuesto de lo pendiente, con el
+ * reparto de la factura. Un snapshot anterior a eso no la trae y sigue
+ * sugiriendo lo que imprimió (`legacyTipCentsWithTax`).
  *
  * La propina sugerida es INFORMATIVA: se muestra aparte («Propina sugerida
  * (voluntaria) 10%») y NO se suma al TOTAL A PAGAR, que lleva sólo la
@@ -151,7 +168,7 @@ export function paymentRowsFor(
  * destacado eran dos totales grandes que no coincidían.
  */
 export function pendingPaymentOf(
-  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents" | "suggestedTipPct">,
+  snapshot: Pick<InvoiceSnapshot, "issuedBeforePayment" | "totalCents" | "suggestedTipPct" | "suggestedTipBase">,
   payments: readonly InvoicePaymentLine[],
   // La que se eligió en el cobro al emitirla (0 = «Sin propina»: ninguna
   // sugerida, en ninguna representación); sin elección, la de siempre.
@@ -161,6 +178,8 @@ export function pendingPaymentOf(
   paidFoodCents: number;
   paidTipCents: number;
   suggestedTipPct: number;
+  /** Sobre qué se calculó: la parte sin impuesto de lo pendiente, o lo pendiente (factura vieja / sin impuesto). */
+  suggestedTipBaseCents: number;
   suggestedTipCents: number;
 } | null {
   if (!isIssuedBeforePayment(snapshot)) return null;
@@ -171,12 +190,19 @@ export function pendingPaymentOf(
     paidTipCents += Math.max(0, p.tipCents);
   }
   const outstandingCents = Math.max(0, snapshot.totalCents - paidFoodCents);
+  const frozen = snapshot.suggestedTipBase;
+  const base = frozen
+    ? { chargeableCents: frozen.chargeableCents, preTaxCents: frozen.preTaxCents }
+    : null;
   return {
     outstandingCents,
     paidFoodCents,
     paidTipCents,
     suggestedTipPct: tipPct,
-    suggestedTipCents: tipCentsFor(outstandingCents, tipPct),
+    suggestedTipBaseCents: base ? tipBaseCentsOf(outstandingCents, base) : outstandingCents,
+    suggestedTipCents: base
+      ? tipCentsFor(outstandingCents, tipPct, base)
+      : legacyTipCentsWithTax(outstandingCents, tipPct),
   };
 }
 
@@ -340,6 +366,11 @@ export function buildThermalInvoice(args: {
     paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
     paymentRows,
     ...(pending && { pendingRow, tipRows }),
+    // Sobre qué base va la sugerida, cuando la cuenta tiene impuesto: «sobre
+    // el valor antes de impuestos: $X» debajo de la fila (letra chica).
+    ...(tipRows.length > 0 && pending && pending.suggestedTipBaseCents < pending.outstandingCents && {
+      tipNotice: t("suggestedTipBaseNote", { base: money(pending.suggestedTipBaseCents) }),
+    }),
     footerLines,
     fiscal,
   };

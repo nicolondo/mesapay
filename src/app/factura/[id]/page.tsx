@@ -399,6 +399,12 @@ export default async function FacturaPage({
                   <span>{t("suggestedTipVoluntary", { pct: pending.suggestedTipPct })}</span>
                   <span className="right">{fmtCOP(pending.suggestedTipCents)}</span>
                 </div>
+                {/* Sobre qué base: la congelada al emitir (ver `pendingPaymentOf`). */}
+                {pending.suggestedTipBaseCents < pending.outstandingCents && (
+                  <div className="small">
+                    {t("suggestedTipBaseNote", { base: fmtCOP(pending.suggestedTipBaseCents) })}
+                  </div>
+                )}
               </div>
             </>
           )}

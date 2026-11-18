@@ -21,7 +21,8 @@ import {
   simpleInvoiceEmailFrom,
 } from "@/lib/simpleInvoiceRequest";
 import { asSalesTaxKind } from "@/lib/checkoutTax";
-import { parseTipPct } from "@/lib/tips";
+import { parseTipPct, tipBasePolicyFor } from "@/lib/tips";
+import { tipBaseOfItems } from "@/lib/tipBase";
 import { loadCustomerCreditSummary } from "@/lib/customerCredit";
 import { normalizeCustomerDocument } from "@/lib/customerDocument";
 import type { PayCustomer } from "./PayClient";
@@ -364,6 +365,16 @@ export async function PayFlow({
         pct: tenant.salesTaxPct,
       }}
       initialTipPct={payLinkMode ? 0 : parseTipPct(tip)}
+      // Base de la propina: la cuenta partida en lo cobrable y su parte sin
+      // impuesto, con el reparto de la factura (los ítems vivos de arriba,
+      // la tarifa del comercio y el descuento del cliente). La pantalla
+      // prorratea con ella lo que se paga en cada modo (`tips.tipCentsFor`).
+      tipBase={tipBaseOfItems(
+        order.items,
+        { kind: asSalesTaxKind(tenant.salesTaxKind), pct: tenant.salesTaxPct },
+        order.discountCents,
+        tipBasePolicyFor(tenant),
+      )}
       payLinkMode={payLinkMode}
       manualInvoice={manualInvoice}
       pendingPayments={pendingPayments}

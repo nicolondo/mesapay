@@ -557,6 +557,7 @@
     "tipDiner": "Gorjeta sobre sua parte",
     "noTip": "Sem gorjeta",
     "tipLine": "Gorjeta {pct}%",
+    "tipBaseNote": "Sobre {base}, o valor antes dos impostos.",
     "totalToChargeNow": "A cobrar agora",
     "totalToPay": "Total a pagar",
     "totalBreakdown": "{subtotal} + {tip} de gorjeta",
@@ -1379,7 +1380,8 @@
     "receiptTotal": "Total do comprovante",
     "tipVoluntary": "Gorjeta voluntária",
     "totalToPay": "TOTAL A PAGAR",
-    "suggestedTipVoluntary": "Gorjeta sugerida (voluntária) {pct}%"
+    "suggestedTipVoluntary": "Gorjeta sugerida (voluntária) {pct}%",
+    "suggestedTipBaseNote": "Calculada sobre o valor antes dos impostos: {base}."
   },
   "emailDianInvoice": {
     "subject": "Sua nota fiscal eletrônica de {brand} — {number}",

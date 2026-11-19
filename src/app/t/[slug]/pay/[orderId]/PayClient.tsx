@@ -62,6 +62,15 @@ import {
   tipStorageKey,
   type TipBase,
 } from "@/lib/tips";
+// Cobro EN SERIE de la cuenta dividida (sólo staff): el estado vive en
+// useSerialCharge + lib/payments/serialCharge; acá sólo se conecta.
+import {
+  serialEqualPartCents,
+  type SerialMethod,
+  type SerialMode,
+} from "@/lib/payments/serialCharge";
+import { useSerialCharge } from "./useSerialCharge";
+import { SerialChargeCard } from "./SerialChargeCard";
 
 type PayItem = {
   id: string;
@@ -439,10 +448,15 @@ export function PayClient({
 
   function paymentConfirmed(paid: boolean) {
     if (paid) {
+      // Cuenta en cero: recién ahora se va a "listo" (y el plan del cobro
+      // en serie ya no sirve).
+      serial.clear();
       router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
       return;
     }
-    setPaymentNotice(true);
+    // Con la cuenta dividida en serie, el avance lo cuenta su tarjeta
+    // («Pago k de n aprobado»); el aviso genérico es para los demás modos.
+    if (!serialMode) setPaymentNotice(true);
     setFocusPayment("summary");
     setMixedInput(null);
     setUseRemainder(true);
@@ -503,6 +517,65 @@ export function PayClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Cobro EN SERIE (sólo staff) ─────────────────────────────────────────
+  // Cuando la cuenta se divide (partes iguales / individual), cada pago
+  // aprobado NO reinicia el flujo: se queda acá, avanza a la parte siguiente
+  // y ofrece repetir el mismo método con un toque. El plan (partes, cuál va,
+  // comensales pagados, último método) vive en useSerialCharge; la verdad del
+  // saldo y de cada pago es siempre del servidor (approvedPayments /
+  // pendingPayments re-renderizados en cada refresh).
+  const serialMode: SerialMode | null =
+    operatorMode && !payLinkMode && mode !== "mixed"
+      ? mode === "equal" ? "equal" : mode === "mine" ? "mine" : null
+      : null;
+  const serial = useSerialCharge({
+    orderId,
+    enabled: operatorMode && !payLinkMode,
+    alreadyPaid,
+    approvedPayments,
+    pendingPaymentIds: pendingPayments.map((p) => p.id),
+    onRestored: (plan) => {
+      // La pestaña se cerró a mitad del cobro dividido: se retoma el modo y
+      // las partes tal como quedaron (el saldo llega del servidor). El modo
+      // mixto guardado tiene prioridad (su propio restore ya corre).
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(`mesapay.mixed.${orderId}`) || "null");
+        if (saved?.enabled === true) return;
+      } catch { /* Storage es opcional. */ }
+      startTransition(() => {
+        setMode(plan.mode);
+        if (plan.mode === "equal") setSplitCount(plan.splitCount);
+      });
+    },
+    onPartApproved: () => {
+      // Propina POR PAGO: la parte siguiente re-ofrece el selector para su
+      // pagador, con el mismo cálculo centavo a centavo de siempre.
+      startTransition(() => setTipPct(initialTipPct ?? DEFAULT_TIP_PCT));
+    },
+  });
+  // Comensales ya cobrados del modo individual: chip marcado y, cuando el
+  // elegido quedó pagado, se pasa solo al siguiente pendiente.
+  const serialGuestsPaid = serial.plan?.mode === "mine" ? serial.plan.guestsPaid : [];
+  const serialGuestsPaidKey = serialGuestsPaid.join(" ");
+  useEffect(() => {
+    if (!operatorMode || mode !== "mine" || !serialGuestsPaid.includes(myGuest)) return;
+    const nextGuest = guestTotals.find((g) => !serialGuestsPaid.includes(g.name));
+    if (nextGuest) startTransition(() => setMyGuest(nextGuest.name));
+    // serialGuestsPaidKey representa la lista; el resto no debe re-disparar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serialGuestsPaidKey, mode, operatorMode]);
+  // Partes ya cobradas del plan de partes iguales (0 sin plan).
+  const serialPartsDone = serial.plan?.mode === "equal" ? serial.plan.partsDone : 0;
+  // No se puede dejar el plan con menos partes que las ya cobradas.
+  const minSplitCount = Math.max(2, serialPartsDone + 1);
+  useEffect(() => {
+    if (serial.plan?.mode === "equal" && serial.plan.splitCount !== splitCount && splitCount >= minSplitCount) {
+      serial.setSplitCount(splitCount);
+    }
+    // Sincroniza el plan cuando el staff cambia "entre cuántos".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitCount]);
+
   // Propina elegida antes, para ESTA cuenta, en el estado del pedido (o acá
   // mismo antes de recargar): se retoma al montar. Pisa al `?tip=` de la
   // URL y al default. Solo flujo de cliente: el staff cobra por otros.
@@ -554,9 +627,15 @@ export function PayClient({
   const mixedAllocation = allocateMixedPayment(mixedBudget, mixedValue === "" ? null : Math.round(Number(mixedValue) * 100));
   const amountSubtotal = mixed
     ? mixedAllocation.ok ? mixedAllocation.foodCents : 0
-    : payModeSubtotalCents(mode === "mixed" ? "full" : mode, outstandingSubtotalCents, {
-      splitCount, mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
-    });
+    : operatorMode && mode === "equal"
+      // Partes iguales del STAFF en serie: la parte que sigue es el saldo
+      // REAL entre las partes que faltan — y la última cobra EXACTO el
+      // saldo (nada de dejar $1 por redondeo). El comensal conserva su
+      // aritmética de siempre (payModeSubtotalCents).
+      ? serialEqualPartCents(outstandingSubtotalCents, splitCount, serialPartsDone)
+      : payModeSubtotalCents(mode === "mixed" ? "full" : mode, outstandingSubtotalCents, {
+        splitCount, mineCents: guestTotals.find((g) => g.name === myGuest)?.cents ?? 0,
+      });
   // El % va sobre el valor ANTES de impuestos de lo que se paga (la parte
   // proporcional sin impuesto de la cuenta), al peso — la misma función de
   // la previsualización, la precuenta y la factura.
@@ -579,6 +658,35 @@ export function PayClient({
   // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
   // pagando de comida en este modo. La propina no lleva impuesto.
   const taxLine = checkoutTaxLine(amountSubtotal, salesTax);
+
+  // «Cobrar siguiente» repite el MISMO método del pago anterior — sólo si
+  // ese método sigue disponible ahora mismo (y no hay otro cobro en curso,
+  // que ya sale arriba con sus propias acciones).
+  const serialRepeatMethod: SerialMethod | null = (() => {
+    if (!serialMode || pendingPayments.length > 0) return null;
+    const m = serial.plan?.lastMethod ?? null;
+    if (!m || !enabledMethods.includes(m)) return null;
+    if (m === "kushki_card_terminal") {
+      return (kushkiReady || isMockMode) && kushkiTerminalAvailable &&
+        (!terminalChoice.needsPicker || terminalChoice.selected)
+        ? m
+        : null;
+    }
+    if (m === "kushki_bre_b") return currency === "COP" ? m : null;
+    return m;
+  })();
+
+  // Un toque: la parte siguiente ya trae su monto; acá sólo se repite el
+  // método (el efectivo abre su hoja de siempre — el recibido/vuelto no se
+  // inventa).
+  function serialChargeNext(method: SerialMethod) {
+    if (chargeDisabled) return;
+    setErr(null);
+    if (method === "cash") { setCashTenderOpen(true); return; }
+    if (method === "external_terminal") { void payWithExternalTerminal(); return; }
+    if (method === "kushki_card_terminal") { void payWithTerminal(); return; }
+    void payWithBreB();
+  }
 
   /**
    * Apple Pay — el token real viene del SDK de Kushki vía
@@ -706,6 +814,19 @@ export function PayClient({
         return;
       }
 
+      // Cuenta dividida en serie: se anota el cobro lanzado ANTES de salir a
+      // la espera del datáfono. Al volver (aprobado o rechazado), la
+      // reconciliación avanza la parte o la deja para reintentar.
+      if (operatorMode) {
+        serial.chargeLaunched({
+          mode: serialMode,
+          splitCount,
+          method: "kushki_card_terminal",
+          paymentId: j.paymentId,
+          guest: mode === "mine" ? myGuest || null : null,
+        });
+      }
+
       // Staff con el datáfono elegido (o el único del comercio): el cobro
       // va directo a ese equipo, sin pasar por Salón. Quien cobra ya está
       // en la mesa con el datáfono en la mano.
@@ -782,15 +903,26 @@ export function PayClient({
         return;
       }
       if (mixed) { setMixedInput(null); setUseRemainder(true); setFocusPayment("pending"); refreshBalance(); return; }
-      // Mismo destino que el flujo de terminal de Kushki: el cliente
-      // ve la pantalla "esperando" hasta que el mesero confirma desde
-      // Salón. Bandera external=1 para que la pantalla diga "datáfono
+      if (operatorMode) {
+        // El staff se queda ACÁ: la solicitud sale arriba con "Confirmar
+        // pago recibido" (como en el modo mixto), en vez de rebotar a Salón
+        // y rearmar el cobro. Con la cuenta dividida, al confirmarse avanza
+        // la parte siguiente.
+        serial.chargeLaunched({
+          mode: serialMode,
+          splitCount,
+          method: "external_terminal",
+          paymentId: j.paymentId,
+          guest: mode === "mine" ? myGuest || null : null,
+        });
+        setFocusPayment("pending");
+        refreshBalance();
+        return;
+      }
+      // El comensal ve la pantalla "esperando" hasta que el mesero confirma
+      // desde Salón. Bandera external=1 para que la pantalla diga "datáfono
       // del comercio" en vez de "Smart POS".
-      router.push(
-        operatorMode
-          ? staffServeHref
-          : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`,
-      );
+      router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`);
     } catch {
       setErr(t("mixed.checkStatus"));
       refreshBalance();
@@ -902,6 +1034,17 @@ export function PayClient({
       }
       breBAttempt.current = null;
       try { sessionStorage.setItem(breBStorageKey(orderId), j.paymentId); } catch { /* Storage is optional. */ }
+      // Cuenta dividida en serie: el QR lanzado queda anotado; al aprobarse
+      // avanza la parte, y si se cancela o vence queda para reintentarla.
+      if (operatorMode) {
+        serial.chargeLaunched({
+          mode: serialMode,
+          splitCount,
+          method: "kushki_bre_b",
+          paymentId: j.paymentId,
+          guest: mode === "mine" ? myGuest || null : null,
+        });
+      }
       setBreB({ paymentId: j.paymentId, initial: j.charge as BreBChargeView });
     } catch {
       // Sin respuesta: se conserva la llave para que reintentar no cree otro cobro.
@@ -930,8 +1073,21 @@ export function PayClient({
     const paymentId = breB?.paymentId ?? view.paymentId ?? "";
     forgetBreB();
     // El staff sigue el camino de siempre (cuenta pagada → recibo; pago
-    // parcial o mixto → aviso y saldo actualizado).
-    if (operatorMode) { paymentConfirmed(view.orderPaid); return; }
+    // parcial o mixto → aviso y saldo actualizado). Con la cuenta dividida
+    // en serie, el aprobado avanza la parte en el acto.
+    if (operatorMode) {
+      serial.chargeApproved({
+        mode: serialMode,
+        splitCount,
+        method: "kushki_bre_b",
+        paymentId,
+        amountCents: 0,
+        paid: view.orderPaid,
+        guest: mode === "mine" ? myGuest || null : null,
+      });
+      paymentConfirmed(view.orderPaid);
+      return;
+    }
     router.push(`/t/${tenantSlug}/pay/${orderId}/done?pid=${encodeURIComponent(paymentId)}`);
   }
 
@@ -986,7 +1142,20 @@ export function PayClient({
       setCashUncertain(false);
       if (operatorMode) {
         if (mixed) { paymentConfirmed(j.paid === true); return; }
-        router.push(doneHref || `/t/${tenantSlug}/pay/${orderId}/done?op=1`);
+        // El efectivo del staff queda aprobado en el acto: se anota en el
+        // plan del cobro en serie y, si la cuenta NO quedó en cero, el flujo
+        // se queda acá listo para la parte siguiente (paymentConfirmed sólo
+        // navega a "listo" con la cuenta saldada).
+        serial.chargeApproved({
+          mode: serialMode,
+          splitCount,
+          method: "cash",
+          paymentId: j.paymentId,
+          amountCents: attempt.body.amountCents,
+          paid: j.paid === true,
+          guest: mode === "mine" ? myGuest || null : null,
+        });
+        paymentConfirmed(j.paid === true);
         return;
       }
       if (j.pending) router.push(`/t/${tenantSlug}/pay/${orderId}/cash?pid=${j.paymentId}`);
@@ -1187,7 +1356,9 @@ export function PayClient({
             serviceMode={serviceMode}
             onConfirmed={({ paid }) => paymentConfirmed(paid)}
             onRefresh={refreshBalance}
-            onDeclined={mixed ? () => { setFocusPayment("summary"); refreshBalance(); } : undefined}
+            // También en el cobro en serie: «No se recibió este pago» declina
+            // la solicitud y la reconciliación ofrece reintentar ESA parte.
+            onDeclined={mixed || serialMode ? () => { setFocusPayment("summary"); refreshBalance(); } : undefined}
             onCancelled={refreshBalance}
             canResolveTerminal={canResolveTerminal}
             disabled={interactionLocked}
@@ -1195,6 +1366,24 @@ export function PayClient({
             terminalDeviceId={terminalChoice.selected?.id ?? null}
           />
         </div>
+      )}
+
+      {/* Avance del cobro EN SERIE (cuenta dividida del staff): «Pago k de n
+          aprobado · Pagado $X · Faltan $Y», con «Cobrar siguiente» que repite
+          el método anterior con el monto de la parte que sigue. */}
+      {operatorMode && !payLinkMode && !mixed && (
+        <SerialChargeCard
+          plan={serial.plan}
+          event={serial.event}
+          paidFoodCents={paidFoodCents}
+          outstandingFoodCents={outstandingSubtotalCents}
+          nextAmountCents={amountCents}
+          currency={currency}
+          repeatMethod={serialRepeatMethod}
+          chargeBusy={interactionLocked}
+          onChargeNext={serialChargeNext}
+          onDismiss={serial.dismissEvent}
+        />
       )}
 
       {/* Resumen del pedido — solo en modo mesero. El mesero le pasa
@@ -1347,24 +1536,35 @@ export function PayClient({
         payments={approvedPayments} disabled={interactionLocked} pending={pendingBlocksMixed} inFlight={pendingPayments.some(p => !p.replaceable)} currency={currency} /></div>}
 
       {mode === "equal" && (
-        <div className="mt-4 flex items-center justify-between bg-paper border border-hairline rounded-xl px-4 py-3">
-          <div className="text-sm">{t("splitBetween")}</div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSplitCount((n) => Math.max(2, n - 1))}
-              className="w-8 h-8 rounded-full border border-hairline"
-            >
-              −
-            </button>
-            <div className="font-mono w-6 text-center tabular">{splitCount}</div>
-            <button
-              onClick={() => setSplitCount((n) => Math.min(20, n + 1))}
-              className="w-8 h-8 rounded-full border border-hairline"
-            >
-              +
-            </button>
-            <span className="text-sm text-muted ml-1">{t("people")}</span>
+        <div className="mt-4 bg-paper border border-hairline rounded-xl px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm">{t("splitBetween")}</div>
+            <div className="flex items-center gap-2">
+              <button
+                // Con partes ya cobradas, no se puede bajar de lo cobrado + 1.
+                onClick={() => setSplitCount((n) => Math.max(minSplitCount, n - 1))}
+                className="w-8 h-8 rounded-full border border-hairline"
+              >
+                −
+              </button>
+              <div className="font-mono w-6 text-center tabular">{splitCount}</div>
+              <button
+                onClick={() => setSplitCount((n) => Math.min(20, n + 1))}
+                className="w-8 h-8 rounded-full border border-hairline"
+              >
+                +
+              </button>
+              <span className="text-sm text-muted ml-1">{t("people")}</span>
+            </div>
           </div>
+          {operatorMode && serialPartsDone > 0 && (
+            <p className="mt-1.5 text-xs text-muted" data-testid="serial-part-progress">
+              {t("serial.partProgress", {
+                k: Math.min(serialPartsDone + 1, splitCount),
+                n: splitCount,
+              })}
+            </p>
+          )}
         </div>
       )}
 
@@ -1376,25 +1576,31 @@ export function PayClient({
           <div className="flex gap-2 flex-wrap">
             {guestTotals.map((g) => {
               const active = g.name === myGuest;
+              // Cobro en serie del staff: el comensal ya cobrado queda
+              // marcado y no se vuelve a elegir (no se le cobra dos veces).
+              const paid = serialGuestsPaid.includes(g.name);
               return (
                 <button
                   key={g.name}
-                  onClick={() => setMyGuest(g.name)}
+                  onClick={() => !paid && setMyGuest(g.name)}
+                  disabled={paid}
                   className={
                     "h-10 px-4 rounded-full text-sm border inline-flex items-center gap-2 " +
-                    (active
-                      ? "bg-ink text-bone border-ink"
-                      : "bg-paper text-ink border-hairline")
+                    (paid
+                      ? "bg-ivory text-muted border-hairline line-through"
+                      : active
+                        ? "bg-ink text-bone border-ink"
+                        : "bg-paper text-ink border-hairline")
                   }
                 >
                   <span>{g.name}</span>
                   <span
                     className={
                       "font-mono tabular text-xs " +
-                      (active ? "opacity-70" : "text-muted")
+                      (active && !paid ? "opacity-70" : "text-muted")
                     }
                   >
-                    {fmtCOP(g.cents)}
+                    {paid ? t("serial.guestPaid") : fmtCOP(g.cents)}
                   </span>
                 </button>
               );
@@ -1441,7 +1647,7 @@ export function PayClient({
           <Row
             label={
               mixed ? t("mixed.foodPart") : operatorMode
-                ? t("rowToChargeN", { n: splitCount })
+                ? t("rowToChargeN", { k: Math.min(serialPartsDone + 1, splitCount), n: splitCount })
                 : mode === "equal"
                   ? t("rowYourPartN", { n: splitCount })
                   : t("rowOf", { name: myGuest || t("you") })

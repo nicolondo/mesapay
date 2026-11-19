@@ -114,13 +114,13 @@ for (const scenario of [
     expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).not.toBe("paid");
     const recorded = await db.payment.findUniqueOrThrow({ where: { id: first.paymentId } });
     expect(recorded).toMatchObject({ method: "cash", amountCents: 3_000_000, tipCents: 272_727, cashTenderCents: 5_000_000, collectedByUserId: f.user.id });
-    await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80.000");
+    await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80,000");
     await expect(page.getByRole("region", { name: "Pagos de la cuenta", exact: true })).toContainText("Efectivo");
     // Reload must preserve the chosen account tip and the mixed-payment workflow.
     await page.reload();
     await expect(page.getByLabel("Importe de este pago", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Cobrar saldo restante", exact: true }).click();
-    await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80.000");
+    await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80,000");
     await noOverflow(page);
     await page.screenshot({ path: info.outputPath("mixed-cash-remainder.png"), fullPage: true });
     const requested = page.waitForResponse(response => response.url().endsWith("/pay/external-terminal-request") && response.request().method() === "POST");
@@ -173,7 +173,7 @@ test("invalid amounts cannot charge or create payment requests", async ({ page }
   }
   expect(await db.payment.count({ where: { orderId: f.order.id } })).toBe(0);
   await page.getByRole("button", { name: "Cobrar saldo restante", exact: true }).click();
-  await expect(amount).toHaveValue("110.000");
+  await expect(amount).toHaveValue("110,000");
   await expect(page.getByRole("button", { name: /^Recibir en efectivo ·/ })).toBeEnabled();
 });
 
@@ -205,7 +205,7 @@ test("a declined external request can be replaced, then its approved partial lea
   expect(approved.ok()).toBe(true);
   expect(await approved.json()).toMatchObject({ paid: false });
   await expect(page).toHaveURL(`${application.origin}${f.checkout}`);
-  await expect(amount).toHaveValue("70.000");
+  await expect(amount).toHaveValue("70,000");
   expect(await db.simpleInvoice.count({ where: { orderId: f.order.id } })).toBe(0);
   expect((await cash(page, "70000")).paid).toBe(true);
   await expect(page).toHaveURL(/\/done(?:\?|$)/);
@@ -225,7 +225,7 @@ test("a selected zero tip survives reload after a partial and never adds a secon
   await page.reload();
   await expect(page.getByLabel("Importe de este pago", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Cobrar saldo restante", exact: true }).click();
-  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("75.000");
+  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("75,000");
   expect((await cash(page, "75000")).paid).toBe(true);
   await expect(page).toHaveURL(/\/done(?:\?|$)/);
   const approved = await db.payment.findMany({ where: { orderId: f.order.id, status: "approved" } });
@@ -265,7 +265,7 @@ test("a lost cash response retries the original amount and identity without coll
   const verified = await verifying;
   expect(verified.ok()).toBe(true);
   expect(await verified.json()).toMatchObject({ paid: false, paymentId: savedPaymentId });
-  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80.000");
+  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("80,000");
   await expect(page.getByRole("button", { name: /^Recibir en efectivo ·/ })).toBeEnabled();
   expect(attempts).toHaveLength(2);
   expect(attempts[0].key).toBeTruthy();
@@ -280,12 +280,12 @@ test("fractional cash explicitly displays its rounding tip and leaves an exact t
   const f = await fixture(page);
   await chooseMixed(page);
   await page.getByRole("button", { name: "Sin propina", exact: true }).click();
-  await page.getByLabel("Importe de este pago", { exact: true }).fill("30000,50");
+  await page.getByLabel("Importe de este pago", { exact: true }).fill("30000.50");
   await page.getByRole("button", { name: /^Recibir en efectivo ·/ }).click();
-  await expect(page.getByLabel("Recibido del cliente", { exact: true })).toHaveValue("30.001");
-  await expect(page.getByText(/^Propina por vuelto:/)).toContainText("0,50");
+  await expect(page.getByLabel("Recibido del cliente", { exact: true })).toHaveValue("30,001");
+  await expect(page.getByText(/^Propina por vuelto:/)).toContainText("0.50");
   await expect(page.getByText("Sin propina por vuelto.", { exact: true })).toHaveCount(0);
-  const confirming = page.getByRole("button", { name: "Confirmar cobro · $30.001", exact: true });
+  const confirming = page.getByRole("button", { name: "Confirmar cobro · $30,001", exact: true });
   await expect(confirming).toBeEnabled();
   await page.screenshot({ path: info.outputPath("fractional-cash-rounding-disclosed.png"), fullPage: true });
   const recording = page.waitForResponse(response => response.url().endsWith("/pay") && response.request().method() === "POST");
@@ -293,7 +293,7 @@ test("fractional cash explicitly displays its rounding tip and leaves an exact t
   const recorded = await recording;
   expect(recorded.ok()).toBe(true);
   expect(await recorded.json()).toMatchObject({ paid: false });
-  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("69.999,5");
+  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("69,999.5");
   const first = await db.payment.findFirstOrThrow({ where: { orderId: f.order.id, method: "cash", status: "approved" } });
   expect(first).toMatchObject({ amountCents: 3_000_100, tipCents: 50, cashTenderCents: 3_000_100 });
   const requesting = page.waitForResponse(response => response.url().endsWith("/pay/external-terminal-request") && response.request().method() === "POST");
@@ -301,8 +301,8 @@ test("fractional cash explicitly displays its rounding tip and leaves an exact t
   expect((await requesting).ok()).toBe(true);
   const confirmExternal = page.getByRole("button", { name: "Confirmar pago recibido", exact: true });
   await expect(confirmExternal).toBeVisible();
-  await expect(confirmExternal.locator("..").getByText(/^\$\s*69\.999,50$/)).toBeVisible();
-  await expect(confirmExternal.locator("..")).not.toContainText("70.000");
+  await expect(confirmExternal.locator("..").getByText(/^\$\s*69,999\.50$/)).toBeVisible();
+  await expect(confirmExternal.locator("..")).not.toContainText("70,000");
   const last = await db.payment.findFirstOrThrow({ where: { orderId: f.order.id, status: "pending" } });
   expect(last).toMatchObject({ amountCents: 6_999_950, tipCents: 0, method: "external_terminal" });
   const settling = page.waitForResponse(response => response.url().includes("/settle-external-terminal") && response.request().method() === "POST");
@@ -339,7 +339,7 @@ test("a lost external confirmation refreshes the approved partial without collec
   const remaining = page.getByRole("button", { name: "Cobrar saldo restante", exact: true });
   await expect(remaining).toBeEnabled();
   await remaining.click();
-  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("70.000");
+  await expect(page.getByLabel("Importe de este pago", { exact: true })).toHaveValue("70,000");
   expect(attempts).toBe(1);
   expect(await db.payment.count({ where: { orderId: f.order.id } })).toBe(1);
   expect(await db.simpleInvoice.count({ where: { orderId: f.order.id } })).toBe(0);
@@ -360,6 +360,11 @@ test("a lost Smart POS request reveals the in-flight reservation and blocks anot
     enabledPaymentMethods: ["cash", "external_terminal", "kushki_card_terminal"],
     kushkiMerchantId: `isolated-fixture-${f.restaurant.id}`, kushkiOnboardingStatus: "active", kushkiMode: "mock",
   } });
+  // Desde #526 los datáfonos son del comercio: sin un equipo activo el
+  // método no se ofrece. Mock: no necesita serial.
+  await db.terminalDevice.create({ data: {
+    restaurantId: f.restaurant.id, kushkiDeviceId: `mock-device-${f.restaurant.id}`, label: "Caja",
+  } });
   await page.reload();
   await chooseMixed(page);
   await page.getByLabel("Importe de este pago", { exact: true }).fill("40000");
@@ -379,8 +384,11 @@ test("a lost Smart POS request reveals the in-flight reservation and blocks anot
     await route.abort("failed");
   });
   await page.getByRole("button", { name: /^Cobrar con datáfono ·/ }).click();
-  await expect(page.getByText("Pago en línea en curso", { exact: true })).toBeVisible();
+  // Desde #522 la solicitud que nunca se envió al equipo queda como pedido
+  // reemplazable (se cancela o se reemplaza), no como pago en línea en curso.
+  await expect(page.getByText("Datáfono Kushki pedido, sin enviar", { exact: true })).toBeVisible();
   await expect(page.getByText("Datáfono Kushki", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancelar solicitud", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Recibir en efectivo ·/ })).toBeDisabled();
   await expect(page.getByRole("button", { name: /^Cobrar con datáfono del comercio ·/ })).toBeDisabled();
   await expect(page.getByLabel("Importe de este pago", { exact: true })).toBeDisabled();

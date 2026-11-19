@@ -549,7 +549,7 @@
     "rowYourBillOp": "A conta",
     "rowPaidFood": "Pago em comida",
     "rowOwedFood": "Falta de comida",
-    "rowToChargeN": "A cobrar (1 de {n})",
+    "rowToChargeN": "A cobrar ({k} de {n})",
     "rowYourPartN": "Sua parte (1 de {n})",
     "rowOf": "De {name}",
     "you": "você",
@@ -756,7 +756,24 @@
     "terminalCanceledTitle": "A cobrança foi cancelada na maquininha",
     "terminalCanceledBody": "Nada foi cobrado. Escolha como pagar ou peça ao garçom para passar o cartão de novo.",
     "btnBreB": "Pagar com Bre-B (QR)",
-    "opBtnBreB": "Cobrar com Bre-B (QR)"
+    "opBtnBreB": "Cobrar com Bre-B (QR)",
+    "serial": {
+      "approvedTitle": "Pagamento {k} de {n} aprovado",
+      "approvedGuestTitle": "Pagamento de {name} aprovado",
+      "approvedAmount": "Recebemos {amount}.",
+      "declinedTitle": "O pagamento desta parte não foi aprovado",
+      "declinedGuestTitle": "O pagamento de {name} não foi aprovado",
+      "declinedBody": "Nada foi cobrado. Tente de novo com o mesmo meio ou escolha outro abaixo: o valor desta parte continua igual.",
+      "balanceChanged": "Entrou outro pagamento de {amount}. O saldo e as partes já foram ajustados.",
+      "progressTitle": "Cobrança dividida em andamento",
+      "progressLine": "Pago {paid} · Faltam {left}",
+      "partsLeft": "{count, plural, one {falta # parte} other {faltam # partes}}",
+      "chargeNext": "Cobrar a próxima · {amount}",
+      "retry": "Tentar de novo · {amount}",
+      "repeatMethod": "Com {method} — para mudar, escolha outro meio abaixo.",
+      "partProgress": "Agora vai a parte {k} de {n}.",
+      "guestPaid": "pago"
+    }
   },
   "done": {
     "methodCard": "Cartão",

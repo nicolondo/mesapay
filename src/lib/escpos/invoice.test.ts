@@ -339,32 +339,37 @@ describe("renderInvoice — factura electrónica (bloque fiscal)", () => {
     expect(paper.replace(/\n/g, "")).toContain(VERIFY);
   });
 
-  /** Los renglones desde "CUFE: …" hasta el de la URL: el CUFE partido. */
+  /** El rótulo "CUFE:" y los renglones del CUFE partido, hasta la URL. */
   function cufeRows(inv: ThermalInvoice) {
     const rows = readPaper(renderInvoice(inv)).rows;
-    const start = rows.findIndex((r) => r.text.startsWith("CUFE: "));
+    const start = rows.findIndex((r) => r.text === "CUFE:");
     expect(start).toBeGreaterThanOrEqual(0);
     const end = rows.findIndex((r, i) => i > start && r.text.startsWith("Consulta"));
     expect(end).toBeGreaterThan(start);
     return rows.slice(start, end);
   }
 
-  it("el CUFE sale completo, pegado a su rótulo, en fuente chica, partido en renglones", () => {
-    // "CUFE: " + 96 hex = 102 caracteres: en 80mm son 2 renglones de 64.
+  it("el CUFE sale completo: rótulo en su renglón y grupos de 8 que no se parten", () => {
+    // 96 hex = 12 grupos de 8; en 80mm (fuente B, 64 col) son 2 renglones
+    // de 7 y 5 grupos debajo del rótulo.
     const rows = cufeRows(electronica);
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     for (const r of rows) {
       expect(r.font).toBe("B");
       expect(r.text.length).toBeLessThanOrEqual(64);
     }
-    expect(rows.map((r) => r.text).join("")).toBe(`CUFE: ${CUFE}`);
+    // Cada grupo tiene exactamente 8 hexadecimales: ninguno quedó partido.
+    const groups = rows.slice(1).flatMap((r) => r.text.trim().split(" "));
+    expect(groups).toHaveLength(12);
+    for (const g of groups) expect(g).toMatch(/^[0-9a-f]{8}$/);
+    expect(groups.join("")).toBe(CUFE);
   });
 
-  it("en 58mm el CUFE va en 3 renglones de a lo sumo 42 columnas", () => {
+  it("en 58mm el CUFE va en 3 renglones de a lo sumo 42 columnas, en grupos enteros", () => {
     const rows = cufeRows({ ...electronica, paperWidthMm: 58 });
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4); // rótulo + 3 renglones de 4 grupos
     for (const r of rows) expect(r.text.length).toBeLessThanOrEqual(42);
-    expect(rows.map((r) => r.text).join("")).toBe(`CUFE: ${CUFE}`);
+    expect(rows.slice(1).map((r) => r.text.replace(/ /g, "")).join("")).toBe(CUFE);
   });
 
   it("el bloque fiscal va después de la forma de pago y antes del pie legal", () => {
@@ -677,5 +682,154 @@ describe("artículos repetidos — del snapshot al papel, AGRUPADOS", () => {
     expect(renderInvoice(back!).equals(renderInvoice(inv))).toBe(true);
     const plain = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: base });
     expect(plain?.items).toEqual(base.items);
+  });
+});
+
+/**
+ * El CASO DE LA FOTO del dueño (FESM, Son y Melona — con datos de
+ * muestra): plato con nombre largo entre paréntesis, 3 modificadores,
+ * descuento, propina, pago con datáfono y bloque fiscal. El snapshot es
+ * el TEXTO como lo lee el papel (`readPaper`), no el hex: lo que se
+ * protege acá es el DISEÑO — nada de palabras partidas, precio nunca
+ * entreverado con el nombre, un modificador por renglón, CUFE en grupos.
+ */
+const FOTO_CUFE = "0123456789abcdef".repeat(6);
+
+function fotoInvoice(paperWidthMm: number): ThermalInvoice {
+  return {
+    paperWidthMm,
+    businessName: "SON Y MELONA S.A.S.",
+    businessLines: [
+      "NIT 901.234.567-8",
+      "Carrera 43A # 1-50, local 102",
+      "Envigado",
+      "Tel: 604 444 5566",
+    ],
+    documentLabel: "FACTURA ELECTRÓNICA DE VENTA",
+    documentNumber: "FESM6723",
+    metaRows: [
+      { label: "Fecha", value: "12/11/26, 12:53 p. m." },
+      { label: "Mesa 4", value: "002A77" },
+    ],
+    customerLines: ["Cliente: Consumidor final"],
+    items: [
+      {
+        qty: 1,
+        name: "Plato del Día (Casero Del Dia)",
+        amount: "$ 33,900",
+        modifiers: [
+          "Opción de sopa: Fríjoles",
+          "Opción de proteína: Pollo a la parrilla",
+          "Bebida: Limonada natural",
+        ],
+      },
+    ],
+    totals: [
+      { label: "Subtotal", amount: "$ 33,900" },
+      { label: "Descuento 10%", amount: "-$ 3,390" },
+      { label: "Base gravable", amount: "$ 28,250" },
+      { label: "Incl. impoconsumo 8%", amount: "$ 2,260" },
+      { label: "Total factura", amount: "$ 30,510" },
+      { label: "Propina voluntaria", amount: "$ 2,825" },
+      { label: "TOTAL A PAGAR", amount: "$ 33,335", strong: true },
+    ],
+    paymentTitle: null,
+    paymentRows: [],
+    paymentsSection: {
+      title: "Pagos",
+      blocks: [
+        {
+          label: "Tarjeta · datáfono",
+          amount: "$ 33,335",
+          lines: ["VISA · ····4242 · Aprob. 123456", "Incluye propina $ 2,825"],
+        },
+      ],
+      totalLabel: "TOTAL PAGADO",
+      totalAmount: "$ 33,335",
+      breakdown: "Cuenta $ 30,510 · Propinas $ 2,825",
+      pending: null,
+    },
+    footerLines: [
+      "Resolución DIAN: 18764000012345 · Numeración del 1 al 100000 · Fecha de resolución 14/01/26",
+      "ADVERTENCIA DE PROPINA",
+      "POR DISPOSICION DE LA SUPERINTENDENCIA DE INDUSTRIA Y COMERCIO SE INFORMA QUE LA PROPINA ES SUGERIDA AL CONSUMIDOR LA CUAL PODRA SER ACEPTADA, RECHAZADA O MODIFICADA POR USTED, DE ACUERDO CON SU VALORACION DEL SERVICIO PRESTADO.",
+      "¡Gracias por tu visita!",
+    ],
+    fiscal: {
+      cufeLabel: "CUFE",
+      cufe: FOTO_CUFE,
+      verifyUrl:
+        "https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=" + FOTO_CUFE,
+      qr: true,
+      verifyLabel: "Consulta esta factura en la DIAN:",
+      noticeLines: ["Representación impresa de la factura electrónica de venta"],
+    },
+  };
+}
+
+describe("renderInvoice — el caso de la foto (diseño, en texto)", () => {
+  it("58mm / 32 columnas", () => {
+    expect(readable(fotoInvoice(58))).toMatchSnapshot();
+  });
+
+  it("80mm / 48 columnas", () => {
+    expect(readable(fotoInvoice(80))).toMatchSnapshot();
+  });
+
+  it("ninguna palabra queda partida a la mitad en 32 columnas", () => {
+    const text = readable(fotoInvoice(58));
+    // Las víctimas de la foto, enteras en algún renglón.
+    for (const palabra of [
+      "VENTA",
+      "PAGAR",
+      "Envigado",
+      "Opción",
+      "parrilla",
+      "SUGERIDA",
+      "factura",
+      "resolución",
+    ]) {
+      expect(text.split("\n").some((l) => l.includes(palabra))).toBe(true);
+    }
+  });
+
+  it("cuenta pagada entre 3 con propinas distintas: bloques 1/3..3/3 y TOTAL PAGADO", () => {
+    const inv: ThermalInvoice = {
+      ...fotoInvoice(58),
+      paymentsSection: {
+        title: "Pagos",
+        blocks: [
+          {
+            label: "1/3 Tarjeta · datáfono",
+            amount: "$ 12,000",
+            lines: ["VISA · ····4242 · Aprob. 123456", "Incluye propina $ 1,000"],
+          },
+          {
+            label: "2/3 Efectivo",
+            amount: "$ 11,335",
+            lines: ["Recibido $ 20,000 · Vuelto $ 8,665", "Incluye propina $ 825"],
+          },
+          { label: "3/3 Billetera digital", amount: "$ 10,000", lines: ["Incluye propina $ 1,000"] },
+        ],
+        totalLabel: "TOTAL PAGADO",
+        totalAmount: "$ 33,335",
+        breakdown: "Cuenta $ 30,510 · Propinas $ 2,825",
+        pending: null,
+      },
+    };
+    expect(readable(inv)).toMatchSnapshot();
+  });
+
+  it("la sección «Pagos» sobrevive el viaje por PrintJob.payload (parse)", () => {
+    const inv = fotoInvoice(58);
+    const back = parseInvoicePayload({ v: INVOICE_PAYLOAD_VERSION, invoice: inv })!;
+    expect(back.paymentsSection).toEqual(inv.paymentsSection);
+    expect(renderInvoice(back).equals(renderInvoice(inv))).toBe(true);
+    // Una sección malformada se OMITE sin invalidar la factura.
+    const roto = parseInvoicePayload({
+      v: INVOICE_PAYLOAD_VERSION,
+      invoice: { ...inv, paymentsSection: { title: 7 } },
+    })!;
+    expect(roto.paymentsSection ?? null).toBeNull();
   });
 });

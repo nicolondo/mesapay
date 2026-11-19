@@ -31,6 +31,8 @@ import { displayOrderCode } from "@/lib/orderCode";
 import { freeLinesText, groupInvoiceLines, splitZeroValueLines } from "@/lib/invoiceLines";
 import { DEFAULT_TIP_PCT, tipBaseCentsOf, tipCentsFor } from "@/lib/tips";
 import {
+  PAYMENT_METHOD_KEY,
+  buildPaymentsSection,
   formatInvoiceNumber,
   invoicePayableOf,
   isIssuedBeforePayment,
@@ -38,6 +40,7 @@ import {
   payableRows,
   summaryLabelsFrom,
   summaryRows,
+  type InvoicePaymentDetail,
   type InvoiceSnapshot,
 } from "@/lib/invoice";
 import type {
@@ -60,37 +63,24 @@ export type InvoicePaymentLine = {
   tipCents: number;
 };
 
-/**
- * `PaymentMethod` (enum de Prisma) → clave del catálogo. Se agrupa por lo
- * que el CLIENTE reconoce, no por el riel técnico: quien paga con Apple
- * Pay y quien paga con Google Pay leen lo mismo, y a nadie le dice nada
- * que su tarjeta haya entrado por Wompi o por Kushki.
- */
-const PAYMENT_METHOD_KEY: Record<string, string> = {
-  // Efectivo: el actual (cash) y el histórico (demo_cash) son un solo renglón.
-  cash: "methodCash",
-  demo_cash: "methodCash",
-  demo_card: "methodCard",
-  wompi_card: "methodCard",
-  kushki_card: "methodCard",
-  kushki_apple_pay: "methodWallet",
-  kushki_google_pay: "methodWallet",
-  kushki_card_terminal: "methodCardTerminal",
-  external_terminal: "methodExternalTerminal",
-  wompi_pse: "methodPse",
-  kushki_pse: "methodPse",
-  kushki_bre_b: "methodBreB",
-  wompi_nequi: "methodNequi",
-  reservation_deposit: "methodDeposit",
-  voucher: "methodVoucher",
-  customer_credit: "methodCustomerCredit",
-};
+// `PAYMENT_METHOD_KEY` (PaymentMethod → clave del catálogo) vive ahora en
+// `@/lib/invoice`, junto a `buildPaymentsSection`, que también lo usa.
 
 /** Traductor mínimo — `createTranslator` de next-intl encaja tal cual. */
 export type InvoiceTranslator = (
   key: string,
   values?: Record<string, string | number>,
 ) => string;
+
+// La sección «Pagos» (tipos y armado) vive en `@/lib/invoice`, el dominio
+// puro de la factura, para que el correo (`renderInvoiceEmail`) pueda
+// usarla sin un ciclo de imports. Se re-exporta acá porque este módulo es
+// el punto de entrada natural de todo lo que imprime la factura.
+export {
+  buildPaymentsSection,
+  type InvoicePaymentDetail,
+  type PaymentsSection,
+} from "@/lib/invoice";
 
 /**
  * Lo que vuelve al documento una factura ELECTRÓNICA. `qr` es de la
@@ -224,6 +214,12 @@ export function buildThermalInvoice(args: {
    * cobrar (ver `invoicePayableOf`). Ausente = sin propina cobrada.
    */
   order?: { tipCents: number } | null;
+  /**
+   * Los mismos pagos de `payments` CON detalle (tarjeta, vuelto,
+   * referencia…): arma la sección «Pagos», que reemplaza al bloque "Forma
+   * de pago". Ausente (payloads/llamadores viejos) = el bloque de siempre.
+   */
+  paymentDetails?: InvoicePaymentDetail[] | null;
 }): ThermalInvoice {
   const { snapshot: s, money, t } = args;
   const dian = args.dian ?? null;
@@ -288,8 +284,17 @@ export function buildThermalInvoice(args: {
   // sugerida de la precuenta, voluntaria y sin sumar.
   const pending = pendingPaymentOf(s, args.payments);
   const paymentRows = paymentRowsFor(args.payments, t, money);
+  // La sección «Pagos» (un bloque por pago, con su detalle) reemplaza al
+  // bloque agregado "Forma de pago" Y a la fila "Pendiente de pago": el
+  // saldo vive dentro de la sección. Sin detalle, todo como siempre.
+  const paymentsSection =
+    args.paymentDetails && args.paymentDetails.length > 0
+      ? buildPaymentsSection(args.paymentDetails, t, money, {
+          outstandingCents: pending?.outstandingCents ?? 0,
+        })
+      : null;
   const pendingRow: ThermalInvoiceRow | null =
-    pending && pending.outstandingCents > 0
+    pending && pending.outstandingCents > 0 && !paymentsSection
       ? { label: t("paymentPending"), amount: money(pending.outstandingCents), bold: true }
       : null;
   const tipRows: ThermalInvoiceRow[] =
@@ -363,8 +368,9 @@ export function buildThermalInvoice(args: {
       itemsNote: t("freeItemsNote", { items: freeLinesText(freeItems) }),
     }),
     totals,
-    paymentTitle: paymentRows.length > 0 ? t("paymentTitle") : null,
-    paymentRows,
+    paymentTitle: !paymentsSection && paymentRows.length > 0 ? t("paymentTitle") : null,
+    paymentRows: paymentsSection ? [] : paymentRows,
+    ...(paymentsSection && { paymentsSection }),
     ...(pending && { pendingRow, tipRows }),
     // Sobre qué base va la sugerida, cuando la cuenta tiene impuesto: «sobre
     // el valor antes de impuestos: $X» debajo de la fila (letra chica).

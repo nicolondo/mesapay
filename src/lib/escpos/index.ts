@@ -22,6 +22,7 @@ export {
   type ThermalInvoiceFiscal,
   type ThermalInvoiceItem,
   type ThermalInvoiceRow,
+  type ThermalPaymentsSection,
 } from "./invoice";
 export {
   PREBILL_JOB_KIND,

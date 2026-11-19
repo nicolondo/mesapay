@@ -17,7 +17,15 @@
 import { db } from "@/lib/db";
 import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { brandedInvoiceFrom, invoiceUrlFor } from "@/lib/simpleInvoice";
-import { formatInvoiceNumber, invoicePayableOf, type InvoiceSnapshot } from "@/lib/invoice";
+import {
+  buildPaymentsSection,
+  formatInvoiceNumber,
+  invoicePayableOf,
+  type InvoiceSnapshot,
+} from "@/lib/invoice";
+import { getEmailTranslator } from "@/lib/emailIntl";
+import { formatMoney } from "@/lib/format";
+import { loadInvoicePaymentDetails } from "@/lib/print/invoicePayments";
 import { dianQrUrl } from "@/lib/dian/crypto";
 import {
   attachedDocumentFileName,
@@ -217,6 +225,30 @@ export async function sendDianInvoiceEmail(opts: {
       request,
     });
 
+    // La sección «Pagos» se arma al ENVIAR, leyendo los pagos aprobados de
+    // la orden: la aceptación de la DIAN suele llegar con la cuenta ya
+    // saldada y el correo sale con el recibo completo. Etiquetas del
+    // namespace `emailInvoice` (las mismas de la tirilla y la página).
+    const paymentDetails = await loadInvoicePaymentDetails(inv.order.id);
+    const { t: tInv, locale: invLocale } = await getEmailTranslator(
+      inv.order.locale,
+      "emailInvoice",
+    );
+    const paidFoodCents = paymentDetails.reduce(
+      (s, p) => s + Math.max(0, p.amountCents - p.tipCents),
+      0,
+    );
+    const paymentsSection = buildPaymentsSection(
+      paymentDetails,
+      (key, values) => tInv(key, values) as string,
+      (cents) => formatMoney(cents, { currency: "COP", locale: invLocale }),
+      {
+        outstandingCents: snap.issuedBeforePayment
+          ? Math.max(0, inv.totalCents - paidFoodCents)
+          : 0,
+      },
+    );
+
     const { subject, html, text } = await renderDianInvoiceEmail({
       brandName: snap.restaurantName,
       invoiceNumber,
@@ -241,6 +273,7 @@ export async function sendDianInvoiceEmail(opts: {
       issuerAddress: snap.legalAddress,
       issuerCity: snap.legalCity,
       issuerPhone: snap.legalPhone,
+      paymentsSection,
     });
 
     // Mismo remitente que la tirilla: para el comensal los dos correos

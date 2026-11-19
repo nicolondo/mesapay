@@ -4,11 +4,14 @@ vi.mock("@/lib/env", () => ({ env: { KUSHKI_BP_BUSINESS_CODE: undefined, KUSHKI_
 vi.mock("@/lib/platformConfig", () => ({ getKushkiModeSync: () => "production" }));
 import { decryptData, tokenPassword } from "./cloudTerminal";
 import {
+  buildInvoiceCommands,
   getCloudPrintJobStatus,
   printOnCloudTerminal,
   waitForCloudPrintJob,
   type CloudPrintJobState,
+  type PrintCommand,
 } from "./cloudPrint";
+import type { InvoiceSnapshot } from "@/lib/invoice";
 
 /**
  * El Print API cloud de Kushki ONE, según su contrato (2026-11-13): crear
@@ -145,5 +148,144 @@ describe("esperar el resultado real", () => {
   it("un error del sondeo no corta: se vuelve a preguntar", async () => {
     const getStatus = seq({ ok: false, error: "timeout" }, { ok: false, httpStatus: 500 }, { ok: true, status: "COMPLETED" });
     expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({ state: "completed" });
+  });
+});
+
+describe("buildInvoiceCommands — la tirilla del datáfono (55 mm)", () => {
+  const PRICE = 3_390_000;
+  const BASE = Math.round(PRICE / 1.08);
+  const TIP = Math.round(BASE * 0.1);
+  const snapshot: InvoiceSnapshot = {
+    restaurantName: "Son y Melona",
+    logoUrl: null,
+    legalName: "SON Y MELONA S.A.S.",
+    taxId: "901.234.567-8",
+    legalAddress: "Carrera 43A # 1-50, local 102",
+    legalCity: "Envigado",
+    legalPhone: "604 444 5566",
+    dianResolution: "18764000012345",
+    dianResolutionFrom: 1,
+    dianResolutionTo: 100000,
+    dianResolutionDate: "2026-01-15T00:00:00.000Z",
+    invoicePrefix: "FESM",
+    shortCode: "002A77-77C496-58E6EF-6C25C8",
+    tableLabel: "Mesa 4",
+    paidAtIso: "2026-11-12T17:53:00.000Z",
+    items: [
+      {
+        qty: 1,
+        name: "Plato del Día (Casero Del Dia)",
+        priceCents: PRICE,
+        menuItemId: "mi-1",
+        taxKind: null,
+        taxPct: null,
+        modifiers: [
+          "Opción de sopa: Fríjoles",
+          "Opción de proteína: Pollo a la parrilla",
+          "Bebida: Limonada natural",
+        ],
+        notes: null,
+      },
+    ],
+    subtotalCents: PRICE,
+    salesTaxKind: "inc",
+    salesTaxPct: 8,
+    embeddedTaxCents: PRICE - BASE,
+    embeddedBaseCents: BASE,
+    discountCents: 0,
+    tipCents: TIP,
+    totalCents: PRICE + TIP,
+    customer: null,
+  };
+
+  /**
+   * Los comandos como los dibujaría el papel del datáfono (32 columnas a
+   * tamaño 24): `columns` 2:1 reparte 21/11 y rellena con espacios; cada
+   * `text` va tal cual (ya viene envuelto por este módulo). Sirve para
+   * LEER el diseño en los asserts, no para reproducir píxeles.
+   */
+  function renderCommands(commands: PrintCommand[]): string {
+    const out: string[] = [];
+    for (const c of commands) {
+      if (c.type === "text") out.push(...c.text.replace(/\n$/, "").split("\n"));
+      else if (c.type === "columns") {
+        const [l, r] = c.columns;
+        out.push(l.text + " " + (r?.text ?? "").padStart(Math.max(0, 31 - l.text.length)));
+      } else if (c.type === "divider") out.push("-".repeat(32));
+      else if (c.type === "qr") out.push("[QR]");
+    }
+    return out.join("\n");
+  }
+
+  const commands = () =>
+    buildInvoiceCommands(
+      snapshot,
+      6723,
+      "https://mesapay.co/factura/inv-1",
+      undefined,
+      null,
+      [
+        {
+          method: "kushki_card_terminal",
+          amountCents: PRICE + TIP,
+          tipCents: TIP,
+          cardBrand: "VISA",
+          cardLast4: "4242",
+          approvalCode: "123456",
+        },
+      ],
+    );
+
+  it("snapshot del diseño en texto", () => {
+    expect(renderCommands(commands())).toMatchSnapshot();
+  });
+
+  it("ninguna palabra partida: todo texto viene pre-envuelto a su ancho", () => {
+    for (const c of commands()) {
+      if (c.type !== "text") continue;
+      const size = c.size ?? 24;
+      const cols = Math.floor((32 * 24) / size);
+      for (const l of c.text.split("\n")) {
+        expect(l.length, `"${l}" a tamaño ${size}`).toBeLessThanOrEqual(cols);
+      }
+    }
+  });
+
+  it("el nombre largo nunca comparte columna con el precio: la primera línea entra en 20 columnas", () => {
+    const cols = commands().filter((c): c is Extract<PrintCommand, { type: "columns" }> => c.type === "columns");
+    for (const c of cols) {
+      expect(c.columns[0].text.length).toBeLessThanOrEqual(20);
+    }
+    // El resto del nombre sigue en renglones `text` completos.
+    const text = renderCommands(commands());
+    expect(text).toContain("(Casero Del Dia)");
+  });
+
+  it("la fecha va en su propio renglón, entera", () => {
+    const text = renderCommands(commands());
+    const dateLine = text.split("\n").find((l) => l.includes("12:53"));
+    expect(dateLine).toBeDefined();
+    expect(dateLine).toMatch(/12\/11\/2026/);
+  });
+
+  it("modificadores: uno por renglón, sangrados y envueltos por palabra", () => {
+    const lines = renderCommands(commands()).split("\n");
+    expect(lines).toContain("   - Opción de sopa: Fríjoles");
+    expect(lines).toContain("   - Opción de proteína: Pollo a");
+    expect(lines).toContain("   la parrilla");
+    expect(lines).toContain("   - Bebida: Limonada natural");
+  });
+
+  it("la sección «Pagos» sale con el detalle de la tarjeta y el TOTAL PAGADO", () => {
+    const text = renderCommands(commands());
+    expect(text).toContain("Pagos");
+    // El detalle de la tarjeta, entero (envuelto por palabra en 32 col).
+    expect(text.replace(/\n {3}/g, " ")).toContain("VISA · ····4242 · Aprob. 123456");
+    expect(text).toContain("TOTAL PAGADO");
+  });
+
+  it("sin pagos no hay sección (como siempre)", () => {
+    const sin = buildInvoiceCommands(snapshot, 6723, "https://mesapay.co/factura/inv-1");
+    expect(renderCommands(sin)).not.toContain("TOTAL PAGADO");
   });
 });

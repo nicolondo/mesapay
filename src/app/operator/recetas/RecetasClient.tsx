@@ -30,6 +30,7 @@ import {
   liveLinesTotal,
   minQtyLabel,
   newEditLine,
+  orderDishList,
   parseLine,
   unitSymbols,
   type CostDto,
@@ -338,7 +339,7 @@ export function RecetasClient({
 
   const filtered = useMemo(() => {
     const needle = fold(q.trim());
-    return (dishes ?? []).filter((d) => {
+    const rows = (dishes ?? []).filter((d) => {
       if (cat !== "all" && d.category.id !== cat) return false;
       if (fcHighOnly) {
         const fc = dishFoodCostPct(d, tax);
@@ -351,6 +352,10 @@ export function RecetasClient({
       }
       return true;
     });
+    // Con «Food cost alto» activo, el peor primero: se ordena por el MISMO
+    // porcentaje que muestra cada fila (dishFoodCostPct). Sin el filtro, el
+    // orden habitual de la carta.
+    return orderDishList(rows, fcHighOnly, (d) => dishFoodCostPct(d, tax));
   }, [dishes, q, cat, fcHighOnly, gapsOnly, gapDishIds, tax]);
 
   // Ids visibles tras búsqueda/categoría: el panel de costos incompletos

@@ -6,9 +6,17 @@ import { useTranslations } from "next-intl";
 import type { NavEntry } from "./OperatorMobileMenu";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { Icon, routeIcon } from "@/components/ui/Icon";
+import {
+  destinationsForNav,
+  filterSearchLinks,
+  type SearchLink,
+} from "@/lib/operatorSearch";
 
 export function NavigationSearch({ items }: { items: NavEntry[] }) {
   const t = useTranslations("workspaceUi");
+  // Sin namespace: los destinos del registro traen su clave completa
+  // ("opErp.tabUnpaid") porque reusan rótulos de namespaces distintos.
+  const tAll = useTranslations();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -26,19 +34,23 @@ export function NavigationSearch({ items }: { items: NavEntry[] }) {
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
   }, []);
-  const normalize = (s: string) =>
-    s
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLocaleLowerCase();
-  const links = items.flatMap((i) =>
+  const navLinks: SearchLink[] = items.flatMap((i) =>
     "children" in i
       ? i.children.map((c) => ({ ...c, group: i.label }))
       : [{ ...i, group: t("workspace") }],
   );
-  const matches = links.filter((i) =>
-    normalize(`${i.label} ${i.group}`).includes(normalize(query.trim())),
-  );
+  // Subsecciones (pesta\u00f1as y subp\u00e1ginas) del registro central, s\u00f3lo las que
+  // cuelgan de un \u00edtem presente en ESTE men\u00fa (m\u00f3dulos; en el admin, ninguna).
+  const subLinks: SearchLink[] = destinationsForNav(
+    navLinks.map((l) => l.href),
+  ).map((dest) => ({
+    href: dest.href,
+    label: tAll(dest.labelKey),
+    group: tAll(dest.groupKey),
+    keywords: dest.keywordsKey ? tAll(dest.keywordsKey) : undefined,
+    sub: true,
+  }));
+  const matches = filterSearchLinks([...navLinks, ...subLinks], query);
   return (
     <>
       <button

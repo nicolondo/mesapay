@@ -280,7 +280,10 @@ test("workspace chart, section search and mobile drawer work with keyboard navig
   const search = page.getByRole("dialog", { name: "Ir a una sección" });
   await expect(search).toBeVisible();
   await search.getByRole("searchbox").fill("configuracion");
-  await search.getByRole("link", { name: /Configuración/ }).click();
+  // Desde el registro de subsecciones (#636) también salen las tarjetas de
+  // Configuración («Pagos — Configuración», …); la sección del menú va
+  // SIEMPRE de primera (coincidencia de rótulo + sección antes que sub).
+  await search.getByRole("link", { name: /Configuración/ }).first().click();
   await expect(page).toHaveURL(/\/operator\/settings$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page

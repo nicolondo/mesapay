@@ -30,7 +30,8 @@ import {
 } from "@/lib/print/staffPrint";
 import { isDevicePrintView } from "@/lib/print/devicePrint";
 import { PrintButton } from "./PrintButton";
-import { pendingPaymentOf } from "@/lib/print/invoiceDoc";
+import { buildPaymentsSection, pendingPaymentOf } from "@/lib/print/invoiceDoc";
+import { loadInvoicePaymentDetails } from "@/lib/print/invoicePayments";
 import { devicePaperFromParam, receiptSidePaddingMm } from "@/lib/print/printDestination";
 import { PRINT_DESTINATION_STYLES } from "@/components/print/printDestinationStyles";
 
@@ -115,12 +116,6 @@ export default async function FacturaPage({
           // (la del snapshot es 0, se decidió después), para el TOTAL A
           // PAGAR (ver `invoicePayableOf`).
           tipCents: true,
-          // Y lo cobrado decide si todavía dice "Pendiente de pago" (ver
-          // `pendingPaymentOf`).
-          payments: {
-            where: { status: "approved" },
-            select: { method: true, amountCents: true, tipCents: true },
-          },
         },
       },
       dianDocument: { select: { state: true, cufe: true } },
@@ -223,11 +218,25 @@ export default async function FacturaPage({
     payableLabelsFrom(t, { einvoice }),
   );
 
+  // Los pagos APROBADOS con detalle: deciden lo pendiente y arman la
+  // sección «Pagos», la misma que imprime la térmica.
+  const paymentDetails = await loadInvoicePaymentDetails(inv.orderId);
+
   // Emitida antes de cobrar y sin saldar: "Pendiente de pago" y la propina
   // sugerida (aparte, sin sumar), como en el papel de la caja
   // (`print/invoiceDoc.ts`).
-  const pending = pendingPaymentOf(snap, inv.order.payments ?? []);
+  const pending = pendingPaymentOf(snap, paymentDetails);
   const showPending = !!pending && pending.outstandingCents > 0;
+
+  // La sección «Pagos»: un bloque por pago con su detalle, TOTAL PAGADO y
+  // el saldo adentro — con ella presente, la fila "Pendiente de pago" de
+  // los totales sobra (el saldo vive en la sección).
+  const paymentsSection = buildPaymentsSection(
+    paymentDetails,
+    (key, values) => t(key as never, values as never) as string,
+    fmtCOP,
+    { outstandingCents: pending?.outstandingCents ?? 0 },
+  );
 
   const customerWhere = snap.customer
     ? [snap.customer.address, snap.customer.city].filter(Boolean).join(", ")
@@ -381,13 +390,52 @@ export default async function FacturaPage({
                 <span className="right">{fmtCOP(r.cents)}</span>
               </div>
             ))}
-            {showPending && pending && (
+            {showPending && pending && !paymentsSection && (
               <div className="row pending">
                 <span>{t("paymentPending")}</span>
                 <span className="right">{fmtCOP(pending.outstandingCents)}</span>
               </div>
             )}
           </div>
+
+          {/* Sección «Pagos»: un bloque por pago aprobado con su detalle
+              (tarjeta y aprobación, recibido/vuelto, referencia, crédito),
+              TOTAL PAGADO y el saldo si falta — el recibo del pago dentro
+              de la factura, como en el papel de la caja. */}
+          {paymentsSection && (
+            <>
+              <hr className="dashed" />
+              <div className="totals payments">
+                <div className="pay-title">{paymentsSection.title}</div>
+                {paymentsSection.blocks.map((b, i) => (
+                  <div key={i}>
+                    <div className="row">
+                      <span>{b.label}</span>
+                      <span className="right">{b.amount}</span>
+                    </div>
+                    {b.lines.map((l, j) => (
+                      <div className="idetail" key={j}>
+                        {l}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div className="row pending">
+                  <span>{paymentsSection.totalLabel}</span>
+                  <span className="right">{paymentsSection.totalAmount}</span>
+                </div>
+                {paymentsSection.breakdown && (
+                  <div className="idetail">{paymentsSection.breakdown}</div>
+                )}
+                {paymentsSection.pending && (
+                  <div className="row pending">
+                    <span>{paymentsSection.pending.label}</span>
+                    <span className="right">{paymentsSection.pending.amount}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* La propina SUGERIDA, aparte y sin sumar: todavía nadie la
               decidió. El TOTAL A PAGAR de arriba lleva sólo la cobrada. */}
@@ -583,6 +631,15 @@ ${PRINT_DESTINATION_STYLES}
     column-gap: 4px;
   }
   .receipt .totals .pending { font-weight: 700; }
+  /* Sección «Pagos»: título en negrita; el detalle de cada pago en letra
+     chica sangrada, como el detalle de los platos. */
+  .receipt .totals .pay-title { font-weight: 700; }
+  .receipt .totals .idetail {
+    font-size: 9px;
+    line-height: 1.2;
+    padding-left: 3ch;
+    overflow-wrap: anywhere;
+  }
   .receipt .dian-fiscal { text-align: center; }
   .receipt .dian-fiscal .dian-qr {
     display: block;

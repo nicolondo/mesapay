@@ -61,7 +61,7 @@ describe("etiquetas de todos los medios de pago, en es/en/pt", () => {
     ["src/app/operator/orders/[id]/page.tsx", "opOrders.mKushkiBreB"],
     ["src/app/operator/payments/page.tsx", "opPayments.mKushkiBreB"],
     ["src/app/operator/contabilidad/ContabilidadClient.tsx", "opErp.mKushkiBreB"],
-    ["src/lib/print/invoiceDoc.ts", "emailInvoice.methodBreB"],
+    ["src/lib/invoice.ts", "emailInvoice.methodBreB"],
     ["src/app/terminal/TerminalGrid.tsx", "opTerminal.methodBreB"],
     ["src/app/t/[slug]/pay/[orderId]/done/page.tsx", "done.methodBreB"],
     ["src/app/r/[slug]/pago/[token]/PayLinkClient.tsx", "payLink.methodBreB"],

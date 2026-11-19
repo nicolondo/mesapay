@@ -518,6 +518,181 @@ export function itemDetailLines(item: {
 }
 
 /**
+ * `PaymentMethod` (enum de Prisma) → clave del catálogo. Se agrupa por lo
+ * que el CLIENTE reconoce, no por el riel técnico: quien paga con Apple
+ * Pay y quien paga con Google Pay leen lo mismo, y a nadie le dice nada
+ * que su tarjeta haya entrado por Wompi o por Kushki.
+ */
+export const PAYMENT_METHOD_KEY: Record<string, string> = {
+  // Efectivo: el actual (cash) y el histórico (demo_cash) son un solo renglón.
+  cash: "methodCash",
+  demo_cash: "methodCash",
+  demo_card: "methodCard",
+  wompi_card: "methodCard",
+  kushki_card: "methodCard",
+  kushki_apple_pay: "methodWallet",
+  kushki_google_pay: "methodWallet",
+  kushki_card_terminal: "methodCardTerminal",
+  external_terminal: "methodExternalTerminal",
+  wompi_pse: "methodPse",
+  kushki_pse: "methodPse",
+  kushki_bre_b: "methodBreB",
+  wompi_nequi: "methodNequi",
+  reservation_deposit: "methodDeposit",
+  voucher: "methodVoucher",
+  customer_credit: "methodCustomerCredit",
+};
+
+/**
+ * Un pago APROBADO con el detalle que necesita la sección «Pagos» de la
+ * factura: lo que antes decía el recibo del datáfono o el vuelto cantado
+ * en la caja, para que UN solo papel reemplace recibo + factura.
+ * Todo opcional salvo lo contable: un pago viejo sin detalle imprime su
+ * método y su monto y omite las líneas que no puede decir.
+ * Lo carga `print/invoicePayments.loadInvoicePaymentDetails`.
+ */
+export type InvoicePaymentDetail = {
+  method: string;
+  /** Lo cobrado en ESE pago, propina INCLUIDA (`Payment.amountCents`). */
+  amountCents: number;
+  /** La propina que va DENTRO de `amountCents`. */
+  tipCents: number;
+  /** Efectivo: con cuánto pagó el comensal (`Payment.cashTenderCents`). */
+  cashTenderCents?: number | null;
+  /** Crédito de cliente: a nombre de quién quedó la deuda. */
+  billingCustomerName?: string | null;
+  /** Tarjeta (datáfono, en línea, billetera): el charge aprobado de Kushki. */
+  cardBrand?: string | null;
+  cardLast4?: string | null;
+  approvalCode?: string | null;
+  /** Bre-B: la referencia de la transferencia. */
+  breBReference?: string | null;
+};
+
+/**
+ * La sección «Pagos» ya resuelta (textos traducidos, montos formateados).
+ * Es la MISMA forma que imprime la térmica (`ThermalPaymentsSection` en
+ * `escpos/invoice.ts`, estructuralmente idéntica) y la que consumen la
+ * página `/factura/[id]`, el correo y el datáfono.
+ */
+export type PaymentsSection = {
+  /** "Pagos". */
+  title: string;
+  /** Un bloque por pago aprobado, en orden cronológico. */
+  blocks: Array<{
+    /** "1/2 · Tarjeta · datáfono" (numerado sólo con más de un pago). */
+    label: string;
+    /** Lo cobrado en ese pago, propina incluida. */
+    amount: string;
+    /** Detalle: "VISA ····4242 · Aprob. 123456", "Incluye propina $X"… */
+    lines: string[];
+  }>;
+  /** "TOTAL PAGADO" + la suma de los bloques. */
+  totalLabel: string;
+  totalAmount: string;
+  /** "Cuenta $A · Propinas $B" — null cuando no hubo propina. */
+  breakdown: string | null;
+  /** "Saldo pendiente $X" — null con la cuenta saldada. */
+  pending: { label: string; amount: string } | null;
+};
+
+/** Métodos que pagan con tarjeta (física o en línea) o billetera. */
+const CARD_METHODS = new Set([
+  "demo_card",
+  "wompi_card",
+  "kushki_card",
+  "kushki_apple_pay",
+  "kushki_google_pay",
+  "kushki_card_terminal",
+]);
+
+/**
+ * Arma la sección «Pagos» de la factura: un bloque por pago APROBADO (los
+ * rechazados y devueltos no existen acá — el caller ya filtró por
+ * `status: "approved"`), numerados cuando hay más de uno, con el detalle
+ * según el método, y el cierre TOTAL PAGADO + Cuenta/Propinas.
+ *
+ * Es PRESENTACIÓN: se compone al imprimir/mostrar leyendo los pagos de la
+ * orden, no viaja en el XML de la DIAN ni toca el snapshot fiscal. Por lo
+ * mismo, en una factura emitida antes de saldar la misma factura impresa
+ * dos veces puede traer secciones distintas — la segunda, más completa.
+ *
+ * null sin pagos aprobados: esa factura sigue mostrando su bloque de
+ * siempre ("Pendiente de pago").
+ */
+export function buildPaymentsSection(
+  payments: InvoicePaymentDetail[],
+  t: (key: string, values?: Record<string, string | number>) => string,
+  money: (cents: number) => string,
+  opts: { outstandingCents?: number } = {},
+): PaymentsSection | null {
+  if (payments.length === 0) return null;
+  const n = payments.length;
+  let foodCents = 0;
+  let tipCents = 0;
+  const blocks = payments.map((p, i) => {
+    foodCents += Math.max(0, p.amountCents - p.tipCents);
+    tipCents += Math.max(0, p.tipCents);
+    const method = t(PAYMENT_METHOD_KEY[p.method] ?? "methodOther");
+    const lines: string[] = [];
+    if (CARD_METHODS.has(p.method)) {
+      const parts = [
+        p.cardBrand?.trim() || null,
+        p.cardLast4?.trim() ? `····${p.cardLast4.trim()}` : null,
+        p.approvalCode?.trim()
+          ? t("paymentApproval", { code: p.approvalCode.trim() })
+          : null,
+      ].filter((x): x is string => !!x);
+      if (parts.length > 0) lines.push(parts.join(" · "));
+    } else if (p.method === "cash" || p.method === "demo_cash") {
+      // Recibido y vuelto sólo si lo recibido alcanza: un tender menor que
+      // el pago es un dato a medias que confunde más de lo que dice.
+      const tender = p.cashTenderCents ?? null;
+      if (tender != null && tender >= p.amountCents) {
+        lines.push(
+          t("paymentCashReceived", {
+            amount: money(tender),
+            change: money(tender - p.amountCents),
+          }),
+        );
+      }
+    } else if (p.method === "kushki_bre_b") {
+      const ref = p.breBReference?.trim();
+      if (ref) lines.push(t("paymentRef", { ref }));
+    } else if (p.method === "customer_credit") {
+      const name = p.billingCustomerName?.trim();
+      if (name) lines.push(t("paymentOnCredit", { name }));
+    }
+    if (p.tipCents > 0) {
+      lines.push(t("paymentIncludesTip", { amount: money(p.tipCents) }));
+    }
+    return {
+      // "1/3 Tarjeta · datáfono": numerado sólo con más de un pago, SIN
+      // "·" tras el número — en 58 mm el rótulo más largo + el monto caben
+      // exactos en las 32 columnas.
+      label: n > 1 ? `${i + 1}/${n} ${method}` : method,
+      amount: money(p.amountCents),
+      lines,
+    };
+  });
+  const outstanding = Math.max(0, opts.outstandingCents ?? 0);
+  return {
+    title: t("paymentsTitle"),
+    blocks,
+    totalLabel: t("paymentsTotalPaid"),
+    totalAmount: money(foodCents + tipCents),
+    breakdown:
+      tipCents > 0
+        ? t("paymentsBreakdown", { food: money(foodCents), tips: money(tipCents) })
+        : null,
+    pending:
+      outstanding > 0
+        ? { label: t("paymentsOutstanding"), amount: money(outstanding) }
+        : null,
+  };
+}
+
+/**
  * Email HTML completo — frame MESAPAY (Instrument Serif + paleta
  * bone/ink) con la tirilla POS embebida en el body usando solo
  * tablas + estilos inline (Outlook + Gmail seguros). El link a
@@ -550,6 +725,11 @@ export async function renderInvoiceEmail(args: {
    * (si no, el resumen dice "Total a pagar" y no "Total pagado").
    */
   order?: { tipCents: number; paid: boolean } | null;
+  /**
+   * Los pagos APROBADOS con detalle: arman la sección «Pagos» (el recibo
+   * del pago dentro de la factura). Ausente/vacío = sin sección.
+   */
+  payments?: InvoicePaymentDetail[] | null;
 }): Promise<{ subject: string; html: string; text: string }> {
   const { snapshot, invoiceNumber, invoiceUrl, cufe, dianQrUrl } = args;
   const { t, locale } = await getEmailTranslator(args.locale, "emailInvoice");
@@ -587,6 +767,21 @@ export async function renderInvoiceEmail(args: {
   const finalRows = payableRows(payable, payableLabelsFrom(t, { einvoice: false }));
   const unpaid = isIssuedBeforePayment(snapshot) && args.order?.paid !== true;
 
+  // La sección «Pagos», la misma de la tirilla y la página: un bloque por
+  // pago aprobado con su detalle, TOTAL PAGADO y el saldo si falta. El
+  // saldo es el mismo cálculo de `pendingPaymentOf`: la venta menos la
+  // porción de comida de lo cobrado (sólo aplica emitida antes de cobrar).
+  const detailPayments = args.payments ?? [];
+  const paidFoodCents = detailPayments.reduce(
+    (s, p) => s + Math.max(0, p.amountCents - p.tipCents),
+    0,
+  );
+  const paymentsSection = buildPaymentsSection(detailPayments, (key, values) => t(key, values) as string, fmtCOP, {
+    outstandingCents: isIssuedBeforePayment(snapshot)
+      ? Math.max(0, snapshot.totalCents - paidFoodCents)
+      : 0,
+  });
+
   // Texto plano fallback — clientes sin HTML support, screen readers.
   const text = [
     `${merchantName}`,
@@ -613,6 +808,22 @@ export async function renderInvoiceEmail(args: {
     ),
     ...finalRows.map((r) => `${r.label}: ${fmtCOP(r.cents)}`),
     "",
+    // Sección «Pagos»: el recibo del pago dentro de la factura.
+    ...(paymentsSection
+      ? [
+          paymentsSection.title,
+          ...paymentsSection.blocks.flatMap((b) => [
+            `${b.label}: ${b.amount}`,
+            ...b.lines.map((l) => `   ${l}`),
+          ]),
+          `${paymentsSection.totalLabel}: ${paymentsSection.totalAmount}`,
+          paymentsSection.breakdown ?? "",
+          paymentsSection.pending
+            ? `${paymentsSection.pending.label}: ${paymentsSection.pending.amount}`
+            : "",
+          "",
+        ]
+      : []),
     snapshot.dianResolution
       ? t("dianResolution", { res: snapshot.dianResolution })
       : "",
@@ -656,6 +867,7 @@ export async function renderInvoiceEmail(args: {
     invoiceUrl,
     cufe,
     dianQrUrl,
+    paymentsSection,
   });
 
   return { subject, html, text };
@@ -677,8 +889,10 @@ function renderHtml(args: {
   invoiceUrl: string;
   cufe?: string;
   dianQrUrl?: string;
+  /** La sección «Pagos» ya resuelta. null = sin sección. */
+  paymentsSection?: PaymentsSection | null;
 }): string {
-  const { t, locale, snapshot, finalRows, summary, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl } = args;
+  const { t, locale, snapshot, finalRows, summary, numberStr, merchantName, brandName, fechaStr, dianDateStr, invoiceUrl, cufe, dianQrUrl, paymentsSection } = args;
 
   // Items como filas de tabla — más resistente que divs en Outlook. Los
   // repetidos AGRUPADOS ("2× Bretaña"), con los modificadores y la nota
@@ -703,6 +917,30 @@ function renderHtml(args: {
   // Línea punteada — span lleno con borde inferior. Más confiable
   // que <hr> en Outlook (que lo renderea con padding raro).
   const dashed = `<div style="border-bottom:1px dashed #000;height:1px;margin:10px 0;line-height:0;font-size:0;">&nbsp;</div>`;
+
+  // Sección «Pagos» dentro de la tirilla del email: un bloque por pago
+  // aprobado con su detalle, TOTAL PAGADO y el saldo si falta.
+  const rowTd = `style="font-family:'SF Mono','Menlo',monospace;font-size:12px;color:#000;padding:2px 0;"`;
+  const detailDiv = `style="font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#3A332B;padding:1px 0 1px 24px;"`;
+  const paymentsBlock = paymentsSection
+    ? `
+                  ${dashed}
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr><td colspan="2" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;font-weight:700;color:#000;padding:2px 0;">${escapeHtml(paymentsSection.title)}</td></tr>
+                    ${paymentsSection.blocks
+                      .map(
+                        (b) =>
+                          `<tr><td ${rowTd}>${escapeHtml(b.label)}</td><td align="right" ${rowTd}>${escapeHtml(b.amount)}</td></tr>` +
+                          b.lines
+                            .map((l) => `<tr><td colspan="2" ${detailDiv}>${escapeHtml(l)}</td></tr>`)
+                            .join(""),
+                      )
+                      .join("")}
+                    <tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;font-weight:700;color:#000;padding:4px 0 2px 0;border-top:1px solid #000;">${escapeHtml(paymentsSection.totalLabel)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;font-weight:700;color:#000;padding:4px 0 2px 0;border-top:1px solid #000;">${escapeHtml(paymentsSection.totalAmount)}</td></tr>
+                    ${paymentsSection.breakdown ? `<tr><td colspan="2" ${detailDiv}>${escapeHtml(paymentsSection.breakdown)}</td></tr>` : ""}
+                    ${paymentsSection.pending ? `<tr><td style="font-family:'SF Mono','Menlo',monospace;font-size:12px;font-weight:700;color:#000;padding:2px 0;">${escapeHtml(paymentsSection.pending.label)}</td><td align="right" style="font-family:'SF Mono','Menlo',monospace;font-size:12px;font-weight:700;color:#000;padding:2px 0;">${escapeHtml(paymentsSection.pending.amount)}</td></tr>` : ""}
+                  </table>`
+    : "";
 
   // Bloque fiscal DIAN dentro de la tirilla del email — solo si la
   // factura electrónica fue aceptada (cufe presente). Sin QR inline
@@ -900,6 +1138,7 @@ function renderHtml(args: {
                       )
                       .join("")}
                   </table>
+                  ${paymentsBlock}
                   ${dianFiscalBlock}
 
                   ${dashed}

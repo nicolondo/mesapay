@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   invoiceUpdate: vi.fn(async () => ({})),
   sendEmail: vi.fn(async () => true),
   enqueue: vi.fn(),
+  loadPayments: vi.fn(async () => []),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/env", () => ({ env: { APP_PUBLIC_BASE_URL: "https://mesapay.co" } }));
 vi.mock("@/lib/mailer", () => ({ sendEmail: m.sendEmail }));
 vi.mock("@/lib/print/invoiceQueue", () => ({ enqueueInvoicePrintSafe: m.enqueue }));
+vi.mock("@/lib/print/invoicePayments", () => ({ loadInvoicePaymentDetails: m.loadPayments }));
 
 import { issueSimpleInvoice, sendSimpleInvoiceEmail } from "./simpleInvoice";
 import type { InvoiceSnapshot } from "./invoice";
@@ -433,15 +435,17 @@ describe("sendSimpleInvoiceEmail — el TOTAL A PAGAR del correo", () => {
     m.invoiceFindUnique.mockReset();
   });
 
-  it("emitida al cobrar: la propina del snapshot, sin leer la orden", async () => {
+  it("emitida al cobrar: la propina del snapshot, aunque la orden diga otra cosa", async () => {
+    // La fila se lee igual (el orderId arma la sección «Pagos»), pero la
+    // propina del TOTAL A PAGAR es la del snapshot: la de la orden se ignora.
+    m.invoiceFindUnique.mockResolvedValue({ orderId: "o-1", order: { tipCents: 999, status: "open" } });
     await send({ ...base, tipCents: 1_200_000, totalCents: 13_200_000 });
-    expect(m.invoiceFindUnique).not.toHaveBeenCalled();
     expect(text()).toContain("Propina voluntaria: $12,000");
     expect(text()).toContain("TOTAL A PAGAR: $132,000");
   });
 
   it("emitida ANTES de cobrar: la propina REAL de la orden ya cobrada", async () => {
-    m.invoiceFindUnique.mockResolvedValue({ order: { tipCents: 1_200_000, status: "paid" } });
+    m.invoiceFindUnique.mockResolvedValue({ orderId: "o-1", order: { tipCents: 1_200_000, status: "paid" } });
     await send({ ...base, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true });
     expect(m.invoiceFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "inv-1" } }),

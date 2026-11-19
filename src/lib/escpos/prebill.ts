@@ -41,7 +41,7 @@ import {
   colsForSize,
   compactStart,
   itemChunks,
-  itemDetail,
+  itemDetailParts,
   totalRowChunks,
   withLineSpacingFor,
   type TextSize,
@@ -397,7 +397,7 @@ export function renderPrebill(doc: ThermalPrebill): Buffer {
           qty: item.qty,
           name: item.name,
           amount: item.amount,
-          detail: itemDetail(
+          detail: itemDetailParts(
             item.modifiers,
             item.notes,
             item.unit ? [`${item.qty} x ${item.unit}`] : [],

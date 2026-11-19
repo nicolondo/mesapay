@@ -10,7 +10,7 @@ import {
   colsForSize,
   compactStart,
   itemChunks,
-  itemDetail,
+  itemDetailParts,
   padRowForSize,
   totalRowChunks,
   withLineSpacingFor,
@@ -132,7 +132,10 @@ describe("factura de ~40 platos — cuánto papel gasta", () => {
         `(-${pct(b.lines, paper.lines)}%), alto ${b.heightDots} → ${paper.heightDots} puntos ` +
         `(-${pct(b.heightDots, paper.heightDots)}%)`,
     );
-    expect(paper.lines).toBeLessThanOrEqual(Math.floor(b.lines * 0.85));
+    // 0.86 y no 0.85: el rótulo del CUFE en su renglón y los modificadores
+    // de a uno cuando no entran juntos (pedidos por el dueño tras la foto
+    // de FESM — legibilidad) cuestan ~1 renglón en esta cuenta.
+    expect(paper.lines).toBeLessThanOrEqual(Math.floor(b.lines * 0.86));
     expect(paper.heightDots).toBeLessThanOrEqual(Math.floor(b.heightDots * 0.75));
   });
 
@@ -185,8 +188,9 @@ describe("factura compacta — no se pierde nada obligatorio", () => {
     expect(text).toContain("Fecha de resolución 15/01/26");
     expect(text).toContain("Representación impresa de la factura electrónica de venta");
     expect(text).toContain("ADVERTENCIA DE PROPINA");
-    // El CUFE entero, aunque vaya partido en renglones con su rótulo.
-    expect(readPaper(bytes).text.replace(/\n/g, "")).toContain(`CUFE: ${CUFE}`);
+    // El CUFE entero: va partido en grupos de 8 con su rótulo en su
+    // renglón — quitando espacios y saltos queda la cadena completa.
+    expect(readPaper(bytes).text.replace(/[\n ]/g, "")).toContain(`CUFE:${CUFE}`);
     expect(bytes.includes(qr(VERIFY, { size: 4, correction: "M" }))).toBe(true);
   });
 
@@ -227,19 +231,19 @@ describe("factura compacta — no se pierde nada obligatorio", () => {
 });
 
 describe("piezas del formato compacto", () => {
-  it("modificadores y nota van en UN texto con ' · ' y la nota entre comillas", () => {
-    expect(itemDetail(["Término: 1/2", "Guarniciones: Ensalada fresca"], "sin cebolla")).toBe(
-      'Término: 1/2 · Guarniciones: Ensalada fresca · "sin cebolla"',
+  it("modificadores y nota son PIEZAS en orden, la nota entre comillas", () => {
+    expect(itemDetailParts(["Término: 1/2", "Guarniciones: Ensalada fresca"], "sin cebolla")).toEqual(
+      ["Término: 1/2", "Guarniciones: Ensalada fresca", '"sin cebolla"'],
     );
-    expect(itemDetail([], null)).toBe("");
-    expect(itemDetail(undefined, "  ")).toBe("");
-    expect(itemDetail(["  "], null, ["2 x $ 10.000"])).toBe("2 x $ 10.000");
+    expect(itemDetailParts([], null)).toEqual([]);
+    expect(itemDetailParts(undefined, "  ")).toEqual([]);
+    expect(itemDetailParts(["  "], null, ["2 x $ 10.000"])).toEqual(["2 x $ 10.000"]);
   });
 
   it("el detalle del plato va en fuente B (ESC M 1) y vuelve a la A", () => {
     const b = Buffer.concat(
       itemChunks(
-        { qty: 1, name: "Hamburguesa", amount: "$ 36.000", detail: "Término: 1/2" },
+        { qty: 1, name: "Hamburguesa", amount: "$ 36.000", detail: ["Término: 1/2"] },
         48,
         64,
       ),
@@ -249,6 +253,54 @@ describe("piezas del formato compacto", () => {
     expect(readPaper(b).text).toBe(
       "1x Hamburguesa                          $ 36.000\n    Término: 1/2\n",
     );
+  });
+
+  it("un detalle que entra en un renglón va JUNTO, con ' · ' de por medio", () => {
+    const b = Buffer.concat(
+      itemChunks(
+        {
+          qty: 1,
+          name: "Churrasco",
+          amount: "$ 58.000",
+          detail: ["Término: 3/4", "Guarnición: Papas"],
+        },
+        48,
+        64,
+      ),
+    );
+    expect(readPaper(b).text).toBe(
+      "1x Churrasco                            $ 58.000\n    Término: 3/4 · Guarnición: Papas\n",
+    );
+  });
+
+  it("un detalle que NO entra da un renglón a cada pieza, envuelto por palabra", () => {
+    const b = Buffer.concat(
+      itemChunks(
+        {
+          qty: 1,
+          name: "Plato del Día (Casero Del Dia)",
+          amount: "$ 33,900",
+          detail: [
+            "Opción de sopa: Fríjoles",
+            "Opción de proteína: Pollo a la parrilla",
+            "Bebida: Limonada natural",
+          ],
+        },
+        32,
+        42,
+      ),
+    );
+    const lines = readPaper(b).text.split("\n").filter(Boolean);
+    expect(lines).toEqual([
+      "1x Plato del Día        $ 33,900",
+      "   (Casero Del Dia)",
+      "    Opción de sopa: Fríjoles",
+      "    Opción de proteína: Pollo a la",
+      "    parrilla",
+      "    Bebida: Limonada natural",
+    ]);
+    // Ninguna palabra partida: cada renglón termina en palabra completa.
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(42);
   });
 
   it("el TOTAL va en negrita a doble ALTO (GS ! 0x01) con el ancho normal, relleno a 48", () => {

@@ -54,9 +54,10 @@ import {
 } from "./commands";
 import {
   DETAIL_SEPARATOR,
+  SMALL_INDENT,
   compactStart,
   itemChunks,
-  itemDetail,
+  itemDetailParts,
   totalRowChunks,
 } from "./compact";
 
@@ -89,6 +90,25 @@ export type ThermalInvoiceRow = {
   strong?: boolean;
   /** Negrita al tamaño normal ("Pendiente de pago"). Ignorado con `strong`. */
   bold?: boolean;
+};
+
+/**
+ * La sección «Pagos»: un bloque por pago APROBADO con su detalle (tarjeta
+ * y aprobación, recibido/vuelto, referencia, a nombre de quién quedó el
+ * crédito), el TOTAL PAGADO y el saldo si la cuenta no está saldada. Con
+ * TODO resuelto, como el resto del documento. Cuando está presente
+ * reemplaza al bloque "Forma de pago": un solo papel hace de recibo del
+ * pago y de factura. Ausente en los payloads anteriores.
+ */
+export type ThermalPaymentsSection = {
+  title: string;
+  blocks: Array<{ label: string; amount: string; lines: string[] }>;
+  totalLabel: string;
+  totalAmount: string;
+  /** "Cuenta $A · Propinas $B" — null cuando no hubo propina. */
+  breakdown: string | null;
+  /** "Saldo pendiente $X" — null con la cuenta saldada. */
+  pending: { label: string; amount: string } | null;
 };
 
 /**
@@ -150,6 +170,12 @@ export type ThermalInvoice = {
   paymentTitle: string | null;
   /** Un renglón por pago cobrado ("Efectivo · $ 40.000"). */
   paymentRows: ThermalInvoiceRow[];
+  /**
+   * La sección «Pagos» con el detalle de cada pago. Presente ⇒ se imprime
+   * en lugar de `paymentTitle`/`paymentRows` (que llegan vacíos) y el
+   * saldo va adentro. Ausente en los payloads guardados antes.
+   */
+  paymentsSection?: ThermalPaymentsSection | null;
   /**
    * Factura emitida ANTES de cobrar y todavía sin saldar: "Pendiente de
    * pago $ X", en negrita (`bold`), en lugar de (o debajo de) la forma de
@@ -257,6 +283,50 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     }
   }
 
+  // La sección «Pagos» es presentación: una malformada se OMITE (la
+  // factura se imprime con su bloque de pago vacío antes que no imprimirse)
+  // en vez de invalidar el payload como el bloque fiscal.
+  let paymentsSection: ThermalInvoice["paymentsSection"] = null;
+  if (inv.paymentsSection && typeof inv.paymentsSection === "object" && !Array.isArray(inv.paymentsSection)) {
+    const ps = inv.paymentsSection as Record<string, unknown>;
+    const pending =
+      ps.pending && typeof ps.pending === "object" && !Array.isArray(ps.pending)
+        ? (ps.pending as Record<string, unknown>)
+        : null;
+    const blocks: ThermalPaymentsSection["blocks"] = [];
+    let blocksOk = Array.isArray(ps.blocks);
+    for (const rawBlock of Array.isArray(ps.blocks) ? ps.blocks : []) {
+      if (!rawBlock || typeof rawBlock !== "object") {
+        blocksOk = false;
+        break;
+      }
+      const b = rawBlock as Record<string, unknown>;
+      if (typeof b.label !== "string" || typeof b.amount !== "string") {
+        blocksOk = false;
+        break;
+      }
+      blocks.push({ label: b.label, amount: b.amount, lines: stringList(b.lines) });
+    }
+    if (
+      blocksOk &&
+      typeof ps.title === "string" &&
+      typeof ps.totalLabel === "string" &&
+      typeof ps.totalAmount === "string"
+    ) {
+      paymentsSection = {
+        title: ps.title,
+        blocks,
+        totalLabel: ps.totalLabel,
+        totalAmount: ps.totalAmount,
+        breakdown: typeof ps.breakdown === "string" ? ps.breakdown : null,
+        pending:
+          pending && typeof pending.label === "string" && typeof pending.amount === "string"
+            ? { label: pending.label, amount: pending.amount }
+            : null,
+      };
+    }
+  }
+
   // El bloque fiscal es todo o nada: una factura electrónica "a medias"
   // (sin CUFE, sin URL) es peor que no imprimir, así que un bloque
   // presente pero malformado invalida el payload entero.
@@ -293,6 +363,7 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
     paymentTitle:
       typeof inv.paymentTitle === "string" ? inv.paymentTitle : null,
     paymentRows: rows(inv.paymentRows),
+    ...(paymentsSection && { paymentsSection }),
     // Factura emitida antes de cobrar. Ausentes en todo payload anterior.
     ...(inv.pendingRow != null && {
       pendingRow: rows([inv.pendingRow])[0] ?? null,
@@ -311,6 +382,14 @@ export function parseInvoicePayload(raw: unknown): ThermalInvoice | null {
 // no lo lee. 22 mm es el mínimo que se lee siempre, y el QR es lo único
 // de la factura electrónica que no se puede "achicar" sin perderlo.
 const QR_MODULE_SIZE = 4;
+
+/**
+ * El CUFE impreso se parte en grupos de 8 hexadecimales: 96 hex son 12
+ * grupos parejos que entran de a 4 por renglón en 58 mm (fuente B, 42
+ * columnas) y de a 7 en 80 mm. Quien lo transcribe en el portal de la
+ * DIAN avanza grupo a grupo en vez de perderse en una sopa de 96 letras.
+ */
+const CUFE_GROUP = 8;
 
 /**
  * Bytes ESC/POS completos de la tirilla, listos para escribir tal cual al
@@ -383,7 +462,7 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
           qty: item.qty,
           name: item.name,
           amount: item.amount,
-          detail: itemDetail(item.modifiers, item.notes),
+          detail: itemDetailParts(item.modifiers, item.notes),
         },
         cols,
         smallCols,
@@ -405,6 +484,56 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
   // ("Forma de pago: Efectivo ..... $ 40.000").
   chunks.push(separator(cols));
   for (const row of invoice.totals) chunks.push(...totalRowChunks(row, cols));
+
+  // ── Sección «Pagos» ─────────────────────────────────────────────────
+  // Un bloque por pago aprobado con su detalle en fuente B, el TOTAL
+  // PAGADO y el saldo pendiente adentro. Reemplaza al bloque "Forma de
+  // pago" (que llega vacío cuando esta sección existe): el papel hace de
+  // recibo del pago y de factura a la vez.
+  if (invoice.paymentsSection) {
+    const ps = invoice.paymentsSection;
+    chunks.push(separator(cols), bold(true));
+    for (const l of wrap(ps.title, cols)) chunks.push(line(l));
+    chunks.push(bold(false));
+    for (const b of ps.blocks) {
+      for (const l of padRow(b.label, b.amount, cols)) chunks.push(line(l));
+      if (b.lines.length > 0) {
+        chunks.push(selectFont("B"));
+        for (const detail of b.lines) {
+          for (const l of wrap(detail, smallCols, {
+            first: SMALL_INDENT,
+            cont: SMALL_INDENT,
+          })) {
+            chunks.push(line(l));
+          }
+        }
+        chunks.push(selectFont("A"));
+      }
+    }
+    chunks.push(bold(true));
+    for (const l of padRow(ps.totalLabel, ps.totalAmount, cols)) {
+      chunks.push(line(l));
+    }
+    chunks.push(bold(false));
+    if (ps.breakdown) {
+      chunks.push(selectFont("B"));
+      for (const l of wrap(ps.breakdown, smallCols, {
+        first: SMALL_INDENT,
+        cont: SMALL_INDENT,
+      })) {
+        chunks.push(line(l));
+      }
+      chunks.push(selectFont("A"));
+    }
+    if (ps.pending) {
+      chunks.push(bold(true));
+      for (const l of padRow(ps.pending.label, ps.pending.amount, cols)) {
+        chunks.push(line(l));
+      }
+      chunks.push(bold(false));
+    }
+  }
+
   const single = invoice.paymentRows.length === 1 ? invoice.paymentRows[0] : null;
   const singleRow =
     single && invoice.paymentTitle
@@ -439,9 +568,11 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
 
   // ── Bloque fiscal (factura electrónica ACEPTADA por la DIAN) ────────
   // El QR SÓLO si la impresora lo declaró (`supportsQr`); si no, la
-  // misma URL en texto. Todo en fuente B: el CUFE son 96 hexadecimales
-  // sin un espacio, y va pegado a su rótulo ("CUFE: 0123…") partido a lo
-  // bruto por columna, que es la única forma de partirlo sin perder nada.
+  // misma URL en texto. Todo en fuente B. El CUFE son 96 hexadecimales
+  // sin un espacio: el rótulo va en su renglón y el CUFE partido en
+  // grupos de a 8 ("0123fa9e 7b60…"), que se dejan leer y transcribir —
+  // el bloque denso pegado al rótulo de la foto del dueño no. Entero y
+  // textual: los espacios son presentación, como en una tarjeta.
   if (invoice.fiscal) {
     const f = invoice.fiscal;
     chunks.push(separator(cols), align("center"));
@@ -449,7 +580,8 @@ export function renderInvoice(invoice: ThermalInvoice): Buffer {
       chunks.push(qr(f.verifyUrl, { size: QR_MODULE_SIZE, correction: "M" }), LF);
     }
     chunks.push(selectFont("B"));
-    for (const l of chunk(`${f.cufeLabel}: ${f.cufe}`, smallCols)) {
+    chunks.push(line(`${f.cufeLabel}:`));
+    for (const l of wrap(chunk(f.cufe, CUFE_GROUP).join(" "), smallCols)) {
       chunks.push(line(l));
     }
     if (!f.qr) {

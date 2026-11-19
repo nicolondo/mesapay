@@ -7,6 +7,7 @@ import {
   formatUnitCost,
   minQtyLabel,
   newEditLine,
+  orderDishList,
   parseLine,
   rankIngredients,
   type EditLine,
@@ -183,5 +184,51 @@ describe("textos de unidades", () => {
     // 16 ¢/g = $160/kg; 4 ¢ por milésima de un = $40/un.
     expect(formatUnitCost(16, "mass", "COP", "es")).toMatch(/160\/kg$/);
     expect(formatUnitCost(4, "count", "COP", "es")).toMatch(/40\/un$/);
+  });
+});
+
+describe("orden de la lista con «Food cost alto»", () => {
+  // Platos de juguete: id + food cost (% ya calculado como en la fila).
+  const dish = (id: string, pct: number | null) => ({ id, pct });
+  const pctOf = (d: { pct: number | null }) => d.pct;
+
+  it("con el filtro ordena de mayor a menor porcentaje (el peor primero)", () => {
+    const rows = [dish("a", 45), dish("b", 72.4), dish("c", 50.1)];
+    expect(orderDishList(rows, true, pctOf).map((d) => d.id)).toEqual([
+      "b",
+      "c",
+      "a",
+    ]);
+  });
+
+  it("los platos sin porcentaje van al final, agrupados y en su orden", () => {
+    const rows = [
+      dish("sinPrecio", null),
+      dish("a", 41),
+      dish("incompleto", null),
+      dish("b", 60),
+    ];
+    expect(orderDishList(rows, true, pctOf).map((d) => d.id)).toEqual([
+      "b",
+      "a",
+      "sinPrecio",
+      "incompleto",
+    ]);
+  });
+
+  it("los empates conservan el orden de carta (orden estable)", () => {
+    const rows = [dish("a", 45), dish("b", 45), dish("c", 45)];
+    expect(orderDishList(rows, true, pctOf).map((d) => d.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("sin el filtro el orden habitual no cambia y no se muta la entrada", () => {
+    const rows = [dish("z", 10), dish("a", 90), dish("m", null)];
+    expect(orderDishList(rows, false, pctOf)).toBe(rows);
+    orderDishList(rows, true, pctOf);
+    expect(rows.map((d) => d.id)).toEqual(["z", "a", "m"]);
   });
 });

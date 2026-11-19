@@ -36,7 +36,7 @@ export function VoidVoucher({ id }: { id: string }) {
         maxLength={300}
         placeholder={t("voidReason")}
         aria-label={t("voidReason")}
-        className="w-full min-h-[40px] px-3 rounded-xl border border-op-border bg-op-bg text-sm"
+        className="w-full min-h-[40px] px-3 rounded-lg border border-op-border bg-op-bg text-sm"
       />
       {err && <p className="text-xs text-danger">{err}</p>}
       <div className="flex justify-end gap-2">

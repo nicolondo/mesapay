@@ -116,11 +116,14 @@ describe("ensureManualInvoicePayLinkInTx", () => {
 
   it("crea el link con token aleatorio, kind=order y una semana de vida", async () => {
     m.findUnique.mockResolvedValue(null);
-    const link = await ensureManualInvoicePayLinkInTx(tx, args);
+    // orderId largo SOLO aquí: un token aleatorio de 24 chars contiene "o1"
+    // ~0,5 % de las veces y ponía rojo el CI; un id largo no aparece por azar.
+    const orderId = "order-aleatorio-no-filtrado";
+    const link = await ensureManualInvoicePayLinkInTx(tx, { ...args, orderId });
     const data = m.create.mock.calls[0][0].data;
-    expect(data).toMatchObject({ restaurantId: "r1", orderId: "o1", kind: "order", amountCents: 120_000, currency: "COP" });
+    expect(data).toMatchObject({ restaurantId: "r1", orderId, kind: "order", amountCents: 120_000, currency: "COP" });
     expect(data.token).toMatch(/^[A-Za-z0-9_-]{24}$/);
-    expect(data.token).not.toContain("o1");
+    expect(data.token).not.toContain(orderId);
     expect(data.expiresAt.getTime()).toBe(NOW.getTime() + MANUAL_INVOICE_PAY_LINK_TTL_MS);
     expect(link.rotated).toBe(true);
     expect(link.token).toBe(data.token);

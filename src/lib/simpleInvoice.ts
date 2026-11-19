@@ -11,6 +11,7 @@ import { discountInLinesOf, saleLines } from "@/lib/dian/discountedLines";
 import { tipBaseOfSale } from "@/lib/tipBase";
 import { tipBasePolicyFor } from "@/lib/tips";
 import { enqueueInvoicePrintSafe } from "@/lib/print/invoiceQueue";
+import { loadInvoicePaymentDetails } from "@/lib/print/invoicePayments";
 import { invoicePrintArgs } from "@/lib/print/routing";
 import { MANUAL_TABLE_LABEL } from "@/lib/manualInvoice";
 import { formatItemSelections } from "@/lib/modifiers";
@@ -409,22 +410,24 @@ export async function sendSimpleInvoiceEmail(opts: {
     // Emitida ANTES de cobrar: la propina del TOTAL A PAGAR es la REAL de
     // la orden (el snapshot no la tiene), y si ya se saldó. Emitida al
     // cobrar, el snapshot ya trae la propina final.
-    const order = isIssuedBeforePayment(opts.snapshot)
-      ? await db.simpleInvoice
-          .findUnique({
-            where: { id: opts.invoiceId },
-            select: { order: { select: { tipCents: true, status: true } } },
-          })
-          .then((r) =>
-            r?.order ? { tipCents: r.order.tipCents, paid: r.order.status === "paid" } : null,
-          )
-      : null;
+    const row = await db.simpleInvoice.findUnique({
+      where: { id: opts.invoiceId },
+      select: { orderId: true, order: { select: { tipCents: true, status: true } } },
+    });
+    const order =
+      isIssuedBeforePayment(opts.snapshot) && row?.order
+        ? { tipCents: row.order.tipCents, paid: row.order.status === "paid" }
+        : null;
+    // Los pagos aprobados con detalle: la sección «Pagos» del correo, la
+    // misma de la tirilla y de /factura/[id].
+    const payments = row ? await loadInvoicePaymentDetails(row.orderId) : [];
     const { subject, html, text } = await renderInvoiceEmail({
       snapshot: opts.snapshot,
       invoiceNumber: opts.invoiceNumber,
       invoiceUrl: opts.invoiceUrl,
       locale: opts.locale ?? undefined,
       order,
+      payments,
     });
     const from = brandedInvoiceFrom(opts.snapshot.restaurantName);
     const ok = await sendEmail({

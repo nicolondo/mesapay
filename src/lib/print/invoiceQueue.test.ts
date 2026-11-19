@@ -335,7 +335,7 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
     expect(total.amount).toContain("55,000");
   });
 
-  it("la forma de pago sale de los pagos aprobados de la orden", async () => {
+  it("la sección «Pagos» sale de los pagos aprobados de la orden", async () => {
     const { enqueueInvoicePrint } = await import("./invoiceQueue");
     await enqueueInvoicePrint(args);
     expect(h.db.payment.findMany).toHaveBeenCalledWith(
@@ -344,11 +344,22 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
       }),
     );
     const doc = parseInvoicePayload(h.state.created[0].payload)!;
-    expect(doc.paymentRows).toHaveLength(1);
-    // Un solo pago: la fila es el TOTAL de la cuenta, con la propina
-    // contada una sola vez (antes la sumaba otra vez encima).
-    expect(doc.paymentRows[0].amount).toContain("55,000");
-    expect(doc.paymentRows[0].amount).toBe(doc.totals.find((r) => r.strong)!.amount);
+    // Con detalle de pagos, la sección «Pagos» reemplaza al bloque "Forma
+    // de pago" (que viaja vacío en el payload).
+    expect(doc.paymentRows).toHaveLength(0);
+    expect(doc.paymentTitle).toBeNull();
+    const ps = doc.paymentsSection!;
+    expect(ps.blocks).toHaveLength(1);
+    expect(ps.blocks[0].label).toBe("Efectivo");
+    // Un solo pago: el bloque es el TOTAL de la cuenta, con la propina
+    // contada una sola vez (antes la sumaba otra vez encima), y el TOTAL
+    // PAGADO coincide con el TOTAL A PAGAR.
+    expect(ps.blocks[0].amount).toContain("55,000");
+    expect(ps.blocks[0].lines.map((l) => l.replace(/\s/g, " "))).toContain(
+      "Incluye propina $ 6,000",
+    );
+    expect(ps.totalAmount).toBe(doc.totals.find((r) => r.strong)!.amount);
+    expect(ps.pending).toBeNull();
     // Emitida al cobrar: la propina ya está en el snapshot, no se lee la orden.
     expect(h.db.order.findUnique).not.toHaveBeenCalled();
   });
@@ -371,9 +382,10 @@ describe("enqueueInvoicePrint — el trabajo que crea", () => {
       ["TOTAL A PAGAR", "$ 55,000"],
     ]);
     expect(doc.totals.at(-1)?.strong).toBe(true);
-    // Saldada: nada pendiente (el payload guardado ni lo trae).
+    // Saldada: nada pendiente (ni la fila vieja ni el saldo de la sección).
     expect(doc.pendingRow ?? null).toBeNull();
-    expect(doc.paymentRows[0].amount).toBe(doc.totals.at(-1)!.amount);
+    expect(doc.paymentsSection!.pending).toBeNull();
+    expect(doc.paymentsSection!.totalAmount).toBe(doc.totals.at(-1)!.amount);
   });
 });
 

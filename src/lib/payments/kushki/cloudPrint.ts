@@ -15,6 +15,11 @@ const defaultInvoiceTranslator = (
 import type { KushkiMode } from "../../platformConfig";
 import type { InvoiceSnapshot } from "@/lib/invoice";
 import {
+  buildPaymentsSection,
+  pendingPaymentOf,
+  type InvoicePaymentDetail,
+} from "@/lib/print/invoiceDoc";
+import {
   formatInvoiceNumber,
   invoicePayableOf,
   itemDetailLines,
@@ -66,9 +71,66 @@ export type PrintCommand =
   | { type: "cut" }
   | { type: "qr"; content: string; dotSize?: number; errorLevel?: "L" | "M" | "Q" | "H"; align?: "LEFT" | "CENTER" | "RIGHT" };
 
-/** $ 43,890 — sin decimales, con la convención de `@/lib/format` (la tirilla COP no usa centavos). */
+/**
+ * $ 43,890 — sin decimales, con la convención de `@/lib/format` (la
+ * tirilla COP no usa centavos). El espacio tras el "$" es un NBSP (\u00a0), el
+ * mismo de `formatMoney`: `wrap` no corta ahí y un monto citado dentro de
+ * un texto nunca queda con el "$" huérfano al final del renglón.
+ */
 function money(cents: number): string {
-  return "$ " + formatNumber(Math.round(cents / 100));
+  return "$\u00a0" + formatNumber(Math.round(cents / 100));
+}
+
+/**
+ * Columnas de la térmica del datáfono (papel de 55 mm, ~48 mm imprimibles)
+ * al tamaño normal (24): las mismas 32 de una térmica de 58 mm. El
+ * terminal envuelve solo, pero parte en el ancho exacto —"SUGU/ERIDA"—,
+ * así que TODO texto que pueda pasarse se envuelve acá por palabra
+ * (`wrap`, el mismo helper de la tirilla de la caja) antes de mandarlo.
+ */
+const TERMINAL_COLS = 32;
+
+/** Columnas efectivas a un tamaño dado: a 48 (título) entra la mitad. */
+function terminalCols(size: number): number {
+  return Math.max(1, Math.floor((TERMINAL_COLS * 24) / size));
+}
+
+/** Un texto envuelto por palabra al ancho efectivo de su tamaño. */
+function fit(text: string, size = 24): string {
+  return wrap(text, terminalCols(size)).join("\n");
+}
+
+/**
+ * Ancho útil de la columna del texto en un comando `columns` con pesos
+ * 2:1 (dos tercios del papel, menos un espacio de respiro contra el
+ * monto). Lo que no entra ahí baja a renglones `text` completos.
+ */
+const COLUMN_TEXT_COLS = Math.floor((TERMINAL_COLS * 2) / 3) - 1;
+
+/** Sangría de los renglones colgados y del detalle del ítem. */
+const TERMINAL_INDENT = "   ";
+
+/**
+ * Fila "texto ..... monto": la primera línea va en un comando `columns`
+ * (texto envuelto a su columna, monto a la derecha) y el resto del texto
+ * sigue abajo en renglones completos con sangría — nunca más el nombre
+ * del plato entreverado con el precio ("Plato del Día (Cas $ 33,900").
+ */
+function amountRow(text: string, amount: string): PrintCommand[] {
+  const [head, ...rest] = wrap(text, TERMINAL_COLS, {
+    firstWidth: COLUMN_TEXT_COLS,
+    cont: TERMINAL_INDENT,
+  });
+  return [
+    {
+      type: "columns",
+      columns: [
+        { text: head ?? "", weight: 2, align: "LEFT" },
+        { text: amount, weight: 1, align: "RIGHT" },
+      ],
+    },
+    ...rest.map((l): PrintCommand => ({ type: "text", text: l + "\n" })),
+  ];
 }
 
 /**
@@ -88,13 +150,29 @@ export function buildInvoiceCommands(
    * para el TOTAL A PAGAR (ver `invoicePayableOf`).
    */
   order?: { tipCents: number } | null,
+  /**
+   * Los pagos APROBADOS con detalle (`loadInvoicePaymentDetails`): arman
+   * la sección «Pagos» después de los totales, antes del aviso SIC.
+   * null/ausente = sin sección (como siempre).
+   */
+  payments?: InvoicePaymentDetail[] | null,
 ): PrintCommand[] {
+  // La sección «Pagos», con el saldo adentro si la cuenta no está saldada.
+  const paymentsSection =
+    payments && payments.length > 0
+      ? buildPaymentsSection(payments, t, money, {
+          outstandingCents:
+            pendingPaymentOf(snapshot, payments)?.outstandingCents ?? 0,
+        })
+      : null;
   const c: PrintCommand[] = [];
+  // Todo texto centrado pasa por `fit`: envuelto por palabra al ancho
+  // efectivo de su tamaño, para que el terminal nunca parta una palabra.
   const center = (
     text: string,
     size = 24,
     bold = false,
-  ): PrintCommand => ({ type: "text", text: text + "\n", align: "CENTER", size, bold });
+  ): PrintCommand => ({ type: "text", text: fit(text, size) + "\n", align: "CENTER", size, bold });
 
   c.push(center(snapshot.restaurantName, 32, true));
   if (snapshot.legalName) c.push(center(snapshot.legalName));
@@ -107,60 +185,59 @@ export function buildInvoiceCommands(
 
   c.push(center(`FACTURA ${formatInvoiceNumber(snapshot, invoiceNumber)}`, 32, true));
   const paidAt = new Date(snapshot.paidAtIso);
+  // Mesa y código en un renglón y la FECHA en el suyo: compartiendo
+  // renglón se partía en dos con la "m." final cortada.
+  c.push(center(`${snapshot.tableLabel} · ${displayOrderCode(snapshot.shortCode)}`));
   c.push(
     center(
-      `${snapshot.tableLabel} · ${displayOrderCode(snapshot.shortCode)} · ` +
-        paidAt.toLocaleString("es-CO", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "America/Bogota",
-        }),
+      paidAt.toLocaleString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Bogota",
+      }),
     ),
   );
 
   if (snapshot.customer) {
     c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
-    c.push({ type: "text", text: `Cliente: ${snapshot.customer.name}\n` });
+    c.push({ type: "text", text: fit(`Cliente: ${snapshot.customer.name}`) + "\n" });
     c.push({
       type: "text",
-      text: `${snapshot.customer.docType} ${snapshot.customer.docNumber}\n`,
+      text: fit(`${snapshot.customer.docType} ${snapshot.customer.docNumber}`) + "\n",
     });
   }
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
   // Repetidos AGRUPADOS ("2x Bretaña"), con los modificadores y la nota
   // debajo — igual que la térmica de la caja (ver src/lib/invoiceLines.ts).
+  // El nombre envuelto por palabra: la primera línea al lado del precio y
+  // el resto en renglones completos (`amountRow`); cada modificador en su
+  // renglón, sangrado y envuelto.
   for (const it of groupInvoiceLines(snapshot.items)) {
-    c.push({
-      type: "columns",
-      columns: [
-        { text: `${it.qty}x ${it.name}`, weight: 2, align: "LEFT" },
-        { text: money(it.totalCents), weight: 1, align: "RIGHT" },
-      ],
-    });
+    c.push(...amountRow(`${it.qty}x ${it.name}`, money(it.totalCents)));
     for (const d of itemDetailLines(it)) {
-      c.push({ type: "text", text: `   ${d}\n` });
+      for (const l of wrap(d, TERMINAL_COLS, {
+        first: TERMINAL_INDENT,
+        cont: TERMINAL_INDENT,
+      })) {
+        c.push({ type: "text", text: l + "\n" });
+      }
     }
   }
   c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
 
-  const totalRow = (label: string, amount: string): PrintCommand => ({
-    type: "columns",
-    columns: [
-      { text: label, weight: 2, align: "LEFT" },
-      { text: amount, weight: 1, align: "RIGHT" },
-    ],
-  });
-  c.push(totalRow(t("subtotal"), money(snapshot.subtotalCents)));
+  const totalRow = (label: string, amount: string): PrintCommand[] =>
+    amountRow(label, amount);
+  c.push(...totalRow(t("subtotal"), money(snapshot.subtotalCents)));
   // Impuesto embebido congelado en la factura (base + "Incl. impoconsumo
   // 8%"), el que suman encima las líneas libres y el descuento del cliente
   // — las mismas filas, en el mismo orden, que la térmica y el correo
   // (`summaryRows`). Las facturas viejas salen igual que antes.
   for (const row of summaryRows(snapshot, summaryLabelsFrom(t))) {
-    c.push(totalRow(row.label, (row.negative ? "-" : "") + money(row.cents)));
+    c.push(...totalRow(row.label, (row.negative ? "-" : "") + money(row.cents)));
   }
   // Total factura (la venta), propina voluntaria y el TOTAL A PAGAR =
   // factura + propina, en negrita y más grande: rótulo y monto en dos
@@ -171,16 +248,48 @@ export function buildInvoiceCommands(
   )) {
     if (row.strong) {
       c.push({ type: "divider", dividerType: "SOLID", offset: 4 });
-      c.push({ type: "text", text: row.label + "\n", align: "LEFT", size: 28, bold: true });
+      c.push({ type: "text", text: fit(row.label, 28) + "\n", align: "LEFT", size: 28, bold: true });
       c.push({ type: "text", text: money(row.cents) + "\n", align: "RIGHT", size: 32, bold: true });
     } else {
-      c.push(totalRow(row.label, money(row.cents)));
+      c.push(...totalRow(row.label, money(row.cents)));
+    }
+  }
+
+  // ── Sección «Pagos»: el recibo del pago dentro de la factura ────────
+  // Un bloque por pago aprobado con su detalle, el TOTAL PAGADO y el
+  // saldo — lo mismo que la tirilla de la caja.
+  if (paymentsSection) {
+    c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
+    c.push({ type: "text", text: fit(paymentsSection.title) + "\n", align: "LEFT", size: 24, bold: true });
+    for (const b of paymentsSection.blocks) {
+      c.push(...amountRow(b.label, b.amount));
+      for (const d of b.lines) {
+        for (const l of wrap(d, TERMINAL_COLS, {
+          first: TERMINAL_INDENT,
+          cont: TERMINAL_INDENT,
+        })) {
+          c.push({ type: "text", text: l + "\n" });
+        }
+      }
+    }
+    c.push({ type: "text", text: fit(paymentsSection.totalLabel) + "\n", align: "LEFT", size: 24, bold: true });
+    c.push({ type: "text", text: paymentsSection.totalAmount + "\n", align: "RIGHT", size: 24, bold: true });
+    if (paymentsSection.breakdown) {
+      for (const l of wrap(paymentsSection.breakdown, TERMINAL_COLS, {
+        first: TERMINAL_INDENT,
+        cont: TERMINAL_INDENT,
+      })) {
+        c.push({ type: "text", text: l + "\n" });
+      }
+    }
+    if (paymentsSection.pending) {
+      c.push(...amountRow(paymentsSection.pending.label, paymentsSection.pending.amount));
     }
   }
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
-  c.push(center(wrap(t("tipNoticeTitle"), 32).join("\n"), 24, true));
-  c.push({ type: "text", text: wrap(t("tipNoticeBody"), 32).join("\n") + "\n", align: "LEFT", size: 24 });
+  c.push(center(t("tipNoticeTitle"), 24, true));
+  c.push({ type: "text", text: fit(t("tipNoticeBody")) + "\n", align: "LEFT", size: 24 });
 
   if (snapshot.dianResolution) {
     c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });

@@ -15,8 +15,9 @@
  *
  *   · ítem: "2x Nombre ....... $ precio" con el precio en el primer
  *     renglón y el nombre usando todo el ancho (`itemRow`);
- *   · modificadores y nota JUNTOS en un renglón en fuente B (la chica,
- *     1/3 más de columnas), separados por " · " y con sangría;
+ *   · modificadores y nota en fuente B (la chica, 1/3 más de columnas)
+ *     con sangría: juntos en UN renglón separados por " · " si entran, y
+ *     si no, uno por renglón envuelto por palabra (ver `itemChunks`);
  *   · filas de totales de a una, y la FUERTE (el TOTAL A PAGAR de la
  *     factura, lo pendiente de la precuenta) en negrita a doble ALTO con
  *     el ancho normal (`totalRowChunks`);
@@ -31,7 +32,6 @@
  *     vuelve al compacto (`withLineSpacingFor`).
  */
 
-import { itemDetailText } from "@/lib/invoice";
 import {
   COMPACT_LINE_SPACING_DOTS,
   FONT_A_HEIGHT_DOTS,
@@ -64,26 +64,34 @@ export const SMALL_INDENT = "    ";
 export const DETAIL_SEPARATOR = " · ";
 
 /**
- * Modificadores + nota del ítem en UN solo texto (`itemDetailText`, el
- * mismo formato que la vista HTML), con `extra` adelante (el unitario de
- * la precuenta). Vacío si no hay nada que decir.
+ * Las PIEZAS del detalle de un ítem, en orden: `extra` adelante (el
+ * unitario de la precuenta), después cada modificador y la nota entre
+ * comillas. Cada pieza es una unidad: `itemChunks` decide si las junta
+ * con " · " en un renglón o les da un renglón a cada una. Vacío si no
+ * hay nada que decir.
  */
-export function itemDetail(
+export function itemDetailParts(
   modifiers: readonly string[] | undefined,
   notes: string | null | undefined,
   extra: readonly string[] = [],
-): string {
-  return [...extra, itemDetailText({ modifiers, notes })]
-    .filter((p) => p.length > 0)
-    .join(DETAIL_SEPARATOR);
+): string[] {
+  return [
+    ...extra,
+    ...(modifiers ?? []).map((m) => m.trim()),
+    ...(notes?.trim() ? [`"${notes.trim()}"`] : []),
+  ].filter((p) => p.length > 0);
 }
 
 /**
- * Un ítem al papel: el renglón (o renglones) del plato en fuente A y, si
- * hay detalle, UN renglón en fuente B (más, sólo si no entra en uno).
+ * Un ítem al papel: el renglón (o renglones) del plato en fuente A y el
+ * detalle en fuente B. Si el detalle COMPLETO (unido con " · ") entra en
+ * un renglón, va en uno — es el caso común y es lo que compacta el papel.
+ * Si no entra, cada pieza (cada modificador, la nota) va en SU renglón,
+ * sangrada y envuelta por palabra: el chorro corrido partido a la mitad
+ * ("Op/ción de sopa") era ilegible en la factura de la foto del dueño.
  */
 export function itemChunks(
-  item: { qty: number; name: string; amount: string; detail: string },
+  item: { qty: number; name: string; amount: string; detail: string[] },
   cols: number,
   smallCols: number,
 ): Buffer[] {
@@ -93,14 +101,16 @@ export function itemChunks(
   })) {
     out.push(line(l));
   }
-  if (item.detail) {
+  if (item.detail.length > 0) {
+    const joined = item.detail.join(DETAIL_SEPARATOR);
+    const rows =
+      SMALL_INDENT.length + joined.length <= smallCols
+        ? [SMALL_INDENT + joined]
+        : item.detail.flatMap((part) =>
+            wrap(part, smallCols, { first: SMALL_INDENT, cont: SMALL_INDENT }),
+          );
     out.push(selectFont("B"));
-    for (const l of wrap(item.detail, smallCols, {
-      first: SMALL_INDENT,
-      cont: SMALL_INDENT,
-    })) {
-      out.push(line(l));
-    }
+    for (const l of rows) out.push(line(l));
     out.push(selectFont("A"));
   }
   return out;

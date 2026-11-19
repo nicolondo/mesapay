@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -25,6 +25,7 @@ import {
   type PurchaseTab,
 } from "@/lib/erp/purchaseList";
 import type { PurchaseListPage, PurchaseListRow } from "@/lib/erp/purchaseList";
+import { rowClickOpensDetail } from "@/lib/erp/purchaseListNav";
 import { PayStatusChip, STATUS_KEYS, StatusChip, padNumber } from "./chips";
 import { CREDIT_NOTES_PATH } from "@/lib/erp/supplierCreditNoteList";
 
@@ -367,6 +368,18 @@ function SummaryTile({
 
 // ── Filas: Órdenes ────────────────────────────────────────────────────────
 
+/**
+ * Clic en cualquier parte de la fila: abre el detalle (#634). Salvo sobre un
+ * control interno —botones de pagar/editar, enlaces— que hace lo suyo, o con
+ * texto seleccionado (copiar un número con el mouse no debe abrir nada).
+ * El acceso por teclado sigue siendo el botón del número de la compra, que
+ * es el control real de la fila (Tab + Enter/Espacio): la fila no se vuelve
+ * `role="button"` para no anidar interactivos dentro de interactivos.
+ */
+function handleRowClick(e: ReactMouseEvent, open: () => void) {
+  if (rowClickOpensDetail(e.target, window.getSelection()?.toString())) open();
+}
+
 type RowProps = {
   rows: PurchaseListRow[];
   money: (cents: number) => string;
@@ -402,10 +415,15 @@ function OrderRows({ rows, money, locale, onOpenDetail }: RowProps) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-op-border transition-colors hover:bg-op-bg/50">
+              <tr
+                key={r.id}
+                onClick={(e) => handleRowClick(e, () => onOpenDetail(r.id))}
+                className="cursor-pointer border-t border-op-border transition-colors hover:bg-op-bg/50"
+              >
                 <Td className="whitespace-nowrap">
                   <button
                     type="button"
+                    data-po-open={r.id}
                     onClick={() => onOpenDetail(r.id)}
                     className="font-medium underline-offset-2 hover:underline focus-visible:underline"
                     aria-label={t("plOpenPurchase", { number: poLabel(r) })}
@@ -442,6 +460,7 @@ function OrderRows({ rows, money, locale, onOpenDetail }: RowProps) {
           <li key={r.id} className="border-b border-op-border last:border-b-0">
             <button
               type="button"
+              data-po-open={r.id}
               onClick={() => onOpenDetail(r.id)}
               className="w-full text-left px-4 py-2.5 hover:bg-op-bg"
               aria-label={t("plOpenPurchase", { number: poLabel(r) })}
@@ -534,10 +553,15 @@ function UnpaidRows({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-op-border transition-colors hover:bg-op-bg/50">
+              <tr
+                key={r.id}
+                onClick={(e) => handleRowClick(e, () => onOpenDetail(r.id))}
+                className="cursor-pointer border-t border-op-border transition-colors hover:bg-op-bg/50"
+              >
                 <Td className="whitespace-nowrap">
                   <button
                     type="button"
+                    data-po-open={r.id}
                     onClick={() => onOpenDetail(r.id)}
                     className="font-medium underline-offset-2 hover:underline focus-visible:underline"
                     aria-label={t("plOpenPurchase", { number: poLabel(r) })}
@@ -581,10 +605,15 @@ function UnpaidRows({
       </div>
       <ul className="@min-[56rem]:hidden overflow-hidden rounded-2xl border border-op-border bg-op-surface">
         {rows.map((r) => (
-          <li key={r.id} className="px-4 py-2.5 border-b border-op-border last:border-b-0">
+          <li
+            key={r.id}
+            onClick={(e) => handleRowClick(e, () => onOpenDetail(r.id))}
+            className="cursor-pointer px-4 py-2.5 border-b border-op-border last:border-b-0"
+          >
             <div className="flex items-center gap-3">
               <button
                 type="button"
+                data-po-open={r.id}
                 onClick={() => onOpenDetail(r.id)}
                 className="flex-1 min-w-0 text-left"
                 aria-label={t("plOpenPurchase", { number: poLabel(r) })}

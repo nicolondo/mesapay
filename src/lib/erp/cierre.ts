@@ -6,6 +6,7 @@
 // generación lo rechaza. Reabrir levanta el candado (los números asignados
 // se conservan; si el mes se regenera, el próximo cierre re-numera esos
 // asientos con números nuevos de la secuencia — queda rastro en auditoría).
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { UVT_DEFAULT_CENTS } from "./retenciones";
 
@@ -19,13 +20,25 @@ export type AccountingConfigDto = {
 export async function getAccountingConfig(
   restaurantId: string,
 ): Promise<AccountingConfigDto> {
-  const row = await db.accountingConfig.upsert({
-    where: { restaurantId },
-    create: { restaurantId, uvtCents: UVT_DEFAULT_CENTS },
-    update: {},
-    select: { uvtCents: true, closedThrough: true, nextVoucherNumber: true },
-  });
-  return row;
+  const upsert = () =>
+    db.accountingConfig.upsert({
+      where: { restaurantId },
+      create: { restaurantId, uvtCents: UVT_DEFAULT_CENTS },
+      update: {},
+      select: { uvtCents: true, closedThrough: true, nextVoucherNumber: true },
+    });
+  try {
+    return await upsert();
+  } catch (error) {
+    // El upsert de Prisma no es atómico (find y luego create): dos peticiones
+    // simultáneas sobre un comercio sin fila (p. ej. tax-context, que pide los
+    // conceptos y la config en paralelo y ambos la crean perezosamente) pueden
+    // chocar con el índice único. Si pasó, la fila ya existe: reintentar lee.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return await upsert();
+    }
+    throw error;
+  }
 }
 
 /** ¿El mes (YYYY-MM) está dentro del período cerrado? Comparación lexicográfica. */

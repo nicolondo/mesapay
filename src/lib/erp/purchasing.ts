@@ -21,6 +21,11 @@ export class PurchasingError extends Error {
   constructor(
     public code:
       | "supplier_not_found"
+      // Confirmación de factura: el nombre nuevo choca con uno archivado o
+      // con un insumo existente de otra medida (los nombres son únicos).
+      | "supplier_archived"
+      | "ingredient_archived"
+      | "ingredient_name_taken"
       | "ingredient_not_found"
       | "supplier_item_mismatch"
       | "no_lines"

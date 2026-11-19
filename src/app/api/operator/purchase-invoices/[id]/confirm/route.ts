@@ -156,19 +156,25 @@ async function POSTHandler(
       });
       if (claimed.count !== 1) throw new PurchasingError("not_pending");
 
-      // 1. Proveedor (existente o nuevo).
+      // 1. Proveedor (existente o nuevo). El nombre es único por comercio
+      // (facturas reales lo repiten): si ya existe activo se reutiliza en vez
+      // de chocar con el índice único y perder la confirmación entera.
       let supplierId = b.supplierId;
       if (!supplierId) {
         if (!b.newSupplierName) throw new PurchasingError("supplier_not_found");
-        const created = await tx.supplier.create({
+        const existing = await tx.supplier.findUnique({
+          where: { restaurantId_name: { restaurantId: ctx.restaurantId, name: b.newSupplierName } },
+          select: { id: true, active: true },
+        });
+        if (existing && !existing.active) throw new PurchasingError("supplier_archived");
+        supplierId = existing?.id ?? (await tx.supplier.create({
           data: {
             restaurantId: ctx.restaurantId,
             name: b.newSupplierName,
             taxId: b.newSupplierNit || null,
           },
           select: { id: true },
-        });
-        supplierId = created.id;
+        })).id;
       } else {
         const s = await tx.supplier.findUnique({
           where: { id: supplierId },
@@ -184,6 +190,12 @@ async function POSTHandler(
       });
 
       // 2. Insumos nuevos + líneas de la OC (cantidad en unidad base).
+      // Una factura real puede traer el MISMO artículo en dos líneas (compras
+      // repetidas del mismo código): el nombre es único por comercio, así que
+      // el insumo nuevo se crea UNA vez y las demás líneas lo reutilizan. Un
+      // nombre que ya existe activo con la misma medida también se reutiliza;
+      // chocar con el índice único tumbaba toda la confirmación sin mensaje.
+      const newIngredientIds = new Map<string, string>();
       const poLines: CreatePoLine[] = [];
       for (const line of b.lines) {
         let ingredientId = line.ingredientId;
@@ -191,15 +203,31 @@ async function POSTHandler(
           if (!line.newIngredientName) {
             throw new PurchasingError("ingredient_not_found");
           }
-          const created = await tx.ingredient.create({
-            data: {
-              restaurantId: ctx.restaurantId,
-              name: line.newIngredientName,
-              measureKind: line.newIngredientMeasureKind ?? "count",
-            },
-            select: { id: true },
-          });
-          ingredientId = created.id;
+          const measureKind = line.newIngredientMeasureKind ?? "count";
+          const reused = newIngredientIds.get(`${line.newIngredientName}\n${measureKind}`);
+          if (reused) {
+            ingredientId = reused;
+          } else {
+            const existing = await tx.ingredient.findUnique({
+              where: { restaurantId_name: { restaurantId: ctx.restaurantId, name: line.newIngredientName } },
+              select: { id: true, active: true, measureKind: true },
+            });
+            if (existing && !existing.active) throw new PurchasingError("ingredient_archived");
+            // Con otra medida, la cantidad en unidad base no significa lo
+            // mismo: hay que elegir el insumo existente en la revisión.
+            if (existing && existing.measureKind !== measureKind) {
+              throw new PurchasingError("ingredient_name_taken");
+            }
+            ingredientId = existing?.id ?? (await tx.ingredient.create({
+              data: {
+                restaurantId: ctx.restaurantId,
+                name: line.newIngredientName,
+                measureKind,
+              },
+              select: { id: true },
+            })).id;
+            newIngredientIds.set(`${line.newIngredientName}\n${measureKind}`, ingredientId);
+          }
         } else {
           const ing = await tx.ingredient.findUnique({
             where: { id: ingredientId },

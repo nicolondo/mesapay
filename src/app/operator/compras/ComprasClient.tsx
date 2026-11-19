@@ -50,6 +50,7 @@ import {
 import { NewOrderForm } from "./oc/NewOrderForm";
 import { ComprasList, type FilterSupplier } from "./ComprasList";
 import { PayStatusChip, StatusChip } from "./chips";
+import { confirmErrorMessage } from "./confirmErrorKeys";
 import { useListNavigation } from "@/components/billingCustomers/ListControls";
 import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
 import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
@@ -1028,19 +1029,9 @@ const API_UPLOAD_ERROR_KEYS: Record<string, string> = {
   not_a_document: "invUploadErrNotDocument",
 };
 
-// Errores del POST de confirmación → clave i18n (fallback errSaveFailed).
-const API_CONFIRM_ERROR_KEYS: Record<string, string> = {
-  alias_invalid: "invAliasInvalid",
-  alias_conflict: "invAliasConflict",
-  invalid: "invReviewErrInvalid",
-  supplier_not_found: "invReviewErrSupplierNotFound",
-  ingredient_not_found: "invReviewErrIngredientNotFound",
-  no_lines: "invReviewErrNoLines",
-  not_found: "invReviewErrNotFound",
-  not_pending: "invReviewErrNotPending",
-  module_disabled: "invUploadErrModuleDisabled",
-  totals_unconfirmed: "invRecAckRequired",
-};
+// Errores del POST de confirmación → clave i18n: ver confirmErrorKeys.ts.
+// Un código sin mapear se muestra tal cual junto al genérico: un error mudo
+// escondió en producción por qué una factura entera no se podía guardar.
 
 /* ──────────── Cargar factura: botón + spinner de lectura IA ────────── */
 
@@ -1859,8 +1850,9 @@ function InvoiceReviewSheet({
           setConflict(dup);
           return;
         }
-        const key = API_CONFIRM_ERROR_KEYS[j?.error as string];
-        setErr(key ? t(key) : t("errSaveFailed"));
+        // Sin clave mapeada: el código crudo del servidor, nunca un error mudo.
+        const failure = confirmErrorMessage(j?.error, r.status);
+        setErr("code" in failure ? t(failure.key, { code: failure.code }) : t(failure.key));
         return;
       }
       if (typeof j?.order?.id !== "string" || !j.order.id) throw new Error("invalid_confirmation_response");

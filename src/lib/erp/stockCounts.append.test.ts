@@ -17,7 +17,6 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/erp/stock", () => ({ applyStockMovement: m.apply }));
 vi.mock("@/lib/db", () => {
-  const live = () => m.ingredients.filter((ingredient) => m.count.items.some((item) => item.ingredientId === ingredient.id));
   const tx = {
     stockCount: {
       findFirst: vi.fn(async ({ where }: { where: { id: string; restaurantId: string } }) => { m.events.push("read"); return m.count?.id === where.id && m.count?.restaurantId === where.restaurantId ? structuredClone(m.count) : null; }),
@@ -258,7 +257,8 @@ describe("agregar categorías completas a un conteo", () => {
 
   it("en borrador: entran los activos e inventariables que faltan, con el teórico de ESTE momento, y sube la revisión", async () => {
     const result = await appendCategories(["Lácteos", null]);
-    expect(result.added).toBe(3);
+    // Lácteos aporta 2 (leche y queso); «Sin categoría» aporta 2 (s-suelto y a-new).
+    expect(result.added).toBe(4);
     expect(result.count.revision).toBe(1);
     expect(result.count.items.find((item) => item.ingredientId === "l-leche")).toMatchObject({ expectedQty: 500, countedQty: null, finalExpectedQty: null });
     expect(result.count.items.find((item) => item.ingredientId === "l-queso")).toMatchObject({ expectedQty: 0 });

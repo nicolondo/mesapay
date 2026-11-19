@@ -3,6 +3,7 @@ import { staffForRestaurant, OPERATOR_ROLES } from "@/lib/staffAccess";
 import { ReconcilePayment } from "./ReconcilePayment";
 import { paymentPill } from "./paymentPill";
 import Link from "next/link";
+import { BackToListLink } from "@/components/BackToListLink";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/lib/db";
@@ -175,13 +176,13 @@ export default async function OperatorOrderDetail({
   return (
     <div className="p-6 max-w-4xl mx-auto w-full">
       <div className="mb-4">
-        <Link
+        <BackToListLink
           href="/operator/orders"
           className="font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted hover:text-op-text"
         >
           <span aria-hidden>{"← "}</span>
           {t("back")}
-        </Link>
+        </BackToListLink>
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">

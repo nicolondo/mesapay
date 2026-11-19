@@ -164,6 +164,11 @@ export function columnsForWidth(paperWidthMm: number): number {
  *
  * `firstWidth` achica SÓLO el primer renglón del texto (el que comparte
  * el papel con el precio, ver `itemRow`); los siguientes usan `width`.
+ *
+ * El NBSP (\u00a0) NO corta: es el espacio que `formatMoney` pone entre
+ * el "$" y la cifra, y un monto citado dentro de un texto ("…antes de
+ * impuestos: $ 31.389") no puede quedar con el "$" huérfano al final del
+ * renglón. En el papel sale como espacio común (CP850 lo mapea a 0x20).
  */
 export function wrap(
   text: string,
@@ -178,7 +183,8 @@ export function wrap(
   const cont = fit(opts.cont ?? opts.first ?? "", w);
   const out: string[] = [];
   text.split("\n").forEach((paragraph, pIdx) => {
-    const words = paragraph.split(/\s+/).filter(Boolean);
+    // Todo espacio en blanco MENOS el NBSP, que pega sus dos lados.
+    const words = paragraph.split(/[^\S\u00a0]+/).filter(Boolean);
     if (words.length === 0) {
       out.push("");
       return;

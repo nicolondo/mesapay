@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildInvoiceCommands — la tirilla del datáfono (55 mm) > snapshot del diseño en texto 1`] = `
+"Son y Melona
+SON Y MELONA S.A.S.
+NIT 901.234.567-8
+Carrera 43A # 1-50, local 102 ·
+Envigado
+Tel 604 444 5566
+--------------------------------
+FACTURA FESM6723
+Mesa 4 · 002A77
+12/11/2026, 12:53 p. m.
+--------------------------------
+1x Plato del Día        $ 33,900
+   (Casero Del Dia)
+   - Opción de sopa: Fríjoles
+   - Opción de proteína: Pollo a
+   la parrilla
+   - Bebida: Limonada natural
+--------------------------------
+Subtotal                $ 33,900
+Base gravable           $ 31,389
+Incl. impoconsumo 8%     $ 2,511
+Total factura           $ 33,900
+Propina voluntaria       $ 3,139
+--------------------------------
+TOTAL A PAGAR
+$ 37,039
+--------------------------------
+Pagos
+Tarjeta · datáfono      $ 37,039
+   VISA · ····4242 · Aprob.
+   123456
+   Incluye propina $ 3,139
+TOTAL PAGADO
+$ 37,039
+   Cuenta $ 33,900 · Propinas
+   $ 3,139
+--------------------------------
+ADVERTENCIA DE PROPINA
+POR DISPOSICION DE LA
+SUPERINTENDENCIA DE INDUSTRIA Y
+COMERCIO SE INFORMA QUE LA
+PROPINA ES SUGERIDA AL
+CONSUMIDOR LA CUAL PODRA SER
+ACEPTADA, RECHAZADA O MODIFICADA
+POR USTED, DE ACUERDO CON SU
+VALORACION DEL SERVICIO
+PRESTADO.
+--------------------------------
+Res. DIAN 18764000012345
+[QR]
+Gracias por su visita"
+`;

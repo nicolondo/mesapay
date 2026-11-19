@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { encodeCp850 } from "./codepage";
 import {
   COMPACT_LINE_SPACING_DOTS,
   DEFAULT_LINE_SPACING,
@@ -101,6 +102,46 @@ describe("interlineado — ESC 3 n / ESC 2", () => {
 
   it("el compacto es el alto de la fuente A: renglones pegados que no se pisan", () => {
     expect(COMPACT_LINE_SPACING_DOTS).toBe(24);
+  });
+});
+
+describe("wrap — envoltura por PALABRA", () => {
+  it("nunca parte una palabra que cabe: corta en los espacios", () => {
+    expect(wrap("FACTURA ELECTRÓNICA DE VENTA", 16)).toEqual([
+      "FACTURA",
+      "ELECTRÓNICA DE",
+      "VENTA",
+    ]);
+    expect(wrap("TOTAL A PAGAR", 10)).toEqual(["TOTAL A", "PAGAR"]);
+  });
+
+  it("una palabra más larga que la línea se parte a lo bruto, las demás no", () => {
+    expect(wrap("ver catalogo-vpfe.dian.gov.co ya", 12)).toEqual([
+      "ver",
+      "catalogo-vpf",
+      "e.dian.gov.c",
+      "o ya",
+    ]);
+  });
+
+  it("los acentos cuentan UNA columna (CP850 imprime un byte por carácter)", () => {
+    // "Opción de proteína: Pollo a la parrilla" — como en la foto del dueño.
+    const lines = wrap("Opción de proteína: Pollo a la parrilla", 32);
+    expect(lines).toEqual(["Opción de proteína: Pollo a la", "parrilla"]);
+    for (const l of lines) {
+      // Lo que mide en JS es lo que ocupa en el papel: 1 byte por columna.
+      expect(encodeCp850(l).length).toBe(l.length);
+      expect(l.length).toBeLessThanOrEqual(32);
+    }
+  });
+
+  it("a doble ancho se envuelve contra las columnas efectivas (la mitad)", () => {
+    // 32 columnas de papel a doble ancho = 16 efectivas (ver colsForSize).
+    expect(wrap("FACTURA ELECTRÓNICA DE VENTA", Math.floor(32 / 2))).toEqual([
+      "FACTURA",
+      "ELECTRÓNICA DE",
+      "VENTA",
+    ]);
   });
 });
 

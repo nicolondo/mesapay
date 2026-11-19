@@ -104,7 +104,7 @@ describe("a quién pertenece el código", () => {
       code: "7804436720807",
       match: {
         ingredient: { id: "old", name: "Vino blanco viejo", active: false, trackInventory: true, category: "Licores", barcode: "7804436720807", barcodes: [{ barcode: "7804436720807" }] },
-        itemId: null, state: "archived", scopeCategory: "Licores", canAppend: false,
+        itemId: null, state: "archived", canAppend: false,
       },
     });
   });
@@ -120,17 +120,27 @@ describe("a quién pertenece el código", () => {
     expect((await (await call("SOAP-1")).json()).match).toMatchObject({ state: "category_excluded", canAppend: false });
   });
 
-  it("conteo abierto para una sola categoría: el insumo es de otra", async () => {
+  it("insumo de una categoría que no está en el conteo: se ofrece traerlo", async () => {
     catalog.push(ingredient("rice", "Arroz", ["RICE-1"], { category: "Abarrotes" }));
-    expect((await (await call("RICE-1")).json()).match).toMatchObject({ state: "outside_scope", scopeCategory: "Licores", itemId: null, canAppend: true });
+    expect((await (await call("RICE-1")).json()).match).toMatchObject({ state: "outside_scope", itemId: null, canAppend: true });
+    // El conteo ya abarca Abarrotes (varias categorías): deja de estar «fuera».
+    countItems.push({ id: "item-x", ingredientId: "x", ingredient: { category: "Abarrotes" } });
+    expect((await (await call("RICE-1")).json()).match).toMatchObject({ state: "added_later", canAppend: true });
+    // Una tercera categoría sigue estando fuera del alcance.
+    catalog.push(ingredient("soap2", "Esponja", ["SPNG-1"], { category: "Verduras" }));
+    expect((await (await call("SPNG-1")).json()).match).toMatchObject({ state: "outside_scope", canAppend: true });
   });
 
-  it("insumo creado o activado después de abrir el conteo", async () => {
+  it("insumo creado o activado después de abrir el conteo (su categoría sí está)", async () => {
     catalog.push(ingredient("vodka", "Vodka", ["VODKA-1"]));
-    expect((await (await call("VODKA-1")).json()).match).toMatchObject({ state: "added_later", scopeCategory: "Licores", canAppend: true });
-    // Conteo de todos los insumos (varias categorías): sin categoría de alcance.
-    countItems.push({ id: "item-x", ingredientId: "x", ingredient: { category: "Abarrotes" } });
-    expect((await (await call("VODKA-1")).json()).match).toMatchObject({ state: "added_later", scopeCategory: null, canAppend: true });
+    expect((await (await call("VODKA-1")).json()).match).toMatchObject({ state: "added_later", canAppend: true });
+  });
+
+  it("insumo sin categoría: está «dentro» solo si el conteo incluye insumos sin categoría", async () => {
+    catalog.push(ingredient("loose", "Suelto", ["LOOSE-1"], { category: null }));
+    expect((await (await call("LOOSE-1")).json()).match).toMatchObject({ state: "outside_scope", canAppend: true });
+    countItems.push({ id: "item-n", ingredientId: "n", ingredient: { category: null } });
+    expect((await (await call("LOOSE-1")).json()).match).toMatchObject({ state: "added_later", canAppend: true });
   });
 
   it("archivado gana sobre las demás razones", async () => {

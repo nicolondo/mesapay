@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // y cerrar un conteo con un insumo recién creado, sin existencias ni costo.
 type Item = { id: string; ingredientId: string; expectedQty: number; countedQty: number | null; countedParts: number[]; preliminaryQty: number | null; preliminaryParts: number[]; finalExpectedQty: number | null; ingredient: { id: string; trackInventory: boolean } };
 type Count = { id: string; restaurantId: string; status: string; revision: number; preliminaryAt: Date | null; recountStartedAt: Date | null; recountSnapshot: unknown; finalReview: unknown; items: Item[] };
-type Ingredient = { id: string; restaurantId: string; active: boolean; trackInventory: boolean; measureKind: string; stockLevel: { qtyBase: number; totalValueCents: number } | null; movements: number };
+type Ingredient = { id: string; restaurantId: string; active: boolean; trackInventory: boolean; category: string | null; measureKind: string; stockLevel: { qtyBase: number; totalValueCents: number } | null; movements: number };
 
 const m = vi.hoisted(() => ({
   count: null! as Count,
@@ -17,7 +17,6 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/orderLock", () => ({ lockStock: m.lock }));
 vi.mock("@/lib/erp/stock", () => ({ applyStockMovement: m.apply }));
 vi.mock("@/lib/db", () => {
-  const live = () => m.ingredients.filter((ingredient) => m.count.items.some((item) => item.ingredientId === ingredient.id));
   const tx = {
     stockCount: {
       findFirst: vi.fn(async ({ where }: { where: { id: string; restaurantId: string } }) => { m.events.push("read"); return m.count?.id === where.id && m.count?.restaurantId === where.restaurantId ? structuredClone(m.count) : null; }),
@@ -44,8 +43,21 @@ vi.mock("@/lib/db", () => {
         const found = m.ingredients.find((ingredient) => ingredient.id === where.id && ingredient.restaurantId === where.restaurantId);
         return found ? structuredClone(found) : null;
       }),
-      // Orden de la base (por id), que no es el orden en que se guardó el snapshot.
-      findMany: vi.fn(async () => structuredClone(live()).sort((a, b) => a.id.localeCompare(b.id))),
+      // Orden de la base (por id), que no es el orden en que se guardó el
+      // snapshot. Respeta el where: por ids (snapshot) o por categorías
+      // (agregar categorías al conteo).
+      findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        const matchCategory = (clause: { category?: null | { in: string[] } }, candidate: Ingredient) =>
+          clause.category === null ? candidate.category === null : clause.category ? clause.category.in.includes(candidate.category ?? "") : true;
+        let list = m.ingredients.filter((candidate) => candidate.restaurantId === where.restaurantId);
+        const idIn = (where.id as { in?: string[] } | undefined)?.in;
+        if (idIn) list = list.filter((candidate) => idIn.includes(candidate.id));
+        if (typeof where.active === "boolean") list = list.filter((candidate) => candidate.active === where.active);
+        if (typeof where.trackInventory === "boolean") list = list.filter((candidate) => candidate.trackInventory === where.trackInventory);
+        if (Array.isArray(where.OR)) list = list.filter((candidate) => (where.OR as { category?: null | { in: string[] } }[]).some((clause) => matchCategory(clause, candidate)));
+        else if ("category" in where) list = list.filter((candidate) => matchCategory(where as { category?: null | { in: string[] } }, candidate));
+        return structuredClone(list).sort((a, b) => a.id.localeCompare(b.id));
+      }),
     },
     stockMovement: {
       count: vi.fn(async ({ where }: { where: { ingredientId: string | { in: string[] } } }) => {
@@ -59,11 +71,11 @@ vi.mock("@/lib/db", () => {
   return { db: { $transaction: (callback: (client: unknown) => unknown) => callback(tx) } };
 });
 
-import { appendStockCountItem, mutateStockCount, sameStockSnapshot } from "./stockCounts";
+import { appendStockCountCategories, appendStockCountItem, ingredientCategoryScopeWhere, mutateStockCount, sameStockSnapshot } from "./stockCounts";
 
 const R = "restaurant";
 const ingredient = (id: string, overrides: Partial<Ingredient> = {}): Ingredient => ({
-  id, restaurantId: R, active: true, trackInventory: true, measureKind: "count", stockLevel: { qtyBase: 10000, totalValueCents: 5000 }, movements: 2, ...overrides,
+  id, restaurantId: R, active: true, trackInventory: true, category: null, measureKind: "count", stockLevel: { qtyBase: 10000, totalValueCents: 5000 }, movements: 2, ...overrides,
 });
 
 beforeEach(() => {
@@ -215,6 +227,102 @@ describe("conteo con un insumo recién creado", () => {
     added.stockLevel = { qtyBase: 2000, totalValueCents: 900 };
     added.movements = 1;
     await expect(mutate("review")).rejects.toMatchObject({ code: "stock_changed" });
+  });
+});
+
+const appendCategories = (categories: (string | null)[], revision = m.count.revision) =>
+  appendStockCountCategories(R, "count", { revision, categories });
+
+describe("filtro de categorías del alcance", () => {
+  it("arma el where por nombres, por «Sin categoría» (null) o ambos; vacío = sin filtro", () => {
+    expect(ingredientCategoryScopeWhere([])).toEqual({});
+    expect(ingredientCategoryScopeWhere(["Licores"])).toEqual({ category: { in: ["Licores"] } });
+    expect(ingredientCategoryScopeWhere(["Licores", "Licores", "Abarrotes"])).toEqual({ category: { in: ["Licores", "Abarrotes"] } });
+    expect(ingredientCategoryScopeWhere([null])).toEqual({ category: null });
+    expect(ingredientCategoryScopeWhere(["Licores", null])).toEqual({ OR: [{ category: { in: ["Licores"] } }, { category: null }] });
+  });
+});
+
+describe("agregar categorías completas a un conteo", () => {
+  beforeEach(() => {
+    m.ingredients.push(
+      ingredient("l-leche", { category: "Lácteos", stockLevel: { qtyBase: 500, totalValueCents: 200 }, movements: 1 }),
+      ingredient("l-queso", { category: "Lácteos", stockLevel: null, movements: 0 }),
+      ingredient("l-untracked", { category: "Lácteos", trackInventory: false }),
+      ingredient("l-archived", { category: "Lácteos", active: false }),
+      ingredient("s-suelto", { category: null, stockLevel: { qtyBase: 30, totalValueCents: 10 }, movements: 4 }),
+      ingredient("l-ajeno", { category: "Lácteos", restaurantId: "other" }),
+    );
+  });
+
+  it("en borrador: entran los activos e inventariables que faltan, con el teórico de ESTE momento, y sube la revisión", async () => {
+    const result = await appendCategories(["Lácteos", null]);
+    // Lácteos aporta 2 (leche y queso); «Sin categoría» aporta 2 (s-suelto y a-new).
+    expect(result.added).toBe(4);
+    expect(result.count.revision).toBe(1);
+    expect(result.count.items.find((item) => item.ingredientId === "l-leche")).toMatchObject({ expectedQty: 500, countedQty: null, finalExpectedQty: null });
+    expect(result.count.items.find((item) => item.ingredientId === "l-queso")).toMatchObject({ expectedQty: 0 });
+    // «Sin categoría» (null) también es un alcance válido; a-new no tiene categoría.
+    expect(result.count.items.find((item) => item.ingredientId === "s-suelto")).toMatchObject({ expectedQty: 30 });
+    expect(result.count.items.find((item) => item.ingredientId === "a-new")).toMatchObject({ expectedQty: 0 });
+    // Archivados, no inventariables y de otro comercio no entran.
+    for (const excluded of ["l-untracked", "l-archived", "l-ajeno"]) {
+      expect(result.count.items.find((item) => item.ingredientId === excluded)).toBeUndefined();
+    }
+    // Lo ya contado no se toca.
+    expect(result.count.items.find((item) => item.id === "item-m-rice")).toMatchObject({ countedQty: 9000 });
+  });
+
+  it("el teórico se congela al momento de agregar, no al de abrir el conteo", async () => {
+    m.ingredients.find((candidate) => candidate.id === "l-leche")!.stockLevel = { qtyBase: 777, totalValueCents: 300 };
+    const result = await appendCategories(["Lácteos"]);
+    expect(result.count.items.find((item) => item.ingredientId === "l-leche")).toMatchObject({ expectedQty: 777 });
+  });
+
+  it("una categoría ya completa no agrega nada ni sube la revisión", async () => {
+    await appendCategories(["Lácteos"]);
+    const revision = m.count.revision;
+    const again = await appendCategories(["Lácteos"]);
+    expect(again.added).toBe(0);
+    expect(m.count.revision).toBe(revision);
+  });
+
+  it("rechaza revisión vieja, lista vacía y las etapas no editables", async () => {
+    await expect(appendCategories(["Lácteos"], m.count.revision + 1)).rejects.toMatchObject({ code: "count_changed", status: 409 });
+    await expect(appendCategories([])).rejects.toMatchObject({ code: "invalid", status: 400 });
+    await mutate("preliminary");
+    await expect(appendCategories(["Lácteos"])).rejects.toMatchObject({ code: "recount_required" });
+    await mutate("recount");
+    await save({ "item-m-rice": 8000 });
+    await mutate("review");
+    await expect(appendCategories(["Lácteos"])).rejects.toMatchObject({ code: "count_not_editable" });
+    await mutate("close", { reviewToken: (m.count.finalReview as { token: string }).token });
+    await expect(appendCategories(["Lácteos"])).rejects.toMatchObject({ code: "already_closed" });
+    await expect(appendStockCountCategories("other", "count", { revision: 0, categories: ["Lácteos"] })).rejects.toMatchObject({ code: "not_found", status: 404 });
+    expect(m.count.items).toHaveLength(1);
+  });
+
+  it("durante el definitivo: entran al snapshot con su saldo y movimientos de ahora, quedan «sin contar» y el cierre los exige", async () => {
+    await mutate("preliminary");
+    await mutate("recount");
+    const before = structuredClone(m.count.recountSnapshot) as { movementCount: number };
+    const result = await appendCategories(["Lácteos"]);
+    expect(result.added).toBe(2);
+    // Sin preliminar propio: pendientes honestos, con el teórico de ahora.
+    expect(result.count.items.find((item) => item.ingredientId === "l-leche")).toMatchObject({ expectedQty: 500, finalExpectedQty: 500, preliminaryQty: null, countedQty: null });
+    const snapshot = m.count.recountSnapshot as { movementCount: number; recount: Record<string, string[]>; ingredients: { id: string }[] };
+    expect(snapshot.movementCount).toBe(before.movementCount + 1);
+    expect(snapshot.recount).toMatchObject({ "l-leche": ["uncounted"], "l-queso": ["uncounted"] });
+    expect(snapshot.ingredients.map((entry) => entry.id)).toEqual(["m-rice", "l-leche", "l-queso"]);
+    // Falta contarlos: el definitivo exige todos los insumos.
+    await save({ "item-m-rice": 10000 });
+    await expect(mutate("review")).rejects.toMatchObject({ code: "incomplete_count" });
+    await save({ "item-l-leche": 500, "item-l-queso": 100 });
+    await mutate("review");
+    const closed = await mutate("close", { reviewToken: (m.count.finalReview as { token: string }).token });
+    if (!("count" in closed)) throw new Error("expected count");
+    expect(closed.adjustments).toBe(1);
+    expect(m.apply.mock.calls[0][1]).toMatchObject({ ingredientId: "l-queso", qtyBase: 100 });
   });
 });
 

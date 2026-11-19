@@ -35,8 +35,12 @@ vi.mock("@/lib/simpleInvoice", () => ({
   invoiceUrlFor: (id: string) => `https://mesapay.co/factura/${id}`,
 }));
 vi.mock("@/lib/invoice", async (importOriginal) => ({
-  invoicePayableOf: (await importOriginal<typeof import("@/lib/invoice")>()).invoicePayableOf,
+  ...(await importOriginal<typeof import("@/lib/invoice")>()),
   formatInvoiceNumber: () => "FESM6484",
+}));
+// Sin pagos: la sección «Pagos» del correo no es lo que se prueba acá.
+vi.mock("@/lib/print/invoicePayments", () => ({
+  loadInvoicePaymentDetails: async () => [],
 }));
 vi.mock("@/lib/dian/crypto", () => ({ dianQrUrl: () => "https://dian/qr" }));
 vi.mock("@/lib/dian/attachedDocument", () => ({

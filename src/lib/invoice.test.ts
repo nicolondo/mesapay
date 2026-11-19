@@ -349,10 +349,10 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
     const label = texts.findIndex((c) => c.text === "TOTAL A PAGAR\n");
     expect(label).toBeGreaterThan(-1);
     expect(texts[label]).toMatchObject({ bold: true, size: 28 });
-    expect(texts[label + 1]).toMatchObject({ text: "$ 132,000\n", bold: true, size: 32, align: "RIGHT" });
+    expect(texts[label + 1]).toMatchObject({ text: "$\u00a0132,000\n", bold: true, size: 32, align: "RIGHT" });
     const rows = commands.flatMap((c) => (c.type === "columns" ? [`${c.columns[0].text} ${c.columns[1].text}`] : []));
-    expect(rows).toContain("Total factura $ 120,000");
-    expect(rows).toContain("Propina voluntaria $ 12,000");
+    expect(rows).toContain("Total factura $\u00a0120,000");
+    expect(rows).toContain("Propina voluntaria $\u00a012,000");
   });
 
   it("datáfono, factura emitida ANTES de cobrar y ya cobrada: la propina REAL de la orden", () => {
@@ -363,8 +363,8 @@ describe("el impuesto embebido sale en TODAS las superficies del snapshot", () =
       );
       return texts[texts.indexOf("TOTAL A PAGAR\n") + 1];
     };
-    expect(totalToPay({ tipCents: 1_200_000 })).toBe("$ 132,000\n");
-    expect(totalToPay()).toBe("$ 120,000\n");
+    expect(totalToPay({ tipCents: 1_200_000 })).toBe("$\u00a0132,000\n");
+    expect(totalToPay()).toBe("$\u00a0120,000\n");
   });
 });
 
@@ -541,10 +541,10 @@ describe("artículos repetidos AGRUPADOS en el correo y el datáfono", () => {
           : c.type,
     );
     expect(slice).toEqual([
-      "2x Bretaña | $ 12,000",
-      "1x Hamburguesa | $ 28,000",
+      "2x Bretaña | $\u00a012,000",
+      "1x Hamburguesa | $\u00a028,000",
       "   - Término: Medio\n",
-      "1x Hamburguesa | $ 28,000",
+      "1x Hamburguesa | $\u00a028,000",
       "   - Término: Bien asado\n",
       '   "Sin cebolla"\n',
     ]);
@@ -650,6 +650,6 @@ describe("emitida con «Sin propina»: el datáfono tampoco sugiere propina", ()
     );
     expect(texts.join("\n")).not.toContain("Propina sugerida");
     expect(texts.join("\n")).not.toContain("Propina voluntaria");
-    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$ 120,000\n");
+    expect(texts[texts.indexOf("TOTAL A PAGAR\n") + 1]).toBe("$\u00a0120,000\n");
   });
 });

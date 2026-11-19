@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { fixReviewPriceAsTotal, resolveReviewInvoice, reviewLineQtyBase, type InvoiceReviewLine } from "@/lib/erp/invoiceReviewLine";
 import { prefillInvoiceDiscounts } from "@/lib/erp/invoiceDiscount";
 import { applyInvoiceSupplierMatch, resetInvoiceSupplier } from "@/lib/erp/invoiceReviewAlias";
@@ -55,6 +55,7 @@ import { useListNavigation } from "@/components/billingCustomers/ListControls";
 import { DuplicateDocumentAlert, useDuplicateDocumentCheck } from "@/components/suppliers/DuplicateDocumentAlert";
 import { parseDuplicateConflict, type DuplicateConflict } from "@/lib/erp/documentNumber";
 import type { PoStatus, PurchaseListPage, PurchaseListParams } from "@/lib/erp/purchaseList";
+import { detailNavAction, detailPosition } from "@/lib/erp/purchaseListNav";
 import { waLink } from "@/lib/crm/phone";
 import { applySupplierCredit, SupplierCreditOffer, useSupplierCredit } from "@/components/suppliers/SupplierCreditOffer";
 import {
@@ -401,6 +402,19 @@ export function ComprasClient({
     nav.refresh();
   }
 
+  // Posición de la compra abierta en la lista visible (filtros y orden
+  // incluidos): alimenta el «3 de 28», las flechas del detalle y los atajos
+  // ←/→. Null si la compra no está en la página (p. ej. enlace `?oc=`).
+  const detailPos = detailId ? detailPosition(list.rows, detailId, { from: list.from, total: list.total }) : null;
+
+  // Cerrar (✕, Esc o clic afuera) devuelve el foco a la fila de la que se
+  // venía — o a la que se llegó con las flechas — para seguir con Tab ahí.
+  function closeDetail() {
+    const id = detailId;
+    setDetailId(null);
+    if (id) document.querySelector<HTMLElement>(`[data-po-open="${CSS.escape(id)}"]`)?.focus();
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -436,9 +450,18 @@ export function ComprasClient({
           sheet (hermano posterior, mismo z) pinte encima si conviven. */}
       {detailId && (
         <OrderDetailSheet
+          // Cambiar de compra con las flechas remonta el sheet: estado limpio
+          // (edición, abono, recepción) y carga de la orden nueva.
+          key={detailId}
           orderId={detailId}
           currency={currency}
-          onClose={() => setDetailId(null)}
+          position={detailPos && { pos: detailPos.pos, total: detailPos.total }}
+          onPrev={detailPos?.prevId ? () => setDetailId(detailPos.prevId) : null}
+          onNext={detailPos?.nextId ? () => setDetailId(detailPos.nextId) : null}
+          // Con otro sheet encima (pagar, editar factura, crear…) los atajos
+          // del detalle no deben dispararse.
+          suspended={Boolean(payFor || invoiceFor || createOpen || suggestOpen || invoiceResult)}
+          onClose={closeDetail}
           onChanged={invalidate}
         />
       )}
@@ -2319,11 +2342,22 @@ function InvoiceReviewSheet({
 function OrderDetailSheet({
   orderId,
   currency,
+  position = null,
+  onPrev = null,
+  onNext = null,
+  suspended = false,
   onClose,
   onChanged,
 }: {
   orderId: string;
   currency: string;
+  /** «3 de 28»: posición global en la lista filtrada (null si no aplica). */
+  position?: { pos: number; total: number } | null;
+  /** Compra anterior/siguiente según la lista visible; null deshabilita. */
+  onPrev?: (() => void) | null;
+  onNext?: (() => void) | null;
+  /** Otro sheet encima: los atajos de teclado del detalle no disparan. */
+  suspended?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -2346,6 +2380,30 @@ function OrderDetailSheet({
   const [payOpen, setPayOpen] = useState(false);
   const lineTaxText = useLineTaxText();
   const retentionRows = useRetentionRows();
+
+  // Atajos con el detalle abierto: ←/→ pasan a la compra vecina de la lista
+  // visible y Esc cierra. No disparan con el foco en un campo, con
+  // modificadores, con otro sheet encima (`suspended`) ni mientras se edita
+  // el borrador, se abona o se recibe (mismo criterio que el clic afuera).
+  // ↑/↓ quedan libres: son el scroll del panel. (Ver purchaseListNav.)
+  const onNavKey = useEffectEvent((e: KeyboardEvent) => {
+    const action = detailNavAction(e, { suspended: suspended || editing || payOpen || receiveOpen });
+    if (action === "close") {
+      e.preventDefault();
+      onClose();
+    } else if (action === "prev" && onPrev) {
+      e.preventDefault();
+      onPrev();
+    } else if (action === "next" && onNext) {
+      e.preventDefault();
+      onNext();
+    }
+  });
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => onNavKey(e);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -2583,6 +2641,40 @@ function OrderDetailSheet({
         className="w-full md:max-w-xl bg-op-surface rounded-t-3xl md:rounded-3xl border border-op-border p-5 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Recorrido de la lista: «3 de 28» + flechas (también para quien no
+            usa teclado, p. ej. en el celular). Fuera del bloque que carga,
+            para que las flechas no salten bajo el mouse al cambiar de
+            compra. En los extremos la flecha se deshabilita: sin dar la
+            vuelta ni saltar de página. */}
+        {(position || onPrev || onNext) && (
+          <div className="-mt-2 -mr-2 mb-1 flex items-center justify-end gap-0.5">
+            <button
+              type="button"
+              onClick={onPrev ?? undefined}
+              disabled={!onPrev}
+              aria-label={t("plDetailPrev")}
+              title={t("plDetailPrev")}
+              className="min-h-[44px] min-w-[40px] rounded-full text-base text-op-muted hover:text-ink disabled:opacity-30 disabled:hover:text-op-muted"
+            >
+              {"‹"}
+            </button>
+            {position && (
+              <span aria-live="polite" className="font-mono text-[10px] tabular whitespace-nowrap text-op-muted">
+                {t("plDetailPosition", { pos: position.pos, total: position.total })}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onNext ?? undefined}
+              disabled={!onNext}
+              aria-label={t("plDetailNext")}
+              title={t("plDetailNext")}
+              className="min-h-[44px] min-w-[40px] rounded-full text-base text-op-muted hover:text-ink disabled:opacity-30 disabled:hover:text-op-muted"
+            >
+              {"›"}
+            </button>
+          </div>
+        )}
         {loadErr ? (
           <div className="text-xs text-danger">{t("errLoadFailed")}</div>
         ) : order === null ? (

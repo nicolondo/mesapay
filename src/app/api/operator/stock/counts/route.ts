@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
+import { ingredientCategoryScopeWhere } from "@/lib/erp/stockCounts";
 import type { ModuleSlug } from "@/lib/modules";
 import { lockStock } from "@/lib/orderLock";
 
@@ -66,7 +67,10 @@ async function GETHandler(req: Request) {
 }
 
 const createSchema = z.object({
-  // Filtro exacto por categoría del insumo; null/ausente = todos los activos.
+  // Alcance por categorías (selección múltiple): nombres exactos y/o null =
+  // «Sin categoría». Ausente o vacío = todos los insumos activos.
+  categories: z.array(z.string().trim().min(1).max(120).nullable()).max(500).optional(),
+  // Compatibilidad con clientes viejos: una sola categoría.
   category: z.string().trim().min(1).max(120).nullable().optional(),
   notes: z.string().trim().max(500).nullable().optional(),
 });
@@ -74,8 +78,8 @@ const createSchema = z.object({
 /**
  * Crea una sesión de conteo en borrador (spec D5): congela el teórico
  * (expectedQty = StockLevel.qtyBase actual, 0 sin nivel) de TODOS los
- * insumos activos (o del subconjunto de una categoría). Máx. 1 borrador
- * abierto por comercio.
+ * insumos activos (o del subconjunto de una o varias categorías). Máx. 1
+ * borrador abierto por comercio.
  */
 async function POSTHandler(req: Request) {
   const ctx = await getErpContext(GATE);
@@ -99,12 +103,13 @@ async function POSTHandler(req: Request) {
     });
     if (open) return { error: "count_open_exists" as const };
 
+    const scope = b.categories ?? (b.category ? [b.category] : []);
     const ingredients = await tx.ingredient.findMany({
       where: {
         restaurantId: ctx.restaurantId,
         active: true,
         trackInventory: true,
-        ...(b.category ? { category: b.category } : {}),
+        ...ingredientCategoryScopeWhere(scope),
       },
       select: { id: true, stockLevel: { select: { qtyBase: true } } },
     });

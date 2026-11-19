@@ -76,7 +76,12 @@ import {
   type InvoicePrintJobPayload,
   type ThermalInvoice,
 } from "@/lib/escpos";
-import { buildThermalInvoice, type InvoicePaymentLine } from "./invoiceDoc";
+import {
+  buildThermalInvoice,
+  type InvoicePaymentDetail,
+  type InvoicePaymentLine,
+} from "./invoiceDoc";
+import { loadInvoicePaymentDetails } from "./invoicePayments";
 import {
   invoiceDedupeKey,
   invoicePrintArgs,
@@ -99,6 +104,11 @@ export async function buildInvoiceDocument(args: {
   paperWidthMm: number;
   currency: string;
   payments: InvoicePaymentLine[];
+  /**
+   * Los mismos pagos CON detalle (tarjeta, vuelto, referencia…): arma la
+   * sección «Pagos». Ausente (la tirilla de muestra) = sin sección.
+   */
+  paymentDetails?: InvoicePaymentDetail[] | null;
   locale: string | null;
   /** Factura electrónica ACEPTADA: CUFE + URL del QR. null = comprobante. */
   dian?: InvoiceDianPrintData | null;
@@ -131,6 +141,7 @@ export async function buildInvoiceDocument(args: {
       ? formatDate(dianDate, { locale, dateStyle: "short", timeStyle: undefined })
       : null,
     payments: args.payments,
+    paymentDetails: args.paymentDetails ?? null,
     money,
     // `createTranslator` acepta valores más ricos que los que se le pasan
     // acá (elementos de React, fechas). El documento térmico es texto y
@@ -241,12 +252,9 @@ export async function enqueueInvoicePrintDetailed(
 
   // Cómo se pagó. `approved` nada más: un `pending` de efectivo es plata
   // que el comensal DIJO que iba a entregar, y esta tirilla se imprime
-  // cuando la cuenta ya está paga.
-  const payments = await db.payment.findMany({
-    where: { orderId: args.orderId, status: "approved" },
-    orderBy: { createdAt: "asc" },
-    select: { method: true, amountCents: true, tipCents: true },
-  });
+  // cuando la cuenta ya está paga. Con detalle (tarjeta, vuelto,
+  // referencia): es lo que imprime la sección «Pagos».
+  const payments = await loadInvoicePaymentDetails(args.orderId);
   // Factura emitida ANTES de cobrar: su snapshot no tiene propina (se
   // decidió después). La del TOTAL A PAGAR es la REAL de la orden. Emitida
   // al cobrar, la del snapshot ya es esa y no hace falta leer nada más.
@@ -272,6 +280,7 @@ export async function enqueueInvoicePrintDetailed(
         paperWidthMm: printer.paperWidthMm ?? restaurant.printPaperWidthMm,
         currency,
         payments,
+        paymentDetails: payments,
         locale: args.locale,
         dian: args.dian ?? null,
         supportsQr: printer.supportsQr === true,

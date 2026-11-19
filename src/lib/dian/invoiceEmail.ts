@@ -13,7 +13,7 @@
 import { getEmailTranslator } from "@/lib/emailIntl";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Locale } from "@/i18n/config";
-import type { InvoicePayable } from "@/lib/invoice";
+import type { InvoicePayable, PaymentsSection } from "@/lib/invoice";
 
 // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,36 @@ function issuerBlockHtml(args: IssuerArgs, t: T): string {
     `<div style="font-family:'SF Mono','Menlo',monospace;font-size:11px;line-height:1.6;color:#8B7B65;margin:6px 0 0 0;">` +
     lines.map(escapeHtml).join("<br/>") +
     `</div>`
+  );
+}
+
+/**
+ * La sección «Pagos» como filas de la misma tabla de totales: un renglón
+ * por pago con su monto, el detalle debajo en letra chica, el TOTAL
+ * PAGADO en negrita y el saldo pendiente si falta.
+ */
+function paymentsRowsHtml(ps: PaymentsSection | null | undefined): string {
+  if (!ps) return "";
+  const label = `style="padding:10px 0 2px 0;font-family:'SF Mono','Menlo',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#8B7B65;vertical-align:top;"`;
+  const value = `style="padding:10px 0 2px 0;font-family:'SF Mono','Menlo',monospace;font-size:13px;color:#1A1613;white-space:nowrap;"`;
+  const detail = `style="padding:0 0 4px 12px;font-family:'SF Mono','Menlo',monospace;font-size:11px;color:#8B7B65;" colspan="2"`;
+  const strong = (l: string, v: string) =>
+    `<tr>` +
+    `<td style="padding:10px 0;border-top:1px solid #EAE1D0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#1A1613;">${escapeHtml(l)}</td>` +
+    `<td align="right" style="padding:10px 0;border-top:1px solid #EAE1D0;border-bottom:1px solid #EAE1D0;font-family:'SF Mono','Menlo',monospace;font-size:14px;font-weight:700;color:#1A1613;white-space:nowrap;">${escapeHtml(v)}</td>` +
+    `</tr>`;
+  return (
+    `<tr><td colspan="2" style="padding:14px 0 2px 0;font-family:'SF Mono','Menlo',monospace;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#1A1613;">${escapeHtml(ps.title)}</td></tr>` +
+    ps.blocks
+      .map(
+        (b) =>
+          `<tr><td ${label}>${escapeHtml(b.label)}</td><td align="right" ${value}>${escapeHtml(b.amount)}</td></tr>` +
+          b.lines.map((l) => `<tr><td ${detail}>${escapeHtml(l)}</td></tr>`).join(""),
+      )
+      .join("") +
+    strong(ps.totalLabel, ps.totalAmount) +
+    (ps.breakdown ? `<tr><td ${detail}>${escapeHtml(ps.breakdown)}</td></tr>` : "") +
+    (ps.pending ? strong(ps.pending.label, ps.pending.amount) : "")
   );
 }
 
@@ -91,6 +121,13 @@ export type DianInvoiceEmailArgs = {
   issuerAddress?: string | null;
   issuerCity?: string | null;
   issuerPhone?: string | null;
+  /**
+   * La sección «Pagos» ya resuelta (`buildPaymentsSection`, con el
+   * traductor de `emailInvoice`): el recibo del pago dentro del correo.
+   * Se arma al ENVIAR leyendo los pagos de la orden — si la cuenta ya se
+   * saldó para cuando la DIAN aceptó, va completa. null = sin sección.
+   */
+  paymentsSection?: PaymentsSection | null;
 };
 
 /**
@@ -134,6 +171,22 @@ export async function renderDianInvoiceEmail(
     `${t("labelDate")}: ${dateStr}`,
     ...totals.map((r) => `${r.label}: ${r.value}`),
     "",
+    ...(args.paymentsSection
+      ? [
+          "",
+          args.paymentsSection.title,
+          ...args.paymentsSection.blocks.flatMap((b) => [
+            `${b.label}: ${b.amount}`,
+            ...b.lines.map((l) => `   ${l}`),
+          ]),
+          `${args.paymentsSection.totalLabel}: ${args.paymentsSection.totalAmount}`,
+          args.paymentsSection.breakdown ?? "",
+          args.paymentsSection.pending
+            ? `${args.paymentsSection.pending.label}: ${args.paymentsSection.pending.amount}`
+            : "",
+          "",
+        ]
+      : []),
     `${t("labelCufe")}: ${args.cufe}`,
     t("cufeLead"),
     `${t("verifyCta")}: ${args.verifyUrl}`,
@@ -192,6 +245,7 @@ export async function renderDianInvoiceEmail(
           ${row(t("labelNumber"), args.invoiceNumber)}
           ${row(t("labelDate"), dateStr)}
           ${totals.map((r) => (r.strong ? strongRow(r.label, r.value) : row(r.label, r.value))).join("")}
+          ${paymentsRowsHtml(args.paymentsSection)}
           ${row(t("labelCufe"), args.cufe, true)}
         </table>
         <p style="font-size:12px;line-height:1.5;color:#8B7B65;margin:12px 0 0 0;">${escapeHtml(t("cufeLead"))}<br/><a href="${escapeHtml(args.verifyUrl)}" style="color:#C9532E;word-break:break-all;">${escapeHtml(t("verifyCta"))}</a></p>

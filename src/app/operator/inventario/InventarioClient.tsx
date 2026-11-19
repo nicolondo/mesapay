@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { pesosToCents } from "@/lib/format";
 import { mergeIngredientBarcodes, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
+import { countCategoryOptions } from "@/lib/erp/countView";
 import { ingredientMatchesSearch } from "@/lib/erp/ingredientSearch";
 import { applyArchive } from "@/lib/erp/inventoryView";
 import { MoneyInput } from "@/components/MoneyInput";
@@ -380,6 +381,7 @@ export function InventarioClient({
       {openCount && (
         <CountSheet
           count={openCount}
+          catalog={rows}
           onBarcodeSaved={updateBarcodes}
           onCatalogChanged={reloadStock}
           onClose={() => setOpenCount(null)}
@@ -912,17 +914,28 @@ function NewCountSheet({
   onCreated: (count: CountDetail) => void;
 }) {
   const t = useTranslations("opErp");
-  const [category, setCategory] = useState("");
+  // Alcance del conteo: selección múltiple de categorías (incluida «Sin
+  // categoría»). Vacío = todos los insumos activos.
+  const [selected, setSelected] = useState<ReadonlySet<string | null>>(new Set());
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEscapeToClose(onClose, !busy);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const i of ingredients) if (i.category) set.add(i.category);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [ingredients]);
+  const options = useMemo(() => countCategoryOptions(ingredients), [ingredients]);
+  const allActive = selected.size === 0;
+  const selectedTotal = allActive
+    ? ingredients.length
+    : options.filter((option) => selected.has(option.category)).reduce((sum, option) => sum + option.total, 0);
+
+  function toggleCategory(category: string | null) {
+    setSelected((previous) => {
+      const next = new Set(previous);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -932,7 +945,7 @@ function NewCountSheet({
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        category: category || null,
+        ...(allActive ? {} : { categories: [...selected] }),
         notes: notes.trim() || null,
       }),
     });
@@ -978,19 +991,33 @@ function NewCountSheet({
         <p className="text-xs text-op-muted mb-4">{t("newCountHint")}</p>
 
         <form onSubmit={submit} className="space-y-3">
-          <Field label={t("fieldCountScope")}>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={inputCls}
-            >
-              <option value="">{t("scopeAllActive")}</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+          <Field label={t("fieldCountScope")} hint={t("scopeMultiHint")}>
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t("fieldCountScope")}>
+              <button
+                type="button"
+                className="mp-tally-chip !h-9"
+                aria-pressed={allActive}
+                disabled={busy}
+                onClick={() => setSelected(new Set())}
+              >
+                <span>{t("scopeAllActive")}</span>{" "}
+                <b>{ingredients.length}</b>
+              </button>
+              {options.map((option) => (
+                <button
+                  key={option.category ?? ""}
+                  type="button"
+                  className="mp-tally-chip !h-9"
+                  aria-pressed={selected.has(option.category)}
+                  disabled={busy}
+                  onClick={() => toggleCategory(option.category)}
+                >
+                  <span className={option.category === null ? "italic" : undefined}>{option.category ?? t("countNoCategoryOption")}</span>{" "}
+                  <b>{option.total}</b>
+                </button>
               ))}
-            </select>
+            </div>
+            <div className="mt-2 text-xs text-op-muted" aria-live="polite">{t("scopeSelectedCount", { count: selectedTotal })}</div>
           </Field>
 
           <Field label={t("fieldNotes")}>

@@ -10,8 +10,13 @@ const mocks = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string } },
   activeRestaurantId: null as string | null,
   printButtonProps: null as null | Record<string, unknown>,
+  /** Lo que devuelve `loadInvoicePaymentDetails`: los pagos APROBADOS. */
+  payments: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("@/lib/db", () => ({ db: { simpleInvoice: { findUnique: mocks.findUnique } } }));
+vi.mock("@/lib/print/invoicePayments", () => ({
+  loadInvoicePaymentDetails: async () => mocks.payments,
+}));
 vi.mock("@/auth", () => ({ auth: async () => mocks.session }));
 vi.mock("@/lib/activeRestaurant", () => ({
   getActiveRestaurantId: async () => mocks.activeRestaurantId,
@@ -44,6 +49,7 @@ beforeEach(() => {
   mocks.session = null;
   mocks.activeRestaurantId = null;
   mocks.printButtonProps = null;
+  mocks.payments = [];
   mocks.findUnique.mockReset();
   mocks.findUnique.mockResolvedValue({
     id: "inv-1", restaurantId: "rest-1", orderId: "order-1",
@@ -297,19 +303,23 @@ describe("factura web — total, propina voluntaria y TOTAL A PAGAR", () => {
     mocks.findUnique.mockResolvedValue({
       ...row,
       snapshot: { ...snapshot, subtotalCents: 12_000_000, tipCents: 0, totalCents: 12_000_000, issuedBeforePayment: true },
-      order: {
-        shortCode: "DEMO",
-        tipCents: 1_200_000,
-        payments: [{ method: "external_terminal", amountCents: 13_200_000, tipCents: 1_200_000 }],
-      },
+      order: { shortCode: "DEMO", tipCents: 1_200_000 },
     });
+    mocks.payments = [
+      { method: "external_terminal", amountCents: 13_200_000, tipCents: 1_200_000 },
+    ];
     const html = await render();
-    expect(totals(html).slice(-3)).toEqual([
+    // Después de los totales viene la sección «Pagos» (bloque + TOTAL PAGADO).
+    expect(totals(html).slice(-5)).toEqual([
       "Total comprobante|$120,000",
       "Propina voluntaria|$12,000",
       "TOTAL A PAGAR|$132,000",
+      "Tarjeta · datáfono del comercio|$132,000",
+      "TOTAL PAGADO|$132,000",
     ]);
+    expect(html).toContain("Incluye propina $12,000");
     expect(html).not.toContain("Pendiente de pago");
+    expect(html).not.toContain("Saldo pendiente");
     expect(html).not.toContain("Propina sugerida");
   });
 
@@ -372,11 +382,16 @@ describe("factura web — emitida con «Sin propina» en el cobro", () => {
     const row = await mocks.findUnique();
     mocks.findUnique.mockResolvedValue({
       ...row, snapshot: preSinPropina,
-      order: { shortCode: "DEMO", tipCents: 500_000, payments: [{ method: "cash", amountCents: 12_500_000, tipCents: 500_000 }] },
+      order: { shortCode: "DEMO", tipCents: 500_000 },
     });
+    mocks.payments = [
+      { method: "cash", amountCents: 12_500_000, tipCents: 500_000, cashTenderCents: 13_000_000 },
+    ];
     const html = await render();
     expect(html).not.toContain("Propina sugerida");
     expect(html).toContain("Propina voluntaria");
+    // La sección «Pagos»: efectivo con recibido y vuelto.
+    expect(html).toContain("Recibido $130,000 · Vuelto $5,000");
     expect(/data-total-to-pay="(\d+)"/.exec(html)?.[1]).toBe("12500000");
   });
 

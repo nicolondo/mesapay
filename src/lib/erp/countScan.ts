@@ -9,7 +9,7 @@
 // contradicen.
 import { db } from "@/lib/db";
 import { findBarcodeOwnerDetail, type BarcodeOwnerDetail } from "./barcodeOwner";
-import { canAppendScanOwner, classifyScanOwner, countScopeCategory, type ScanOwnerState } from "./countView";
+import { canAppendScanOwner, classifyScanOwner, countScopeCategories, type ScanOwnerState } from "./countView";
 
 export type CountScanResult =
   | { code: string; match: null }
@@ -20,8 +20,6 @@ export type CountScanResult =
         /** Fila del conteo cuando el insumo SÍ está (el navegador tenía datos viejos). */
         itemId: string | null;
         state: ScanOwnerState;
-        /** Categoría del conteo cuando se abrió para una sola. */
-        scopeCategory: string | null;
         /** Se puede sumar al conteo en curso con POST …/items. */
         canAppend: boolean;
       };
@@ -39,11 +37,12 @@ export async function resolveCountScan(restaurantId: string, countId: string, co
   const owner = await findBarcodeOwnerDetail(restaurantId, code);
   if (!owner) return { code, match: null };
   const item = count.items.find((candidate) => candidate.ingredientId === owner.id);
-  const scopeCategory = countScopeCategory(count.items);
   const state = classifyScanOwner(owner, {
     inCount: !!item,
     excludedCategories: count.restaurant.inventoryExcludedCategories,
-    scopeCategory,
+    // El alcance son las categorías de los insumos del conteo (null =
+    // «Sin categoría»): fuera de ellas se ofrece traer el insumo.
+    scopeCategories: countScopeCategories(count.items),
   });
-  return { code, match: { ingredient: owner, itemId: item?.id ?? null, state, scopeCategory, canAppend: canAppendScanOwner(state) } };
+  return { code, match: { ingredient: owner, itemId: item?.id ?? null, state, canAppend: canAppendScanOwner(state) } };
 }

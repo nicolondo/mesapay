@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InvoiceSnapshot } from "@/lib/invoice";
-import { buildThermalInvoice, paymentRowsFor } from "./invoiceDoc";
+import { buildPaymentsSection, buildThermalInvoice, paymentRowsFor } from "./invoiceDoc";
 
 /**
  * Qué lleva la tirilla del cliente. Los textos van sin traducir a
@@ -605,5 +605,151 @@ describe("buildThermalInvoice — artículos repetidos AGRUPADOS", () => {
       { qty: 2, name: "Bandeja paisa", amount: "$49000" },
       { qty: 1, name: "Limonada de coco", amount: "$12000" },
     ]);
+  });
+});
+
+describe("buildPaymentsSection — la sección «Pagos»", () => {
+  const card = {
+    method: "kushki_card_terminal",
+    amountCents: 2_000_000,
+    tipCents: 180_000,
+    cardBrand: "VISA",
+    cardLast4: "4242",
+    approvalCode: "123456",
+  };
+  const cash = {
+    method: "cash",
+    amountCents: 1_703_900,
+    tipCents: 0,
+    cashTenderCents: 2_000_000,
+  };
+
+  it("sin pagos aprobados no hay sección", () => {
+    expect(buildPaymentsSection([], t, money)).toBeNull();
+  });
+
+  it("varios pagos: bloques numerados 1/2, 2/2, en orden, con TOTAL PAGADO y Cuenta/Propinas", () => {
+    const ps = buildPaymentsSection([card, cash], t, money)!;
+    expect(ps.title).toBe("paymentsTitle");
+    expect(ps.blocks.map((b) => b.label)).toEqual([
+      "1/2 methodCardTerminal",
+      "2/2 methodCash",
+    ]);
+    expect(ps.blocks[0].lines).toEqual([
+      "VISA · ····4242 · paymentApproval(123456)",
+      "paymentIncludesTip($1800)",
+    ]);
+    // Efectivo: recibido y vuelto (tender − pago).
+    expect(ps.blocks[1].lines).toEqual(["paymentCashReceived($20000|$2961)"]);
+    expect(ps.totalLabel).toBe("paymentsTotalPaid");
+    expect(ps.totalAmount).toBe(money(card.amountCents + cash.amountCents));
+    expect(ps.breakdown).toBe(
+      `paymentsBreakdown(${money(card.amountCents - card.tipCents + cash.amountCents)}|${money(card.tipCents)})`,
+    );
+    expect(ps.pending).toBeNull();
+  });
+
+  it("un solo pago no se numera", () => {
+    const ps = buildPaymentsSection([card], t, money)!;
+    expect(ps.blocks[0].label).toBe("methodCardTerminal");
+  });
+
+  it("tarjeta sin datos del charge: el bloque sale sin línea de tarjeta", () => {
+    const ps = buildPaymentsSection(
+      [{ method: "kushki_card", amountCents: 1_000_000, tipCents: 0 }],
+      t,
+      money,
+    )!;
+    expect(ps.blocks[0].lines).toEqual([]);
+    expect(ps.breakdown).toBeNull();
+  });
+
+  it("efectivo sin tender (o con tender corto) no inventa el vuelto", () => {
+    const sin = buildPaymentsSection(
+      [{ method: "cash", amountCents: 1_000_000, tipCents: 0 }],
+      t,
+      money,
+    )!;
+    expect(sin.blocks[0].lines).toEqual([]);
+    const corto = buildPaymentsSection(
+      [{ method: "cash", amountCents: 1_000_000, tipCents: 0, cashTenderCents: 500_000 }],
+      t,
+      money,
+    )!;
+    expect(corto.blocks[0].lines).toEqual([]);
+  });
+
+  it("crédito de cliente: a nombre de quién; Bre-B: la referencia", () => {
+    const ps = buildPaymentsSection(
+      [
+        { method: "customer_credit", amountCents: 3_000_000, tipCents: 0, billingCustomerName: "Comercial Andina" },
+        { method: "kushki_bre_b", amountCents: 1_000_000, tipCents: 0, breBReference: "BRB-778899" },
+      ],
+      t,
+      money,
+    )!;
+    expect(ps.blocks[0].lines).toEqual(["paymentOnCredit(Comercial Andina)"]);
+    expect(ps.blocks[1].lines).toEqual(["paymentRef(BRB-778899)"]);
+  });
+
+  it("pago parcial: Saldo pendiente adentro de la sección", () => {
+    const ps = buildPaymentsSection([cash], t, money, { outstandingCents: 1_000_000 })!;
+    expect(ps.pending).toEqual({ label: "paymentsOutstanding", amount: "$10000" });
+  });
+});
+
+describe("buildThermalInvoice — la sección «Pagos» reemplaza al bloque de pago", () => {
+  const pay = { method: "cash" as const, amountCents: 6_100_000, tipCents: 0 };
+
+  it("con detalle: sección presente, Forma de pago vacío", () => {
+    const doc = buildThermalInvoice({
+      snapshot,
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: null,
+      payments: [pay],
+      paymentDetails: [{ ...pay, cashTenderCents: 7_000_000 }],
+      money,
+      t,
+    });
+    expect(doc.paymentsSection?.blocks).toHaveLength(1);
+    expect(doc.paymentTitle).toBeNull();
+    expect(doc.paymentRows).toEqual([]);
+  });
+
+  it("emitida antes de cobrar, pago parcial: el saldo vive en la sección y la fila vieja no sale", () => {
+    const doc = buildThermalInvoice({
+      snapshot: { ...snapshot, issuedBeforePayment: true, totalCents: 6_100_000, tipCents: 0 },
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: null,
+      payments: [{ method: "cash", amountCents: 2_000_000, tipCents: 0 }],
+      paymentDetails: [{ method: "cash", amountCents: 2_000_000, tipCents: 0 }],
+      money,
+      t,
+    });
+    expect(doc.pendingRow ?? null).toBeNull();
+    expect(doc.paymentsSection?.pending).toEqual({
+      label: "paymentsOutstanding",
+      amount: money(4_100_000),
+    });
+  });
+
+  it("sin detalle (llamador viejo): todo como siempre", () => {
+    const doc = buildThermalInvoice({
+      snapshot,
+      invoiceNumber: 42,
+      paperWidthMm: 80,
+      paidAtLabel: "8/09/26, 19:41",
+      dianResolutionDateLabel: null,
+      payments: [pay],
+      money,
+      t,
+    });
+    expect(doc.paymentsSection ?? null).toBeNull();
+    expect(doc.paymentTitle).toBe("paymentTitle");
+    expect(doc.paymentRows).toHaveLength(1);
   });
 });

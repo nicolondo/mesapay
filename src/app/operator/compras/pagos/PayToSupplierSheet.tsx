@@ -14,7 +14,9 @@ import {
   type PaymentCredit,
   type SupplierPaymentMethod,
 } from "@/lib/erp/supplierPaymentPlan";
+import { inputCls } from "../shared";
 import { docLabel } from "../notas-credito/docLabel";
+import { shouldAutofocusAmount } from "./autofocusAmount";
 
 export type SupplierRef = { id: string; name: string; taxId: string | null };
 
@@ -81,6 +83,8 @@ export function PayToSupplierSheet({
   const [busy, setBusy] = useState<"save" | "attach" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const supplierBoxRef = useRef<HTMLDivElement>(null);
+  const amountBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!supplierId) return;
@@ -106,6 +110,25 @@ export function PayToSupplierSheet({
       cancelled = true;
     };
   }, [supplierId]);
+
+  // Al llegar las facturas del proveedor elegido, el foco salta solo a
+  // «Valor a pagar» con el valor propuesto seleccionado (se teclea encima).
+  // Nunca le roba el foco a otro campo en el que ya se esté escribiendo.
+  useEffect(() => {
+    if (!ctx) return;
+    const input = amountBoxRef.current?.querySelector("input");
+    if (!input) return;
+    const ok = shouldAutofocusAmount({
+      active: document.activeElement,
+      supplierBox: supplierBoxRef.current,
+      amountInput: input,
+    });
+    if (!ok) return;
+    input.focus();
+    input.select();
+    // jsdom no trae scrollIntoView; en el navegador acerca el campo a la vista.
+    if (typeof input.scrollIntoView === "function") input.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [ctx]);
 
   const docsByKey = useMemo(() => new Map((ctx?.payables ?? []).map((d) => [payableKey(d), d])), [ctx]);
   const orderedDocs = order.map((k) => docsByKey.get(k)).filter((d): d is PayableDocRef => !!d);
@@ -187,7 +210,8 @@ export function PayToSupplierSheet({
   }
 
   const label = "block font-mono text-[10px] tracking-[0.14em] uppercase text-op-muted mb-1";
-  const field = "w-full min-h-[44px] px-3 rounded-xl border border-op-border bg-op-bg text-sm";
+  // Mismo campo que el resto de Compras (inputCls: rounded-lg, 44px).
+  const field = inputCls;
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/40 flex items-end md:items-center justify-center p-0 md:p-6">
@@ -208,7 +232,9 @@ export function PayToSupplierSheet({
         <p className="text-[12px] text-op-muted mb-4">{t("sheetHint")}</p>
 
         <span className={label}>{t("fieldSupplier")}</span>
-        <SupplierCombobox suppliers={suppliers} value={supplierId} onChange={(id) => { setSupplierId(id); setCtx(null); }} placeholder={tc("fieldSupplierPlaceholder")} />
+        <div ref={supplierBoxRef}>
+          <SupplierCombobox suppliers={suppliers} value={supplierId} onChange={(id) => { setSupplierId(id); setCtx(null); }} placeholder={tc("fieldSupplierPlaceholder")} />
+        </div>
 
         {supplierId && ctxErr && <p className="mt-2 text-xs text-danger">{t("errContext")}</p>}
         {supplierId && !ctx && !ctxErr && <p className="mt-2 text-xs text-op-muted">{t("loading")}</p>}
@@ -298,28 +324,42 @@ export function PayToSupplierSheet({
               </div>
             )}
 
-            {/* Totales */}
+            {/* Totales + el campo del monto: «Estás pagando» y «Valor a pagar»
+                eran lo mismo, así que la cuarta tarjeta ES el campo editable
+                (grande, en negrita y a la derecha, como campo de dinero). */}
             <dl className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Total label={t("totalPending")} value={money(plan.totals.pendingCents)} />
               <Total label={t("totalCredits")} value={`− ${money(plan.totals.creditsCents)}`} tone="ok" />
-              <Total label={t("totalNet")} value={money(plan.totals.netToPayCents)} strong />
-              <Total label={t("totalPaying")} value={money(amountCents)} strong />
+              <Total label={t("totalNet")} value={money(plan.totals.netToPayCents)} strong wide />
+              <div
+                ref={amountBoxRef}
+                className="col-span-2 sm:col-span-1 rounded-2xl border-2 border-op-text/25 bg-op-bg px-3 py-2 min-w-0 focus-within:border-op-accent"
+              >
+                <dt className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted truncate">
+                  <label htmlFor="pay-supplier-amount">{t("fieldAmount")}</label>
+                </dt>
+                <dd>
+                  <MoneyInput
+                    id="pay-supplier-amount"
+                    value={amountTouched ? amount : toMajor(draft.totals.netToPayCents)}
+                    onChange={(v) => {
+                      setAmountTouched(true);
+                      setAmount(v);
+                    }}
+                    fractionDigits={2}
+                    className="w-full min-h-[36px] bg-transparent text-right text-xl font-semibold tabular-nums"
+                    // El foco lo marca el borde acento de la tarjeta
+                    // (focus-within); el outline global dibujaría un segundo
+                    // rectángulo encima de la etiqueta. Inline porque la regla
+                    // de workspace.css no tiene capa y pisa a las utilidades.
+                    style={{ outline: "none" }}
+                    ariaLabel={t("fieldAmount")}
+                  />
+                </dd>
+              </div>
             </dl>
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="min-w-0">
-                <span className={label}>{t("fieldAmount")}</span>
-                <MoneyInput
-                  value={amountTouched ? amount : toMajor(draft.totals.netToPayCents)}
-                  onChange={(v) => {
-                    setAmountTouched(true);
-                    setAmount(v);
-                  }}
-                  fractionDigits={2}
-                  className={field + " text-right"}
-                  ariaLabel={t("fieldAmount")}
-                />
-              </label>
               <label className="min-w-0">
                 <span className={label}>{t("fieldDate")}</span>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
@@ -406,9 +446,9 @@ export function PayToSupplierSheet({
   );
 }
 
-function Total({ label, value, strong, tone }: { label: string; value: string; strong?: boolean; tone?: "ok" }) {
+function Total({ label, value, strong, tone, wide }: { label: string; value: string; strong?: boolean; tone?: "ok"; wide?: boolean }) {
   return (
-    <div className="rounded-xl border border-op-border px-3 py-2 min-w-0">
+    <div className={"rounded-2xl border border-op-border px-3 py-2 min-w-0" + (wide ? " col-span-2 sm:col-span-1" : "")}>
       <dt className="font-mono text-[9px] tracking-[0.14em] uppercase text-op-muted truncate">{label}</dt>
       <dd className={"tabular-nums truncate " + (strong ? "font-semibold" : "") + (tone === "ok" ? " text-[#2F6B4F]" : "")}>{value}</dd>
     </div>

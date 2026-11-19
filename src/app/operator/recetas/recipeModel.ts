@@ -175,6 +175,31 @@ export function rankIngredients(
   return scored.slice(0, limit).map((s) => s.o);
 }
 
+/**
+ * Orden de la lista de platos. Con el filtro «Food cost alto» activo se
+ * ordena por porcentaje de food cost de mayor a menor (el peor primero);
+ * los platos sin porcentaje calculable (sin precio o con costo incompleto)
+ * van al final, agrupados, en su orden de carta. Sin el filtro, el orden
+ * habitual de la carta tal cual llega. No muta el arreglo de entrada.
+ */
+export function orderDishList<T>(
+  rows: T[],
+  byFoodCostDesc: boolean,
+  pctOf: (row: T) => number | null,
+): T[] {
+  if (!byFoodCostDesc) return rows;
+  const costed: { row: T; pct: number }[] = [];
+  const uncosted: T[] = [];
+  for (const row of rows) {
+    const pct = pctOf(row);
+    if (pct == null) uncosted.push(row);
+    else costed.push({ row, pct });
+  }
+  // `sort` es estable: los empates conservan el orden de carta.
+  costed.sort((a, b) => b.pct - a.pct);
+  return [...costed.map((c) => c.row), ...uncosted];
+}
+
 /* ─────────────────────── Líneas editables ──────────────────────────── */
 
 export type EditLine = {

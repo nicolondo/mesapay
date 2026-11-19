@@ -549,7 +549,7 @@
     "rowYourBillOp": "The bill",
     "rowPaidFood": "Paid on food",
     "rowOwedFood": "Food still owed",
-    "rowToChargeN": "To charge (1 of {n})",
+    "rowToChargeN": "To charge ({k} of {n})",
     "rowYourPartN": "Your share (1 of {n})",
     "rowOf": "{name}'s",
     "you": "you",
@@ -756,7 +756,24 @@
     "terminalCanceledTitle": "The charge was cancelled on the card terminal",
     "terminalCanceledBody": "Nothing was charged. Choose how to pay, or ask your server to run the card again.",
     "btnBreB": "Pay with Bre-B (QR)",
-    "opBtnBreB": "Charge with Bre-B (QR)"
+    "opBtnBreB": "Charge with Bre-B (QR)",
+    "serial": {
+      "approvedTitle": "Payment {k} of {n} approved",
+      "approvedGuestTitle": "{name}'s payment approved",
+      "approvedAmount": "{amount} was received.",
+      "declinedTitle": "This part's payment was not approved",
+      "declinedGuestTitle": "{name}'s payment was not approved",
+      "declinedBody": "Nothing was charged. Retry with the same method or pick another below: this part's amount stays the same.",
+      "balanceChanged": "Another payment of {amount} came in. The balance and the parts are already adjusted.",
+      "progressTitle": "Split charge in progress",
+      "progressLine": "Paid {paid} · {left} to go",
+      "partsLeft": "{count, plural, one {# part left} other {# parts left}}",
+      "chargeNext": "Charge next · {amount}",
+      "retry": "Retry · {amount}",
+      "repeatMethod": "With {method} — to change it, pick another method below.",
+      "partProgress": "Now charging part {k} of {n}.",
+      "guestPaid": "paid"
+    }
   },
   "done": {
     "methodCard": "Card",

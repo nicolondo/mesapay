@@ -106,7 +106,7 @@ export function restoreCountOrder(
 
 /* ─────────────────────────────── Filtros ───────────────────────────────── */
 
-export type DifferenceFilter = "all" | "shortage" | "surplus" | "pending";
+export type DifferenceFilter = "all" | "counted" | "shortage" | "surplus" | "pending";
 
 export type CountFilterView = {
   ingredient: SearchableIngredient;
@@ -118,24 +118,53 @@ export type CountFilterView = {
 };
 
 /**
- * Buscador (nombre, categoría o código de barras) + filtro de diferencias.
- * `pinned` siempre pasa: es la fila que se acaba de escanear o en la que se
- * está escribiendo, y no puede desaparecer por un filtro.
+ * Buscador (nombre, categoría o código de barras) + filtro de diferencias +
+ * visibilidad por categoría. Los filtros solo esconden filas: nada sale del
+ * conteo ni cambia su avance total. `pinned` siempre pasa: es la fila que se
+ * acaba de escanear o en la que se está escribiendo, y no puede desaparecer
+ * por un filtro. `categories` vacío o ausente = todas visibles (null es la
+ * pseudocategoría «Sin categoría»).
  */
 export function filterCountItems<T extends { id: string }>(
   items: readonly T[],
-  options: { q: string; filter: DifferenceFilter; view: (item: T) => CountFilterView; pinned?: ReadonlySet<string> },
+  options: {
+    q: string;
+    filter: DifferenceFilter;
+    view: (item: T) => CountFilterView;
+    pinned?: ReadonlySet<string>;
+    categories?: ReadonlySet<string | null>;
+  },
 ): T[] {
   return items.filter((item) => {
     if (options.pinned?.has(item.id)) return true;
     const view = options.view(item);
+    if (options.categories?.size && !options.categories.has(view.ingredient.category ?? null)) return false;
     if (!ingredientMatchesSearch(view.ingredient, options.q)) return false;
     if (options.filter === "all") return true;
     if (!view.tracked) return false;
     if (options.filter === "pending") return view.value == null;
     if (view.value == null || view.value === "invalid") return false;
+    if (options.filter === "counted") return true;
     return options.filter === "shortage" ? view.value < view.baseline : view.value > view.baseline;
   });
+}
+
+/**
+ * Categorías disponibles para elegir el alcance de un conteo (crear o
+ * agregar a uno andando), con cuántos insumos aporta cada una. `null` es
+ * «Sin categoría» y va al final; el resto, en orden alfabético.
+ */
+export function countCategoryOptions(
+  ingredients: readonly { category: string | null }[],
+): { category: string | null; total: number }[] {
+  const totals = new Map<string | null, number>();
+  for (const ingredient of ingredients) {
+    const key = ingredient.category ?? null;
+    totals.set(key, (totals.get(key) ?? 0) + 1);
+  }
+  return [...totals.entries()]
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => (a.category === null ? 1 : b.category === null ? -1 : a.category.localeCompare(b.category)));
 }
 
 /* ───────────────────────── Estado y resumen de la fila ─────────────────── */
@@ -208,12 +237,16 @@ export function buildCountBarcodeIndex(items: readonly CountBarcodeItem[]): Map<
   return index;
 }
 
-/** Categoría del conteo cuando se creó para una sola; null = todos los insumos. */
-export function countScopeCategory(items: readonly { ingredient: { category: string | null } }[]): string | null {
-  if (items.length === 0) return null;
-  const first = items[0].ingredient.category;
-  if (!first) return null;
-  return items.every((item) => item.ingredient.category === first) ? first : null;
+/**
+ * Alcance del conteo: las categorías presentes entre sus insumos (null =
+ * «Sin categoría»). El alcance vive en los items — no hay columna propia —
+ * así que traer un insumo suelto de otra categoría también la suma al
+ * alcance: desde ese momento sus compañeros ya no están «fuera».
+ */
+export function countScopeCategories(
+  items: readonly { ingredient: { category: string | null } }[],
+): Set<string | null> {
+  return new Set(items.map((item) => item.ingredient.category ?? null));
 }
 
 /** Por qué el dueño de un código NO está en este conteo. */
@@ -230,18 +263,20 @@ export type ScanOwner = { id: string; name: string; active: boolean; trackInvent
 /**
  * Un solo criterio para el navegador y la API: primero si el insumo está en
  * el conteo; si no, la razón más específica — archivado, no inventariable,
- * de una categoría sin inventario, fuera de la categoría del conteo o
- * creado/restaurado después de abrirlo.
+ * de una categoría sin inventario, de una categoría que no está en el
+ * conteo, o de una categoría que sí está pero el insumo quedó por fuera
+ * (creado o restaurado después de abrirlo, por ejemplo). En los dos últimos
+ * casos se puede traer al conteo.
  */
 export function classifyScanOwner(
   owner: ScanOwner,
-  context: { inCount: boolean; excludedCategories: readonly string[]; scopeCategory: string | null },
+  context: { inCount: boolean; excludedCategories: readonly string[]; scopeCategories: ReadonlySet<string | null> },
 ): ScanOwnerState {
   if (context.inCount) return "in_count";
   if (!owner.active) return "archived";
   if (!owner.trackInventory) return "not_tracked";
   if (owner.category && context.excludedCategories.includes(owner.category)) return "category_excluded";
-  if (context.scopeCategory && owner.category !== context.scopeCategory) return "outside_scope";
+  if (context.scopeCategories.size > 0 && !context.scopeCategories.has(owner.category ?? null)) return "outside_scope";
   return "added_later";
 }
 

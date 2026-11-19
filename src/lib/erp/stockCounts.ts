@@ -136,6 +136,86 @@ export async function appendStockCountItem(restaurantId: string, id: string, inp
   }, { timeout: 30_000 });
 }
 
+/**
+ * Filtro de Prisma para «estas categorías» en el alcance de un conteo.
+ * `null` dentro de la lista es «Sin categoría» (Ingredient.category IS NULL).
+ * Lista vacía = sin filtro (todas las categorías).
+ */
+export function ingredientCategoryScopeWhere(categories: readonly (string | null)[]): Prisma.IngredientWhereInput {
+  const names = [...new Set(categories.filter((category): category is string => category !== null))];
+  const withNull = categories.includes(null);
+  if (!names.length && !withNull) return {};
+  const parts: Prisma.IngredientWhereInput[] = [];
+  if (names.length) parts.push({ category: { in: names } });
+  if (withNull) parts.push({ category: null });
+  return parts.length === 1 ? parts[0] : { OR: parts };
+}
+
+/**
+ * Suma al conteo TODOS los insumos (activos, inventariables) de las
+ * categorías pedidas que todavía no están en él. Mismas etapas y lock que
+ * `appendStockCountItem`, y el mismo congelado del teórico: la existencia
+ * del MOMENTO en que cada insumo entra, no la de la apertura del conteo.
+ *
+ * En el conteo definitivo cada insumo nuevo entra al `recountSnapshot` con
+ * su saldo y sus movimientos de ahora y queda «sin contar» en el plan: no
+ * trae preliminar propio — es un pendiente honesto que hay que contar antes
+ * de cerrar. Las categorías ya completas no agregan nada (added = 0).
+ */
+export async function appendStockCountCategories(restaurantId: string, id: string, input: { revision: number; categories: (string | null)[] }) {
+  return db.$transaction(async (tx) => {
+    await lockStock(tx, restaurantId);
+    const count = await tx.stockCount.findFirst({ where: { id, restaurantId }, include: stockCountInclude });
+    if (!count) throw new StockCountError("not_found", 404);
+    if (count.status === "closed") throw new StockCountError("already_closed");
+    if (count.revision !== input.revision) throw new StockCountError("count_changed");
+    if (count.preliminaryAt && !count.recountStartedAt) throw new StockCountError("recount_required");
+    if (count.finalReview) throw new StockCountError("count_not_editable");
+    if (!input.categories.length) throw new StockCountError("invalid", 400);
+
+    const present = new Set(count.items.map((item) => item.ingredientId));
+    const ingredients = (await tx.ingredient.findMany({
+      where: { restaurantId, active: true, trackInventory: true, ...ingredientCategoryScopeWhere(input.categories) },
+      select: { id: true, trackInventory: true, measureKind: true, stockLevel: { select: { qtyBase: true, totalValueCents: true } } },
+      orderBy: { id: "asc" },
+    })).filter((ingredient) => !present.has(ingredient.id));
+    if (!ingredients.length) return { count, added: 0 };
+
+    const recount = !!count.recountStartedAt;
+    for (const ingredient of ingredients) {
+      const qtyBase = ingredient.stockLevel?.qtyBase ?? 0;
+      await tx.stockCountItem.create({
+        data: { countId: id, ingredientId: ingredient.id, expectedQty: qtyBase, ...(recount ? { finalExpectedQty: qtyBase } : {}) },
+      });
+    }
+    let recountSnapshot: Snapshot | undefined;
+    if (recount) {
+      const stored = count.recountSnapshot as Snapshot | null;
+      if (stored && Array.isArray(stored.ingredients) && typeof stored.movementCount === "number") {
+        const movements = await tx.stockMovement.count({ where: { restaurantId, ingredientId: { in: ingredients.map((ingredient) => ingredient.id) } } });
+        recountSnapshot = {
+          ...stored,
+          movementCount: stored.movementCount + movements,
+          ingredients: [...stored.ingredients, ...ingredients.map((ingredient) => ({
+            id: ingredient.id, trackInventory: ingredient.trackInventory, measureKind: ingredient.measureKind,
+            qtyBase: ingredient.stockLevel?.qtyBase ?? 0, totalValueCents: ingredient.stockLevel?.totalValueCents ?? 0,
+          }))],
+          // Entraron después del primer conteo: hay que contarlos.
+          ...(stored.recount
+            ? { recount: { ...stored.recount, ...Object.fromEntries(ingredients.map((ingredient) => [ingredient.id, ["uncounted" satisfies RecountReason]])) } }
+            : {}),
+        };
+      }
+    }
+    await tx.stockCount.update({
+      where: { id },
+      data: { revision: count.revision + 1, finalReview: Prisma.DbNull, ...(recountSnapshot ? { recountSnapshot } : {}) },
+    });
+    const updated = await tx.stockCount.findUniqueOrThrow({ where: { id }, include: stockCountInclude });
+    return { count: updated, added: ingredients.length };
+  }, { timeout: 30_000 });
+}
+
 /** Every writer uses the same restaurant lock as stock movements. This makes
  * saves/closure atomic, prevents duplicate open sessions and preserves sales.
  * No stock is changed until close validates the persisted final-review token. */

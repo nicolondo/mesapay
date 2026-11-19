@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCountBarcodeIndex, canAppendScanOwner, classifyScanOwner, countOrderReducer, countRowState, countScopeCategory, countStats,
-  EMPTY_COUNT_ORDER, filterCountItems, orderCountItems, pruneBlankCountParts, restoreCountOrder, serializeCountOrder, summarizeCountParts,
+  buildCountBarcodeIndex, canAppendScanOwner, classifyScanOwner, countCategoryOptions, countOrderReducer, countRowState, countScopeCategories,
+  countStats, EMPTY_COUNT_ORDER, filterCountItems, orderCountItems, pruneBlankCountParts, restoreCountOrder, serializeCountOrder, summarizeCountParts,
   type CountOrderAction, type CountOrderState,
 } from "./countView";
 
@@ -115,8 +115,8 @@ describe("buscador y filtro de diferencias", () => {
     { id: "f", name: "Fresa", category: "Frutas", barcode: null, barcodes: [], tracked: true, value: "invalid", baseline: 10 },
   ];
   const view = (row: Row) => ({ ingredient: row, tracked: row.tracked, value: row.value, baseline: row.baseline });
-  const filter = (q: string, f: "all" | "shortage" | "surplus" | "pending", pinned?: string[]) =>
-    filterCountItems(rows, { q, filter: f, view, pinned: pinned ? new Set(pinned) : undefined }).map((row) => row.id);
+  const filter = (q: string, f: "all" | "counted" | "shortage" | "surplus" | "pending", pinned?: string[], categories?: (string | null)[]) =>
+    filterCountItems(rows, { q, filter: f, view, pinned: pinned ? new Set(pinned) : undefined, categories: categories ? new Set(categories) : undefined }).map((row) => row.id);
 
   it("sin filtros pasa todo, en el mismo orden", () => {
     expect(filter("", "all")).toEqual(["a", "b", "c", "d", "e", "f"]);
@@ -140,14 +140,47 @@ describe("buscador y filtro de diferencias", () => {
     expect(filter("", "pending")).toEqual(["a"]);
   });
 
+  it("«contados» es todo lo que tiene cantidad válida (el cero cuenta; lo inválido sigue pendiente)", () => {
+    expect(filter("", "counted")).toEqual(["b", "c", "e"]);
+  });
+
   it("combina buscador y filtro", () => {
     expect(filter("burr", "shortage")).toEqual(["b"]);
     expect(filter("burr", "surplus")).toEqual([]);
   });
 
+  it("la visibilidad por categoría esconde el resto (null = «Sin categoría»); vacío o ausente = todas", () => {
+    expect(filter("", "all", undefined, ["Lácteos", "Licores"])).toEqual(["b", "c"]);
+    expect(filter("", "all", undefined, [null])).toEqual(["d"]);
+    expect(filter("", "all", undefined, [])).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+
+  it("la visibilidad por categoría se combina con el buscador y con el filtro de estado", () => {
+    expect(filter("", "pending", undefined, ["Abarrotes", "Frutas"])).toEqual(["a"]);
+    expect(filter("", "counted", undefined, ["Lácteos"])).toEqual(["b"]);
+    expect(filter("camp", "all", undefined, ["Licores"])).toEqual(["c"]);
+    expect(filter("camp", "all", undefined, ["Lácteos"])).toEqual([]);
+  });
+
   it("la fila escaneada o en edición nunca desaparece por un filtro", () => {
     expect(filter("zzz", "surplus", ["a", "d"])).toEqual(["a", "d"]);
     expect(filter("", "pending", ["c"])).toEqual(["a", "c"]);
+    // Tampoco por la visibilidad de categorías.
+    expect(filter("", "all", ["c"], ["Frutas"])).toEqual(["c", "f"]);
+  });
+});
+
+describe("categorías para el alcance de un conteo", () => {
+  it("cuenta insumos por categoría, alfabético y con «Sin categoría» al final", () => {
+    expect(countCategoryOptions([
+      { category: "Licores" }, { category: "Abarrotes" }, { category: null },
+      { category: "Licores" }, { category: "Abarrotes" }, { category: "Abarrotes" },
+    ])).toEqual([
+      { category: "Abarrotes", total: 3 },
+      { category: "Licores", total: 2 },
+      { category: null, total: 1 },
+    ]);
+    expect(countCategoryOptions([])).toEqual([]);
   });
 });
 
@@ -214,28 +247,36 @@ describe("código escaneado → insumo", () => {
     expect(index.size).toBe(3);
   });
 
-  it("deduce la categoría del conteo solo cuando todos sus insumos la comparten", () => {
-    expect(countScopeCategory(countItems)).toBe("Licores");
-    expect(countScopeCategory([...countItems, { ingredient: { category: "Abarrotes" } }])).toBeNull();
-    expect(countScopeCategory([{ ingredient: { category: null } }])).toBeNull();
-    expect(countScopeCategory([])).toBeNull();
+  it("el alcance son las categorías presentes entre los insumos del conteo (null = sin categoría)", () => {
+    expect(countScopeCategories(countItems)).toEqual(new Set(["Licores"]));
+    expect(countScopeCategories([...countItems, { ingredient: { category: "Abarrotes" } }])).toEqual(new Set(["Licores", "Abarrotes"]));
+    expect(countScopeCategories([{ ingredient: { category: null } }, ...countItems])).toEqual(new Set([null, "Licores"]));
+    expect(countScopeCategories([])).toEqual(new Set());
   });
 
   const owner = { id: "x", name: "Vino blanco", active: true, trackInventory: true, category: "Licores" };
-  const context = { inCount: false, excludedCategories: ["Aseo"], scopeCategory: null as string | null };
+  const context = { inCount: false, excludedCategories: ["Aseo"], scopeCategories: new Set<string | null>(["Licores"]) };
 
   it("si el insumo está en el conteo, eso manda sobre todo lo demás", () => {
     expect(classifyScanOwner({ ...owner, active: false }, { ...context, inCount: true })).toBe("in_count");
   });
 
-  it("explica por qué no está: archivado, sin inventario, categoría sin inventario, otra categoría o agregado después", () => {
+  it("explica por qué no está: archivado, sin inventario, categoría sin inventario, categoría fuera del conteo o quedó por fuera", () => {
     expect(classifyScanOwner({ ...owner, active: false, trackInventory: false, category: "Aseo" }, context)).toBe("archived");
     expect(classifyScanOwner({ ...owner, trackInventory: false, category: "Aseo" }, context)).toBe("not_tracked");
-    expect(classifyScanOwner({ ...owner, category: "Aseo" }, { ...context, scopeCategory: "Licores" })).toBe("category_excluded");
-    expect(classifyScanOwner({ ...owner, category: "Abarrotes" }, { ...context, scopeCategory: "Licores" })).toBe("outside_scope");
-    expect(classifyScanOwner({ ...owner, category: null }, { ...context, scopeCategory: "Licores" })).toBe("outside_scope");
-    expect(classifyScanOwner(owner, { ...context, scopeCategory: "Licores" })).toBe("added_later");
+    expect(classifyScanOwner({ ...owner, category: "Aseo" }, context)).toBe("category_excluded");
+    expect(classifyScanOwner({ ...owner, category: "Abarrotes" }, context)).toBe("outside_scope");
+    expect(classifyScanOwner({ ...owner, category: null }, context)).toBe("outside_scope");
     expect(classifyScanOwner(owner, context)).toBe("added_later");
+  });
+
+  it("con varias categorías en el conteo, cualquiera de ellas cuenta como «dentro»; «Sin categoría» también", () => {
+    const multi = { ...context, scopeCategories: new Set<string | null>(["Licores", "Abarrotes", null]) };
+    expect(classifyScanOwner({ ...owner, category: "Abarrotes" }, multi)).toBe("added_later");
+    expect(classifyScanOwner({ ...owner, category: null }, multi)).toBe("added_later");
+    expect(classifyScanOwner({ ...owner, category: "Verduras" }, multi)).toBe("outside_scope");
+    // Conteo vacío (sin items todavía): no hay alcance que excluya.
+    expect(classifyScanOwner(owner, { ...context, scopeCategories: new Set<string | null>() })).toBe("added_later");
   });
 
   it("solo se puede sumar al conteo lo activo e inventariable", () => {

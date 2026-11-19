@@ -13,7 +13,6 @@ export type ScanMatch = {
   };
   itemId: string | null;
   state: ScanOwnerState;
-  scopeCategory: string | null;
   canAppend: boolean;
 };
 
@@ -44,6 +43,24 @@ export async function appendCountItem(countId: string, revision: number, ingredi
     const body = await response.json().catch(() => null);
     if (!response.ok || !body?.count || typeof body.itemId !== "string") return { ok: false, error: typeof body?.error === "string" ? body.error : "failed" };
     return { ok: true, count: body.count as CountDetail, itemId: body.itemId };
+  } catch {
+    return { ok: false, error: "failed" };
+  }
+}
+
+export type AppendCategoriesResult = { ok: true; count: CountDetail; added: number } | { ok: false; error: string };
+
+/** Suma al conteo todos los insumos que faltan de esas categorías (null = «Sin categoría»). */
+export async function appendCountCategories(countId: string, revision: number, categories: (string | null)[]): Promise<AppendCategoriesResult> {
+  try {
+    const response = await fetch(`/api/operator/stock/counts/${countId}/categories`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ revision, categories }),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body?.count || typeof body.added !== "number") return { ok: false, error: typeof body?.error === "string" ? body.error : "failed" };
+    return { ok: true, count: body.count as CountDetail, added: body.added };
   } catch {
     return { ok: false, error: "failed" };
   }

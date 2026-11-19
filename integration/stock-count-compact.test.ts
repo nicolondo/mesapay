@@ -6,6 +6,7 @@ import { POST as createIngredient } from "../src/app/api/operator/ingredients/ro
 import { POST as createCount } from "../src/app/api/operator/stock/counts/route";
 import { PATCH as saveCount } from "../src/app/api/operator/stock/counts/[id]/route";
 import { POST as appendItem } from "../src/app/api/operator/stock/counts/[id]/items/route";
+import { POST as appendCats } from "../src/app/api/operator/stock/counts/[id]/categories/route";
 import { GET as scanLookup } from "../src/app/api/operator/stock/counts/[id]/scan/route";
 import { POST as preliminary } from "../src/app/api/operator/stock/counts/[id]/preliminary/route";
 import { POST as recount } from "../src/app/api/operator/stock/counts/[id]/recount/route";
@@ -51,14 +52,14 @@ async function ok<T>(response: Response, status = 200): Promise<T> {
   expect(response.status, JSON.stringify(body)).toBe(status);
   return body as T;
 }
-const start = async (category?: string) => (await ok<{ count: Count }>(await createCount(json("POST", category ? { category } : {})), 201)).count;
+const start = async (category?: string | (string | null)[]) => (await ok<{ count: Count }>(await createCount(json("POST", category === undefined ? {} : Array.isArray(category) ? { categories: category } : { category })), 201)).count;
 const call = async (handler: Handler, count: Count, data: Record<string, unknown> = {}, method = "POST") =>
   (await ok<{ count: Count; adjustments?: number }>(await handler(json(method, { revision: count.revision, ...data }), at(count.id))));
 const save = async (count: Count, quantities: Record<string, number>) => (await call(saveCount, count, {
   items: count.items.filter((item) => item.ingredientId in quantities).map((item) => ({ itemId: item.id, countedQty: quantities[item.ingredientId] })),
 }, "PATCH")).count;
 const append = (count: Count, ingredientId: string, revision = count.revision) => appendItem(json("POST", { revision, ingredientId }), at(count.id));
-const lookup = async (count: Count, code: string) => (await ok<{ match: { state: string; itemId: string | null; canAppend: boolean; scopeCategory: string | null; ingredient: { id: string; name: string; active: boolean } } | null }>(
+const lookup = async (count: Count, code: string) => (await ok<{ match: { state: string; itemId: string | null; canAppend: boolean; ingredient: { id: string; name: string; active: boolean } } | null }>(
   await scanLookup(json("GET", undefined, `http://localhost/api?code=${encodeURIComponent(code)}`), at(count.id)),
 )).match;
 
@@ -174,10 +175,10 @@ describe("un código escaneado que el conteo no encuentra", () => {
     expect(await lookup(count, "NADIE-0")).toBeNull();
     expect(await lookup(count, " ron-1")).toBeNull(); // las mayúsculas distinguen códigos
     expect(await lookup(count, " RON-1\r\n")).toMatchObject({ state: "in_count", itemId: count.items.find((item) => item.ingredientId === inCount.id)!.id, canAppend: false });
-    expect(await lookup(count, "ARCH-1")).toMatchObject({ state: "archived", itemId: null, canAppend: false, scopeCategory: "Licores", ingredient: { id: archived.id, name: "Vino viejo", active: false } });
+    expect(await lookup(count, "ARCH-1")).toMatchObject({ state: "archived", itemId: null, canAppend: false, ingredient: { id: archived.id, name: "Vino viejo", active: false } });
     expect(await lookup(count, "SVC-1")).toMatchObject({ state: "not_tracked", canAppend: false });
     expect(await lookup(count, "ASEO-1")).toMatchObject({ state: "category_excluded", canAppend: false });
-    expect(await lookup(count, "RICE-1")).toMatchObject({ state: "outside_scope", canAppend: true, scopeCategory: "Licores" });
+    expect(await lookup(count, "RICE-1")).toMatchObject({ state: "outside_scope", canAppend: true });
     expect(await lookup(count, "VODKA-1")).toMatchObject({ state: "added_later", canAppend: true });
   });
 
@@ -192,6 +193,40 @@ describe("un código escaneado que el conteo no encuentra", () => {
     scope.restaurantId = other.id;
     expect((await scanLookup(json("GET", undefined, "http://localhost/api?code=RON-1"), at(count.id))).status).toBe(404);
     scope.restaurantId = home;
+  });
+});
+
+describe("conteo por varias categorías", () => {
+  it("se crea con varias categorías (incluida «Sin categoría») y «Agregar categorías» trae lo que falta con el teórico de ese momento", async () => {
+    const ron = await ingredient("Ron", { category: "Licores", qty: 1000 });
+    const loose = await ingredient("Suelto", { category: null, qty: 300 });
+    const rice = await ingredient("Arroz", { category: "Abarrotes", barcode: "RICE-1", qty: 2000 });
+    await ingredient("Flete", { category: "Abarrotes", trackInventory: false });
+    await ingredient("Jabón", { category: "Aseo", qty: 50 });
+
+    const count = await start(["Licores", null]);
+    expect(count.items.map((item) => item.ingredientId).sort()).toEqual([ron.id, loose.id].sort());
+    expect(count.items.find((item) => item.ingredientId === loose.id)).toMatchObject({ expectedQty: 300 });
+
+    // Un insumo de una categoría que no está en el conteo: se ofrece traerlo.
+    expect(await lookup(count, "RICE-1")).toMatchObject({ state: "outside_scope", canAppend: true });
+
+    // El teórico se congela al momento de agregar la categoría, no al de abrir.
+    await db.$transaction((tx) => applyStockMovement(tx, { restaurantId: scope.restaurantId, ingredientId: rice.id, kind: "adjust_in", qtyBase: 500 }));
+    const added = await ok<{ count: Count; added: number }>(await appendCats(json("POST", { revision: count.revision, categories: ["Abarrotes"] }), at(count.id)));
+    expect(added.added).toBe(1); // el no inventariable no entra
+    expect(added.count.revision).toBe(count.revision + 1);
+    expect(added.count.items.find((item) => item.ingredientId === rice.id)).toMatchObject({ expectedQty: 2500, countedQty: null });
+
+    // Ya quedó adentro: volver a agregar la categoría no duplica ni sube la revisión.
+    const again = await ok<{ count: Count; added: number }>(await appendCats(json("POST", { revision: added.count.revision, categories: ["Abarrotes"] }), at(count.id)));
+    expect(again.added).toBe(0);
+    expect(again.count.revision).toBe(added.count.revision);
+    expect(again.count.items).toHaveLength(3);
+    // Y su categoría ahora cuenta como «dentro» para el escaneo.
+    const vodka = await ingredient("Vodka", { category: "Abarrotes", barcode: "VODKA-9" });
+    expect(vodka.id).toBeTruthy();
+    expect(await lookup(again.count, "VODKA-9")).toMatchObject({ state: "added_later", canAppend: true });
   });
 });
 

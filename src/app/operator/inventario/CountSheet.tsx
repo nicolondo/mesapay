@@ -6,7 +6,7 @@ import type { Locale } from "@/i18n/config";
 import { formatDate } from "@/lib/format";
 import { BARCODE_MAX_LENGTH, ingredientBarcodeValues, mergeIngredientBarcodes, normalizeBarcode, type IngredientBarcodeUpdate } from "@/lib/erp/barcode";
 import {
-  buildCountBarcodeIndex, countOrderReducer, countRowState, countScopeCategory, countStats, EMPTY_COUNT_ORDER,
+  buildCountBarcodeIndex, countCategoryOptions, countOrderReducer, countRowState, countScopeCategories, countStats, EMPTY_COUNT_ORDER,
   filterCountItems, orderCountItems, pruneBlankCountParts, restoreCountOrder, serializeCountOrder,
   type CountOrderState, type DifferenceFilter,
 } from "@/lib/erp/countView";
@@ -16,11 +16,11 @@ import { MAX_COUNT_PARTS } from "@/lib/erp/stockCountParts";
 import type { IngredientConflict, IngredientRef } from "../compras/shared";
 import { addIngredientBarcode, moveIngredientBarcode, removeIngredientBarcode } from "./barcodeApi";
 import { BarcodeSheet, type BarcodeMoveTarget } from "./BarcodeSheet";
-import { appendCountItem, lookupCountScan, restoreIngredient, type ScanMatch } from "./countApi";
-import { CountItemPicker, CountNewIngredientDialog } from "./CountDialogs";
+import { appendCountCategories, appendCountItem, lookupCountScan, restoreIngredient, type ScanMatch } from "./countApi";
+import { CountAddCategoriesDialog, CountItemPicker, CountNewIngredientDialog } from "./CountDialogs";
 import { CountRow, type CountRowHandlers } from "./CountRow";
 import { InvIcon } from "./InventoryIcons";
-import type { CountDetail, CountItemRow } from "./types";
+import type { CountDetail, CountItemRow, StockRow } from "./types";
 
 type Stage = "initial" | "preliminary" | "recount" | "review" | "closed";
 
@@ -55,6 +55,32 @@ function storeOrder(countId: string, state: CountOrderState | null, stage: Stage
     else window.localStorage.removeItem(orderKey(countId));
   } catch {
     // Sin almacenamiento (modo privado): solo se pierde el orden al reabrir.
+  }
+}
+
+// Los filtros de visibilidad (categorías y estado) sobreviven mientras dure
+// la sesión del navegador: cerrar la hoja o cambiar de pestaña no los borra.
+// Solo esconden filas; el conteo y su avance total no cambian.
+const filtersKey = (countId: string) => `mp:count-filters:${countId}`;
+const DIFFERENCE_FILTERS: readonly DifferenceFilter[] = ["all", "counted", "shortage", "surplus", "pending"];
+function loadFilters(countId: string): { categories: Set<string | null>; filter: DifferenceFilter } {
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(filtersKey(countId)) ?? "null") as
+      { categories?: unknown; filter?: unknown } | null;
+    const categories = Array.isArray(stored?.categories)
+      ? stored.categories.filter((value): value is string | null => value === null || typeof value === "string")
+      : [];
+    const filter = DIFFERENCE_FILTERS.includes(stored?.filter as DifferenceFilter) ? (stored?.filter as DifferenceFilter) : "all";
+    return { categories: new Set(categories), filter };
+  } catch {
+    return { categories: new Set(), filter: "all" };
+  }
+}
+function storeFilters(countId: string, categories: ReadonlySet<string | null>, filter: DifferenceFilter) {
+  try {
+    window.sessionStorage.setItem(filtersKey(countId), JSON.stringify({ categories: [...categories], filter }));
+  } catch {
+    // Sin almacenamiento: los filtros solo duran mientras la hoja esté abierta.
   }
 }
 
@@ -93,8 +119,10 @@ const COUNT_ERROR_KEYS: Record<string, string> = {
  * completo (con su revisión) y cierra la hoja; las acciones de etapa siguen
  * igual. Tocar afuera no cierra, y ✕ pregunta si hay cantidades sin guardar.
  */
-export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, onDraftSaved, onBarcodeSaved, onCatalogChanged }: {
+export function CountSheet({ count: initialCount, catalog, onClose, onClosed, onDeleted, onDraftSaved, onBarcodeSaved, onCatalogChanged }: {
   count: CountDetail;
+  /** Existencias de la página: para saber qué categorías faltan en el conteo. */
+  catalog: readonly StockRow[];
   onClose: () => void;
   onClosed: () => void;
   onDeleted: () => void;
@@ -112,7 +140,10 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   const [entries, setEntries] = useState<Record<string, CountEntry[]>>(() => entriesOf(initialCount));
   const [order, dispatchOrder] = useReducer(countOrderReducer, initialCount, loadOrder);
   const [q, setQ] = useState("");
-  const [differenceFilter, setDifferenceFilter] = useState<DifferenceFilter>("all");
+  const [differenceFilter, setDifferenceFilter] = useState<DifferenceFilter>(() => loadFilters(initialCount.id).filter);
+  // Visibilidad por categoría (vacío = todas). No saca nada del conteo.
+  const [categoryFilter, setCategoryFilter] = useState<ReadonlySet<string | null>>(() => loadFilters(initialCount.id).categories);
+  const [addingCategories, setAddingCategories] = useState(false);
   // Conteo definitivo: filtro por motivo y grupo «Confirmados del preliminar».
   const [reasonFilter, setReasonFilter] = useState<"all" | RecountReason | "confirmed">("all");
   const [confirmedOpen, setConfirmedOpen] = useState(false);
@@ -228,11 +259,17 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   // (restaurantId, barcode) garantiza que no haya dos insumos con el mismo
   // código, así que el mapa nunca pierde filas y el escaneo no es ambiguo.
   const byBarcode = useMemo(() => buildCountBarcodeIndex(count.items), [count.items]);
-  const scopeCategory = useMemo(() => countScopeCategory(count.items), [count.items]);
+  const scopeCategories = useMemo(() => countScopeCategories(count.items), [count.items]);
   const categories = useMemo(
     () => [...new Set(count.items.map((item) => item.ingredient.category).filter((category): category is string => !!category))].sort((a, b) => a.localeCompare(b)),
     [count.items],
   );
+  // Categorías con insumos activos que todavía no están en este conteo.
+  const missingCategories = useMemo(() => {
+    const present = new Set(count.items.map((item) => item.ingredient.id));
+    return countCategoryOptions(catalog.filter((row) => row.active && !present.has(row.id)))
+      .map((option) => ({ category: option.category, missing: option.total }));
+  }, [catalog, count.items]);
   const moveTargets = useMemo<BarcodeMoveTarget[]>(
     () => count.items.filter((item) => item.ingredient.active && item.ingredient.trackInventory).map((item) => item.ingredient),
     [count.items],
@@ -257,7 +294,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   // foco; sale de ese filtro cuando se suelta.
   const pinned = new Set([hit?.itemId, order.editing, expandedId].filter((id): id is string => !!id));
   const filtered = filterCountItems(count.items, {
-    q, filter: differenceFilter, pinned,
+    q, filter: differenceFilter, pinned, categories: categoryFilter,
     view: (item) => ({ ingredient: item.ingredient, tracked: item.ingredient.trackInventory, value: quantity(item), baseline: baseline(item) }),
   });
   const byReason = reasonFilter === "all" || !plan ? filtered : filtered.filter((item) => pinned.has(item.id)
@@ -276,8 +313,46 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   const pendingRecount = plan ? count.items.filter((item) => statusOf(item) === "recount" && isPending(item)).length : 0;
 
   // Desviación en vivo: contados y con diferencia (borrador usa lo
-  // digitado; cerrado usa lo persistido).
+  // digitado; cerrado usa lo persistido). SIEMPRE sobre el conteo completo:
+  // los filtros solo esconden filas.
   const stats = countStats(count.items.map((item) => countRowState(quantity(item), baseline(item), item.ingredient.trackInventory)));
+  // Avance de lo visible cuando hay filtros activos («12/40 en lo visible»).
+  const visibleStats = countStats(byReason.map((item) => countRowState(quantity(item), baseline(item), item.ingredient.trackInventory)));
+  const filtersActive = byReason.length !== count.items.length;
+
+  // Avance por categoría para los chips de visibilidad (solo inventariables).
+  const categoryProgress = (() => {
+    const map = new Map<string | null, { total: number; counted: number }>();
+    for (const item of count.items) {
+      const key = item.ingredient.category ?? null;
+      const entry = map.get(key) ?? { total: 0, counted: 0 };
+      if (item.ingredient.trackInventory) {
+        entry.total++;
+        const value = quantity(item);
+        if (value != null && value !== "invalid") entry.counted++;
+      }
+      map.set(key, entry);
+    }
+    return [...map.entries()]
+      .map(([category, progress]) => ({ category, ...progress }))
+      .sort((a, b) => (a.category === null ? 1 : b.category === null ? -1 : a.category.localeCompare(b.category)));
+  })();
+
+  // Los filtros de visibilidad persisten mientras dure la sesión.
+  useEffect(() => {
+    storeFilters(count.id, categoryFilter, differenceFilter);
+  }, [count.id, categoryFilter, differenceFilter]);
+
+  function toggleCategoryFilter(category: string | null) {
+    setHit(null);
+    setExpandedId(null);
+    setCategoryFilter((previous) => {
+      const next = new Set(previous);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
 
   /** Solo los códigos del insumo: recargar el conteo borraría lo digitado. */
   function applyBarcodes(update: IngredientBarcodeUpdate) {
@@ -432,10 +507,34 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
       return;
     }
     const added = result.count.items.find((item) => item.id === result.itemId);
-    const outside = scopeCategory && added && added.ingredient.category !== scopeCategory;
+    const outside = added && scopeCategories.size > 0 && !scopeCategories.has(added.ingredient.category ?? null);
     mergeAppended(result.count, result.itemId, outside
-      ? t("countAppendedOutsideScope", { name: target.name, category: scopeCategory })
+      ? t("countAppendedOutsideScope", { name: target.name })
       : t(target.active ? "countAppended" : "countRestoredAppended", { name: target.name }));
+  }
+
+  /**
+   * «Agregar categorías»: trae TODOS los insumos que faltan de las elegidas.
+   * Cada uno congela su teórico con la existencia de este momento; en el
+   * definitivo entran al plan como «sin contar» (pendientes, sin preliminar
+   * propio). Si hay filtros de categoría activos, las nuevas se hacen
+   * visibles para que no entren escondidas.
+   */
+  async function addCategories(selection: (string | null)[]) {
+    if (busy) return;
+    setBusy(true); setErr(null);
+    const result = await appendCountCategories(count.id, count.revision, selection);
+    setBusy(false);
+    setAddingCategories(false);
+    if (!result.ok) { showError(result.error); return; }
+    setCount(result.count);
+    setEntries((prev) => {
+      const merged = { ...prev };
+      for (const candidate of result.count.items) if (!merged[candidate.id]) merged[candidate.id] = savedEntriesOf(candidate);
+      return merged;
+    });
+    setCategoryFilter((previous) => (previous.size === 0 ? previous : new Set([...previous, ...selection])));
+    setPanel({ kind: "note", tone: "ok", text: t("countCategoriesAdded", { count: result.added }) });
   }
 
   async function ingredientCreated(ingredient: IngredientRef) {
@@ -731,6 +830,7 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
   const chips: { value: DifferenceFilter; label: string; total: number; tone?: "danger" | "ok" }[] = [
     { value: "all", label: "filterAll", total: stats.counted + stats.pending },
     { value: "pending", label: "countPending", total: stats.pending },
+    { value: "counted", label: "countCountedFilter", total: stats.counted },
     { value: "shortage", label: "countShortages", total: stats.shortages, tone: "danger" },
     { value: "surplus", label: "countSurpluses", total: stats.surpluses, tone: "ok" },
   ];
@@ -831,13 +931,53 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
                   </button>
                 ))}
                 <span className="mp-tally-stat"><span>{t("countEqual")}</span>{" "}<b>{stats.equal}</b></span>
-                <span className="mp-tally-stat ml-auto pl-2">{t("summaryCounted", { count: stats.counted })}</span>
+                <span className="mp-tally-stat ml-auto pl-2">
+                  {t("countProgress", { counted: stats.counted, total: stats.counted + stats.pending })}
+                  {filtersActive && (
+                    <span className="block text-right">{t("countProgressVisible", { counted: visibleStats.counted, total: visibleStats.counted + visibleStats.pending })}</span>
+                  )}
+                </span>
                 {!readOnly && (
                   <button type="button" className="mp-tally-rowbtn" aria-expanded={hintOpen} aria-label={t("countHintToggle")} title={t("countHintToggle")} onClick={() => setHintOpen((open) => !open)}>
                     <InvIcon name="info" size={17} />
                   </button>
                 )}
               </div>
+
+              {(categoryProgress.length > 1 || (canEdit && missingCategories.length > 0)) && (
+                <div className="mp-tally-chips" role="group" aria-label={t("countCategoryFilterLabel")}>
+                  {categoryProgress.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        className="mp-tally-chip"
+                        aria-pressed={categoryFilter.size === 0}
+                        onClick={() => { setHit(null); setExpandedId(null); setCategoryFilter(new Set()); }}
+                      >
+                        <span>{t("countCategoryAll")}</span>
+                      </button>
+                      {categoryProgress.map((progress) => (
+                        <button
+                          key={progress.category ?? ""}
+                          type="button"
+                          className="mp-tally-chip"
+                          aria-pressed={categoryFilter.has(progress.category)}
+                          onClick={() => toggleCategoryFilter(progress.category)}
+                        >
+                          <span>{progress.category ?? t("countNoCategoryOption")}</span>{" "}
+                          <b>{`${progress.counted}/${progress.total}`}</b>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {canEdit && missingCategories.length > 0 && (
+                    <button type="button" disabled={busy} onClick={() => setAddingCategories(true)} className="mp-btn mp-btn--ghost mp-btn--xs ml-auto shrink-0">
+                      <InvIcon name="plus" size={14} />
+                      {t("countAddCategories")}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {plan && (
                 <div className="mp-tally-chips" role="group" aria-label={t("countRecountFilterLabel")}>
@@ -1032,10 +1172,18 @@ export function CountSheet({ count: initialCount, onClose, onClosed, onDeleted, 
           initialName={creating.name}
           initialBarcode={creating.barcode}
           categories={categories}
-          scopeCategory={scopeCategory}
+          scopeCategories={scopeCategories}
           conflictActions={conflictActions}
           onCreated={(ingredient) => void ingredientCreated(ingredient)}
           onCancel={() => setCreating(null)}
+        />
+      )}
+      {addingCategories && (
+        <CountAddCategoriesDialog
+          options={missingCategories}
+          busy={busy}
+          onConfirm={(selection) => void addCategories(selection)}
+          onClose={() => setAddingCategories(false)}
         />
       )}
     </div>
@@ -1092,7 +1240,7 @@ function ScanPanelView({ panel, busy, canEdit, onDismiss, onRetry, onLink, onCre
   } else {
     const { match, code } = panel;
     const { ingredient } = match;
-    const values = { code, name: ingredient.name, category: ingredient.category ?? t("countNoCategory"), scope: match.scopeCategory ?? "" };
+    const values = { code, name: ingredient.name, category: ingredient.category ?? t("countNoCategory") };
     text = t(
       match.state === "archived" ? "countScanArchived"
         : match.state === "not_tracked" ? "countScanNotTracked"

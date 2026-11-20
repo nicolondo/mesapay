@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { loadOrderReview } from "@/lib/orderReview";
 import { normalizeModifiers } from "@/lib/modifiers";
 import { ensureDefaultMenu } from "@/lib/menus";
 import { getRestaurantMenuTags } from "@/lib/menuTags";
@@ -128,9 +129,17 @@ export default async function MeseroPedirPage({
     ]),
   );
 
+  // Aviso «Revisar» antes de confirmar la ronda: la cuenta abierta puede ser
+  // de otro grupo (descuento de un cliente puesto antes, cobro rechazado,
+  // horas sin rondas). Evaluado como si la ronda se montara ahora.
+  const staffReview = activeOrder
+    ? await loadOrderReview(db, activeOrder.id, { newRoundAt: new Date() })
+    : null;
+
   return (
     <MenuClient
       operatorMode
+      staffReview={staffReview}
       // Después de enviar el round volvemos a Salón del mesero
       // (donde aterriza el push "listo para entregar" más tarde).
       postSendHref="/mesero/salon"

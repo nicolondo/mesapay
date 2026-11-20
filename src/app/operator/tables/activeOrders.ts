@@ -16,6 +16,7 @@ import {
 } from "@/lib/simpleInvoiceRequest";
 import { SEND_INFO_LINK_SELECT } from "@/lib/manualInvoiceSendInfo";
 import type { ActiveOrder } from "./MesasGrid";
+import { discountOriginOf, orderReviewViewOf } from "@/lib/orderReview";
 
 /**
  * Una CUENTA VIVA tal como la pinta la ficha (`TableDetailSheet`): la de una
@@ -73,6 +74,10 @@ export const ACTIVE_ORDER_INCLUDE = {
   simpleInvoice: { select: ORDER_INVOICE_VIEW_SELECT },
   // Link de pago de una factura manual (enviado, abierto, vencido).
   payLink: { select: SEND_INFO_LINK_SELECT },
+  // Origen del descuento («Descuento del cliente X») y la mesa, para el
+  // aviso «Revisar» (src/lib/orderReviewFlags.ts).
+  discountBillingCustomer: { select: { customerName: true } },
+  table: { select: { number: true, kind: true } },
 } satisfies Prisma.OrderInclude;
 
 export type ActiveOrderRow = Prisma.OrderGetPayload<{ include: typeof ACTIVE_ORDER_INCLUDE }>;
@@ -82,6 +87,9 @@ export type ActiveOrderContext = {
   approvedTerminalAmounts: Awaited<ReturnType<typeof terminalAmountViews>>;
   breBPending: Awaited<ReturnType<typeof breBPendingViews>>;
   invoiceViews: Map<string, OrderInvoiceView>;
+  /** Rondas CANCELADAS por cuenta (la ficha sólo trae las vivas): el aviso
+   *  «Revisar» mide desde ellas cuando no queda ninguna viva. */
+  cancelledRounds: Map<string, Array<{ placedAt: Date; status: string }>>;
 };
 
 /** Lo que se carga aparte para varias cuentas de una vez. */
@@ -111,7 +119,19 @@ export async function loadActiveOrderContext(orders: readonly ActiveOrderRow[]):
         if (view) invoiceViews.set(o.id, view);
       }),
   );
-  return { terminalClaimed, approvedTerminalAmounts, breBPending, invoiceViews };
+  const cancelledRounds = new Map<string, Array<{ placedAt: Date; status: string }>>();
+  if (orders.length) {
+    const rows = await db.round.findMany({
+      where: { orderId: { in: orders.map((o) => o.id) }, status: "cancelled" },
+      select: { orderId: true, placedAt: true, status: true },
+    });
+    for (const r of rows) {
+      const list = cancelledRounds.get(r.orderId) ?? [];
+      list.push({ placedAt: r.placedAt, status: r.status });
+      cancelledRounds.set(r.orderId, list);
+    }
+  }
+  return { terminalClaimed, approvedTerminalAmounts, breBPending, invoiceViews, cancelledRounds };
 }
 
 /**
@@ -142,6 +162,14 @@ export function summarizeActiveOrder(order: ActiveOrderRow, ctx: ActiveOrderCont
     grossSubtotalCents: order.subtotalCents,
     discountCents: order.discountCents,
     discountPct: order.discountPct,
+    // «Descuento del cliente X» / «del comensal Y»; null = cuenta vieja.
+    discountOrigin: discountOriginOf(order),
+    // Aviso «Revisar»: descuento de un cliente con rondas después, cobro
+    // rechazado con rondas nuevas, o rondas tras horas sin actividad.
+    review: orderReviewViewOf({
+      ...order,
+      rounds: [...order.rounds, ...(ctx.cancelledRounds.get(order.id) ?? [])],
+    }),
     customer: order.diner
       ? {
           id: order.diner.id,

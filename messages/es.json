@@ -12185,5 +12185,29 @@
     "kwSetSalon": "mapa plano del salón distribución mesas",
     "kwSetSuscripcion": "membresía plan mensualidad pagar suscripción débito",
     "kwSetBackups": "copias de seguridad exportar respaldo datos"
+  },
+  "orderReview": {
+    "badge": "Revisar",
+    "title": "Revisa esta cuenta",
+    "staleCustomerDiscount": "Desde las {time}, esta cuenta tiene el descuento del cliente {name} ({pct} %). ¿Sigue siendo el mismo cliente?",
+    "openSince": "Esta cuenta está abierta desde las {time} y estuvo horas sin rondas. ¿Es el mismo grupo?",
+    "openSinceDeclined": "Esta cuenta está abierta desde las {time} con un cobro rechazado. ¿Es el mismo grupo?",
+    "keep": "Mantener",
+    "removeDiscount": "Quitar descuento",
+    "saveError": "No se pudo guardar. Intenta de nuevo.",
+    "pushTitle": "Mesa {number}: revisa la cuenta",
+    "confirmTitle": "Antes de enviar el pedido",
+    "keepAndSend": "Mantener y enviar",
+    "removeAndSend": "Quitar descuento y enviar",
+    "sameGroupSend": "Sí, enviar el pedido",
+    "back": "Volver"
+  },
+  "discountOrigin": {
+    "customer": "Descuento del cliente {name} {pct} %",
+    "customerNoPct": "Descuento del cliente {name}",
+    "diner": "Descuento del comensal {name} {pct} %",
+    "dinerNoPct": "Descuento del comensal {name}",
+    "removeError": "No se pudo quitar el descuento: la cuenta ya tiene pagos, está en cobro o ya está facturada.",
+    "reverted": "Se quitó el descuento del cliente {name} porque el cobro no se completó. Si sigue siendo él, escógelo de nuevo."
   }
 }

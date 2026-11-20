@@ -8,6 +8,9 @@ import { useTranslations } from "next-intl";
 import { fmtCOP, fmtCOPauto, pesosToCents } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import { PlacedByLine } from "@/components/PlacedByLine";
+import { OrderReviewBanner } from "@/components/orderReview/OrderReviewBanner";
+import { discountOriginLabel } from "@/components/orderReview/discountOrigin";
+import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
 import { InvoiceFormSheet } from "@/components/invoice/InvoiceFormSheet";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
 import {
@@ -147,6 +150,8 @@ export function TableDetailSheet({
   grossSubtotalCents,
   discountCents = 0,
   discountPct = null,
+  discountOrigin = null,
+  review = null,
   customer = null,
   tenantSlug,
   qrToken,
@@ -205,6 +210,12 @@ export function TableDetailSheet({
   grossSubtotalCents?: number;
   discountCents?: number;
   discountPct?: number | null;
+  // De dónde viene el descuento: «Descuento del cliente X» (paso «Cliente»
+  // del cobro) o «del comensal Y». null = cuenta vieja, texto genérico.
+  discountOrigin?: DiscountOriginView;
+  // Aviso «Revisar» (src/lib/orderReviewFlags.ts): la cuenta puede ser de
+  // otro grupo. null = nada que revisar.
+  review?: OrderReviewView | null;
   // Comensal identificado en la cuenta. Al identificarlo se aplica su
   // descuento (si el restaurante le pactó uno); el mesero puede quitar el
   // descuento sin perder la identidad.
@@ -271,6 +282,7 @@ export function TableDetailSheet({
   sendInfo?: ManualInvoiceSendInfo | null;
 }) {
   const tr = useTranslations("opTables");
+  const tOrigin = useTranslations("discountOrigin");
   // Etiquetas de rol (Administrador / Mesero / Terminal) — viven en el
   // namespace `kitchen`, el mismo que usa "Montó: …".
   const tk = useTranslations("kitchen");
@@ -383,6 +395,17 @@ export function TableDetailSheet({
   // Cuenta facturada y sin cobrar: no se agrega, quita ni descuenta nada.
   const invoiceLocked =
     !!invoice && orderStatus !== "paid" && orderStatus !== "cancelled";
+  // «Quitar descuento» existe siempre que la cuenta abierta tenga descuento,
+  // venga de donde venga (comensal identificado o cliente de facturación del
+  // paso «Cliente» del cobro). No en cobro, con pagos en curso ni facturada:
+  // el servidor lo rechaza igual (removeOrderDiscount).
+  const canRemoveDiscount =
+    discountCents > 0 &&
+    !invoiceLocked &&
+    orderStatus !== undefined &&
+    !["paid", "cancelled", "paying"].includes(orderStatus) &&
+    pendingPayments.length === 0;
+  const [discountErr, setDiscountErr] = useState<string | null>(null);
 
   // "Confirmar pago recibido" sobre la solicitud del comensal. Si cerró la
   // cuenta, a la misma pantalla de "listo" a la que llega el cobro normal
@@ -763,21 +786,24 @@ export function TableDetailSheet({
     }
   }
 
-  /** Quitar el descuento de ESTA cuenta, sin perder quién es el comensal. */
+  /**
+   * Quitar el descuento de ESTA cuenta, venga de donde venga, sin perder
+   * quién es el comensal.
+   */
   async function dropDiscount() {
     setIdentifyBusy(true);
-    setIdentifyErr(null);
+    setDiscountErr(null);
     try {
       const res = await fetch(`/api/operator/orders/${orderId}/discount`, {
         method: "DELETE",
       });
       if (!res.ok) {
-        setIdentifyErr(tr("customerIdentifyError"));
+        setDiscountErr(tOrigin("removeError"));
         return;
       }
       router.refresh();
     } catch {
-      setIdentifyErr(tr("customerIdentifyError"));
+      setDiscountErr(tOrigin("removeError"));
     } finally {
       setIdentifyBusy(false);
     }
@@ -877,6 +903,18 @@ export function TableDetailSheet({
               />
             )}
 
+            {/* «Revisar»: la cuenta puede ser de otro grupo (descuento de un
+                cliente puesto antes, cobro rechazado, rondas tras horas). Va
+                antes del resumen: hay que resolverlo antes de cobrar. */}
+            {review && orderStatus !== "paid" && orderStatus !== "cancelled" && (
+              <OrderReviewBanner
+                orderId={orderId}
+                review={review}
+                canAct
+                onChanged={() => startTx(() => router.refresh())}
+              />
+            )}
+
             {/* Resumen del cobro + acciones principales. "Agregar
                 platos" siempre visible (acción frecuente); "Cobrar
                 la cuenta" sólo si queda algo por cobrar; "Cancelar"
@@ -905,10 +943,11 @@ export function TableDetailSheet({
                       </div>
                     )}
                   {discountCents > 0 && (
-                    <div className="font-mono text-[10px] text-terracotta mt-0.5">
-                      {discountPct
-                        ? tr("discountApplied", { pct: discountPct })
-                        : tr("discountAppliedNoPct")}{" "}
+                    <div className="font-mono text-[10px] text-terracotta mt-0.5" data-testid="discount-line">
+                      {discountOriginLabel(discountOrigin, discountPct, tOrigin) ??
+                        (discountPct
+                          ? tr("discountApplied", { pct: discountPct })
+                          : tr("discountAppliedNoPct"))}{" "}
                       {"− " + fmtCOPauto(discountCents)}
                       {grossSubtotalCents != null && (
                         <>
@@ -920,7 +959,20 @@ export function TableDetailSheet({
                       )}
                     </div>
                   )}
+                  {discountErr && (
+                    <div className="text-danger text-xs mt-1">{discountErr}</div>
+                  )}
                 </div>
+                {canRemoveDiscount && (
+                  <button
+                    type="button"
+                    onClick={dropDiscount}
+                    disabled={identifyBusy}
+                    className="shrink-0 h-9 px-3 rounded-full border border-danger/40 text-xs text-danger disabled:opacity-60"
+                  >
+                    {tr("discountRemove")}
+                  </button>
+                )}
               </div>
             )}
 
@@ -1015,16 +1067,6 @@ export function TableDetailSheet({
                         {customer.cedula ?? customer.email}
                       </div>
                     </div>
-                    {discountCents > 0 && (
-                      <button
-                        type="button"
-                        onClick={dropDiscount}
-                        disabled={identifyBusy}
-                        className="h-9 px-3 rounded-full border border-danger/40 text-xs text-danger disabled:opacity-60"
-                      >
-                        {tr("discountRemove")}
-                      </button>
-                    )}
                   </div>
                 ) : (
                   <form onSubmit={identifyCustomer} className="flex gap-2 flex-wrap">

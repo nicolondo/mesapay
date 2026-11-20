@@ -120,6 +120,8 @@ async function DELETEHandler(
       dinerId: null,
       discountPct: null,
       discountCents: 0,
+      discountBillingCustomerId: null,
+      discountAppliedAt: null,
       totalCents: order.subtotalCents,
     },
   });

@@ -9,6 +9,7 @@ import { secureApi } from "@/lib/secureApi";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 import { terminalClaimKey } from "@/lib/payments/methods";
 import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
+import { revertCustomerDiscountInTx } from "@/lib/customerDiscount";
 import { cancelCloudTerminalPayment, type CloudTerminalAbortResult } from "@/lib/payments/kushki/cloudTerminal";
 import { kushkiTerminalSetup, usableTerminalDevices } from "@/lib/payments/terminalAvailability";
 import { checkTerminalChargeOnce } from "@/lib/payments/terminalRecovery";
@@ -178,6 +179,10 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
       },
     });
     const orderStatus = await releaseOrderFromPaying(tx, current.orderId, current.order.status);
+    // Sin reintento, el cobro terminó sin pago: el descuento del cliente que
+    // puso su paso «Cliente» se deshace (con reintento hay un pago pendiente
+    // nuevo y la guarda lo deja quieto).
+    await revertCustomerDiscountInTx(tx, current.orderId, { reason: "charge_failed" });
     await audit(action === "retry" ? "payment.terminal_retried" : "payment.terminal_attempt_cancelled", {
       before: { status: current.status, orderStatus: current.order.status },
       after: { status: "declined", orderStatus: orderStatus ?? current.order.status },

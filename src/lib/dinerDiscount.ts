@@ -93,14 +93,19 @@ export async function applyDinerToOrder(args: {
     await tx.order.update({ where: { id: order.id }, data: {
       dinerId: diner.id, discountPct: pct, discountCents,
       totalCents: Math.max(0, order.subtotalCents - discountCents) + order.taxCents + order.tipCents,
+      // El descuento de la cuenta pasa a ser el del comensal: deja de ser el
+      // de un cliente de facturación (y ya no se revierte con el cobro).
+      discountBillingCustomerId: null, discountAppliedAt: null,
     } });
     return { dinerId: diner.id, name: diner.name, discountPct: pct, discountCents };
   });
 }
 
 /**
- * Quita el descuento de la cuenta (acción del mesero). Deja al comensal
- * identificado: quitar el beneficio no es lo mismo que borrar quién es.
+ * Quita el descuento de la cuenta (acción del mesero), venga de donde venga:
+ * del comensal identificado o de un cliente de facturación (paso «Cliente»
+ * del cobro). Deja al comensal identificado: quitar el beneficio no es lo
+ * mismo que borrar quién es.
  */
 export async function removeOrderDiscount(args: {
   orderId: string;
@@ -114,6 +119,7 @@ export async function removeOrderDiscount(args: {
     if (await tx.simpleInvoice.count({ where: { orderId: order.id } })) return false;
     await tx.order.update({ where: { id: order.id }, data: {
       discountPct: null, discountCents: 0,
+      discountBillingCustomerId: null, discountAppliedAt: null,
       totalCents: order.subtotalCents + order.taxCents + order.tipCents,
     } });
     return true;

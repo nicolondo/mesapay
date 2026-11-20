@@ -211,6 +211,7 @@ export function ManualInvoiceTile({
           grossSubtotalCents={tile.order.grossSubtotalCents}
           discountCents={tile.order.discountCents}
           discountPct={tile.order.discountPct}
+          discountOrigin={tile.order.discountOrigin}
           customer={tile.order.customer}
           invoiceRequest={tile.order.invoiceRequest}
           invoiceIntent={tile.order.invoiceIntent}

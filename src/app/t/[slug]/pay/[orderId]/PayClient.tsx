@@ -30,6 +30,9 @@ import {
   type InvoicedOrderView,
 } from "@/components/invoice/PreInvoicePanel";
 import { CustomerPicker } from "@/components/billingCustomers/CustomerPicker";
+import { OrderReviewBanner } from "@/components/orderReview/OrderReviewBanner";
+import { discountOriginLabel } from "@/components/orderReview/discountOrigin";
+import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
 import {
   PendingPaymentNotice,
   type PendingPaymentView,
@@ -129,6 +132,9 @@ export function PayClient({
   grossSubtotalCents,
   discountCents = 0,
   discountPct = null,
+  discountOrigin = null,
+  review = null,
+  revertedCustomerName = null,
   paidCents,
   paidTipCents,
   alreadyPaid,
@@ -205,6 +211,16 @@ export function PayClient({
   grossSubtotalCents: number;
   discountCents?: number;
   discountPct?: number | null;
+  /** Sólo staff: de dónde viene el descuento («Descuento del cliente X»). */
+  discountOrigin?: DiscountOriginView;
+  /** Sólo staff: aviso «Revisar» de la cuenta (src/lib/orderReviewFlags.ts). */
+  review?: OrderReviewView | null;
+  /**
+   * Sólo staff, al volver de un cobro rechazado: el cliente cuyo descuento
+   * se deshizo porque ese cobro no se completó (se avisa para escogerlo de
+   * nuevo si sigue siendo él).
+   */
+  revertedCustomerName?: string | null;
   paidCents: number;
   paidTipCents: number;
   alreadyPaid: boolean;
@@ -420,7 +436,37 @@ export function PayClient({
   // Cliente asociado a la cuenta (paso "Cliente" o factura nominativa) y el
   // aviso del descuento que dejó la última asociación.
   const [customer, setCustomer] = useState<PayCustomer | null>(linkedCustomer);
-  const [customerNotice, setCustomerNotice] = useState<string | null>(null);
+  const tOrigin = useTranslations("discountOrigin");
+  const [customerNotice, setCustomerNotice] = useState<string | null>(
+    revertedCustomerName ? tOrigin("reverted", { name: revertedCustomerName }) : null,
+  );
+  // Etiqueta del descuento: al personal le dice de dónde viene; al
+  // comensal, el texto de siempre.
+  const discountLabel =
+    (operatorMode ? discountOriginLabel(discountOrigin, discountPct, tOrigin) : null) ??
+    (discountPct ? t("discountRowPct", { pct: discountPct }) : t("discountRow"));
+
+  // El descuento que pone el paso «Cliente» pertenece a ESTE cobro: si el
+  // personal sale de la pantalla sin completarlo, se deshace (best effort;
+  // el servidor sólo lo hace sin pagos aprobados/pendientes ni factura, así
+  // que salir HACIA el datáfono, el efectivo o «listo» no lo toca). Un
+  // rechazo del pago lo deshace el servidor por su cuenta. No en la
+  // recarga: ahí no hay desmontaje y la cuenta conserva el cliente.
+  const customerDiscountAppliedHere = useRef(false);
+  useEffect(() => {
+    if (!operatorMode) return;
+    return () => {
+      if (!customerDiscountAppliedHere.current) return;
+      try {
+        void fetch(`/api/operator/orders/${orderId}/customer`, {
+          method: "DELETE",
+          keepalive: true,
+        }).catch(() => {});
+      } catch {
+        // Best effort: la ficha de la mesa avisa «Revisar» si quedó puesto.
+      }
+    };
+  }, [operatorMode, orderId]);
 
   // Remember the explicit account-wide tip when returning from a terminal
   // or reloading between payments. Never store credentials or payment data.
@@ -1191,6 +1237,7 @@ export function PayClient({
       const linked = j.customer as PayCustomer;
       const d = j.discount as DiscountOutcome | undefined;
       setCustomer(linked);
+      if (d?.applied && d.changed) customerDiscountAppliedHere.current = true;
       if (d?.applied) {
         setCustomerNotice(
           t("customerDiscountApplied", {
@@ -1343,6 +1390,18 @@ export function PayClient({
       <h1 className="font-display text-4xl tracking-[-0.015em] mt-1">
         {operatorMode ? t("charge") : t("pay")}
       </h1>
+      {/* «Revisar»: la cuenta puede ser de otro grupo (descuento de un
+          cliente puesto antes, cobro rechazado, rondas tras horas). Antes de
+          cobrar. El datáfono sólo lo ve: decide el mesero o la caja. */}
+      {operatorMode && review && (
+        <OrderReviewBanner
+          className="mt-4"
+          orderId={orderId}
+          review={review}
+          canAct={!terminalMode}
+          onChanged={() => router.refresh()}
+        />
+      )}
 
       {/* Lo que el comensal ya pidió para pagar, antes que cualquier método:
           confirmarlo cierra el cobro; cobrar de otra forma lo reemplaza. */}
@@ -1427,9 +1486,7 @@ export function PayClient({
                 </div>
                 <div className="flex items-baseline justify-between mt-1">
                   <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-terracotta">
-                    {discountPct
-                      ? t("discountRowPct", { pct: discountPct })
-                      : t("discountRow")}
+                    {discountLabel}
                   </span>
                   <span className="font-mono text-sm tabular text-terracotta">
                     {"− " + fmtCOP(discountCents)}
@@ -1612,11 +1669,7 @@ export function PayClient({
       <div className="mt-6 bg-paper rounded-2xl border border-hairline p-5">
         {discountCents > 0 && (
           <Row
-            label={
-              discountPct
-                ? t("discountRowPct", { pct: discountPct })
-                : t("discountRow")
-            }
+            label={discountLabel}
             value={"− " + fmtCOP(discountCents)}
             muted
           />

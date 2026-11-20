@@ -37,6 +37,8 @@ const MIGRATED = [
   "src/components/ShiftConsumptionTax.tsx",
   "src/components/TipReturns.tsx",
   "src/components/billingCustomers/**/*.{ts,tsx}",
+  // Aviso «Revisar» de la cuenta y origen del descuento: nacieron trilingües.
+  "src/components/orderReview/**/*.{ts,tsx}",
   "src/components/suppliers/DuplicateDocumentAlert.tsx",
   "src/app/operator/compras/ComprasList.tsx",
   "src/app/operator/compras/chips.tsx",

@@ -65,6 +65,7 @@ const h = vi.hoisted(() => {
     autoFire: vi.fn(async () => [{ station: "kitchen", barSubStation: null }]),
     tickets: vi.fn(async () => {}),
     recompute: vi.fn(async (_tx: unknown, id: string) => ({ id, shortCode: "AAAAAA-BBBBBB" })),
+    reviewNotify: vi.fn(async () => {}),
   };
 });
 
@@ -100,6 +101,7 @@ vi.mock("@/lib/orders", () => ({ recomputeOrderLinesInTx: h.recompute }));
 vi.mock("@/lib/kds/autoFire", () => ({ autoFireRoundInTx: h.autoFire }));
 vi.mock("@/lib/kds/autoFireTickets", () => ({ notifyAutoFiredTickets: h.tickets }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "es") }));
+vi.mock("@/lib/orderReviewNotify", () => ({ notifyMeserosIfReviewNeeded: h.reviewNotify }));
 
 import { POST } from "./route";
 import { OrderInvoicedError } from "@/lib/orders/orderInvoicedError";
@@ -287,3 +289,50 @@ describe("POST /api/tenant/[slug]/orders — cuenta ya facturada (factura antes 
   });
 });
 
+
+/**
+ * Aviso «Revisar»: una ronda del COMENSAL sobre una cuenta que ya existía
+ * se evalúa para avisar por push a los meseros de la mesa; la del personal
+ * no (el personal ve el aviso en pantalla antes de confirmar).
+ */
+describe("POST /api/tenant/[slug]/orders — aviso «Revisar» a los meseros", () => {
+  const mesa = { id: "table-x", restaurantId: "rest-1", number: 4, kind: "standard" };
+  const sendTo = (orderId?: string) =>
+    POST(
+      new Request("http://localhost/api/tenant/chefburger/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tableId: "table-x", orderId, items: [{ menuItemId: "item-lomo", qty: 1 }] }),
+      }),
+      { params: Promise.resolve({ slug: "chefburger" }) },
+    );
+  const existing = { id: "order-9", restaurantId: "rest-1", tableId: "table-x", status: "served" };
+
+  it("ronda del comensal en una cuenta abierta: se evalúa y avisa", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.tx.order.findUnique.mockResolvedValue(existing);
+    h.tx.simpleInvoice.findUnique.mockResolvedValue(null);
+    expect((await sendTo("order-9")).status).toBe(200);
+    expect(h.reviewNotify).toHaveBeenCalledWith(expect.objectContaining({ restaurantId: "rest-1" }));
+  });
+
+  it("la ronda del personal no manda push (su aviso es en pantalla)", async () => {
+    h.table.mockResolvedValue(mesa);
+    h.tx.order.findUnique.mockResolvedValue(existing);
+    h.tx.simpleInvoice.findUnique.mockResolvedValue(null);
+    h.activeContext.mockResolvedValue({
+      session: { user: { id: "u", email: "m@resto.co", name: "M", role: "mesero" } },
+      restaurantId: "rest-1",
+      impersonating: false,
+      groupId: null,
+    });
+    await sendTo("order-9");
+    expect(h.reviewNotify).not.toHaveBeenCalled();
+  });
+
+  it("la primera ronda (cuenta nueva) no tiene nada que revisar", async () => {
+    h.table.mockResolvedValue(mesa);
+    await sendTo();
+    expect(h.reviewNotify).not.toHaveBeenCalled();
+  });
+});

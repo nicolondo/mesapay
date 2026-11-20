@@ -12178,8 +12178,8 @@
   "orderReview": {
     "badge": "Revisar",
     "title": "Revisa esta cuenta",
-    "staleCustomerDiscount": "Esta cuenta tiene el descuento del cliente {name} ({pct} %) desde las {time}. ¿Sigue siendo el mismo cliente?",
-    "openSince": "Esta cuenta está abierta desde las {time}. ¿Es el mismo grupo?",
+    "staleCustomerDiscount": "Desde las {time}, esta cuenta tiene el descuento del cliente {name} ({pct} %). ¿Sigue siendo el mismo cliente?",
+    "openSince": "Esta cuenta está abierta desde las {time} y estuvo horas sin rondas. ¿Es el mismo grupo?",
     "openSinceDeclined": "Esta cuenta está abierta desde las {time} con un cobro rechazado. ¿Es el mismo grupo?",
     "keep": "Mantener",
     "removeDiscount": "Quitar descuento",

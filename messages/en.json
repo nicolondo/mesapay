@@ -12178,8 +12178,8 @@
   "orderReview": {
     "badge": "Review",
     "title": "Check this tab",
-    "staleCustomerDiscount": "This tab has the discount of customer {name} ({pct}%) since {time}. Is it still the same customer?",
-    "openSince": "This tab has been open since {time}. Is it the same group?",
+    "staleCustomerDiscount": "Since {time}, this tab has the discount of customer {name} ({pct}%). Is it still the same customer?",
+    "openSince": "This tab has been open since {time} and went hours without rounds. Is it the same group?",
     "openSinceDeclined": "This tab has been open since {time} with a declined charge. Is it the same group?",
     "keep": "Keep",
     "removeDiscount": "Remove discount",

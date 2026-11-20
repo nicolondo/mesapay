@@ -95,11 +95,13 @@ export function OrderReviewBanner({
       <div className="font-mono text-[10px] tracking-wider uppercase text-warn mb-1">
         {t("title")}
       </div>
-      {lines.map((line) => (
-        <p key={line} className="text-sm leading-snug">
-          {line}
-        </p>
-      ))}
+      <div className="space-y-1.5">
+        {lines.map((line) => (
+          <p key={line} className="text-sm leading-snug">
+            {line}
+          </p>
+        ))}
+      </div>
       {canAct && (
         <div className="flex flex-wrap gap-2 mt-3">
           <button

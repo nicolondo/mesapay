@@ -12174,5 +12174,29 @@
     "kwSetSalon": "mapa planta do salão distribuição mesas",
     "kwSetSuscripcion": "assinatura plano mensalidade pagar débito",
     "kwSetBackups": "cópias de segurança exportar backup dados"
+  },
+  "orderReview": {
+    "badge": "Revisar",
+    "title": "Revise esta conta",
+    "staleCustomerDiscount": "Esta conta tem o desconto do cliente {name} ({pct}%) desde as {time}. Ainda é o mesmo cliente?",
+    "openSince": "Esta conta está aberta desde as {time}. É o mesmo grupo?",
+    "openSinceDeclined": "Esta conta está aberta desde as {time} com uma cobrança recusada. É o mesmo grupo?",
+    "keep": "Manter",
+    "removeDiscount": "Remover desconto",
+    "saveError": "Não foi possível salvar. Tente novamente.",
+    "pushTitle": "Mesa {number}: revise a conta",
+    "confirmTitle": "Antes de enviar o pedido",
+    "keepAndSend": "Manter e enviar",
+    "removeAndSend": "Remover desconto e enviar",
+    "sameGroupSend": "Sim, enviar o pedido",
+    "back": "Voltar"
+  },
+  "discountOrigin": {
+    "customer": "Desconto do cliente {name} {pct}%",
+    "customerNoPct": "Desconto do cliente {name}",
+    "diner": "Desconto do comensal {name} {pct}%",
+    "dinerNoPct": "Desconto do comensal {name}",
+    "removeError": "Não foi possível remover o desconto: a conta já tem pagamentos, está em cobrança ou já foi faturada.",
+    "reverted": "O desconto do cliente {name} foi removido porque a cobrança não foi concluída. Se ainda for ele, escolha-o de novo."
   }
 }

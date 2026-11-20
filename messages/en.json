@@ -12174,5 +12174,29 @@
     "kwSetSalon": "map floor plan table layout",
     "kwSetSuscripcion": "membership plan monthly fee pay subscription debit",
     "kwSetBackups": "backups export data copy"
+  },
+  "orderReview": {
+    "badge": "Review",
+    "title": "Check this tab",
+    "staleCustomerDiscount": "This tab has the discount of customer {name} ({pct}%) since {time}. Is it still the same customer?",
+    "openSince": "This tab has been open since {time}. Is it the same group?",
+    "openSinceDeclined": "This tab has been open since {time} with a declined charge. Is it the same group?",
+    "keep": "Keep",
+    "removeDiscount": "Remove discount",
+    "saveError": "Couldn't save. Please try again.",
+    "pushTitle": "Table {number}: check the tab",
+    "confirmTitle": "Before sending the order",
+    "keepAndSend": "Keep and send",
+    "removeAndSend": "Remove discount and send",
+    "sameGroupSend": "Yes, send the order",
+    "back": "Go back"
+  },
+  "discountOrigin": {
+    "customer": "Customer {name} discount {pct}%",
+    "customerNoPct": "Customer {name} discount",
+    "diner": "Diner {name} discount {pct}%",
+    "dinerNoPct": "Diner {name} discount",
+    "removeError": "Couldn't remove the discount: the tab already has payments, is being charged or is already invoiced.",
+    "reverted": "Customer {name}'s discount was removed because the charge wasn't completed. If it's still them, pick them again."
   }
 }

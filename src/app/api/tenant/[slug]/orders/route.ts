@@ -14,6 +14,7 @@ import { publishOrderEvent } from "@/lib/events";
 import { isAutoReadyStation, resolveStation } from "@/lib/prep";
 import { autoFireRoundInTx } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
+import { notifyMeserosIfReviewNeeded } from "@/lib/orderReviewNotify";
 import {
   computeSelectionsPriceDelta,
   normalizeModifiers,
@@ -287,6 +288,18 @@ async function POSTHandler(
     orderId: result.order.id,
     rounds: [{ roundId: result.round.id, groups: result.fired }],
   });
+
+  // Ronda del COMENSAL sobre una cuenta que ya existía: si dispara un aviso
+  // «Revisar» (descuento de un cliente puesto antes, cobro rechazado, horas
+  // sin rondas), él no puede decidir — se avisa a los meseros de la mesa.
+  // El personal recibe el aviso en pantalla ANTES de confirmar su ronda.
+  if (!placedBy && parsed.data.orderId && !isManual && table.number >= 0) {
+    void notifyMeserosIfReviewNeeded({
+      restaurantId: tenant.id,
+      orderId: result.order.id,
+      roundPlacedAt: result.round.placedAt,
+    });
+  }
 
   return NextResponse.json({
     orderId: result.order.id,

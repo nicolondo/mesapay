@@ -10179,6 +10179,17 @@
     "unknownAmount": "Valor não registrado",
     "tableNumber": "Mesa {number}"
   },
+  "cancelledItems": {
+    "summary": "Pratos cancelados ({count})",
+    "kindCancel": "Cancelado",
+    "kindComp": "Não cobrado",
+    "kindRound": "Rodada {seq} cancelada",
+    "by": "por {name}",
+    "byUnknown": "pelo sistema (sem usuário registrado)",
+    "timeUnknown": "horário não registrado",
+    "reason": "Motivo: {reason}",
+    "notCounted": "Apenas informativo: estes pratos não somam ao total da conta."
+  },
   "help": {
     "metaTitle": "Ajuda",
     "eyebrow": "Central de ajuda",

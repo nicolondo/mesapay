@@ -160,6 +160,8 @@ const MIGRATED = [
   "src/app/operator/settings/salon/**/*.{ts,tsx}",
   // Dibujo del plano del salón (editor, comensal y Salón): nació trilingüe.
   "src/components/floorplan/**/*.{ts,tsx}",
+  // Desplegable «Platos cancelados» (ficha de la mesa e historial): nació trilingüe.
+  "src/components/orders/**/*.{ts,tsx}",
   "src/app/operator/settings/estaciones/**/*.{ts,tsx}",
   "src/app/operator/settings/reservas/**/*.{ts,tsx}",
   "src/app/operator/settings/etiquetas/**/*.{ts,tsx}",

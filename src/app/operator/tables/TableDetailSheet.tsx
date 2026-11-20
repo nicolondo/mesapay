@@ -48,6 +48,7 @@ import {
   type OrderRoomInput,
 } from "@/lib/freeLineLimit";
 import { FreeLineLimitNotice } from "./FreeLineLimitNotice";
+import { LiveCancelledItems } from "@/components/orders/LiveCancelledItems";
 import { ManualInvoiceSendCard } from "@/components/manualInvoice/ManualInvoiceSend";
 import type { ManualInvoiceSendInfo } from "@/components/manualInvoice/types";
 
@@ -1699,6 +1700,10 @@ export function TableDetailSheet({
                 </ul>
               </section>
             )}
+
+            {/* Lo que salió de la cuenta (quién, cuándo y por qué). Solo
+                informativo: no suma a ningún total. */}
+            <LiveCancelledItems orderId={orderId} liveRounds={rounds} liveFreeLines={freeLines} />
 
             <p className="text-[10px] text-op-muted">
               {tr("autoRefreshNote")}

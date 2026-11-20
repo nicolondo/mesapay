@@ -10179,6 +10179,17 @@
     "unknownAmount": "Amount not recorded",
     "tableNumber": "Table {number}"
   },
+  "cancelledItems": {
+    "summary": "Cancelled dishes ({count})",
+    "kindCancel": "Cancelled",
+    "kindComp": "Comped",
+    "kindRound": "Round {seq} cancelled",
+    "by": "by {name}",
+    "byUnknown": "by the system (no user recorded)",
+    "timeUnknown": "time not recorded",
+    "reason": "Reason: {reason}",
+    "notCounted": "For reference only: these dishes don't count toward the bill total."
+  },
   "help": {
     "metaTitle": "Help",
     "eyebrow": "Help center",

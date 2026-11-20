@@ -28,6 +28,14 @@ import { hasCreditSale } from "@/lib/orders/creditSale";
 import { loadCreditSales } from "@/lib/orders/creditSaleQuery";
 import { customerListHref } from "@/lib/billingCustomerList";
 import { CreditSaleBadge } from "../CreditSaleBadge";
+import { CancelledItemsDisclosure } from "@/components/orders/CancelledItemsDisclosure";
+import {
+  buildCancelledItems,
+  cancellationEmails,
+  isCancelledLine,
+} from "@/lib/orders/cancelledItems";
+import { loadStaffNamesByEmail } from "@/lib/orders/cancelledItemsQuery";
+import { getCurrencyForCountry } from "@/lib/billing/countries";
 
 export const dynamic = "force-dynamic";
 
@@ -125,11 +133,26 @@ export default async function OperatorOrderDetail({
       }
     : null;
 
+  // Platos que salieron de la cuenta (sueltos o con su ronda): van al
+  // desplegable «Platos cancelados» y NO suman en «Por persona».
+  const roundsById = new Map(order.rounds.map((r) => [r.id, r]));
+  const lineCancelled = (i: (typeof order.items)[number]) =>
+    isCancelledLine(i, i.roundId ? roundsById.get(i.roundId) : null);
+  const [cancelledStaff, currency] = await Promise.all([
+    loadStaffNamesByEmail(restaurantId, cancellationEmails(order.items, order.rounds)),
+    getCurrencyForCountry(tenant?.country),
+  ]);
+  const cancelledItems = buildCancelledItems({
+    items: order.items,
+    rounds: order.rounds,
+    staff: cancelledStaff,
+  });
+
   const groups = new Map<
     string,
     { name: string; items: typeof order.items; subtotal: number }
   >();
-  for (const i of order.items) {
+  for (const i of order.items.filter((item) => !lineCancelled(item))) {
     const key = i.guestName?.trim() || "__anon__";
     const label = i.guestName?.trim() || t("noName");
     const entry =
@@ -321,7 +344,6 @@ export default async function OperatorOrderDetail({
         <ul className="space-y-2">
           {order.rounds.map((r) => {
             const lines = order.items.filter((i) => i.roundId === r.id);
-            const roundCancelled = r.status === "cancelled";
             return (
               <li
                 key={r.id}
@@ -342,14 +364,14 @@ export default async function OperatorOrderDetail({
                       <div className="flex-1">
                         <div className={
                           "text-sm flex items-center gap-2 flex-wrap " +
-                          (roundCancelled ? "line-through text-op-muted" : "")
+                          (lineCancelled(li) ? "line-through text-op-muted" : "")
                         }>
                           <span>
                             {li.qty}
                             {"× "}
                             {li.nameSnapshot}
                           </span>
-                          {!roundCancelled && (
+                          {!lineCancelled(li) && (
                             <ItemStatusBadge
                               kitchenStatus={li.kitchenStatus}
                               servedAt={li.servedAt}
@@ -397,6 +419,13 @@ export default async function OperatorOrderDetail({
             <li className="text-sm text-op-muted py-4">{t("noRounds")}</li>
           )}
         </ul>
+        {/* Quién canceló cada plato, a qué hora y por qué. Solo informativo:
+            no suma a ningún total. */}
+        <CancelledItemsDisclosure
+          items={cancelledItems}
+          currency={currency}
+          className="mt-3"
+        />
       </div>
 
       {multiGuest && (

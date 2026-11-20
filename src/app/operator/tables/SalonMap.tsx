@@ -130,6 +130,7 @@ export function SalonMap({
   onActivate: (id: string) => void;
 }) {
   const tr = useTranslations("opTables");
+  const tReview = useTranslations("orderReview");
   const byId = useMemo(() => new Map(tiles.map((t) => [t.id, t])), [tiles]);
 
   // Mismo objeto por mesa mientras no cambie el plano (los refrescos en
@@ -189,17 +190,20 @@ export function SalonMap({
         pendingMethods: tile.order.pendingPayments.map((p) => p.method),
       });
       const stateText = stateKey ? tr(stateKey) : null;
-      const parts = [stateText, amount, waiter && stateKey !== "tileStateCalledWaiter" ? tr("waiterCallPending") : null];
+      // «Revisar» (la cuenta puede ser de otro grupo) va primero: es lo que
+      // el personal tiene que ver antes de cobrar o sumar platos.
+      const reviewText = tile.order.review ? tReview("badge") : null;
+      const parts = [reviewText, stateText, amount, waiter && stateKey !== "tileStateCalledWaiter" ? tr("waiterCallPending") : null];
       return {
         tone: set[tile.visualState],
         ariaLabel: tr("mapTableAria", { table: name, state: parts.filter(Boolean).join(", ") }),
         // Si la mesa se ve chica cabe una línea: el estado; si es grande,
         // también el monto.
-        sub: stateText ?? amount,
-        sub2: stateText ? amount : null,
+        sub: reviewText ?? stateText ?? amount,
+        sub2: reviewText ? (stateText ?? amount) : stateText ? amount : null,
       };
     },
-    [byId, visibleIds, isHighlighted, now, tr],
+    [byId, visibleIds, isHighlighted, now, tr, tReview],
   );
 
   return (

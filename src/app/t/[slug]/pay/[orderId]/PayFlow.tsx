@@ -34,6 +34,7 @@ import { canResolveTerminalCharge } from "@/lib/payments/terminalResolve";
 import { onlinePaymentsReady } from "@/lib/payments/onlinePayments";
 import { loadOrderInvoiceView } from "@/lib/orders/invoicedOrder";
 import { invoiceSummaryFor } from "@/lib/invoiceCustomerMemory";
+import { discountOriginOf, loadOrderReview } from "@/lib/orderReview";
 
 /**
  * Cliente de facturación ligado a la cuenta por la solicitud de factura
@@ -44,15 +45,23 @@ import { invoiceSummaryFor } from "@/lib/invoiceCustomerMemory";
 async function linkedCustomerFor(
   restaurantId: string,
   request: { docType: "CC" | "CE" | "NIT" | "PA"; docNumber: string } | null,
+  /** Cliente cuyo descuento ya tiene la cuenta (paso «Cliente»): manda. */
+  discountCustomerId: string | null = null,
 ): Promise<PayCustomer | null> {
-  if (!request) return null;
-  // Misma normalización que el alta del cliente y la solicitud de factura
-  // (una sola fuente de verdad): número sin DV. Una solicitud vieja que
-  // todavía traiga "901944469-1" también liga; un DV que no corresponde no.
-  const document = normalizeCustomerDocument(request.docType, request.docNumber);
-  if (!document.ok) return null;
+  let where: { restaurantId: string; id: string } | { restaurantId: string; docType: "CC" | "CE" | "NIT" | "PA"; docNumber: string };
+  if (discountCustomerId) {
+    where = { restaurantId, id: discountCustomerId };
+  } else {
+    if (!request) return null;
+    // Misma normalización que el alta del cliente y la solicitud de factura
+    // (una sola fuente de verdad): número sin DV. Una solicitud vieja que
+    // todavía traiga "901944469-1" también liga; un DV que no corresponde no.
+    const document = normalizeCustomerDocument(request.docType, request.docNumber);
+    if (!document.ok) return null;
+    where = { restaurantId, docType: request.docType, docNumber: document.docNumber };
+  }
   const customer = await db.billingCustomer.findFirst({
-    where: { restaurantId, docType: request.docType, docNumber: document.docNumber },
+    where,
     select: {
       id: true,
       customerName: true,
@@ -70,6 +79,38 @@ async function linkedCustomerFor(
     ? await loadCustomerCreditSummary(restaurantId, customer.id)
     : null;
   return { ...customer, debtCents: credit?.debtCents ?? 0 };
+}
+
+/**
+ * Al volver de un cobro rechazado (sólo staff): el cliente cuyo descuento se
+ * deshizo porque ese cobro no se completó (auditoría
+ * `order.customer_discount_reverted`, reciente). La pantalla lo avisa para
+ * escogerlo de nuevo si sigue siendo él.
+ */
+async function revertedDiscountCustomerName(orderId: string, restaurantId: string): Promise<string | null> {
+  const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const event = await db.auditEvent.findFirst({
+    where: {
+      restaurantId,
+      kind: "order.customer_discount_reverted",
+      targetType: "order",
+      targetId: orderId,
+      occurredAt: { gte: since },
+    },
+    orderBy: { occurredAt: "desc" },
+    select: { diff: true },
+  });
+  const diff = event?.diff;
+  const customerId =
+    diff && typeof diff === "object" && !Array.isArray(diff) && typeof diff.billingCustomerId === "string"
+      ? diff.billingCustomerId
+      : null;
+  if (!customerId) return null;
+  const customer = await db.billingCustomer.findFirst({
+    where: { id: customerId, restaurantId },
+    select: { customerName: true },
+  });
+  return customer?.customerName ?? null;
 }
 
 /**
@@ -130,6 +171,9 @@ export async function PayFlow({
     include: {
       table: true,
       payments: true,
+      // De dónde viene el descuento («Descuento del cliente X»), sólo staff.
+      discountBillingCustomer: { select: { customerName: true } },
+      diner: { select: { name: true, email: true } },
       // El resumen del cobro (y el OrderItem.guestName aggregator)
       // solo deben ver items vivos — un plato cancelado no aporta a
       // lo que el cliente paga.
@@ -248,9 +292,22 @@ export async function PayFlow({
     ? await Promise.all([
         db.billingCustomer.count({ where: { restaurantId: tenant.id } }),
         db.billingCustomer.count({ where: { restaurantId: tenant.id, creditEnabled: true } }),
-        linkedCustomerFor(tenant.id, invoiceRequest),
+        linkedCustomerFor(tenant.id, invoiceRequest, order.discountBillingCustomerId),
       ])
     : [0, 0, null];
+
+  // Aviso «Revisar» y cliente cuyo descuento se deshizo al rechazarse el
+  // cobro (sólo staff; el comensal no ve nada de esto).
+  const [review, revertedCustomerName] = operatorMode
+    ? await Promise.all([
+        loadOrderReview(db, order.id),
+        declined === "1" || declined === "canceled"
+          ? order.discountBillingCustomerId
+            ? null
+            : revertedDiscountCustomerName(order.id, tenant.id)
+          : null,
+      ])
+    : [null, null];
 
   const compAdminRequired = operatorMode && tenant.compEnabled &&
     canCompOrders(session?.user?.role, tenant.compAllowedRoles) &&
@@ -313,6 +370,9 @@ export async function PayFlow({
       grossSubtotalCents={order.subtotalCents}
       discountCents={order.discountCents}
       discountPct={order.discountPct}
+      discountOrigin={operatorMode ? discountOriginOf(order) : null}
+      review={review}
+      revertedCustomerName={revertedCustomerName}
       approvedPayments={operatorMode ? approved.map(({ id, method, amountCents, tipCents }) => ({ id, method, amountCents, tipCents })) : []}
       paidCents={paidCents}
       paidTipCents={paidTipCents}

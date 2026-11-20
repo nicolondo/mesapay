@@ -29,6 +29,7 @@ import type { InvoicedOrderView } from "@/components/invoice/PreInvoicePanel";
 import type { PendingPaymentView } from "@/components/payments/PendingPaymentNotice";
 import type { TerminalAmountView } from "@/lib/payments/terminalAmount";
 import type { RestaurantTax } from "@/lib/salesTax";
+import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
 
 /**
  * Grilla compacta de mesas con chips de filtro + accordion-on-tap.
@@ -106,6 +107,10 @@ export type ActiveOrder = {
   grossSubtotalCents: number;
   discountCents: number;
   discountPct: number | null;
+  /** De dónde viene el descuento (cliente de facturación o comensal). */
+  discountOrigin: DiscountOriginView;
+  /** Aviso «Revisar» (src/lib/orderReviewFlags.ts); null = nada que revisar. */
+  review: OrderReviewView | null;
   customer: {
     id: string;
     name: string | null;
@@ -1023,6 +1028,7 @@ function ActiveTile({
 }) {
   const tr = useTranslations("opTables");
   const tPre = useTranslations("preInvoice");
+  const tReview = useTranslations("orderReview");
   const tokens = tileTokensForState(tile.visualState);
   const tableLabel = counterMode
     ? tr("tableFullCounter")
@@ -1110,6 +1116,20 @@ function ActiveTile({
             {tPre("tileBadge")}
           </span>
         )}
+        {/* Overlay: «Revisar» — la cuenta puede ser de otro grupo
+            (descuento de un cliente puesto antes, cobro rechazado, horas
+            sin rondas). El detalle y las acciones están en la ficha. */}
+        {tile.order.review && (
+          <span
+            data-testid="tile-review-badge"
+            className={
+              "absolute left-1.5 font-mono text-[8px] tracking-wider uppercase text-bone bg-warn rounded px-1 " +
+              (tile.order.invoice ? "top-4" : "top-1")
+            }
+          >
+            {tReview("badge")}
+          </span>
+        )}
         {/* Overlay: icono de llamada mesero arriba derecha. */}
         {tile.order.needsWaiter && (
           <span
@@ -1144,6 +1164,8 @@ function ActiveTile({
           grossSubtotalCents={tile.order.grossSubtotalCents}
           discountCents={tile.order.discountCents}
           discountPct={tile.order.discountPct}
+          discountOrigin={tile.order.discountOrigin}
+          review={tile.order.review}
           customer={tile.order.customer}
           invoiceIntent={tile.order.invoiceIntent}
           invoice={tile.order.invoice}

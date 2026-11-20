@@ -46,7 +46,14 @@ export const ORDER_REVIEW_SELECT = {
   payments: { select: { status: true, createdAt: true } },
 } satisfies Prisma.OrderSelect;
 
-export type OrderReviewRow = Prisma.OrderGetPayload<{ select: typeof ORDER_REVIEW_SELECT }>;
+type SelectedRow = Prisma.OrderGetPayload<{ select: typeof ORDER_REVIEW_SELECT }>;
+/** La fila leída con ORDER_REVIEW_SELECT (o cualquier cosa con esa forma). */
+export type OrderReviewRow = Omit<SelectedRow, "status" | "rounds" | "payments" | "table"> & {
+  status: string;
+  table: { number: number; kind: string };
+  rounds: ReadonlyArray<{ placedAt: Date; status: string }>;
+  payments: ReadonlyArray<{ status: string; createdAt: Date }>;
+};
 
 export function reviewFlagsOf(row: OrderReviewRow, opts: { newRoundAt?: Date } = {}): ReviewFlag[] {
   return orderReviewFlags(

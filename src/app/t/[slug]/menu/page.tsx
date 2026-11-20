@@ -1,5 +1,6 @@
 import { canAccessTable } from "@/lib/guestAccess";
 import { db } from "@/lib/db";
+import { loadOrderReview } from "@/lib/orderReview";
 import { notFound, redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
@@ -132,6 +133,14 @@ export default async function MenuPage({
           },
         });
 
+  // Aviso «Revisar» para el PERSONAL que toma el pedido sobre una cuenta ya
+  // abierta: evaluado como si la ronda se montara ahora. El comensal nunca
+  // lo ve (su ronda avisa por push a los meseros, ver orders/route.ts).
+  const staffReview =
+    operatorMode && activeOrder
+      ? await loadOrderReview(db, activeOrder.id, { newRoundAt: new Date() })
+      : null;
+
   // i18n — traducción del CONTENIDO del menú (nombres/descripciones de
   // platos, categorías, menús) al idioma del comensal. Server-side y
   // cacheado en la tabla Translation (ver lib/translateContent). En "es"
@@ -209,6 +218,7 @@ export default async function MenuPage({
       readOnly={readOnly}
       diner={diner}
       operatorMode={operatorMode}
+      staffReview={staffReview}
       postSendHref={postSendHref}
       tenant={{
         slug: tenant.slug,

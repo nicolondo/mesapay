@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { computeDiscountCents } from "./dinerDiscount";
 import { lockOrder } from "./orderLock";
+import { compactDocumentNumber, normalizeCustomerDocument, type CustomerDocType } from "./customerDocument";
 
 /**
  * Descuento comercial fijo de un cliente de facturación (BillingCustomer
@@ -143,7 +144,12 @@ export type RevertCustomerDiscountResult =
         /** La cuenta no tiene un descuento puesto por un cliente de facturación. */
         | "no_customer_discount"
         /** Cerrada, en cobro, con pagos vivos, facturada, ajena o factura manual. */
-        | "not_applicable";
+        | "not_applicable"
+        /**
+         * La cuenta tiene una solicitud de factura viva a nombre de ESE
+         * cliente: el descuento es de la factura pedida, no del cobro.
+         */
+        | "invoice_requested";
     };
 
 /**
@@ -157,7 +163,10 @@ export type RevertCustomerDiscountResult =
  * cancelada, sin pagos aprobados ni pendientes (cobro parcial o mixto: lo
  * cobrado ya llevó el descuento) y sin factura emitida (lo cobrable quedó
  * congelado en ella). Tampoco en una factura manual: ahí el cliente es el
- * de la factura, no el de un cobro en mesa.
+ * de la factura, no el de un cobro en mesa. Ni cuando la cuenta tiene una
+ * solicitud de factura viva (pendiente o generada) a nombre de ESE mismo
+ * cliente: ahí el descuento pertenece a la factura pedida, y quitarlo haría
+ * que el reintento se cobre a precio lleno con la factura a su nombre.
  *
  * Idempotente: sin descuento del cliente no escribe nada. Dentro de la
  * transacción del caller; pide el lock de la orden (reentrante). Deja
@@ -203,6 +212,9 @@ export async function revertCustomerDiscountInTx(
   if (await tx.simpleInvoice.count({ where: { orderId } })) {
     return { reverted: false, reason: "not_applicable" };
   }
+  if (await invoiceRequestedForCustomer(tx, orderId, billingCustomerId)) {
+    return { reverted: false, reason: "invoice_requested" };
+  }
   await tx.order.update({
     where: { id: orderId },
     data: {
@@ -237,4 +249,35 @@ export async function revertCustomerDiscountInTx(
     discountPct: order.discountPct,
     discountCents: order.discountCents,
   };
+}
+
+/** Llave de un documento, normalizada como la guarda el alta del cliente. */
+function documentKey(docType: CustomerDocType, docNumber: string): string {
+  const normalized = normalizeCustomerDocument(docType, docNumber);
+  return `${docType}:${normalized.ok ? normalized.docNumber : compactDocumentNumber(docNumber)}`;
+}
+
+/**
+ * ¿La cuenta tiene una solicitud de factura viva (pendiente o generada; no
+ * rechazada) a nombre de ese cliente de facturación? Mismo criterio que el
+ * cobro usa para ligar la solicitud al cliente (`linkedCustomerFor`): tipo y
+ * número de documento normalizado (sin DV).
+ */
+async function invoiceRequestedForCustomer(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  billingCustomerId: string,
+): Promise<boolean> {
+  const requests = await tx.invoiceRequest.findMany({
+    where: { orderId, status: { in: ["pending", "generated"] } },
+    select: { docType: true, docNumber: true },
+  });
+  if (!requests.length) return false;
+  const customer = await tx.billingCustomer.findUnique({
+    where: { id: billingCustomerId },
+    select: { docType: true, docNumber: true },
+  });
+  if (!customer) return false;
+  const target = documentKey(customer.docType, customer.docNumber);
+  return requests.some((r) => documentKey(r.docType, r.docNumber) === target);
 }

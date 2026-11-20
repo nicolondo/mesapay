@@ -17,6 +17,8 @@ const tx = {
   payment: { count: vi.fn() },
   simpleInvoice: { count: vi.fn() },
   auditEvent: { create: vi.fn() },
+  invoiceRequest: { findMany: vi.fn() },
+  billingCustomer: { findUnique: vi.fn() },
 };
 type Tx = Parameters<typeof applyCustomerDiscount>[0];
 
@@ -36,6 +38,8 @@ beforeEach(() => {
   tx.order.update.mockResolvedValue({});
   tx.payment.count.mockResolvedValue(0);
   tx.simpleInvoice.count.mockResolvedValue(0);
+  tx.invoiceRequest.findMany.mockResolvedValue([]);
+  tx.billingCustomer.findUnique.mockResolvedValue({ docType: "NIT", docNumber: "900123456" });
 });
 
 describe("applyCustomerDiscount — cuenta ya facturada (factura antes de cobrar)", () => {
@@ -227,5 +231,40 @@ describe("revertCustomerDiscountInTx", () => {
     expect(tx.auditEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ actorUserId: "u1", actorRole: "mesero", diff: expect.objectContaining({ reason: "checkout_abandoned" }) }),
     });
+  });
+});
+
+describe("revertCustomerDiscountInTx — factura pedida a nombre del cliente", () => {
+  it("con una solicitud de factura viva del MISMO cliente no revierte: el descuento es de la factura", async () => {
+    tx.order.findUnique.mockResolvedValue({ ...discounted });
+    // Solicitud con el NIT escrito con DV y puntos: mismo documento normalizado.
+    tx.invoiceRequest.findMany.mockResolvedValue([{ docType: "NIT", docNumber: "900.123.456-8" }]);
+    for (const reason of ["charge_failed", "checkout_abandoned"] as const) {
+      expect(await revertCustomerDiscountInTx(tx as unknown as Tx, "o1", { reason }))
+        .toEqual({ reverted: false, reason: "invoice_requested" });
+    }
+    expect(tx.invoiceRequest.findMany).toHaveBeenCalledWith({
+      where: { orderId: "o1", status: { in: ["pending", "generated"] } },
+      select: { docType: true, docNumber: true },
+    });
+    expect(tx.billingCustomer.findUnique).toHaveBeenCalledWith({
+      where: { id: "cust-1" },
+      select: { docType: true, docNumber: true },
+    });
+    expect(tx.order.update).not.toHaveBeenCalled();
+  });
+
+  it("con la solicitud de factura de OTRO cliente sí revierte", async () => {
+    tx.order.findUnique.mockResolvedValue({ ...discounted });
+    tx.invoiceRequest.findMany.mockResolvedValue([{ docType: "CC", docNumber: "1020304050" }]);
+    expect((await revertCustomerDiscountInTx(tx as unknown as Tx, "o1", { reason: "charge_failed" })).reverted).toBe(true);
+    expect(tx.order.update).toHaveBeenCalled();
+  });
+
+  it("sin solicitud de factura viva (ninguna o sólo rechazadas) sí revierte", async () => {
+    tx.order.findUnique.mockResolvedValue({ ...discounted });
+    tx.invoiceRequest.findMany.mockResolvedValue([]);
+    expect((await revertCustomerDiscountInTx(tx as unknown as Tx, "o1", { reason: "checkout_abandoned" })).reverted).toBe(true);
+    expect(tx.billingCustomer.findUnique).not.toHaveBeenCalled();
   });
 });

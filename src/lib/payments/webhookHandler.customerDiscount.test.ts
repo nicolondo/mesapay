@@ -24,6 +24,8 @@ function seed(opts: {
   origin?: string | null;
   payments?: Array<Record<string, unknown>>;
   invoiced?: boolean;
+  /** Solicitudes de factura de la cuenta (documento y estado). */
+  invoiceRequests?: Array<{ docType: string; docNumber: string; status: string }>;
 }) {
   const events = new Map<string, Record<string, unknown>>();
   h.fake = createFakePaymentsDb({
@@ -44,6 +46,14 @@ function seed(opts: {
     rounds: [{ status: "served" }],
     extraTx: {
       simpleInvoice: { count: async () => (opts.invoiced ? 1 : 0) },
+      invoiceRequest: {
+        findMany: async ({ where }: { where: { status: { in: string[] } } }) =>
+          (opts.invoiceRequests ?? []).filter((r) => where.status.in.includes(r.status)),
+      },
+      billingCustomer: {
+        findUnique: async ({ where }: { where: { id: string } }) =>
+          where.id === "cust-1" ? { docType: "NIT", docNumber: "900123456" } : null,
+      },
       kushkiWebhookEvent: {
         createMany: async ({ data }: { data: Array<{ eventId: string }> }) => {
           for (const row of data) if (!events.has(row.eventId)) events.set(row.eventId, { ...row, id: row.eventId, processedAt: null });
@@ -116,5 +126,27 @@ describe("pago rechazado → se deshace el descuento del cliente de ese cobro", 
     seed({ origin: null });
     await declined();
     expect(h.fake.order()).toMatchObject({ status: "served", discountCents: DISCOUNT, discountPct: 20 });
+  });
+});
+
+describe("pago rechazado con la factura pedida a nombre del cliente", () => {
+  it("solicitud de factura viva del mismo cliente: el descuento se queda (es de la factura)", async () => {
+    seed({ invoiceRequests: [{ docType: "NIT", docNumber: "900123456", status: "pending" }] });
+    await declined();
+    expect(h.fake.payment("terminal-1")?.status).toBe("declined");
+    expect(h.fake.order()).toMatchObject({ status: "served", discountCents: DISCOUNT, discountBillingCustomerId: "cust-1" });
+    expect(h.fake.state.auditEvents.some((a) => a.kind === "order.customer_discount_reverted")).toBe(false);
+  });
+
+  it("solicitud de factura de otro cliente: se revierte", async () => {
+    seed({ invoiceRequests: [{ docType: "CC", docNumber: "1020304050", status: "pending" }] });
+    await declined();
+    expect(h.fake.order()).toMatchObject({ discountCents: 0, discountBillingCustomerId: null });
+  });
+
+  it("solicitud del mismo cliente pero rechazada: se revierte", async () => {
+    seed({ invoiceRequests: [{ docType: "NIT", docNumber: "900123456", status: "rejected" }] });
+    await declined();
+    expect(h.fake.order()).toMatchObject({ discountCents: 0, discountBillingCustomerId: null });
   });
 });

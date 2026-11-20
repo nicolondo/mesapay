@@ -1599,6 +1599,23 @@ model Order {
   discountPct   Int?
   discountCents Int  @default(0)
 
+  /// De dónde viene el descuento cuando lo puso el paso «Cliente» del cobro
+  /// (o la factura nominativa ligada a un cliente): el cliente de
+  /// facturación con descuento comercial. null = descuento del comensal
+  /// identificado, ninguno, o una cuenta anterior a esta columna. El
+  /// descuento de un cliente pertenece a ESE cobro: si el cobro no se
+  /// completa se revierte (`customerDiscount.revertCustomerDiscountInTx`).
+  /// SetNull: borrar el cliente no toca la cuenta.
+  discountBillingCustomerId String?
+  discountBillingCustomer   BillingCustomer? @relation("OrderDiscountCustomer", fields: [discountBillingCustomerId], references: [id], onDelete: SetNull)
+  /// Cuándo se aplicó ese descuento del cliente (null si no hay origen).
+  /// Las rondas montadas después lo vuelven sospechoso (orderReviewFlags).
+  discountAppliedAt DateTime?
+  /// «Mantener» del personal ante el aviso «Revisar» de la cuenta: las
+  /// señales nacidas hasta este instante ya no se vuelven a avisar
+  /// (src/lib/orderReviewFlags.ts).
+  reviewAckAt DateTime?
+
   servingMode ServingMode @default(asReady)
 
   orderType   OrderType @default(dineIn)
@@ -1697,6 +1714,7 @@ model Order {
   // y «Mis comisiones» (las de un mesero).
   @@index([restaurantId, commissionSealedAt])
   @@index([commissionWaiterId, paidAt])
+  @@index([discountBillingCustomerId])
 }
 
 model Round {
@@ -3671,6 +3689,7 @@ model BillingCustomer {
   creditCharges     Payment[]
   creditPayments    CustomerCreditPayment[]
   invoiceLookups    InvoiceCustomerLookup[]
+  discountedOrders  Order[]        @relation("OrderDiscountCustomer")
 
   @@unique([restaurantId, docType, docNumber])
   @@index([restaurantId, customerName])

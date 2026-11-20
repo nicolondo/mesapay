@@ -32,6 +32,11 @@ export type FakeOrder = {
   table?: { kind: string };
   dinerId: string | null;
   locale: string;
+  // Descuento y su origen (opcionales: sólo los tests del descuento del
+  // cliente los siembran).
+  discountPct?: number | null;
+  discountBillingCustomerId?: string | null;
+  discountAppliedAt?: Date | null;
 };
 
 export type FakePayment = {

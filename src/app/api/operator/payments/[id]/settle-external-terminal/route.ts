@@ -13,6 +13,8 @@ import { recomputeOrderTotalsInTx } from "@/lib/orderTotals";
 import { issueInvoiceOnPaid } from "@/lib/invoiceOnPaid";
 import { isChargeBlocked, chargeBlockedResponse } from "@/lib/chargeGuard";
 import { meseroNeedsShiftToCharge } from "@/lib/meseroShift";
+import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
+import { revertCustomerDiscountInTx } from "@/lib/customerDiscount";
 
 /**
  * Settle de un cobro vía datáfono propio del comercio
@@ -95,9 +97,17 @@ async function POSTHandler(
   if (parsed.data.action === "decline") {
     await db.$transaction(async (tx) => {
       await lockOrder(tx, payment.orderId);
-      const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: { select: { status: true } } } });
       if (current.status !== "pending") throw new Error("operation_conflict");
       await tx.payment.update({ where: { id: payment.id }, data: { status: "declined" } });
+      // Igual que un rechazo de Kushki o «Cancelar solicitud»: sin otro pago
+      // vivo, la cuenta sale de «pagando» y el descuento que puso el paso
+      // «Cliente» de este cobro se deshace (nunca el del comensal).
+      await releaseOrderFromPaying(tx, payment.orderId, current.order.status);
+      await revertCustomerDiscountInTx(tx, payment.orderId, {
+        reason: "charge_failed",
+        actor: { userId: session.user.id, email: session.user.email ?? "", role: session.user.role },
+      });
     });
     publishOrderEvent(payment.order.restaurantId, {
       type: "order.updated",

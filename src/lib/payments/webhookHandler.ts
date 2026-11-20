@@ -9,6 +9,7 @@ import type { AutoFiredRound } from "@/lib/kds/autoFire";
 import { notifyAutoFiredTickets } from "@/lib/kds/autoFireTickets";
 import { settlePaymentLinkInTx } from "@/lib/paymentLinks";
 import { releaseOrderFromPaying } from "./orderStatusAfterDecline";
+import { revertCustomerDiscountInTx } from "@/lib/customerDiscount";
 import { canResolveTerminalCharge } from "./terminalResolve";
 import { adjustedTerminalPayment } from "./terminalAmount";
 
@@ -257,6 +258,11 @@ export async function settleKushkiEventInTx(tx: Prisma.TransactionClient, payloa
     paid = totals.fullyPaid;
     if (paid) fired = await activateOpenRounds(tx, payment.orderId);
   }
-  if (!approved) await releaseOrderFromPaying(tx, payment.orderId, payment.order.status);
+  if (!approved) {
+    await releaseOrderFromPaying(tx, payment.orderId, payment.order.status);
+    // El descuento que puso el paso «Cliente» era de ESTE cobro: si la
+    // cuenta quedó sin pagos vivos, vuelve sin él (nunca el del comensal).
+    await revertCustomerDiscountInTx(tx, payment.orderId, { reason: "charge_failed" });
+  }
   return { id: payment.orderId, restaurantId: payment.order.restaurantId, paid, approved, paymentId: payment.id, fired };
 }

@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   orderFindFirst: vi.fn(),
   customerFindFirst: vi.fn(),
   applyDiscount: vi.fn(),
+  revert: vi.fn(),
   summary: vi.fn(),
   publish: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.active }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (handler: unknown) => handler }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: m.publish }));
-vi.mock("@/lib/customerDiscount", () => ({ applyCustomerDiscount: m.applyDiscount }));
+vi.mock("@/lib/customerDiscount", () => ({ applyCustomerDiscount: m.applyDiscount, revertCustomerDiscountInTx: m.revert }));
 vi.mock("@/lib/customerCredit", () => ({ loadCustomerCreditSummary: m.summary }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -27,7 +28,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { POST } from "./route";
+import { DELETE, POST } from "./route";
 
 const call = (body: unknown = { billingCustomerId: "cust-1" }) =>
   POST(
@@ -91,4 +92,39 @@ it("la cuenta y el cliente tienen que ser del comercio activo", async () => {
 it("sin sesión de staff es 403", async () => {
   m.auth.mockResolvedValue({ user: { id: "d", role: "customer" } });
   expect((await call()).status).toBe(403);
+});
+
+// ── Abandono del cobro: el descuento del paso «Cliente» se deshace ───────
+
+const abandon = () =>
+  DELETE(new Request("http://localhost/api/operator/orders/order-1/customer", { method: "DELETE" }), {
+    params: Promise.resolve({ id: "order-1" }),
+  });
+
+it("al salir del cobro sin completarlo, revierte el descuento del cliente (acotado al comercio activo) y avisa", async () => {
+  m.auth.mockResolvedValue({ user: { id: "user-1", role: "mesero", email: "mesero@example.com" } });
+  m.revert.mockResolvedValue({ reverted: true, billingCustomerId: "cust-1", discountPct: 20, discountCents: 20_000 });
+  const res = await abandon();
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ ok: true, reverted: true });
+  expect(m.revert).toHaveBeenCalledWith({ tx: true }, "order-1", {
+    reason: "checkout_abandoned",
+    restaurantId: "r1",
+    actor: { userId: "user-1", email: "mesero@example.com", role: "mesero" },
+  });
+  expect(m.publish).toHaveBeenCalledWith("r1", { type: "order.updated", orderId: "order-1" });
+});
+
+it("idempotente: sin nada que deshacer responde 200 sin avisar a las vistas", async () => {
+  m.revert.mockResolvedValue({ reverted: false, reason: "not_applicable" });
+  const res = await abandon();
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ ok: true, reverted: false });
+  expect(m.publish).not.toHaveBeenCalled();
+});
+
+it("el abandono también exige sesión de staff", async () => {
+  m.auth.mockResolvedValue({ user: { id: "d", role: "customer" } });
+  expect((await abandon()).status).toBe(403);
+  expect(m.revert).not.toHaveBeenCalled();
 });

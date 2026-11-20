@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { secureApi } from "@/lib/secureApi";
 import { publishOrderEvent } from "@/lib/events";
 import { requireOperatorScope, isScopeError } from "@/lib/operatorScope";
-import { applyCustomerDiscount } from "@/lib/customerDiscount";
+import { auth } from "@/auth";
+import { applyCustomerDiscount, revertCustomerDiscountInTx } from "@/lib/customerDiscount";
 import { loadCustomerCreditSummary } from "@/lib/customerCredit";
 
 const schema = z.object({ billingCustomerId: z.string().min(1).max(64) });
@@ -63,4 +64,34 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
   });
 }
 
+/**
+ * DELETE /api/operator/orders/[id]/customer — el personal salió de la
+ * pantalla de cobro sin completarlo (best effort desde el cliente). El
+ * descuento que puso el paso «Cliente» pertenece a ESE cobro: se deshace
+ * con las guardas de `revertCustomerDiscountInTx` (sólo si su origen es un
+ * cliente de facturación; nunca con pagos aprobados o pendientes, cuenta
+ * en cobro, pagada, cancelada o facturada). Idempotente: responde 200 con
+ * `reverted: false` cuando no hay nada que deshacer.
+ */
+async function DELETEHandler(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const scope = await requireOperatorScope();
+  if (isScopeError(scope)) {
+    return NextResponse.json({ error: scope.error }, { status: scope.error === "forbidden" ? 403 : 400 });
+  }
+  const { id: orderId } = await params;
+  const session = await auth();
+  const result = await db.$transaction((tx) =>
+    revertCustomerDiscountInTx(tx, orderId, {
+      reason: "checkout_abandoned",
+      restaurantId: scope.restaurantId,
+      actor: { userId: scope.userId, email: session?.user?.email ?? "", role: scope.role },
+    }),
+  );
+  if (result.reverted) {
+    publishOrderEvent(scope.restaurantId, { type: "order.updated", orderId });
+  }
+  return NextResponse.json({ ok: true, reverted: result.reverted });
+}
+
 export const POST = secureApi(POSTHandler);
+export const DELETE = secureApi(DELETEHandler);

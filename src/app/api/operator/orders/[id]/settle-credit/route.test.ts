@@ -268,7 +268,14 @@ describe("cobro", () => {
     expect(res.status).toBe(200);
     expect(m.tx.order.update).toHaveBeenCalledWith({
       where: { id: "order-1" },
-      data: { discountPct: 10, discountCents: 10_000, totalCents: 90_000 },
+      data: {
+        discountPct: 10,
+        discountCents: 10_000,
+        totalCents: 90_000,
+        // El origen queda en la cuenta: «Descuento del cliente X».
+        discountBillingCustomerId: "cust-1",
+        discountAppliedAt: expect.any(Date),
+      },
     });
     expect(m.tx.payment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amountCents: 90_000, tipCents: 0 }) });
     const body = await res.json();

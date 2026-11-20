@@ -771,12 +771,12 @@ export function TableDetailSheet({
         method: "DELETE",
       });
       if (!res.ok) {
-        setIdentifyErr(tr("customerIdentifyError"));
+        setIdentifyErr(tr("discountRemoveError"));
         return;
       }
       router.refresh();
     } catch {
-      setIdentifyErr(tr("customerIdentifyError"));
+      setIdentifyErr(tr("discountRemoveError"));
     } finally {
       setIdentifyBusy(false);
     }
@@ -1042,6 +1042,29 @@ export function TableDetailSheet({
                       {identifyBusy ? tr("customerIdentifying") : tr("customerIdentify")}
                     </button>
                   </form>
+                )}
+
+                {/* Descuento SIN comensal identificado: viene del descuento
+                    comercial de un cliente de facturación (factura a su
+                    nombre o cobro a crédito — ver lib/customerDiscount.ts).
+                    Se dice de dónde salió y se deja quitar igual que el del
+                    comensal; antes el botón sólo existía con comensal. */}
+                {!customer && discountCents > 0 && (
+                  <div className="flex items-start justify-between gap-3 flex-wrap mt-3">
+                    <div className="text-xs text-op-muted min-w-0 flex-1">
+                      {invoiceRequest && !invoiceRequest.masked
+                        ? tr("discountOriginCustomer", { name: invoiceRequest.customerName })
+                        : tr("discountOriginCustomerUnknown")}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={dropDiscount}
+                      disabled={identifyBusy}
+                      className="h-9 px-3 rounded-full border border-danger/40 text-xs text-danger disabled:opacity-60"
+                    >
+                      {tr("discountRemove")}
+                    </button>
+                  </div>
                 )}
 
                 {identifyErr && (

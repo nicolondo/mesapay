@@ -4,6 +4,8 @@ import { useLayoutEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { restoreScrollTop, type ScrollEntry } from "./scrollerHistory";
 
+/** Un enlace a otra ruta abre arriba. Atrás y Adelante restauran la posición
+ * de esa entrada del historial. Cambiar sólo la query conserva el scroll. */
 export function ScrollerNavigationReset({ scrollerId }: { scrollerId: string }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -27,17 +29,24 @@ export function ScrollerNavigationReset({ scrollerId }: { scrollerId: string }) 
     const href = location.pathname + location.search;
     const previous = current.current;
     const samePath = previous?.href.split("?")[0] === pathname;
-    const saved = popped.current === location.href
-      ? entries.current.get(history.state?.mpScrollId)
+    const restoring = popped.current === location.href;
+    const token = history.state?.mpScrollId;
+    const saved = restoring ? entries.current.get(token) : undefined;
+    const exact = saved?.href === href ? saved : undefined;
+    // Next can replace the token during a refresh. Recover the latest offset
+    // for the exact URL, but only trust navigation provenance from a token.
+    const fallback = restoring && !token
+      ? Array.from(entries.current.values()).reverse().find(candidate => candidate.href === href)
       : undefined;
     const from = clicked.current?.href === location.href ? previous?.href.split("?")[0] : null;
-    const entry = saved?.href === href ? saved : {
-      href, from: from ?? null, top: samePath ? panel.scrollTop : 0,
+    const entry = exact ?? {
+      href, from: from ?? null, top: fallback?.top ?? (samePath ? panel.scrollTop : 0),
     };
-    // The registry belongs to this mount. Never reuse a token left by a
-    // different document (including after a hard reload).
-    const id = entry === saved ? history.state.mpScrollId : Array.from(crypto.getRandomValues(new Uint32Array(4))).join("-");
-    entries.current.set(id, entry);
+    const id = exact ? token : Array.from(crypto.getRandomValues(new Uint32Array(4))).join("-");
+    const registry = entries.current;
+    registry.delete(id);
+    registry.set(id, entry);
+    if (registry.size > 30) registry.delete(registry.keys().next().value!);
     current.current = entry;
     clicked.current = null;
     popped.current = null;
@@ -46,13 +55,9 @@ export function ScrollerNavigationReset({ scrollerId }: { scrollerId: string }) 
       ...history.state, mpScrollId: id, mpScrollFrom: entry.from,
     }, "");
     markEntry();
-    const stop = previous && (entry === saved || !samePath)
-      ? restoreScrollTop(panel, entry.top, retry => {
-          const observer = new MutationObserver(retry);
-          observer.observe(panel, { childList: true, subtree: true });
-          return () => observer.disconnect();
-        })
-      : () => {};
+    const stop = previous && (restoring || !samePath)
+      ? restoreScrollTop(panel, entry.top)
+      : undefined;
     const onScroll = () => { entry.top = panel.scrollTop; };
     // Save while the outgoing list still owns the panel. After the route
     // commit the shorter detail may already have clamped scrollTop to zero.
@@ -67,12 +72,10 @@ export function ScrollerNavigationReset({ scrollerId }: { scrollerId: string }) 
     };
     panel.addEventListener("scroll", onScroll);
     document.addEventListener("click", onClick, true);
-    for (const type of ["wheel", "touchstart", "keydown", "pointerdown"]) panel.addEventListener(type, stop);
     return () => {
-      stop();
+      stop?.();
       panel.removeEventListener("scroll", onScroll);
       document.removeEventListener("click", onClick, true);
-      for (const type of ["wheel", "touchstart", "keydown", "pointerdown"]) panel.removeEventListener(type, stop);
     };
   }, [pathname, search, scrollerId]);
 

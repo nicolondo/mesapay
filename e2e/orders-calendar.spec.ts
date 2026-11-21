@@ -196,17 +196,25 @@ test("returning from an order restores the filtered list and its scroll", async 
   const scroller = page.locator("#operator-content");
   const rows = page.locator('#ordenes-lista a[href^="/operator/orders/"]:visible');
   const offset = () => scroller.evaluate(element => element.scrollTop);
-  for (const [index, back] of [[30, "browser"], [22, "link"]] as const) {
+  for (const [index, back] of [[30, "browser"], [22, "link"], [27, "missing-token"]] as const) {
     const order = rows.nth(index);
     await order.evaluate(element => element.scrollIntoView({ block: "center" }));
     const top = await offset();
     expect(top).toBeGreaterThan(500);
     await page.screenshot({ path: info.outputPath(`${back}-list.png`) });
+    if (back === "missing-token") {
+      // Simulate a refresh replacing the list's history metadata on departure.
+      await order.evaluate(link => link.addEventListener("click", () => {
+        const state = { ...history.state };
+        delete state.mpScrollId;
+        history.replaceState(state, "");
+      }, { once: true }));
+    }
     await order.click();
     const returnLink = scroller.locator('a[href="/operator/orders"]').first();
     await expect(returnLink).toBeVisible();
-    if (back === "browser") await page.goBack();
-    else await returnLink.click();
+    if (back === "link") await returnLink.click();
+    else await page.goBack();
     await expect(page).toHaveURL(listUrl);
     await expect(rows.nth(index)).toBeVisible();
     await page.screenshot({ path: info.outputPath(`${back}-return.png`) });

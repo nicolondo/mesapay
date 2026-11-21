@@ -16,6 +16,7 @@
 //  - IVA: en Colombia el descuento comercial impreso reduce la base. Si el IVA
 //    impreso se calculó antes del descuento, el impreso gana y se marca.
 
+import { matchPrintedTotal } from "./invoiceReconcile";
 import type { InvoiceTaxDocument, InvoiceTaxLine } from "./invoiceTaxBasis";
 import { resolveReviewInvoice, reviewLineAmounts, type InvoiceReviewLine } from "./invoiceReviewLine";
 import { discountAmountCents } from "./purchaseDiscount";
@@ -193,12 +194,14 @@ export function prefillInvoiceDiscounts(
     o.kind === "definite" || o.kind === "unmatched" ? o.line : o.kind === "ambiguous" ? o.keep : lines[i]!);
   const printedTotal = validCents(invoice.invoiceTotalCents) ? invoice.invoiceTotalCents : null;
   const tolerance = documentTolerance(lines.length);
+  // Total de la factura ANTES de retenciones; el impreso puede ser ese o el
+  // neto de retenciones (matchPrintedTotal).
   const payable = (reviewLines: InvoiceReviewLine[], orderCents = 0) => {
     const resolved = resolveReviewInvoice(reviewLines, { cents: orderCents });
-    return resolved.complete ? resolved.totalCents + extras.incCents - extras.retentionsCents : null;
+    return resolved.complete ? resolved.totalCents + extras.incCents : null;
   };
-  const matchesTotal = (total: number | null) =>
-    printedTotal != null && total != null && near(total, printedTotal, tolerance);
+  const matchesTotal = (gross: number | null) => printedTotal != null && gross != null
+    && near(matchPrintedTotal(printedTotal, gross, extras.retentionsCents).diffCents, 0, tolerance);
 
   if (outcomes.some((o) => o.kind === "ambiguous")) {
     const applied = outcomes.map((o, i) => (o.kind === "ambiguous" ? o.apply : current[i]!));

@@ -181,6 +181,8 @@ export type InvoiceRetentions = {
   lines: RetentionLineState[];
   /** ¿Son las sugeridas (siguen a la base y al umbral)? */
   suggested: boolean;
+  /** ¿Se sugieren con los conceptos activos? (false: la factura ya trae las suyas). */
+  suggests: boolean;
   amountOf: (l: RetentionLineState) => number;
   totals: PurchaseRetentionTotals;
   error: PurchaseRetentionError | null;
@@ -194,14 +196,21 @@ let retentionKeySeq = 0;
  * Estado de las retenciones de una factura: las SUGERIDAS (conceptos activos
  * + umbral UVT sobre la base) hasta que el operador toque la lista; desde
  * ahí, las suyas (una de concepto sigue la tarifa sobre la base mientras no
- * le cambie el valor).
+ * le cambie el valor). Con `suggest: false` arranca vacía: la compra ya
+ * trae las retenciones de su factura y sugerirlas otra vez las restaría dos
+ * veces.
  */
-export function useInvoiceRetentions(ctx: PurchaseTaxContext | null, doc: RetentionDoc): InvoiceRetentions {
+export function useInvoiceRetentions(
+  ctx: PurchaseTaxContext | null,
+  doc: RetentionDoc,
+  opts: { suggest?: boolean } = {},
+): InvoiceRetentions {
+  const suggests = opts.suggest ?? true;
   const [edited, setEdited] = useState<RetentionLineState[] | null>(null);
   const { baseCents, ivaCents } = doc;
   const suggestedLines = useMemo<RetentionLineState[]>(
     () =>
-      ctx
+      ctx && suggests
         ? suggestPurchaseRetentions(ctx.concepts, { baseCents, ivaCents }, ctx.uvtCents).map((s) => ({
             key: `c:${s.conceptId}`,
             conceptId: s.conceptId,
@@ -212,7 +221,7 @@ export function useInvoiceRetentions(ctx: PurchaseTaxContext | null, doc: Retent
             amountCents: null,
           }))
         : [],
-    [ctx, baseCents, ivaCents],
+    [ctx, suggests, baseCents, ivaCents],
   );
   const lines = edited ?? suggestedLines;
   const amountOf = (l: RetentionLineState) =>
@@ -221,6 +230,7 @@ export function useInvoiceRetentions(ctx: PurchaseTaxContext | null, doc: Retent
   return {
     lines,
     suggested: edited === null,
+    suggests,
     amountOf,
     totals,
     error: purchaseRetentionError(totals, doc),
@@ -298,7 +308,7 @@ export function InvoiceRetentionsEditor({
     <div className="rounded-xl border border-op-border bg-op-bg/50 p-3 space-y-2" data-testid="invoice-retentions">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{t("poRetTitle")}</span>
-        {!state.suggested && concepts.length > 0 && (
+        {!state.suggested && state.suggests && concepts.length > 0 && (
           <button
             type="button"
             onClick={state.reset}

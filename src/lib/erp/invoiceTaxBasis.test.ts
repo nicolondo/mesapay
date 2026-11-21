@@ -179,6 +179,12 @@ describe("printed document totals settle a uniform invoice basis", () => {
     expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["gross", "gross"]);
   });
 
+  it("also accepts a printed total BEFORE the retentions (electronic invoice), never subtracting them twice", () => {
+    const result = inferPurchaseInvoiceTaxBases(invoice({ ...summary, lines: grossLines,
+      invoiceTotalCents: 32_900, retefuenteCents: 1_000, reteIvaCents: 700, reteIcaCents: 200 }));
+    expect(result.lines.map(l => l.lineTotalTaxBasis)).toEqual(["gross", "gross"]);
+  });
+
   it("recognizes the before-discount subtotal without applying the discount a second time", () => {
     const result = inferPurchaseInvoiceTaxBases(invoice({ ...summary, lines: grossLines,
       invoiceSubtotalCents: 35_000, invoiceDiscountCents: 5_000 }));

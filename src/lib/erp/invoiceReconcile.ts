@@ -11,8 +11,9 @@
 //
 // Se prueban las hipótesis contra el pie de la factura (IVA / impuesto al
 // consumo impresos); si el pie no trae ese impuesto, contra el total general
-// (subtotal − descuentos + IVA + consumo − retenciones + ajustes = total); y
-// para el IVA, también contra su tarifa línea por línea. Una sola lectura que
+// (subtotal − descuentos + IVA + consumo + ajustes = total de la factura,
+// antes o después de las retenciones: ver `matchPrintedTotal`); y para el
+// IVA, también contra su tarifa línea por línea. Una sola lectura que
 // cuadra → se aplica. Ninguna, varias distintas o nada contra qué comparar →
 // la factura queda «por revisar»; la hipótesis de la IA solo preselecciona.
 //
@@ -92,7 +93,10 @@ export type ReconcileDocument = {
   reteIcaCents?: number | null;
   /** «Ajustes» / ajuste al peso impreso, con su signo. */
   invoiceAdjustmentCents?: number | null;
+  /** Total impreso: el BRUTO (antes de retenciones) o el neto (ver `matchPrintedTotal`). */
   invoiceTotalCents?: number | null;
+  /** «Neto a pagar» impreso APARTE del total, ya sin retenciones (lecturas nuevas). */
+  invoiceNetPayableCents?: number | null;
 };
 
 const MAX_CENTS = 2_000_000_000;
@@ -343,12 +347,125 @@ function adjustmentCents(doc: ReconcileDocument): number {
   return validCents(adjustment) && Math.abs(adjustment) <= ROUNDING_MAX_CENTS ? adjustment : 0;
 }
 
+export type PrintedTotalBasis = "gross" | "net";
+
+/**
+ * ¿Con qué total de MESAPAY se compara el total IMPRESO de la factura?
+ *
+ * En Colombia la factura del proveedor —y la electrónica de la DIAN, cuyo
+ * «Total a pagar» (`PayableAmount`) no las resta— trae casi siempre el total
+ * BRUTO: las retenciones las practica quien compra y en el documento son
+ * informativas. Algunos proveedores imprimen en cambio el NETO a pagar, ya
+ * restadas. Los dos cuadran: se compara con el más cercano (empate → bruto;
+ * sin retenciones son el mismo número). Así las retenciones se restan UNA
+ * sola vez y nunca aparecen como una diferencia del total.
+ *
+ * Es la única regla del total impreso: la usan la lectura (columnas de
+ * impuesto, descuentos, base de los importes), la revisión «Factura vs
+ * MESAPAY» y la validación del servidor al confirmar.
+ */
+export function matchPrintedTotal(
+  printedCents: number,
+  grossCents: number,
+  retentionsCents: number,
+): { basis: PrintedTotalBasis; computedCents: number; diffCents: number } {
+  const retained = Math.max(0, retentionsCents);
+  const gross = { basis: "gross" as const, computedCents: grossCents, diffCents: printedCents - grossCents };
+  if (retained === 0) return gross;
+  const net = grossCents - retained;
+  const netMatch = { basis: "net" as const, computedCents: net, diffCents: printedCents - net };
+  return Math.abs(netMatch.diffCents) < Math.abs(gross.diffCents) ? netMatch : gross;
+}
+
+export type PrintedTotalsCheck = {
+  /** Lo impreso que se compara con el total de la factura (bruto). */
+  grossPrintedCents: number | null;
+  grossDiffCents: number | null;
+  /** Lo impreso que se compara con el neto a pagar al proveedor. */
+  netPrintedCents: number | null;
+  netDiffCents: number | null;
+  /** Nada impreso difiere (o no hay total impreso). */
+  matches: boolean;
+};
+
+/**
+ * ¿El total impreso es bruto o neto según el PROPIO pie de la factura?
+ * (subtotal − descuento + IVA + consumo + ajuste, con o sin las retenciones
+ * impresas). Null si el pie no alcanza para decidirlo o no trae retenciones.
+ * Solo dice en qué fila mostrar una diferencia; nunca hace cuadrar un total.
+ */
+export function printedFooterBasis(printed: {
+  subtotalCents?: number | null;
+  discountCents?: number | null;
+  ivaCents?: number | null;
+  incCents?: number | null;
+  adjustmentCents?: number | null;
+  retentionsCents?: number | null;
+  totalCents?: number | null;
+}): PrintedTotalBasis | null {
+  const { subtotalCents: subtotal, totalCents: total } = printed;
+  const retained = positive(printed.retentionsCents);
+  if (!validCents(subtotal) || !validCents(total) || retained === 0) return null;
+  const discount = positive(printed.discountCents);
+  const adjustment = validCents(printed.adjustmentCents) && Math.abs(printed.adjustmentCents) <= ROUNDING_MAX_CENTS
+    ? printed.adjustmentCents : 0;
+  const rest = positive(printed.ivaCents) + positive(printed.incCents) + adjustment;
+  const grosses = (discount > 0 ? [subtotal - discount, subtotal] : [subtotal]).map(base => base + rest);
+  const fits = (minus: number) => grosses.some(gross => Math.abs(total - (gross - minus)) <= GLOBAL_TOLERANCE);
+  const gross = fits(0);
+  const net = fits(retained);
+  return gross === net ? null : gross ? "gross" : "net";
+}
+
+/**
+ * Totales impresos frente a lo que MESAPAY guardará: `grossCents` es el total
+ * de la factura (subtotal neto + IVA + consumo + ajuste al peso) y el neto a
+ * pagar es ese total − las retenciones. El «Total» impreso se compara con el
+ * bruto o con el neto (`matchPrintedTotal`); un «Neto a pagar» impreso aparte
+ * del total, con el neto. Diferencias = impreso − MESAPAY, al centavo.
+ *
+ * Cuadra si el total impreso es igual a cualquiera de los dos. Si no es igual
+ * a ninguno, `basisHint` (lo que dice el propio pie, `printedFooterBasis`)
+ * elige la fila de la diferencia; sin él, la más cercana.
+ */
+export function checkPrintedTotals(
+  printed: { totalCents?: number | null; netPayableCents?: number | null },
+  computed: { grossCents: number; retentionsCents: number },
+  opts: { basisHint?: PrintedTotalBasis | null } = {},
+): PrintedTotalsCheck {
+  const net = computed.grossCents - Math.max(0, computed.retentionsCents);
+  const total = validCents(printed.totalCents) && printed.totalCents >= 0 ? printed.totalCents : null;
+  const netPayable = validCents(printed.netPayableCents) && printed.netPayableCents >= 0 ? printed.netPayableCents : null;
+  let grossPrinted: number | null = null;
+  let netPrinted: number | null = null;
+  if (total != null && netPayable != null && netPayable !== total) {
+    grossPrinted = total;
+    netPrinted = netPayable;
+  } else if (total != null) {
+    const match = matchPrintedTotal(total, computed.grossCents, computed.retentionsCents);
+    const basis = match.diffCents === 0 || !opts.basisHint ? match.basis : opts.basisHint;
+    if (basis === "net") netPrinted = total;
+    else grossPrinted = total;
+  } else {
+    netPrinted = netPayable;
+  }
+  const grossDiff = grossPrinted == null ? null : grossPrinted - computed.grossCents;
+  const netDiff = netPrinted == null ? null : netPrinted - net;
+  return {
+    grossPrintedCents: grossPrinted,
+    grossDiffCents: grossDiff,
+    netPrintedCents: netPrinted,
+    netDiffCents: netDiff,
+    matches: (grossDiff ?? 0) === 0 && (netDiff ?? 0) === 0,
+  };
+}
+
 /** Diferencia mínima del total general con esa combinación (null si no se puede). */
 function totalResidual(doc: ReconcileDocument, iva: number | null, inc: number | null): number | null {
   const total = doc.invoiceTotalCents;
   if (!validCents(total) || iva == null || inc == null) return null;
   const residuals = totalBases(doc).map(base =>
-    Math.abs(base + iva + inc - retentionCents(doc) + adjustmentCents(doc) - total));
+    Math.abs(matchPrintedTotal(total, base + iva + inc + adjustmentCents(doc), retentionCents(doc)).diffCents));
   return residuals.length ? Math.min(...residuals) : null;
 }
 
@@ -524,7 +641,8 @@ export function taxColumnNeedsReview(column: TaxColumnResolution | null | undefi
   return column != null && column.status !== "matched" && column.status !== "equivalent";
 }
 
-export type ReconcileRowKey = "subtotal" | "discount" | "iva" | "consumo" | "retentions" | "adjustment" | "total";
+export type ReconcileRowKey =
+  | "subtotal" | "discount" | "iva" | "consumo" | "adjustment" | "total" | "retentions" | "payable";
 export type ReconcileRow = {
   key: ReconcileRowKey;
   /** Lo impreso en la factura (null = no se imprimió o no se leyó). */
@@ -539,6 +657,12 @@ export type ReconcileRow = {
  * «Factura vs MESAPAY»: cada renglón del pie frente a lo que se guardará.
  * Comparación al centavo; el subtotal impreso puede ser antes o después de
  * los descuentos (se compara con el que corresponda).
+ *
+ * «total» es el TOTAL DE LA FACTURA (bruto, antes de retenciones). Con
+ * retenciones siguen «retentions» (las que practica el comercio) y «payable»
+ * (neto a pagar al proveedor = total − retenciones): el total impreso va en
+ * la fila con la que cuadra (`checkPrintedTotals`), así la retención se ve
+ * restada una sola vez.
  */
 export function invoiceReconcileRows(
   printed: {
@@ -549,6 +673,7 @@ export function invoiceReconcileRows(
     retentionsCents?: number | null;
     adjustmentCents?: number | null;
     totalCents?: number | null;
+    netPayableCents?: number | null;
   },
   computed: {
     listSubtotalCents: number;
@@ -558,7 +683,8 @@ export function invoiceReconcileRows(
     incCents: number;
     retentionsCents: number;
     adjustmentCents: number;
-    totalCents: number;
+    /** Total de la factura antes de retenciones, con el ajuste al peso. */
+    grossTotalCents: number;
   },
 ): { rows: ReconcileRow[]; hasDifferences: boolean } {
   const printedSubtotal = validCents(printed.subtotalCents) ? printed.subtotalCents : null;
@@ -569,25 +695,43 @@ export function invoiceReconcileRows(
     const value = validCents(printedCents) ? printedCents : null;
     return { key, printedCents: value, computedCents, diffCents: value == null ? null : value - computedCents };
   };
+  const totals = checkPrintedTotals(
+    { totalCents: printed.totalCents, netPayableCents: printed.netPayableCents },
+    { grossCents: computed.grossTotalCents, retentionsCents: computed.retentionsCents },
+    { basisHint: printedFooterBasis(printed) },
+  );
+  const withRetentions = computed.retentionsCents !== 0 || validCents(printed.retentionsCents)
+    || totals.netPrintedCents != null;
   const rows = [
     row("subtotal", printedSubtotal, subtotal),
     row("discount", printed.discountCents, computed.discountCents),
     row("iva", printed.ivaCents, computed.ivaCents),
     row("consumo", printed.incCents, computed.incCents),
-    row("retentions", printed.retentionsCents, computed.retentionsCents),
     row("adjustment", printed.adjustmentCents, computed.adjustmentCents),
-    row("total", printed.totalCents, computed.totalCents),
-  ].filter(r => r.key === "subtotal" || r.key === "total" || r.printedCents != null || r.computedCents !== 0);
+    { key: "total" as const, printedCents: totals.grossPrintedCents, computedCents: computed.grossTotalCents,
+      diffCents: totals.grossDiffCents },
+    ...(withRetentions ? [
+      row("retentions", printed.retentionsCents, computed.retentionsCents),
+      { key: "payable" as const, printedCents: totals.netPrintedCents,
+        computedCents: computed.grossTotalCents - computed.retentionsCents, diffCents: totals.netDiffCents },
+    ] : []),
+  ].filter(r => r.key === "subtotal" || r.key === "total" || r.key === "payable"
+    || r.printedCents != null || r.computedCents !== 0);
   return { rows, hasDifferences: rows.some(r => r.diffCents != null && r.diffCents !== 0) };
 }
 
 /**
  * Ajuste al peso que haría cuadrar el total, si es un redondeo: la
- * diferencia entre el total impreso y el calculado sin ajuste, solo si cabe
- * en el tope de redondeo. Nunca se reparte entre líneas.
+ * diferencia entre el total impreso y el calculado sin ajuste (bruto o neto
+ * de retenciones, el que corresponda: `matchPrintedTotal`), solo si cabe en
+ * el tope de redondeo. Nunca se reparte entre líneas.
  */
-export function suggestedRoundingCents(printedTotalCents: number | null | undefined, totalWithoutAdjustmentCents: number): number | null {
+export function suggestedRoundingCents(
+  printedTotalCents: number | null | undefined,
+  grossWithoutAdjustmentCents: number,
+  retentionsCents = 0,
+): number | null {
   if (!validCents(printedTotalCents)) return null;
-  const diff = printedTotalCents - totalWithoutAdjustmentCents;
+  const diff = matchPrintedTotal(printedTotalCents, grossWithoutAdjustmentCents, retentionsCents).diffCents;
   return diff !== 0 && Math.abs(diff) <= ROUNDING_MAX_CENTS ? diff : null;
 }

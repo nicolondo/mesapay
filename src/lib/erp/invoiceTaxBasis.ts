@@ -1,5 +1,5 @@
 import { invoiceLineAmounts, parseInvoiceTaxPct, type InvoiceTaxBasis } from "./invoiceAmounts";
-import { ROUNDING_MAX_CENTS } from "./invoiceReconcile";
+import { matchPrintedTotal, ROUNDING_MAX_CENTS } from "./invoiceReconcile";
 
 /** The structural subset is also usable for previously saved OCR extractions. */
 export type InvoiceTaxLine = {
@@ -161,7 +161,9 @@ function documentEvidence(invoice: InvoiceTaxDocument, numericAllowed: boolean):
     const subtotal = invoice.invoiceSubtotalCents;
     if (subtotal != null && !near(sum.net, subtotal) && !near(sum.net, subtotal - (invoice.invoiceDiscountCents ?? 0))) return false;
     if (invoice.invoiceTaxCents != null && !near(sum.vat, invoice.invoiceTaxCents)) return false;
-    return invoice.invoiceTotalCents == null || near(sum.gross - retentions + adjustment, invoice.invoiceTotalCents);
+    // The printed Total may come before or after the retentions (matchPrintedTotal).
+    return invoice.invoiceTotalCents == null
+      || near(matchPrintedTotal(invoice.invoiceTotalCents, sum.gross + adjustment, retentions).diffCents, 0);
   });
   return candidates.length === 1 ? reported(candidates[0]) : unknown();
 }

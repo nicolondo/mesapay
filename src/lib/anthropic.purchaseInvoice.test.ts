@@ -464,6 +464,27 @@ describe("liquor invoice with a per-unit consumption tax (ICO)", () => {
     expect(result.taxColumns?.consumo).toMatchObject({ status: "matched", scope: "unit", aiScope: "line" });
   });
 
+  it("resolves the ICO when the electronic invoice prints its Total BEFORE the retention", async () => {
+    // Sin ICO en el pie: decide el total general, que no resta la retefuente.
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("line", {
+      invoiceInc: null, invoiceIncComponents: [], invoiceTotal: "670,448.53" }))));
+    const result = await extractPurchaseInvoice(source);
+    expect(result).toMatchObject({ invoiceTotalCents: 67_044_853, retefuenteCents: 1_096_853, invoiceIncCents: null });
+    expect(result.taxColumns?.consumo).toMatchObject({ status: "matched", scope: "unit" });
+    expect(result.lines.map(l => l.lineIncCents)).toEqual([9_375_000, 4_420_000, 5_184_000, 1_998_000]);
+  });
+
+  it("keeps a net payable printed apart from the Total, and ignores a copy of the Total", async () => {
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("unit", {
+      invoiceTotal: "670,448.53", invoiceNetPayable: "659,480.00" }))));
+    expect(await extractPurchaseInvoice(source))
+      .toMatchObject({ invoiceTotalCents: 67_044_853, invoiceNetPayableCents: 65_948_000 });
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("unit", { invoiceNetPayable: "659,480.00" }))));
+    expect((await extractPurchaseInvoice(source)).invoiceNetPayableCents).toBeNull();
+    mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("unit"))));
+    expect((await extractPurchaseInvoice(source)).invoiceNetPayableCents ?? null).toBeNull();
+  });
+
   it("reads a negative rounding adjustment printed with a unicode minus", async () => {
     mock.create.mockResolvedValue(reply(JSON.stringify(liquorReading("unit", { invoiceAdjustment: "−0,32" }))));
     expect((await extractPurchaseInvoice(source)).invoiceAdjustmentCents).toBe(-32);

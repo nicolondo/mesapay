@@ -18,6 +18,7 @@ import {
   buildPaymentsSection,
   pendingPaymentOf,
   type InvoicePaymentDetail,
+  type PaymentsSection,
 } from "@/lib/print/invoiceDoc";
 import {
   formatInvoiceNumber,
@@ -88,15 +89,15 @@ function money(cents: number): string {
  * así que TODO texto que pueda pasarse se envuelve acá por palabra
  * (`wrap`, el mismo helper de la tirilla de la caja) antes de mandarlo.
  */
-const TERMINAL_COLS = 32;
+export const TERMINAL_COLS = 32;
 
 /** Columnas efectivas a un tamaño dado: a 48 (título) entra la mitad. */
-function terminalCols(size: number): number {
+export function terminalCols(size: number): number {
   return Math.max(1, Math.floor((TERMINAL_COLS * 24) / size));
 }
 
 /** Un texto envuelto por palabra al ancho efectivo de su tamaño. */
-function fit(text: string, size = 24): string {
+export function fit(text: string, size = 24): string {
   return wrap(text, terminalCols(size)).join("\n");
 }
 
@@ -108,7 +109,7 @@ function fit(text: string, size = 24): string {
 const COLUMN_TEXT_COLS = Math.floor((TERMINAL_COLS * 2) / 3) - 1;
 
 /** Sangría de los renglones colgados y del detalle del ítem. */
-const TERMINAL_INDENT = "   ";
+export const TERMINAL_INDENT = "   ";
 
 /**
  * Fila "texto ..... monto": la primera línea va en un comando `columns`
@@ -116,7 +117,7 @@ const TERMINAL_INDENT = "   ";
  * sigue abajo en renglones completos con sangría — nunca más el nombre
  * del plato entreverado con el precio ("Plato del Día (Cas $ 33,900").
  */
-function amountRow(text: string, amount: string): PrintCommand[] {
+export function amountRow(text: string, amount: string): PrintCommand[] {
   const [head, ...rest] = wrap(text, TERMINAL_COLS, {
     firstWidth: COLUMN_TEXT_COLS,
     cont: TERMINAL_INDENT,
@@ -131,6 +132,42 @@ function amountRow(text: string, amount: string): PrintCommand[] {
     },
     ...rest.map((l): PrintCommand => ({ type: "text", text: l + "\n" })),
   ];
+}
+
+/**
+ * La sección «Pagos» como comandos del datáfono: un bloque por pago
+ * aprobado con su detalle sangrado, el TOTAL PAGADO y el saldo pendiente
+ * si falta. La usan los DOS armadores del datáfono: esta tirilla (desde
+ * el snapshot) y `print/terminalCommands.ts` (desde el documento térmico
+ * de «Este dispositivo») — un solo render para el mismo papel.
+ */
+export function paymentsSectionCommands(ps: PaymentsSection): PrintCommand[] {
+  const c: PrintCommand[] = [];
+  c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
+  c.push({ type: "text", text: fit(ps.title) + "\n", align: "LEFT", size: 24, bold: true });
+  for (const b of ps.blocks) {
+    c.push(...amountRow(b.label, b.amount));
+    for (const d of b.lines) {
+      for (const l of wrap(d, TERMINAL_COLS, {
+        first: TERMINAL_INDENT,
+        cont: TERMINAL_INDENT,
+      })) {
+        c.push({ type: "text", text: l + "\n" });
+      }
+    }
+  }
+  c.push({ type: "text", text: fit(ps.totalLabel) + "\n", align: "LEFT", size: 24, bold: true });
+  c.push({ type: "text", text: ps.totalAmount + "\n", align: "RIGHT", size: 24, bold: true });
+  if (ps.breakdown) {
+    for (const l of wrap(ps.breakdown, TERMINAL_COLS, {
+      first: TERMINAL_INDENT,
+      cont: TERMINAL_INDENT,
+    })) {
+      c.push({ type: "text", text: l + "\n" });
+    }
+  }
+  if (ps.pending) c.push(...amountRow(ps.pending.label, ps.pending.amount));
+  return c;
 }
 
 /**
@@ -258,34 +295,7 @@ export function buildInvoiceCommands(
   // ── Sección «Pagos»: el recibo del pago dentro de la factura ────────
   // Un bloque por pago aprobado con su detalle, el TOTAL PAGADO y el
   // saldo — lo mismo que la tirilla de la caja.
-  if (paymentsSection) {
-    c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
-    c.push({ type: "text", text: fit(paymentsSection.title) + "\n", align: "LEFT", size: 24, bold: true });
-    for (const b of paymentsSection.blocks) {
-      c.push(...amountRow(b.label, b.amount));
-      for (const d of b.lines) {
-        for (const l of wrap(d, TERMINAL_COLS, {
-          first: TERMINAL_INDENT,
-          cont: TERMINAL_INDENT,
-        })) {
-          c.push({ type: "text", text: l + "\n" });
-        }
-      }
-    }
-    c.push({ type: "text", text: fit(paymentsSection.totalLabel) + "\n", align: "LEFT", size: 24, bold: true });
-    c.push({ type: "text", text: paymentsSection.totalAmount + "\n", align: "RIGHT", size: 24, bold: true });
-    if (paymentsSection.breakdown) {
-      for (const l of wrap(paymentsSection.breakdown, TERMINAL_COLS, {
-        first: TERMINAL_INDENT,
-        cont: TERMINAL_INDENT,
-      })) {
-        c.push({ type: "text", text: l + "\n" });
-      }
-    }
-    if (paymentsSection.pending) {
-      c.push(...amountRow(paymentsSection.pending.label, paymentsSection.pending.amount));
-    }
-  }
+  if (paymentsSection) c.push(...paymentsSectionCommands(paymentsSection));
 
   c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
   c.push(center(t("tipNoticeTitle"), 24, true));

@@ -13,13 +13,18 @@ const m = vi.hoisted(() => ({
   setup: vi.fn(),
   loadPrebill: vi.fn(),
   buildPrebill: vi.fn(),
+  invoiceRow: vi.fn(),
+  buildInvoice: vi.fn(),
+  loadPayments: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.restaurant },
     terminalDevice: { findMany: m.devices },
+    simpleInvoice: { findUnique: m.invoiceRow },
   },
 }));
+vi.mock("@/lib/billing/countries", () => ({ getCurrencyForCountry: async () => "COP" }));
 vi.mock("@/lib/payments/terminalAvailability", () => ({
   kushkiTerminalSetup: m.setup,
   terminalDeviceUsable: (d: { active: boolean; serialNumber: string | null }, real: boolean) =>
@@ -27,9 +32,15 @@ vi.mock("@/lib/payments/terminalAvailability", () => ({
 }));
 vi.mock("./prebillData", () => ({ loadPrebill: m.loadPrebill }));
 vi.mock("./prebillQueue", () => ({ buildPrebillDocument: m.buildPrebill }));
-vi.mock("./invoiceQueue", () => ({ buildInvoiceDocument: vi.fn() }));
+vi.mock("./invoiceQueue", () => ({ buildInvoiceDocument: m.buildInvoice }));
+vi.mock("./invoicePayments", () => ({ loadInvoicePaymentDetails: m.loadPayments }));
 vi.mock("./shiftCloseQueue", () => ({ loadShiftCloseTicket: vi.fn() }));
-vi.mock("@/lib/payments/kushki/cloudPrint", () => ({
+// Parcial: los helpers de layout (fit, amountRow…) corren DE VERDAD — el
+// diseño de los comandos es parte de lo que se prueba; a Kushki, jamás.
+vi.mock("@/lib/env", () => ({ env: { KUSHKI_BP_BUSINESS_CODE: undefined, KUSHKI_CLOUD_TERMINAL_PATH: undefined } }));
+vi.mock("@/lib/platformConfig", () => ({ getKushkiModeSync: () => "production" }));
+vi.mock("@/lib/payments/kushki/cloudPrint", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/payments/kushki/cloudPrint")>()),
   printOnCloudTerminal: () => {
     throw new Error("nunca se llama a Kushki en los tests");
   },
@@ -38,7 +49,7 @@ vi.mock("@/lib/payments/kushki/cloudPrint", () => ({
   },
 }));
 
-import { chooseTerminalDevice, listTerminalPrintDevices, printOnTerminalDevice } from "./terminalPrint";
+import { buildTerminalCommands, chooseTerminalDevice, listTerminalPrintDevices, printOnTerminalDevice } from "./terminalPrint";
 
 const dev = (id: string, over: Record<string, unknown> = {}) => ({
   kushkiDeviceId: id,
@@ -232,3 +243,77 @@ describe("¿hay datáfonos para ofrecer «Datáfono»?", () => {
   });
 });
 
+
+describe("la factura en el datáfono lleva la sección «Pagos» (regresión FESM8525)", () => {
+  it("carga los pagos CON detalle, se los pasa al documento y los comandos imprimen la sección", async () => {
+    m.invoiceRow.mockResolvedValue({
+      id: "inv-1",
+      restaurantId: "rest-1",
+      orderId: "order-1",
+      invoiceNumber: 8525,
+      snapshot: { invoicePrefix: "FESM" },
+      order: { locale: "es" },
+      dianDocument: null,
+      restaurant: { enabledModules: [], country: "CO" },
+    });
+    const details = [
+      {
+        method: "kushki_card_terminal",
+        amountCents: 3_703_900,
+        tipCents: 313_900,
+        cardBrand: "VISA",
+        cardLast4: "4242",
+        approvalCode: "123456",
+      },
+    ];
+    m.loadPayments.mockResolvedValue(details);
+    // El documento que armaría `buildInvoiceDocument` con ese detalle:
+    // trae la sección y el bloque viejo vacío (contrato de #634).
+    m.buildInvoice.mockResolvedValue({
+      paperWidthMm: 58,
+      businessName: "SON Y MELONA S.A.S.",
+      businessLines: [],
+      documentLabel: "FACTURA ELECTRÓNICA DE VENTA",
+      documentNumber: "FESM8525",
+      metaRows: [],
+      customerLines: [],
+      items: [],
+      totals: [{ label: "TOTAL A PAGAR", amount: "$ 37,039", strong: true }],
+      paymentTitle: null,
+      paymentRows: [],
+      paymentsSection: {
+        title: "Pagos",
+        blocks: [
+          {
+            label: "Tarjeta · datáfono",
+            amount: "$ 37,039",
+            lines: ["VISA · ····4242 · Aprob. 123456"],
+          },
+        ],
+        totalLabel: "TOTAL PAGADO",
+        totalAmount: "$ 37,039",
+        breakdown: null,
+        pending: null,
+      },
+      footerLines: [],
+      fiscal: null,
+    });
+
+    const built = await buildTerminalCommands("rest-1", { kind: "invoice", orderId: "order-1" });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    // El detalle viene del loader único y viaja como `paymentDetails`.
+    expect(m.loadPayments).toHaveBeenCalledWith("order-1");
+    expect(m.buildInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ payments: details, paymentDetails: details }),
+    );
+    const texts = built.commands
+      .flatMap((c) => (c.type === "text" ? [c.text] : c.type === "columns" ? c.columns.map((col) => col.text) : []))
+      .join("\n");
+    expect(texts).toContain("TOTAL PAGADO");
+    expect(texts).toContain("Tarjeta · datáfono");
+    expect(texts).not.toContain("Forma de pago");
+    // Y el rótulo largo va envuelto por palabra, no crudo.
+    expect(texts).toContain("FACTURA ELECTRÓNICA DE\nVENTA");
+  });
+});

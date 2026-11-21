@@ -42,6 +42,7 @@ import {
 } from "@/lib/payments/kushki/cloudPrint";
 import type { KushkiMode } from "@/lib/platformConfig";
 import { buildInvoiceDocument } from "./invoiceQueue";
+import { loadInvoicePaymentDetails } from "./invoicePayments";
 import { invoicePrintArgs, type InvoiceDianPrintData } from "./routing";
 import { loadPrebill } from "./prebillData";
 import { buildPrebillDocument } from "./prebillQueue";
@@ -156,17 +157,16 @@ export async function buildTerminalCommands(
   });
   if (!invoice || invoice.restaurantId !== restaurantId) return { ok: false, error: "no_invoice" };
   const args = invoicePrintArgs(invoice, invoice.order);
-  const payments = await db.payment.findMany({
-    where: { orderId: invoice.orderId, status: "approved" },
-    orderBy: { createdAt: "asc" },
-    select: { method: true, amountCents: true, tipCents: true },
-  });
+  // Con DETALLE (tarjeta, vuelto, referencia…): es lo que arma la sección
+  // «Pagos» del documento — la misma de la tirilla de la caja.
+  const payments = await loadInvoicePaymentDetails(invoice.orderId);
   const doc = await buildInvoiceDocument({
     snapshot: args.snapshot,
     invoiceNumber: args.invoiceNumber,
     paperWidthMm: TERMINAL_DOC_PAPER_MM,
     currency: await getCurrencyForCountry(invoice.restaurant.country),
     payments,
+    paymentDetails: payments,
     locale: args.locale,
     dian: await dianPrintDataFor(invoice, restaurantId),
     supportsQr: true,

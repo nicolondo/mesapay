@@ -693,7 +693,12 @@ export const PurchaseInvoiceSchema = z.object({
   invoiceSubtotalCents: z.number().nullable().catch(null),
   invoiceDiscountCents: z.number().int().nonnegative().nullable().optional(),
   invoiceTaxCents: z.number().nullable().catch(null), // IVA total impreso
+  // Total impreso de la factura: suele ser el BRUTO (antes de retenciones),
+  // a veces el neto; la revisión acepta los dos (matchPrintedTotal).
   invoiceTotalCents: z.number().nullable().catch(null),
+  // «Neto a pagar» impreso APARTE del total, ya sin retenciones (ausente en
+  // lecturas viejas).
+  invoiceNetPayableCents: z.number().int().nonnegative().nullable().optional().catch(null),
   // Otros impuestos discriminados a nivel documento (ERP A3), en centavos.
   // El IVA sale de las líneas (taxPct); estos se capturan aparte para que el
   // operador los verifique y la contabilidad los tenga en cuenta.
@@ -763,6 +768,7 @@ const RawInvoiceSchema = z.object({
   invoiceDiscount: numText,
   invoiceTax: numText,
   invoiceTotal: numText,
+  invoiceNetPayable: numText.optional(),
   invoiceInc: numText,
   invoiceIncComponents: z.array(z.object({ label: z.string(), amount: numText })).catch([]),
   retefuente: numText,
@@ -840,6 +846,16 @@ function retentionCents(raw: string | number | null): number | null {
   if (n == null) return null;
   const cents = Math.round(Math.abs(n) * 100);
   return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/**
+ * «Neto a pagar» impreso aparte del total: solo cuenta si es positivo y
+ * distinto del total (si la IA copió el mismo número, no aporta nada).
+ */
+function netPayableCents(raw: string | number | null | undefined, totalCents: number | null): number | null {
+  if (raw == null) return null;
+  const cents = moneyToCents(raw);
+  return cents != null && Number.isSafeInteger(cents) && cents > 0 && cents !== totalCents ? cents : null;
 }
 
 /** «Ajustes» / ajuste al peso: conserva el signo impreso ("-0,32" → -32). */
@@ -973,7 +989,8 @@ Devuelve SOLO un objeto JSON con esta forma exacta — sin Markdown, sin texto a
   "reteIva": string | null,               // Retención de IVA (RETEIVA) total, TEXTO tal cual, null si no se ve
   "reteIca": string | null,               // Retención de ICA (RETEICA) total, TEXTO tal cual, null si no se ve
   "invoiceAdjustment": string | null,     // "Ajustes", "Ajuste al peso", "Redondeo" del pie, TEXTO tal cual CON su signo ("-0,32"), null si no se ve
-  "invoiceTotal": string | null,          // TOTAL a pagar impreso, TEXTO tal cual, null si no se ve
+  "invoiceTotal": string | null,          // TOTAL de la factura impreso ("Total", "Total factura", "Total a pagar"), TEXTO tal cual, null si no se ve
+  "invoiceNetPayable": string | null,     // "Neto a pagar" DESPUÉS de restar retenciones, SOLO si se imprime APARTE del total; si no, null
   "confidence": number,                   // 0..1 confianza global
   "notes": string                         // opcional, 1 frase (ej. "foto borrosa en el total")
 }
@@ -1002,6 +1019,7 @@ Reglas estrictas:
   · Descuento sobre el total o "Total descuentos" del resumen: va en invoiceDiscount, aunque sea la suma de los descuentos de las líneas.
   · No son descuentos: anticipos, abonos, retenciones, notas crédito, ni un descuento por pronto pago CONDICIONADO que la factura no resta del total.
 - invoiceSubtotal/invoiceTax/invoiceTotal: copia los TOTALES impresos (no los sumes tú) como TEXTO tal cual, null si no se ven. invoiceSubtotal puede llamarse "Total Bruto" antes de descuentos: conserva ese valor sin restarle nada. invoiceDiscount copia "Total Descuentos" por separado. Si solo hay subtotal después de descuentos, cópialo tal cual; no reconstruyas un subtotal anterior.
+- invoiceTotal / invoiceNetPayable: invoiceTotal es el total de la factura tal como se imprime ("Total", "Total factura", "Valor total", "Total a pagar"); en la factura electrónica suele ir ANTES de restar las retenciones: cópialo así, sin restarle nada. Si la factura imprime ADEMÁS otro valor ya con las retenciones restadas ("Neto a pagar", "Total neto", "Valor neto a pagar"), ese va en invoiceNetPayable y invoiceTotal queda con el total de la factura. Si solo hay un total, va en invoiceTotal e invoiceNetPayable=null. No los calcules.
 - IMPUESTOS ADICIONALES a nivel documento (además del IVA): busca en la sección de totales/resumen y cópialos como TEXTO tal cual si aparecen, si no null:
   · invoiceInc = TOTAL combinado impreso de "Impuesto al consumo", "IMPOCONSUMO", "INC", "Imp. Consumo". En facturas de licores también puede figurar como "Total Imptos en Valor" cuando corresponde al conjunto ADV (ad valorem) + ICL (consumo de licores). No lo confundas con "Total Imptos en Porcentaje" ni con el IVA. Si no hay un total combinado claramente identificado, invoiceInc=null.
   · invoiceIncComponents: copia cada componente ADV/Ad Valorem e ICL del resumen UNA sola vez con su label y amount. No incluyas IVA, retenciones, el total combinado, ni repitas los montos de las líneas. El CÓDIGO sumará componentes distintos únicamente cuando no exista un total combinado; tú NO los sumes. Consumo de licores puede ser un monto fijo o específico: no asumas una tarifa del 8%.
@@ -1009,7 +1027,7 @@ Reglas estrictas:
   · reteIva = "Retención de IVA", "RETEIVA", "Rte IVA".
   · reteIca = "Retención de ICA", "RETEICA", "Rte ICA".
   · invoiceAdjustment = "Ajustes", "Ajuste al peso", "Redondeo" del pie, con su signo tal cual ("-0,32", "0,45").
-  Las retenciones se RESTAN del total a pagar; el IVA e INC se SUMAN. Cópialos como valores positivos (el signo lo maneja el código). El ajuste es el único que conserva su signo.
+  Copia IVA, INC y retenciones como valores positivos (el signo lo maneja el código) y NO restes las retenciones de ningún total: las practica quien compra y el código decide si el total impreso ya las descuenta. El ajuste es el único que conserva su signo.
 - Si un monto no se ve claro, ponlo en null y baja la confidence de esa línea.
 - Si el documento no parece un documento de compra (factura ni cuenta de cobro), devuelve documentType "otro", lines vacío y confidence 0.`;
 
@@ -1159,6 +1177,7 @@ function normalizePurchaseInvoiceReading(r: z.infer<typeof RawInvoiceSchema>): P
     invoiceDiscountCents: discountValueCents(r.invoiceDiscount),
     invoiceTaxCents: moneyToCents(r.invoiceTax),
     invoiceTotalCents: moneyToCents(r.invoiceTotal),
+    invoiceNetPayableCents: netPayableCents(r.invoiceNetPayable, moneyToCents(r.invoiceTotal)),
     invoiceIncCents: documentConsumption(r),
     // Retentions are always subtracted; "- Retefuente $X" means X.
     retefuenteCents: retentionCents(r.retefuente),

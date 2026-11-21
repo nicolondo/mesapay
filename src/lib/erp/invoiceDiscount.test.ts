@@ -153,6 +153,18 @@ describe("supplier discount prefill never discounts twice", () => {
     expect(payable).toBe(10_485_000);
   });
 
+  it("reconciles a document discount when the printed total does not subtract the retentions", () => {
+    // Factura electrónica: «Total a pagar» antes de la retefuente que practica el comercio.
+    const { prefill, payable } = review(invoice([
+      line({ quantity: 1, lineTotalCents: 10_000_000, lineTotalTaxBasis: "net" }),
+    ], { invoiceSubtotalCents: 10_000_000, invoiceDiscountCents: 1_000_000, invoiceTaxCents: 1_710_000,
+      retefuenteCents: 225_000, invoiceTotalCents: 10_710_000 }));
+    expect(prefill.orderDiscRaw).toBe("10000");
+    expect(prefill.unplacedDiscountCents).toBeNull();
+    // Net payable: the retention is subtracted once.
+    expect(payable).toBe(10_485_000);
+  });
+
   it.each([
     { total: 1_800_000, cost: "20000", discount: "10", net: 1_800_000, unmatched: false },
     { total: 2_000_000, cost: "10000", discount: undefined, net: 2_000_000, unmatched: false },

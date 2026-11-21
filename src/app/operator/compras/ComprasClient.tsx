@@ -12,6 +12,7 @@ import { InvoiceReviewLines, MatchStatusChip } from "./InvoiceReviewLines";
 import {
   columnLineAmounts,
   invoiceReconcileRows,
+  matchPrintedTotal,
   ROUNDING_MAX_CENTS,
   suggestedRoundingCents,
   taxColumnNeedsReview,
@@ -1019,7 +1020,10 @@ type InvoiceUploadResult = {
     invoiceSubtotalCents: number | null;
     invoiceDiscountCents?: number | null;
     invoiceTaxCents: number | null;
+    // Total impreso: el de la factura (antes de retenciones) o el neto.
     invoiceTotalCents: number | null;
+    // «Neto a pagar» impreso aparte del total (lecturas nuevas).
+    invoiceNetPayableCents?: number | null;
     // Otros impuestos discriminados a nivel documento (ERP A3).
     invoiceIncCents: number | null;
     retefuenteCents: number | null;
@@ -1500,12 +1504,19 @@ function InvoiceReviewSheet({
     const printed = extraction.invoiceAdjustmentCents;
     return printed != null && Number.isSafeInteger(printed) && Math.abs(printed) <= ROUNDING_MAX_CENTS ? printed : 0;
   });
+  // Neto a pagar al proveedor (lo que queda en la cuenta por pagar) y el
+  // total de la factura antes de retenciones: las retenciones las practica
+  // el comercio y se restan UNA sola vez, del total de la factura.
   const payableCents = grandTotalCents + adjustmentCents;
-  // Concordancia con el total IMPRESO de la factura (si se leyó).
-  const mismatch = useMemo(
-    () => !totalsMatch(payableCents, extraction.invoiceTotalCents),
-    [payableCents, extraction.invoiceTotalCents],
-  );
+  const retainedCents = retentionsCents(extras);
+  const invoiceTotalCents = payableCents + retainedCents;
+  // Concordancia con el total IMPRESO de la factura (si se leyó), que puede
+  // ser el total de la factura o el neto ya sin retenciones.
+  const mismatch = useMemo(() => {
+    const printed = extraction.invoiceTotalCents;
+    return printed != null
+      && !totalsMatch(matchPrintedTotal(printed, invoiceTotalCents, retainedCents).computedCents, printed);
+  }, [invoiceTotalCents, retainedCents, extraction.invoiceTotalCents]);
 
   // Columnas de impuesto (por unidad / total de la línea / %): la lectura
   // que dejó la conciliación y si el operador la cambió a mano. Cambiarla
@@ -1559,18 +1570,19 @@ function InvoiceReviewSheet({
         ? printedRetentions.reduce<number>((sum, v) => sum + (v ?? 0), 0) : null,
       adjustmentCents: extraction.invoiceAdjustmentCents ?? null,
       totalCents: extraction.invoiceTotalCents,
+      netPayableCents: extraction.invoiceNetPayableCents ?? null,
     }, {
       listSubtotalCents: resolved.subtotalCents,
       netSubtotalCents: resolved.netCents,
       discountCents: resolved.discountCents,
       ivaCents: resolved.taxCents,
       incCents: extras.incCents,
-      retentionsCents: retentionsCents(extras),
+      retentionsCents: retainedCents,
       adjustmentCents,
-      totalCents: payableCents,
+      grossTotalCents: invoiceTotalCents,
     });
-  }, [extraction, resolved, extras, adjustmentCents, payableCents]);
-  const suggestedRounding = suggestedRoundingCents(extraction.invoiceTotalCents, grandTotalCents);
+  }, [extraction, resolved, extras, adjustmentCents, retainedCents, invoiceTotalCents]);
+  const suggestedRounding = suggestedRoundingCents(extraction.invoiceTotalCents, grandTotalCents + retainedCents, retainedCents);
   const roundingSuggestion = resolved.complete && suggestedRounding != null && suggestedRounding !== adjustmentCents
     ? suggestedRounding : null;
   const reviewReasons = useMemo(() => {
@@ -2221,15 +2233,30 @@ function InvoiceReviewSheet({
               ))}
               <p className="text-[11px] text-op-muted">{t("invLineIncFooterHint")}</p>
               {unallocatedConsumption && <p role="alert" className="text-xs text-danger">{t("invLineUnallocatedConsumption")}</p>}
-              {retentionsCents(extras) > 0 && (
-                <p className="text-[10px] text-op-muted">
-                  {t("invTaxRetentionNote")}
-                </p>
+              {retainedCents > 0 ? (
+                // Con retenciones: el total de la factura, lo que practicas
+                // y el neto a pagar al proveedor (restadas una sola vez).
+                <div className="border-t border-op-border pt-2 space-y-1 text-sm tabular-nums">
+                  <div className="flex items-center justify-between">
+                    <span>{t("invRecInvoiceTotal")}</span>
+                    <span>{formatMoney(invoiceTotalCents, { currency, locale, fractionDigits: "auto" })}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-op-muted">
+                    <span>{t("invRecRetentions")}</span>
+                    <span>{`− ${formatMoney(retainedCents, { currency, locale, fractionDigits: "auto" })}`}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-medium">
+                    <span>{t("invRecNetPayable")}</span>
+                    <span>{formatMoney(payableCents, { currency, locale, fractionDigits: "auto" })}</span>
+                  </div>
+                  <p className="text-[10px] text-op-muted">{t("invTaxRetentionNote")}</p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
+                  <span>{t("invTaxGrandTotal")}</span>
+                  <span>{formatMoney(payableCents, { currency, locale, fractionDigits: "auto" })}</span>
+                </div>
               )}
-              <div className="flex items-center justify-between border-t border-op-border pt-2 text-sm font-medium">
-                <span>{t("invTaxGrandTotal")}</span>
-                <span>{formatMoney(payableCents, { currency, locale, fractionDigits: "auto" })}</span>
-              </div>
             </div>
 
             {/* Switch borrador / recibir (D5) */}
@@ -3431,7 +3458,14 @@ function ReceiveSheet({
     ivaCents: receptionTotals.taxCents,
     incCents: receptionTotals.incCents,
   };
-  const retentions = useInvoiceRetentions(taxCtx, receptionDoc);
+  // Una compra cargada desde la factura del proveedor ya trae SUS retenciones
+  // (siguen el avance: `receptionTotals.retentionsCents`). Sugerirlas otra
+  // vez al recibir las restaba dos veces de la cuenta por pagar y del asiento:
+  // se arranca sin sugeridas y el operador agrega una solo si esta entrega
+  // trae otra factura.
+  const invoiceRetentionCents = (order.retefuenteCents ?? 0) + (order.reteIvaCents ?? 0)
+    + (order.reteIcaCents ?? 0) - (order.receptionRetentionCents ?? 0);
+  const retentions = useInvoiceRetentions(taxCtx, receptionDoc, { suggest: invoiceRetentionCents <= 0 });
   const retainedNow = retentionTotalCents(retentions.totals);
 
   function updateLine(itemId: string, changes: Partial<ReceiveLine>) {
@@ -3684,6 +3718,13 @@ function ReceiveSheet({
                   <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
                     {t("poTaxSectionTitle")}
                   </div>
+                  {invoiceRetentionCents > 0 && (
+                    <p role="note" className="text-[11px] text-op-muted">
+                      {t("poRetFromInvoice", {
+                        amount: formatMoney(receptionTotals.retentionsCents, { currency, locale, fractionDigits: "auto" }),
+                      })}
+                    </p>
+                  )}
                   <InvoiceRetentionsEditor
                     state={retentions}
                     ctx={taxCtx}

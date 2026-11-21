@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   applyTaxColumns,
+  checkPrintedTotals,
   columnLineAmounts,
   invoiceReconcileRows,
   lineArithmetic,
+  matchPrintedTotal,
+  printedFooterBasis,
   resolveTaxColumns,
   suggestedRoundingCents,
   taxColumnNeedsReview,
@@ -89,6 +92,15 @@ describe("tax column scope: per unit vs line total vs percent", () => {
     expect(columns.consumo).toMatchObject({ status: "matched", scope: "unit" });
     // Without a printed IVA, its own rate per line decides the IVA column.
     expect(columns.iva).toMatchObject({ status: "matched", scope: "unit" });
+  });
+
+  it("also resolves them when the printed Total comes BEFORE the retention (electronic invoice)", () => {
+    // Mismo documento, pero el Total impreso no resta la retefuente: la
+    // factura electrónica la deja informativa, la practica quien compra.
+    const doc = { ...LIQUOR, invoiceTaxCents: null, invoiceIncCents: null, invoiceTotalCents: 65_948_000 + 1_096_853 };
+    const columns = resolveTaxColumns(doc, { consumo: { header: "ICO", scope: "unknown", evidence: null } });
+    expect(columns.consumo).toMatchObject({ status: "matched", scope: "unit", computedCents: 20_977_000 });
+    expect(taxColumnNeedsReview(columns.consumo)).toBe(false);
   });
 
   it("leaves an invoice with neither tax footer nor total for review, preselecting the AI reading", () => {
@@ -177,10 +189,11 @@ describe("line arithmetic", () => {
 });
 
 describe("invoice vs MESAPAY summary", () => {
+  // LIQUOR imprime el Total NETO: ya le restó la retefuente.
   const computed = {
     listSubtotalCents: 43_874_130, netSubtotalCents: 43_874_130, discountCents: 0,
     ivaCents: 2_193_707, incCents: 20_977_000, retentionsCents: 1_096_853,
-    adjustmentCents: 16, totalCents: 65_948_000,
+    adjustmentCents: 16, grossTotalCents: 65_948_000 + 1_096_853,
   };
   const printed = {
     subtotalCents: 43_874_130, discountCents: null, ivaCents: 2_193_707, incCents: 20_977_000,
@@ -190,23 +203,29 @@ describe("invoice vs MESAPAY summary", () => {
   it("matches every footer row to the cent, rounding included as its own row", () => {
     const summary = invoiceReconcileRows(printed, computed);
     expect(summary.hasDifferences).toBe(false);
-    expect(summary.rows.map(r => r.key)).toEqual(["subtotal", "iva", "consumo", "retentions", "adjustment", "total"]);
-    expect(summary.rows.every(r => r.diffCents === 0)).toBe(true);
+    expect(summary.rows.map(r => r.key))
+      .toEqual(["subtotal", "iva", "consumo", "adjustment", "total", "retentions", "payable"]);
+    // The printed Total is the net payable: compared there, not against the invoice total.
+    expect(summary.rows.find(r => r.key === "total")).toMatchObject({ printedCents: null, computedCents: 67_044_853, diffCents: null });
+    expect(summary.rows.find(r => r.key === "payable")).toMatchObject({ printedCents: 65_948_000, computedCents: 65_948_000, diffCents: 0 });
+    expect(summary.rows.every(r => r.diffCents === 0 || r.diffCents === null)).toBe(true);
   });
 
   it("shows the exact difference per row instead of hiding it", () => {
     const summary = invoiceReconcileRows(printed, { ...computed, incCents: 8_197_000, adjustmentCents: 0,
-      totalCents: 65_948_000 - 12_780_000 - 16 });
+      grossTotalCents: 65_948_000 + 1_096_853 - 12_780_000 - 16 });
     expect(summary.hasDifferences).toBe(true);
     expect(summary.rows.find(r => r.key === "consumo")?.diffCents).toBe(12_780_000);
     expect(summary.rows.find(r => r.key === "adjustment")?.diffCents).toBe(16);
-    expect(summary.rows.find(r => r.key === "total")?.diffCents).toBe(12_780_016);
+    // The footer itself proves the printed Total is net: the difference shows on the net payable.
+    expect(summary.rows.find(r => r.key === "payable")?.diffCents).toBe(12_780_016);
+    expect(summary.rows.find(r => r.key === "total")?.diffCents).toBeNull();
   });
 
   it("compares a subtotal printed after discounts with the discounted base", () => {
     const summary = invoiceReconcileRows({ subtotalCents: 90_000, discountCents: 10_000, totalCents: 90_000 },
       { ...computed, listSubtotalCents: 100_000, netSubtotalCents: 90_000, discountCents: 10_000, ivaCents: 0,
-        incCents: 0, retentionsCents: 0, adjustmentCents: 0, totalCents: 90_000 });
+        incCents: 0, retentionsCents: 0, adjustmentCents: 0, grossTotalCents: 90_000 });
     expect(summary.rows.find(r => r.key === "subtotal")).toMatchObject({ computedCents: 90_000, diffCents: 0 });
     expect(summary.hasDifferences).toBe(false);
   });
@@ -217,5 +236,101 @@ describe("invoice vs MESAPAY summary", () => {
     expect(suggestedRoundingCents(65_948_000, 65_948_000)).toBeNull();
     expect(suggestedRoundingCents(65_948_000, 52_000_000)).toBeNull();
     expect(suggestedRoundingCents(null, 1)).toBeNull();
+  });
+});
+
+describe("printed Total before or after the retentions (never subtracted twice)", () => {
+  // El caso del dueño, con cifras inventadas: subtotal 1.000.000, IVA 50.000,
+  // consumo 80.000 y retención en la fuente 2,5 % = 25.000. La factura
+  // electrónica imprime «Total a pagar» 1.130.000, SIN restar la retención.
+  const computed = {
+    listSubtotalCents: 100_000_000, netSubtotalCents: 100_000_000, discountCents: 0,
+    ivaCents: 5_000_000, incCents: 8_000_000, retentionsCents: 2_500_000,
+    adjustmentCents: 0, grossTotalCents: 113_000_000,
+  };
+  const printed = {
+    subtotalCents: 100_000_000, ivaCents: 5_000_000, incCents: 8_000_000, retentionsCents: 2_500_000,
+    totalCents: 113_000_000,
+  };
+  const row = (summary: ReturnType<typeof invoiceReconcileRows>, key: string) => summary.rows.find(r => r.key === key);
+
+  it("accepts a printed GROSS total: ✓ without asking for confirmation, retention subtracted once", () => {
+    const summary = invoiceReconcileRows(printed, computed);
+    expect(summary.hasDifferences).toBe(false);
+    expect(summary.rows.map(r => r.key)).toEqual(["subtotal", "iva", "consumo", "total", "retentions", "payable"]);
+    expect(row(summary, "total")).toMatchObject({ printedCents: 113_000_000, computedCents: 113_000_000, diffCents: 0 });
+    expect(row(summary, "retentions")).toMatchObject({ printedCents: 2_500_000, computedCents: 2_500_000, diffCents: 0 });
+    // Net payable = invoice total − retentions, exactly once (not 1.080.000).
+    expect(row(summary, "payable")).toMatchObject({ printedCents: null, computedCents: 110_500_000, diffCents: null });
+  });
+
+  it("accepts a printed NET total (retention already subtracted by the supplier)", () => {
+    const summary = invoiceReconcileRows({ ...printed, totalCents: 110_500_000 }, computed);
+    expect(summary.hasDifferences).toBe(false);
+    expect(row(summary, "total")).toMatchObject({ printedCents: null, diffCents: null });
+    expect(row(summary, "payable")).toMatchObject({ printedCents: 110_500_000, computedCents: 110_500_000, diffCents: 0 });
+  });
+
+  it("compares both when the invoice prints the total AND a separate net payable", () => {
+    const both = invoiceReconcileRows({ ...printed, netPayableCents: 110_500_000 }, computed);
+    expect(both.hasDifferences).toBe(false);
+    expect(row(both, "total")?.diffCents).toBe(0);
+    expect(row(both, "payable")?.diffCents).toBe(0);
+    // The supplier assumed another retention: the net payable shows it.
+    const other = invoiceReconcileRows({ ...printed, retentionsCents: 3_500_000, netPayableCents: 109_500_000 }, computed);
+    expect(other.hasDifferences).toBe(true);
+    expect(row(other, "total")?.diffCents).toBe(0);
+    expect(row(other, "retentions")?.diffCents).toBe(1_000_000);
+    expect(row(other, "payable")?.diffCents).toBe(-1_000_000);
+  });
+
+  it("still reports a total that matches neither, on the row the printed footer points to", () => {
+    // 10.000 de más sobre el total de la factura: su propio pie dice que es bruto.
+    const gross = invoiceReconcileRows({ ...printed, subtotalCents: 101_000_000, totalCents: 114_000_000 }, computed);
+    expect(gross.hasDifferences).toBe(true);
+    expect(row(gross, "total")?.diffCents).toBe(1_000_000);
+    expect(row(gross, "payable")?.diffCents).toBeNull();
+    // Without a usable footer, the closest of the two totals carries it.
+    const closest = invoiceReconcileRows({ totalCents: 110_400_000 }, computed);
+    expect(closest.hasDifferences).toBe(true);
+    expect(row(closest, "payable")?.diffCents).toBe(-100_000);
+  });
+
+  it("keeps the previous summary for invoices without retentions", () => {
+    const summary = invoiceReconcileRows({ ...printed, retentionsCents: null },
+      { ...computed, retentionsCents: 0 });
+    expect(summary.hasDifferences).toBe(false);
+    expect(summary.rows.map(r => r.key)).toEqual(["subtotal", "iva", "consumo", "total"]);
+    expect(row(summary, "total")).toMatchObject({ printedCents: 113_000_000, diffCents: 0 });
+    const off = invoiceReconcileRows({ ...printed, retentionsCents: null, totalCents: 110_500_000 },
+      { ...computed, retentionsCents: 0 });
+    expect(row(off, "total")?.diffCents).toBe(-2_500_000);
+  });
+
+  it("applies retentions the invoice does not print without inventing a difference", () => {
+    const summary = invoiceReconcileRows({ ...printed, retentionsCents: null }, computed);
+    expect(summary.hasDifferences).toBe(false);
+    expect(row(summary, "retentions")).toMatchObject({ printedCents: null, computedCents: 2_500_000 });
+    expect(row(summary, "payable")?.computedCents).toBe(110_500_000);
+  });
+
+  it("is one rule: gross or net, the closest one, exact match first", () => {
+    expect(matchPrintedTotal(113_000_000, 113_000_000, 2_500_000)).toEqual({ basis: "gross", computedCents: 113_000_000, diffCents: 0 });
+    expect(matchPrintedTotal(110_500_000, 113_000_000, 2_500_000)).toEqual({ basis: "net", computedCents: 110_500_000, diffCents: 0 });
+    expect(matchPrintedTotal(110_500_000, 113_000_000, 0)).toMatchObject({ basis: "gross", diffCents: -2_500_000 });
+    expect(checkPrintedTotals({ totalCents: 113_000_000 }, { grossCents: 113_000_000, retentionsCents: 2_500_000 }).matches).toBe(true);
+    expect(checkPrintedTotals({ totalCents: 110_500_000 }, { grossCents: 113_000_000, retentionsCents: 2_500_000 }).matches).toBe(true);
+    expect(checkPrintedTotals({ totalCents: 108_000_000 }, { grossCents: 113_000_000, retentionsCents: 2_500_000 }).matches).toBe(false);
+    expect(checkPrintedTotals({ totalCents: null }, { grossCents: 113_000_000, retentionsCents: 2_500_000 }).matches).toBe(true);
+    expect(printedFooterBasis(printed)).toBe("gross");
+    expect(printedFooterBasis({ ...printed, totalCents: 110_500_000 })).toBe("net");
+    expect(printedFooterBasis({ ...printed, retentionsCents: null })).toBeNull();
+  });
+
+  it("suggests the rounding against whichever total the invoice printed", () => {
+    expect(suggestedRoundingCents(113_000_000, 112_999_968, 2_500_000)).toBe(32);
+    expect(suggestedRoundingCents(110_500_000, 112_999_968, 2_500_000)).toBe(32);
+    // A whole retention is never offered as «rounding».
+    expect(suggestedRoundingCents(110_500_000, 113_000_000, 2_500_000)).toBeNull();
   });
 });

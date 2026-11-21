@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getErpContext, isDenied } from "@/lib/erp/access";
 import { InvoiceAliasError, rememberInvoiceAliases } from "@/lib/erp/invoiceAliases";
 import { discountsReproduceNet } from "@/lib/erp/purchaseDiscount";
-import { ROUNDING_MAX_CENTS } from "@/lib/erp/invoiceReconcile";
+import { checkPrintedTotals, ROUNDING_MAX_CENTS } from "@/lib/erp/invoiceReconcile";
 import { lineTaxCents } from "@/lib/erp/purchaseTax";
 import {
   createPurchaseOrder,
@@ -77,10 +77,16 @@ const confirmSchema = z.object({
   possibleDuplicate: z.enum(POSSIBLE_DUPLICATE_MODES).optional(),
 });
 
-/** Total impreso que la lectura guardó en la carga (null si no se leyó). */
-function printedTotalCents(extraction: unknown): number | null {
-  const value = (extraction as { invoiceTotalCents?: unknown } | null)?.invoiceTotalCents;
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+/**
+ * Totales impresos que la lectura guardó en la carga: el «Total» y, en las
+ * lecturas nuevas, el «Neto a pagar» si la factura lo imprime aparte. null
+ * si no se leyó.
+ */
+function printedTotals(extraction: unknown): { totalCents: number | null; netPayableCents: number | null } {
+  const read = extraction as { invoiceTotalCents?: unknown; invoiceNetPayableCents?: unknown } | null;
+  const cents = (value: unknown) =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  return { totalCents: cents(read?.invoiceTotalCents), netPayableCents: cents(read?.invoiceNetPayableCents) };
 }
 
 async function POSTHandler(
@@ -127,17 +133,20 @@ async function POSTHandler(
   if (upload.status !== "pending") {
     return NextResponse.json({ error: "not_pending" }, { status: 409 });
   }
-  // Lo que queda por pagar debe ser el Total impreso de la factura. Si no lo
-  // es, solo se guarda con la confirmación explícita del operador (la
-  // revisión le mostró la diferencia renglón por renglón). Se exige DENTRO de
-  // la transacción, después de validar proveedor e insumos: un error de
-  // validación o de otro comercio (400) nunca queda tapado por este 409.
-  const printedTotal = printedTotalCents(upload.extraction);
-  const payableCents = b.lines.reduce((sum, line) => sum + line.expectedCostCents
+  // El Total impreso debe ser el total de la factura (bruto) o el neto a
+  // pagar (bruto − retenciones): la factura electrónica lo imprime antes de
+  // las retenciones, que practica el comercio; algunos proveedores, ya
+  // restadas. Si no cuadra con ninguno, solo se guarda con la confirmación
+  // explícita del operador (la revisión le mostró la diferencia renglón por
+  // renglón). Misma regla que la revisión: `checkPrintedTotals`. Se exige
+  // DENTRO de la transacción, después de validar proveedor e insumos: un
+  // error de validación o de otro comercio (400) nunca queda tapado por este 409.
+  const grossCents = b.lines.reduce((sum, line) => sum + line.expectedCostCents
     + (line.expectedTaxCents ?? lineTaxCents(line.expectedCostCents, line.taxPct ?? 0)), 0)
-    + invoiceIncCents - (b.retefuenteCents ?? 0) - (b.reteIvaCents ?? 0) - (b.reteIcaCents ?? 0)
-    + (b.roundingCents ?? 0);
-  const totalsUnconfirmed = printedTotal != null && payableCents !== printedTotal && b.acknowledgedDifferences !== true;
+    + invoiceIncCents + (b.roundingCents ?? 0);
+  const retentionsCents = (b.retefuenteCents ?? 0) + (b.reteIvaCents ?? 0) + (b.reteIcaCents ?? 0);
+  const totalsUnconfirmed = !checkPrintedTotals(printedTotals(upload.extraction), { grossCents, retentionsCents }).matches
+    && b.acknowledgedDifferences !== true;
   const session = await auth();
   const createdById = session?.user?.id ?? null;
   // Ajuste del comercio para valorar el inventario al recibir (neto/bruto).

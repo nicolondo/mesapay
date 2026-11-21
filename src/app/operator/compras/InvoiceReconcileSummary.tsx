@@ -7,6 +7,12 @@
 // línea con el total y el detalle desplegable. Si algo no cuadra (o una
 // columna de impuesto no se pudo comprobar), guardar exige marcar que se
 // revisó: nunca se da por buena en silencio.
+//
+// Con retenciones: «Total factura» (antes de retenciones) − «Retenciones que
+// practicas» = «Neto a pagar al proveedor». El total impreso se compara en la
+// fila con la que cuadra (la factura electrónica lo trae antes de las
+// retenciones; algunos proveedores, ya restadas), así la retención nunca se
+// ve restada dos veces.
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
@@ -19,10 +25,16 @@ const ROW_LABEL: Record<ReconcileRowKey, string> = {
   discount: "discountLabel",
   iva: "taxLabel",
   consumo: "invRecConsumo",
-  retentions: "invLineRetentions",
   adjustment: "invRecAdjustment",
-  total: "invTaxGrandTotal",
+  total: "invRecInvoiceTotal",
+  retentions: "invRecRetentions",
+  payable: "invRecNetPayable",
 };
+/** Filas que se ven siempre, también con el detalle cerrado en el celular. */
+const KEY_ROWS = new Set<ReconcileRowKey>(["total", "retentions", "payable"]);
+/** Totales: en negrita. Las de después del total de la factura, separadas. */
+const EMPHASIS = new Set<ReconcileRowKey>(["total", "payable"]);
+const AFTER_TOTAL = new Set<ReconcileRowKey>(["retentions", "payable"]);
 
 export function InvoiceReconcileSummary({
   rows, currency, reasons, needsAck, acked, onAck, roundingSuggestion, onUseRounding, adjustmentCents, onClearRounding,
@@ -48,9 +60,16 @@ export function InvoiceReconcileSummary({
   // never read as "$0").
   const money = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: "auto" });
   const signed = (cents: number) => `${cents > 0 ? "+" : "−"} ${money(Math.abs(cents))}`;
-  const amount = (row: ReconcileRow, cents: number) => row.key === "adjustment" && cents !== 0 ? signed(cents) : money(cents);
-  const total = rows.find(row => row.key === "total");
-  const printedTotal = total?.printedCents ?? null;
+  // Las retenciones se muestran con «−»: es la única resta entre el total de
+  // la factura y el neto a pagar.
+  const amount = (row: ReconcileRow, cents: number) => cents === 0 ? money(cents)
+    : row.key === "adjustment" ? signed(cents) : row.key === "retentions" ? `− ${money(Math.abs(cents))}` : money(cents);
+  const printedTotal = rows.find(row => row.key === "total")?.printedCents
+    ?? rows.find(row => row.key === "payable")?.printedCents ?? null;
+  const hasRetentions = rows.some(row => row.key === "payable");
+  // A qué total se parece el impreso: antes o después de las retenciones.
+  const printedBasisNote = !hasRetentions || printedTotal == null ? null
+    : rows.find(row => row.key === "total")?.printedCents != null ? "invRecPrintedGross" : "invRecPrintedNet";
   const status = (row: ReconcileRow) => row.diffCents == null ? null : row.diffCents === 0
     ? <span className="text-[#2E7D32]" aria-label={t("invRecMatchesAria")}>{"✓"}</span>
     : <span className="text-terracotta font-medium">{signed(row.computedCents - row.printedCents!)}</span>;
@@ -88,7 +107,9 @@ export function InvoiceReconcileSummary({
           <div role="row" className="contents">
             <span role="columnheader" />
             {rows.map(row => (
-              <span key={row.key} role="columnheader" className={"text-right text-[10px] text-op-muted truncate" + (row.key === "total" ? " font-medium text-ink" : "")}>
+              <span key={row.key} role="columnheader" title={t(ROW_LABEL[row.key])}
+                className={"text-right text-[10px] text-op-muted truncate" + (EMPHASIS.has(row.key) ? " font-medium text-ink" : "")
+                  + (AFTER_TOTAL.has(row.key) ? " border-l border-op-border" : "")}>
                 {t(ROW_LABEL[row.key])}
               </span>
             ))}
@@ -96,7 +117,8 @@ export function InvoiceReconcileSummary({
           <div role="row" className="contents">
             <span role="rowheader" className="text-op-muted">{t("invRecInvoice")}</span>
             {rows.map(row => (
-              <span key={row.key} role="cell" className="text-right text-op-muted truncate">
+              <span key={row.key} role="cell" className={"text-right text-op-muted truncate"
+                + (AFTER_TOTAL.has(row.key) ? " border-l border-op-border" : "")}>
                 {row.printedCents == null ? t("invRecNotPrinted") : amount(row, row.printedCents)}
               </span>
             ))}
@@ -104,7 +126,8 @@ export function InvoiceReconcileSummary({
           <div role="row" className="contents">
             <span role="rowheader" className="text-op-muted">{t("invRecMesapay")}</span>
             {rows.map(row => (
-              <span key={row.key} role="cell" className={"text-right truncate" + (row.key === "total" ? " font-medium text-xs" : "")}>
+              <span key={row.key} role="cell" className={"text-right truncate" + (EMPHASIS.has(row.key) ? " font-medium text-xs" : "")
+                + (AFTER_TOTAL.has(row.key) ? " border-l border-op-border" : "")}>
                 {amount(row, row.computedCents)}{" "}{row.diffCents === 0 && status(row)}
               </span>
             ))}
@@ -113,7 +136,8 @@ export function InvoiceReconcileSummary({
             <div role="row" className="contents">
               <span role="rowheader" className="text-op-muted">{t("invRecDifferenceRow")}</span>
               {rows.map(row => (
-                <span key={row.key} role="cell" className="text-right truncate text-[10px]">
+                <span key={row.key} role="cell" className={"text-right truncate text-[10px]"
+                  + (AFTER_TOTAL.has(row.key) ? " border-l border-op-border" : "")}>
                   {row.diffCents != null && row.diffCents !== 0 ? status(row) : null}
                 </span>
               ))}
@@ -122,8 +146,9 @@ export function InvoiceReconcileSummary({
         </div>
       ) : (
         <div className="text-[11px] tabular-nums">
-          {(expanded ? rows : rows.filter(row => row.key === "total" || (row.diffCents != null && row.diffCents !== 0))).map(row => (
-            <div key={row.key} className={"grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 py-0.5" + (row.key === "total" ? " font-medium text-xs" : "")}>
+          {(expanded ? rows : rows.filter(row => KEY_ROWS.has(row.key) || (row.diffCents != null && row.diffCents !== 0))).map(row => (
+            <div key={row.key} className={"grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 py-0.5"
+              + (EMPHASIS.has(row.key) ? " font-medium text-xs" : "") + (row.key === "payable" ? " border-t border-op-border" : "")}>
               <span className="truncate">{t(ROW_LABEL[row.key])}</span>
               <span className="text-right text-op-muted">
                 {row.printedCents == null ? t("invRecNotPrinted") : amount(row, row.printedCents)}
@@ -142,6 +167,7 @@ export function InvoiceReconcileSummary({
             </button>
           )}
           {printedTotal == null && <p>{t("invRecNoPrintedTotal")}</p>}
+          {printedBasisNote && <p>{t(printedBasisNote)}</p>}
           {reasons.length > 0 && (
             <ul className="list-disc pl-4 space-y-0.5 text-[#7F5A1F]">
               {reasons.map(reason => <li key={reason}>{reason}</li>)}

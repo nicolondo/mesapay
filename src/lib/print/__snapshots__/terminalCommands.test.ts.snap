@@ -1,0 +1,65 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`invoiceToTerminalCommands — el diseño nuevo (regresión FESM8525) > snapshot del diseño en texto (32 col) 1`] = `
+"SON Y MELONA S.A.S.
+NIT 901.234.567-8 · Carrera 43A
+# 1-50, local 102 · Envigado ·
+Tel: 604 444 5566
+--------------------------------
+FACTURA ELECTRÓNICA DE
+VENTA
+FESM8525
+Fecha 20/11/26, 1:39 p. m.
+Mesa 4 002A77
+Cliente: Consumidor final
+--------------------------------
+1x Plato del Día        $ 33,900
+   (Casero Del Dia)
+   Opción de sopa: Fríjoles
+   Opción de proteína: Pollo a
+   la parrilla
+   Bebida: Limonada natural
+--------------------------------
+Subtotal                $ 33,900
+Base gravable           $ 31,389
+Incl. impoconsumo 8%     $ 2,511
+Total factura           $ 33,900
+Propina voluntaria       $ 3,139
+--------------------------------
+TOTAL A PAGAR
+$ 37,039
+--------------------------------
+Pagos
+Tarjeta · datáfono      $ 37,039
+   VISA · ····4242 · Aprob.
+   123456
+   Incluye propina $ 3,139
+TOTAL PAGADO
+$ 37,039
+   Cuenta $ 33,900 · Propinas $
+   3,139
+--------------------------------
+[QR]
+CUFE:
+01234567 89abcdef 01234567
+89abcdef 01234567 89abcdef
+01234567 89abcdef 01234567
+89abcdef 01234567 89abcdef
+Representación impresa de la
+factura electrónica de venta
+--------------------------------
+Resolución DIAN: 18764000012345
+· Numeración del 1 al 100000 ·
+Fecha de resolución 14/01/26
+ADVERTENCIA DE PROPINA
+POR DISPOSICION DE LA
+SUPERINTENDENCIA DE INDUSTRIA Y
+COMERCIO SE INFORMA QUE LA
+PROPINA ES SUGERIDA AL
+CONSUMIDOR LA CUAL PODRA SER
+ACEPTADA, RECHAZADA O MODIFICADA
+POR USTED, DE ACUERDO CON SU
+VALORACION DEL SERVICIO
+PRESTADO.
+¡Gracias por tu visita!"
+`;

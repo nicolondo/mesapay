@@ -1,7 +1,7 @@
 "use client";
 import { useClock } from "@/lib/browser/clock";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -22,6 +22,7 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
+import { TablesToolbar, type TableFilter } from "./TablesToolbar";
 import { SalonMap, useSalonView, type SalonFloor } from "./SalonMap";
 import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
 import type { InvoiceIntent, InvoiceRequestSummary } from "@/components/invoice/types";
@@ -52,7 +53,7 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * FACTURAS MANUALES: cuentas sin mesa física (mesas ocultas
  * `kind = manual`, ver src/lib/manualInvoice.ts). NUNCA se dibujan acá:
  * viven en /operator/facturas-manuales (su ficha) y en Órdenes. El botón
- * "Factura manual" junto a los chips crea una y va a su ficha; al lado,
+ * "Factura manual" en la barra de facturación crea una y va a su ficha; al lado,
  * el acceso a las pendientes.
  */
 
@@ -167,10 +168,9 @@ type AllTable = {
   occupied: boolean;
 };
 
-type FilterChip = "all" | "by_pay" | "recent" | "free";
-
 export function MesasGrid({
   floor = null,
+  tableManagement,
   viewerId = null,
   initialTime,
   tiles,
@@ -193,6 +193,8 @@ export function MesasGrid({
   // Plano del salón (vista «Mapa»). null = no hay mesas ubicadas en el
   // plano (o modo mostrador): el conmutador Tarjetas / Mapa no aparece.
   floor?: SalonFloor | null;
+  // Alta e impresión de mesas, dentro de la gestión secundaria del salón.
+  tableManagement?: ReactNode;
   // Para recordar la vista elegida por usuario en este equipo.
   viewerId?: string | null;
   initialTime: number;
@@ -233,7 +235,7 @@ export function MesasGrid({
   const tr = useTranslations("opTables");
   // Para el mapa del mesero: tocar una mesa libre abre la toma de pedido.
   const router = useRouter();
-  const [filter, setFilter] = useState<FilterChip>("all");
+  const [filter, setFilter] = useState<TableFilter>("all");
   // Reloj del cliente (tick de 10 s): el refresh de la grilla es por SSE y
   // nada avisa cuando VENCE un resalte, así que "ahora" se reevalúa acá para
   // que la mesa pagada desde el celular baje sola y la recién pagada caiga a
@@ -446,113 +448,25 @@ export function MesasGrid({
 
   return (
     <>
-      {/* Filter chips debajo de la cabecera de la página. Los counts
-          ayudan a ver "tengo 3 cuentas pendientes" sin tener que contar.
-          Dos grupos (ver .mp-table-filters__* en workspace.css): los
-          chips de filtro y las acciones ("Factura manual", "Editar
-          mesas"). En md+ comparten la fila (chips a la izquierda,
-          acciones a la derecha); en móvil cada grupo tiene su fila —
-          los chips se deslizan en horizontal sin partirse y las
-          acciones quedan alineadas a la derecha debajo — así no se
-          mezclan filtros con acciones al envolver. */}
-      <div className="mp-table-filters">
-        <div className="mp-table-filters__chips">
-          <Chip
-            active={filter === "all"}
-            onClick={() => setFilter("all")}
-            label={tr("filterAll")}
-            count={counts.all}
-          />
-          <Chip
-            active={filter === "by_pay"}
-            onClick={() => setFilter("by_pay")}
-            label={tr("filterByPay")}
-            count={counts.by_pay}
-            tone="danger"
-          />
-          <Chip
-            active={filter === "recent"}
-            onClick={() => setFilter("recent")}
-            label={tr("filterRecent")}
-            count={counts.recent}
-            tone="ok"
-          />
-          <Chip
-            active={filter === "free"}
-            onClick={() => setFilter("free")}
-            label={tr("filterFree")}
-            count={counts.free}
-          />
-        </div>
-        {(canOpenManual || !isMeseroView || (canMap && !editMode)) && (
-          <div className="mp-table-filters__actions">
-            {canMap && !editMode && (
-              <div className="mp-seg mp-seg--sm" role="group" aria-label={tr("viewLabel")}>
-                <button
-                  type="button"
-                  aria-pressed={view === "cards"}
-                  data-active={view === "cards"}
-                  onClick={() => setView("cards")}
-                  className="mp-seg__i"
-                >
-                  {tr("viewCards")}
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={view === "map"}
-                  data-active={view === "map"}
-                  onClick={() => setView("map")}
-                  className="mp-seg__i"
-                >
-                  {tr("viewMap")}
-                </button>
-              </div>
-            )}
-            {canOpenManual && (
-              <button
-                type="button"
-                onClick={openManualInvoice}
-                disabled={openingManual}
-                className="h-8 px-3 inline-flex items-center gap-1 rounded-full text-xs font-medium border border-terracotta/50 text-terracotta-2 bg-op-surface hover:bg-terracotta/10 transition-colors disabled:opacity-60"
-              >
-                <span aria-hidden>{"+"}</span>
-                <span>
-                  {openingManual
-                    ? tr("manualInvoiceOpening")
-                    : tr("manualInvoiceButton")}
-                </span>
-              </button>
-            )}
-            {canOpenManual && manualPendingCount > 0 && (
-              <Link
-                href="/operator/facturas-manuales"
-                prefetch={false}
-                // Misma altura que los botones de al lado (que crecen en táctil).
-                className="min-h-8 self-stretch px-3 inline-flex items-center rounded-full text-xs font-medium border border-op-border text-op-muted bg-op-surface hover:text-op-text transition-colors"
-              >
-                {tr("manualPendingLink", { count: manualPendingCount })}
-              </Link>
-            )}
-            {!isMeseroView && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditMode((v) => !v);
-                  setOpenTileId(null);
-                }}
-                className={
-                  "h-8 px-3 inline-flex items-center rounded-full text-xs font-medium border transition-colors " +
-                  (editMode
-                    ? "bg-ink text-bone border-ink"
-                    : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
-                }
-              >
-                {editMode ? tr("editDone") : tr("editTables")}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <TablesToolbar
+        filter={filter}
+        counts={counts}
+        onFilterChange={setFilter}
+        view={view}
+        onViewChange={setView}
+        canMap={canMap}
+        canManage={!isMeseroView}
+        editMode={editMode}
+        onEditModeChange={(editing) => {
+          setEditMode(editing);
+          setOpenTileId(null);
+        }}
+        tableManagement={tableManagement}
+        canOpenManual={canOpenManual}
+        manualPendingCount={manualPendingCount}
+        openingManual={openingManual}
+        onOpenManual={openManualInvoice}
+      />
 
       {showMap && floor ? (
         <>
@@ -788,50 +702,6 @@ function ManageTableSheet({
         </button>
       </div>
     </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  label,
-  count,
-  tone,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-  tone?: "danger" | "ok";
-}) {
-  const toneActive =
-    tone === "danger"
-      ? "bg-[#C9302C] text-bone border-[#C9302C]"
-      : tone === "ok"
-        ? "bg-[#2E6B4C] text-bone border-[#2E6B4C]"
-        : "bg-ink text-bone border-ink";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        "h-8 px-3 inline-flex items-center gap-1.5 rounded-full text-xs font-medium border transition-colors " +
-        (active
-          ? toneActive
-          : "bg-op-surface border-op-border text-op-muted hover:text-op-text")
-      }
-    >
-      <span>{label}</span>
-      <span
-        className={
-          "font-mono tabular text-[10px] " +
-          (active ? "" : "text-op-muted")
-        }
-      >
-        {count}
-      </span>
-    </button>
   );
 }
 

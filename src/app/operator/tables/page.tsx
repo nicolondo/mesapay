@@ -347,8 +347,7 @@ export default async function TablesPage({
   const base = appOrigin(await headers());
   const nextNumber = (tables.at(-1)?.number ?? 0) + 1;
 
-  // Mismo sistema de botón que "+ Añadir mesa" (mp-btn--sm) para que los
-  // dos queden a la misma altura cuando van lado a lado en la cabecera.
+  // Acciones secundarias del salón, agrupadas bajo «Gestionar».
   const printLink = (
     <a
       href="/operator/tables/print"
@@ -362,28 +361,13 @@ export default async function TablesPage({
   return (
     <div className="mp-page">
       {tenant?.slug && <LiveRefresh tenantSlug={tenant.slug} />}
-      {/* Cabecera. En móvil: título a todo el ancho y debajo UNA fila con
-          las acciones ("Imprimir QRs" + "+ Añadir mesa"). En md+: título a
-          la izquierda, acciones a la derecha. `flex-wrap` en md+ es para
-          que el formulario de alta (hijo `w-full` que devuelve
-          NewTableForm cuando está abierto) caiga a su propia línea bajo
-          la cabecera en vez de empujar las acciones. */}
-      <div className="mb-5 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="mp-eyebrow">{tenant?.name}</p>
-          <h1 className="mp-page-title">
-            {counterMode ? tr("headerCounter") : tr("headerTables")}
-          </h1>
-          <p className="mp-page-description">{ux("tablesDescription")}</p>
-        </div>
-        {/* Mostrador: no hay alta de mesas, sólo el enlace de impresión. */}
-        {!isMeseroView &&
-          (counterMode ? (
-            printLink
-          ) : (
-            <NewTableForm suggestedNumber={nextNumber} actions={printLink} />
-          ))}
-      </div>
+      <header className="mb-5">
+        <p className="mp-eyebrow">{tenant?.name}</p>
+        <h1 className="mp-page-title">
+          {counterMode ? tr("headerCounter") : tr("headerTables")}
+        </h1>
+        <p className="mp-page-description">{ux("tablesDescription")}</p>
+      </header>
 
       {!counterMode && !isMeseroView && tenant?.pickupEnabled && pickupTable && (
         <div className="mb-4 rounded-2xl border border-terracotta/40 bg-terracotta/5 p-3">
@@ -419,6 +403,9 @@ export default async function TablesPage({
       )}
 
       <MesasGrid
+        tableManagement={!isMeseroView && (counterMode
+          ? printLink
+          : <NewTableForm suggestedNumber={nextNumber} actions={printLink} />)}
         floor={floorMap}
         viewerId={session?.user?.id ?? null}
         initialTime={nowMs}

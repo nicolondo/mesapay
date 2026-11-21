@@ -854,15 +854,6 @@
   font-weight: 600;
   line-height: 1.25;
 }
-.mp-table-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.mp-table-filters button {
-  min-height: 42px;
-}
 /* Vistas del personal (mesero, cocina, barra) en pantallas pobres: la
    terracotta (#C9532E) y el ámbar (#C98A2E) de marca usados como color de
    TEXTO dan 2.7–4.1:1 sobre los fondos claros (los minutos de cocina en ámbar
@@ -881,57 +872,173 @@
 :is(.mesero-shell, .mp-staff-board) .bg-terracotta.text-bone {
   background-color: var(--terracotta-2);
 }
-/* Chip sin elegir: el borde --op-border (1.2:1 contra el fondo) desaparecía
-   en el datáfono y el chip parecía texto suelto. */
-.mp-table-filters button[aria-pressed="false"] {
-  border-color: var(--op-border-2);
+/* Mesas: filtros siempre completos; vista, gestión y facturación separados.
+   Una sola estructura responde al ancho: no duplicar formularios ni estado. */
+.mp-tables-toolbar {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
 }
-/* Fila de filtros de Mesas en dos grupos: chips (izquierda) y acciones
-   (derecha). En escritorio comparten la fila; en móvil cada grupo ocupa la
-   suya para que "Libres" no caiga mezclado con "Factura manual". */
-.mp-table-filters__chips {
-  display: flex;
-  flex-wrap: wrap;
+.mp-tables-toolbar__filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
 }
-.mp-table-filters__chips > * {
-  flex: 0 0 auto;
-  white-space: nowrap;
+.mp-tables-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--op-border-2);
+  border-radius: var(--radius-btn);
+  background: var(--op-surface);
+  color: var(--op-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
-.mp-table-filters__actions {
+.mp-tables-filter:hover {
+  color: var(--op-text);
+  border-color: var(--op-muted);
+}
+.mp-tables-filter[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bone);
+}
+.mp-tables-filter[aria-pressed="true"][data-tone="danger"] {
+  background: #c9302c;
+  border-color: #c9302c;
+}
+.mp-tables-filter[aria-pressed="true"][data-tone="ok"] {
+  background: #2e6b4c;
+  border-color: #2e6b4c;
+}
+.mp-tables-filter__count {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.mp-tables-toolbar__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.mp-tables-toolbar__view {
+  padding: 3px;
+  flex-shrink: 0;
+}
+.mp-tables-toolbar__view .mp-seg__i {
+  min-height: 44px;
+  height: auto;
+  padding: 0 10px;
+}
+.mp-tables-toolbar__manage.mp-btn {
+  margin-left: auto;
+  min-height: 44px;
+  padding-inline: 10px;
+  font-size: 13px;
+  gap: 6px;
+}
+.mp-tables-toolbar__chevron {
+  flex-shrink: 0;
+}
+.mp-tables-toolbar__chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+.mp-tables-toolbar__management {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--op-border);
+  border-radius: 14px;
+  background: var(--op-surface);
+}
+.mp-tables-toolbar__management[hidden] {
+  display: none;
+}
+.mp-tables-toolbar__management-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-left: auto;
 }
-@media (max-width: 767px) {
-  /* Chips en una sola línea deslizable, sin barra de scroll visible. */
-  .mp-table-filters__chips {
-    flex: 1 0 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
+.mp-tables-toolbar__management .mp-btn {
+  min-height: 44px;
+}
+.mp-tables-toolbar__form {
+  order: 1;
+  flex-basis: 100%;
+}
+.mp-tables-toolbar__invoices {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--op-border);
+}
+.mp-tables-toolbar__invoices .mp-btn {
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+}
+.mp-tables-toolbar__invoices svg {
+  flex-shrink: 0;
+}
+.mp-tables-toolbar__invoice-create.mp-btn {
+  color: var(--terracotta-2);
+  background: var(--op-surface);
+  border-color: var(--op-border-2);
+}
+.mp-tables-toolbar__invoice-create.mp-btn:hover {
+  background: var(--op-bg);
+  border-color: var(--terracotta-2);
+}
+.mp-tables-toolbar__pending-count {
+  flex-shrink: 0;
+  min-width: 22px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 640px) {
+  .mp-tables-toolbar__filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .mp-table-filters__chips::-webkit-scrollbar {
-    display: none;
-  }
-  /* Acciones en su propia fila, alineadas a la derecha. */
-  .mp-table-filters__actions {
-    flex: 1 0 100%;
-    justify-content: flex-end;
+  .mp-tables-toolbar__invoices {
+    grid-auto-columns: auto;
+    justify-content: end;
   }
 }
-@media (max-width: 639px) {
-  /* Sangra hasta el borde de la pantalla (16px = padding lateral de
-     .mp-page en móvil): el chip recortado en el borde avisa que se puede
-     deslizar y el padding devuelve la alineación con el contenido, así el
-     primer chip arranca con el título y el último no queda pegado al borde
-     al llegar al final. */
-  .mp-table-filters__chips {
-    margin-inline: -16px;
-    padding-inline: 16px;
+@media (min-width: 1280px) {
+  .mp-tables-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .mp-tables-toolbar__management,
+  .mp-tables-toolbar__invoices {
+    grid-column: 1 / -1;
   }
 }
 .mp-menu .mp-menu-item-name {

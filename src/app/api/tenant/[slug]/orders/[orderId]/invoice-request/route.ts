@@ -255,7 +255,7 @@ async function POSTHandler(
   if (typed?.billingCustomerId && staff) {
     const customer = await db.billingCustomer.findFirst({
       where: { id: typed.billingCustomerId, restaurantId: tenant.id },
-      select: { discountEnabled: true, discountBps: true },
+      select: { id: true, discountEnabled: true, discountBps: true },
     });
     if (customer) {
       discount = await db.$transaction((tx) => applyCustomerDiscount(tx, order.id, tenant.id, customer));

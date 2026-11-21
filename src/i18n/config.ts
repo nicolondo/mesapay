@@ -31,21 +31,20 @@ export function isLocale(value: string | undefined | null): value is Locale {
 }
 
 /**
- * Resuelve el mejor idioma soportado a partir de un header Accept-Language
- * (p. ej. "pt-BR,pt;q=0.9,en;q=0.8"). Toma la primera preferencia cuyo
- * idioma base esté soportado; si ninguna lo está, cae al default.
+ * Usa el idioma principal del dispositivo (mayor prioridad válida y no cero).
+ * Las variantes regionales comparten idioma: pt-BR → pt. Si ese idioma no
+ * está disponible, abre en español aunque el navegador sugiera otros idiomas.
+ * En empates se conserva el orden del navegador. La elección manual guardada
+ * tiene prioridad sobre esta detección (ver request.ts).
  */
 export function matchLocale(acceptLanguage: string | null | undefined): Locale {
   if (!acceptLanguage) return defaultLocale;
-  const ranked = acceptLanguage
-    .split(",")
-    .map((part) => {
-      const [tag, q] = part.trim().split(";q=");
-      return { base: tag.split("-")[0].toLowerCase(), q: q ? parseFloat(q) : 1 };
-    })
-    .sort((a, b) => b.q - a.q);
-  for (const { base } of ranked) {
-    if (isLocale(base)) return base;
-  }
-  return defaultLocale;
+  const preferred = acceptLanguage.split(",").reduce<{ base: string; quality: number } | null>((best, part) => {
+    const match = /^([a-z]{1,8}(?:-[a-z0-9]{1,8})*|\*)(?:\s*;\s*q\s*=\s*(0(?:\.\d{0,3})?|1(?:\.0{0,3})?))?$/i.exec(part.trim());
+    if (!match) return best;
+    const quality = Number(match[2] ?? 1);
+    if (quality === 0 || best && quality <= best.quality) return best;
+    return { base: match[1].split("-")[0].toLowerCase(), quality };
+  }, null);
+  return isLocale(preferred?.base) ? preferred.base : defaultLocale;
 }

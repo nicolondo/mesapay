@@ -2303,6 +2303,11 @@
     "moveOrderTargetBusy": "A mesa de destino já tem uma conta aberta. Feche-a antes de mover o pedido.",
     "preparedCancellationAdminOnly": "Após o início do preparo, somente o administrador pode cancelar ou deixar de cobrar um prato.",
     "viewLabel": "Visualização das mesas",
+    "filterLabel": "Estado das mesas",
+    "manage": "Gerenciar",
+    "manageTables": "Gerenciar mesas",
+    "manualInvoicesLabel": "Faturas manuais",
+    "manualPendingShort": "Pendentes",
     "viewCards": "Cartões",
     "viewMap": "Mapa",
     "mapAria": "Mapa do salão com o estado de cada mesa. Toque em uma mesa para abri-la.",
@@ -7246,7 +7251,7 @@
     "invTaxRetefuente": "Retenção na fonte",
     "invTaxReteIva": "Retenção de IVA",
     "invTaxReteIca": "Retenção de ICA",
-    "invTaxRetentionNote": "As retenções são subtraídas do valor a pagar.",
+    "invTaxRetentionNote": "As retenções são praticadas por você: são descontadas uma única vez do total da nota e fica o líquido a pagar ao fornecedor.",
     "invTaxGrandTotal": "Valor a pagar",
     "poTaxLabel": "Imposto",
     "poTaxNone": "Sem imposto",
@@ -7276,6 +7281,7 @@
     "poRetAdd": "+ Adicionar retenção",
     "poRetAddManual": "{name} (valor manual)",
     "poRetPerReceptionHint": "São praticadas sobre o que chega nesta entrega: a base é o líquido sem IVA nem imposto sobre consumo, e a de IVA vai sobre o IVA. Se a compra chega em partes, cada entrega leva as suas.",
+    "poRetFromInvoice": "Esta compra já traz as retenções da nota ({amount}), descontadas uma única vez do valor a pagar. Adicione outra aqui só se esta entrega vier com uma nota diferente.",
     "poCxpRetainedHint": "Já desconta retenções de {amount}.",
     "poUnpaidRetained": "Retenções {amount}",
     "errRetentionExceedsBase": "Uma retenção não pode ser maior que sua base.",
@@ -8976,6 +8982,11 @@
     "invRecShowDetail": "Ver detalhes",
     "invRecHideDetail": "Ocultar detalhes",
     "invRecDifferenceRow": "Diferença",
+    "invRecInvoiceTotal": "Total da nota",
+    "invRecRetentions": "Retenções que você pratica",
+    "invRecNetPayable": "Líquido a pagar ao fornecedor",
+    "invRecPrintedGross": "A nota imprime o total antes das retenções (como na nota eletrônica). As retenções são praticadas por você e descontadas uma única vez, no líquido a pagar ao fornecedor.",
+    "invRecPrintedNet": "A nota imprime o total com as retenções já descontadas: ele é comparado com o líquido a pagar ao fornecedor e elas não são descontadas de novo.",
     "invTblItem": "Item",
     "invTblQty": "Qtd.",
     "invTblUnit": "Unidade",
@@ -10178,6 +10189,17 @@
     "detailAvailable": "Detalhe disponível",
     "unknownAmount": "Valor não registrado",
     "tableNumber": "Mesa {number}"
+  },
+  "cancelledItems": {
+    "summary": "Pratos cancelados ({count})",
+    "kindCancel": "Cancelado",
+    "kindComp": "Não cobrado",
+    "kindRound": "Rodada {seq} cancelada",
+    "by": "por {name}",
+    "byUnknown": "pelo sistema (sem usuário registrado)",
+    "timeUnknown": "horário não registrado",
+    "reason": "Motivo: {reason}",
+    "notCounted": "Apenas informativo: estes pratos não somam ao total da conta."
   },
   "help": {
     "metaTitle": "Ajuda",
@@ -12174,5 +12196,29 @@
     "kwSetSalon": "mapa planta do salão distribuição mesas",
     "kwSetSuscripcion": "assinatura plano mensalidade pagar débito",
     "kwSetBackups": "cópias de segurança exportar backup dados"
+  },
+  "orderReview": {
+    "badge": "Revisar",
+    "title": "Revise esta conta",
+    "staleCustomerDiscount": "Desde as {time}, esta conta tem o desconto do cliente {name} ({pct}%). Ainda é o mesmo cliente?",
+    "openSince": "Esta conta está aberta desde as {time} e ficou horas sem rodadas. É o mesmo grupo?",
+    "openSinceDeclined": "Esta conta está aberta desde as {time} com uma cobrança recusada. É o mesmo grupo?",
+    "keep": "Manter",
+    "removeDiscount": "Remover desconto",
+    "saveError": "Não foi possível salvar. Tente novamente.",
+    "pushTitle": "Mesa {number}: revise a conta",
+    "confirmTitle": "Antes de enviar o pedido",
+    "keepAndSend": "Manter e enviar",
+    "removeAndSend": "Remover desconto e enviar",
+    "sameGroupSend": "Sim, enviar o pedido",
+    "back": "Voltar"
+  },
+  "discountOrigin": {
+    "customer": "Desconto do cliente {name} {pct}%",
+    "customerNoPct": "Desconto do cliente {name}",
+    "diner": "Desconto do comensal {name} {pct}%",
+    "dinerNoPct": "Desconto do comensal {name}",
+    "removeError": "Não foi possível remover o desconto: a conta já tem pagamentos, está em cobrança ou já foi faturada.",
+    "reverted": "O desconto do cliente {name} foi removido porque a cobrança não foi concluída. Se ainda for ele, escolha-o de novo."
   }
 }

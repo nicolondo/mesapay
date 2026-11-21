@@ -9,21 +9,16 @@ type Mode = "single" | "bulk";
 /**
  * Alta de mesas: disparador "+ Añadir mesa" + formulario (una / varias).
  *
- * El disparador comparte la fila de acciones de la cabecera con lo que
- * llegue en `actions` (hoy el enlace "Imprimir QRs"); el formulario
- * abierto se despliega A TODO EL ANCHO debajo de esa fila. Para no subir
- * el estado `open` al padre (un server component), el componente devuelve
- * un fragmento con DOS hijos directos del flex de la cabecera: la fila de
- * acciones y, si está abierto, el formulario con `w-full`. En móvil la
- * cabecera es columna, así que caen apilados; en md+ es `flex-wrap`, así
- * que el formulario salta a su propia línea bajo título y acciones.
+ * Comparte el panel «Gestionar» con impresión y edición. Devuelve las
+ * acciones y el formulario como hermanos para que el alta ocupe todo el
+ * ancho bajo los controles, también cuando el salón se actualiza.
  */
 export function NewTableForm({
   suggestedNumber,
   actions,
 }: {
   suggestedNumber: number;
-  /** Otras acciones de la cabecera que acompañan al disparador. */
+  /** Otras acciones del panel que acompañan al disparador. */
   actions?: ReactNode;
 }) {
   const t = useTranslations("opTables");
@@ -118,10 +113,7 @@ export function NewTableForm({
 
   return (
     <>
-      {/* Fila de acciones de la cabecera. El disparador sigue visible con
-          el formulario abierto (volver a tocarlo lo cierra), así la fila
-          no salta de tamaño al abrir/cerrar. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mp-tables-toolbar__management-actions">
         {actions}
         <button
           type="button"
@@ -143,7 +135,7 @@ export function NewTableForm({
       {open && (
         <form
           onSubmit={mode === "single" ? submitSingle : submitBulk}
-          className="w-full bg-op-surface border border-op-border rounded-xl px-4 py-3 space-y-3"
+          className="mp-tables-toolbar__form w-full bg-op-surface border border-op-border rounded-xl px-4 py-3 space-y-3"
         >
           {/* Toggle Una / Varias */}
           <div className="mp-seg" role="tablist">

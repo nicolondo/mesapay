@@ -11,6 +11,7 @@ import { PendingPaymentInFlightError } from "@/lib/payments/paymentInFlight";
 import { terminalClaimedIds } from "@/lib/payments/pendingRequests";
 import { toPaymentInFlight } from "@/lib/payments/staffCharge";
 import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
+import { revertCustomerDiscountInTx } from "@/lib/customerDiscount";
 
 /**
  * "Cancelar solicitud": declina un pago pendiente que es sólo una SOLICITUD
@@ -68,6 +69,12 @@ async function POSTHandler(req: Request, { params }: { params: Promise<{ id: str
       data: { status: "declined", reconciliationRequired: false },
     });
     const orderStatus = await releaseOrderFromPaying(tx, current.orderId, current.order.status);
+    // El cobro no se completó: el descuento del cliente que puso su paso
+    // «Cliente» se deshace (si no quedan pagos vivos ni factura).
+    await revertCustomerDiscountInTx(tx, current.orderId, {
+      reason: "charge_failed",
+      actor: { userId: session.user.id, email: session.user.email ?? "", role: session.user.role },
+    });
     await tx.auditEvent.create({
       data: {
         restaurantId,

@@ -15,6 +15,9 @@ import Link from "next/link";
 import { fmtCOP } from "@/lib/format";
 import { searchMenuItems, searchTokens } from "@/lib/menuSearch";
 import { AppDialog } from "@/components/ui/AppDialog";
+import { OrderReviewConfirm, type OrderReviewChoice } from "@/components/orderReview/OrderReviewConfirm";
+import { ackOrderReviewRequest, removeOrderDiscountRequest } from "@/components/orderReview/OrderReviewBanner";
+import type { OrderReviewView } from "@/lib/orderReview";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useVisibleEventSource } from "@/lib/useVisibleEventSource";
 import { useBatchedRefresh } from "@/lib/useBatchedRefresh";
@@ -178,6 +181,7 @@ export function MenuClient({
   activeOrder,
   pickup,
   operatorMode = false,
+  staffReview = null,
   readOnly = false,
   postSendHref = "/operator/serve",
   dockBottomClass = "bottom-4",
@@ -228,6 +232,12 @@ export function MenuClient({
   // bottom-dock copy, and after sending bounces back to staff land
   // instead of the diner-side order-tracking page.
   operatorMode?: boolean;
+  /**
+   * Sólo personal: aviso «Revisar» de la cuenta activa evaluado como si la
+   * ronda se montara ahora (src/lib/orderReviewFlags.ts). Si hay algo, antes
+   * de enviar se pregunta si sigue siendo el mismo cliente / grupo.
+   */
+  staffReview?: OrderReviewView | null;
   /** Public catalog: no table data, cart, guest identity or order actions. */
   readOnly?: boolean;
   // Destino post-envío en operatorMode. Operator/admin → /operator/serve
@@ -289,6 +299,13 @@ export function MenuClient({
   const [layout, setLayout] = useState<MenuLayout>("list");
   const [guestName, setGuestName] = useState<string>("");
   const [showNameSheet, setShowNameSheet] = useState(false);
+  // Aviso «Revisar» antes de enviar (sólo personal).
+  const tReview = useTranslations("orderReview");
+  const tOrigin = useTranslations("discountOrigin");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
+  const reviewChoiceRef = useRef<OrderReviewChoice | null>(null);
   // Nombre del comensal ya identificado en ESTA cuenta (lo devuelve el
   // endpoint). Sirve para confirmar en pantalla que el descuento aplica.
   const [identifiedName, setIdentifiedName] = useState<string | null>(null);
@@ -975,6 +992,32 @@ export function MenuClient({
     }
   }
 
+  /**
+   * «Revisar» antes de enviar (sólo personal, cuenta ya abierta): el
+   * personal elige mantener (o quitar el descuento del cliente) y recién
+   * ahí sale la ronda; al salir se deja constancia para no volver a
+   * preguntar por la misma señal.
+   */
+  async function chooseReview(choice: OrderReviewChoice) {
+    if (!activeOrder) return;
+    setReviewBusy(true);
+    setReviewErr(null);
+    try {
+      if (choice === "remove" && !(await removeOrderDiscountRequest(activeOrder.id))) {
+        setReviewErr(tOrigin("removeError"));
+        return;
+      }
+      reviewChoiceRef.current = choice;
+      setReviewOpen(false);
+    } catch {
+      setReviewErr(tReview("saveError"));
+      return;
+    } finally {
+      setReviewBusy(false);
+    }
+    await sendToKitchen();
+  }
+
   async function sendToKitchen() {
     if (readOnly || !cart.length) return;
     if (isPickup) {
@@ -983,6 +1026,11 @@ export function MenuClient({
     }
     if (!guestName) {
       setShowNameSheet(true);
+      return;
+    }
+    if (operatorMode && staffReview && activeOrder && !reviewChoiceRef.current) {
+      setReviewErr(null);
+      setReviewOpen(true);
       return;
     }
     setSubmitting(true);
@@ -1035,6 +1083,11 @@ export function MenuClient({
     } catch {}
     setCart([]);
     if (operatorMode) {
+      // El personal ya respondió el aviso «Revisar»: queda la constancia
+      // (best effort; si falla, la ficha de la mesa lo vuelve a mostrar).
+      if (reviewChoiceRef.current && activeOrder) {
+        await ackOrderReviewRequest(activeOrder.id).catch(() => false);
+      }
       // After the waiter sends the pedido they should be back at their
       // own work surface, not stuck on a customer order-tracking view.
       // postSendHref viene del server según el rol — operator →
@@ -1656,6 +1709,17 @@ export function MenuClient({
               router.push(`/t/${tenant.slug}/menu?${query}`);
             }
           }}
+        />
+      )}
+
+      {/* «Revisar» antes de enviar la ronda (sólo personal). */}
+      {reviewOpen && staffReview && (
+        <OrderReviewConfirm
+          review={staffReview}
+          busy={reviewBusy || submitting}
+          error={reviewErr}
+          onChoose={chooseReview}
+          onCancel={() => setReviewOpen(false)}
         />
       )}
 

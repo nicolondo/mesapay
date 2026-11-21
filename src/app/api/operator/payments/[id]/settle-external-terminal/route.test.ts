@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), find: vi.fn(), update: vi.fn(), recompute: vi.fn(), issue: vi.fn(), needsShift: vi.fn(), lock: vi.fn() }));
+const m = vi.hoisted(() => ({ auth: vi.fn(), active: vi.fn(), find: vi.fn(), update: vi.fn(), recompute: vi.fn(), issue: vi.fn(), needsShift: vi.fn(), lock: vi.fn(), release: vi.fn(), revert: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveRestaurantId: m.active }));
 vi.mock("@/lib/secureApi", () => ({ secureApi: (fn: unknown) => fn }));
@@ -11,6 +11,8 @@ vi.mock("@/lib/prepaidRounds", () => ({ activateOpenRounds: vi.fn(async () => []
 vi.mock("@/lib/kds/autoFireTickets", () => ({ notifyAutoFiredTickets: vi.fn() }));
 vi.mock("@/lib/orderTotals", () => ({ recomputeOrderTotalsInTx: m.recompute }));
 vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: m.issue }));
+vi.mock("@/lib/payments/orderStatusAfterDecline", () => ({ releaseOrderFromPaying: m.release }));
+vi.mock("@/lib/customerDiscount", () => ({ revertCustomerDiscountInTx: m.revert }));
 vi.mock("@/lib/chargeGuard", () => ({ isChargeBlocked: vi.fn(async () => false), chargeBlockedResponse: vi.fn() }));
 vi.mock("@/lib/db", () => {
   const tx = { payment: { findUniqueOrThrow: m.find, update: m.update } };
@@ -54,6 +56,21 @@ describe("external terminal invoice copy after settling", () => {
   it("does not generate an invoice when rejecting the charge", async () => {
     expect(await call("decline").then(r => r.json())).toEqual({ ok: true, status: "declined" });
     expect(m.issue).not.toHaveBeenCalled();
+  });
+  it("al rechazar, la cuenta sale de «pagando» y se deshace el descuento del cliente de ese cobro", async () => {
+    await call("decline");
+    expect(m.release).toHaveBeenCalledWith(expect.anything(), "o", "paying");
+    expect(m.revert).toHaveBeenCalledWith(expect.anything(), "o", expect.objectContaining({ reason: "charge_failed" }));
+    // Aprobar nunca revierte.
+    vi.clearAllMocks();
+    m.auth.mockResolvedValue({ user: { id: "u", role: "mesero" } });
+    m.active.mockResolvedValue("r");
+    m.needsShift.mockResolvedValue(false);
+    m.find.mockResolvedValue(payment);
+    m.recompute.mockResolvedValue({ fullyPaid: true });
+    m.issue.mockResolvedValue({ status: "issued", invoiceId: "inv", alreadyIssued: false, emit: null });
+    await call("approve");
+    expect(m.revert).not.toHaveBeenCalled();
   });
   it.each(["approve", "decline"])("requires the waiter's personal shift before %s", async (action) => {
     m.needsShift.mockResolvedValue(true);

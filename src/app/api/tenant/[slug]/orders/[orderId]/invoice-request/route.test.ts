@@ -197,15 +197,15 @@ it.each([
 
 it("ligada a un cliente de facturación por el staff, aplica su descuento comercial", async () => {
   m.staff.mockResolvedValue({ user: { id: "user-1", role: "mesero" } });
-  m.customer.mockResolvedValue({ discountEnabled: true, discountBps: 1000 });
+  m.customer.mockResolvedValue({ id: "cust-1", discountEnabled: true, discountBps: 1000 });
   m.applyDiscount.mockResolvedValue({ applied: true, changed: true, discountPct: 10, discountCents: 5_000, subtotalCents: 50_000 });
   const res = await post({ ...payload, billingCustomerId: "cust-1" });
   expect(res.status).toBe(200);
   expect(m.customer).toHaveBeenCalledWith({
     where: { id: "cust-1", restaurantId: "rest-1" },
-    select: { discountEnabled: true, discountBps: true },
+    select: { id: true, discountEnabled: true, discountBps: true },
   });
-  expect(m.applyDiscount).toHaveBeenCalledWith({ tx: true }, "order-1", "rest-1", { discountEnabled: true, discountBps: 1000 });
+  expect(m.applyDiscount).toHaveBeenCalledWith({ tx: true }, "order-1", "rest-1", { id: "cust-1", discountEnabled: true, discountBps: 1000 });
   expect((await res.json()).discount).toMatchObject({ applied: true, discountCents: 5_000 });
   // La solicitud se guarda igual, sin el id del cliente (no es columna suya).
   expect(m.create).toHaveBeenCalledWith({ data: expect.not.objectContaining({ billingCustomerId: "cust-1" }) });

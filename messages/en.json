@@ -2303,6 +2303,11 @@
     "moveOrderTargetBusy": "The destination table already has an open bill. Close it before moving the order.",
     "preparedCancellationAdminOnly": "Once preparation starts, only an administrator can cancel or waive the charge for a dish.",
     "viewLabel": "Tables view",
+    "filterLabel": "Table status",
+    "manage": "Manage",
+    "manageTables": "Manage tables",
+    "manualInvoicesLabel": "Manual invoices",
+    "manualPendingShort": "Pending",
     "viewCards": "Cards",
     "viewMap": "Map",
     "mapAria": "Floor plan with each table's status. Tap a table to open it.",
@@ -7246,7 +7251,7 @@
     "invTaxRetefuente": "Withholding tax",
     "invTaxReteIva": "VAT withholding",
     "invTaxReteIca": "ICA withholding",
-    "invTaxRetentionNote": "Withholdings are subtracted from the amount due.",
+    "invTaxRetentionNote": "You apply the withholdings: they are subtracted only once from the invoice total, leaving the net payable to the supplier.",
     "invTaxGrandTotal": "Amount due",
     "poTaxLabel": "Tax",
     "poTaxNone": "No tax",
@@ -7276,6 +7281,7 @@
     "poRetAdd": "+ Add withholding",
     "poRetAddManual": "{name} (manual amount)",
     "poRetPerReceptionHint": "They apply to what arrives in this delivery: the base is the net amount without VAT or consumption tax, and VAT withholding applies to the VAT. If the purchase arrives in parts, each delivery carries its own.",
+    "poRetFromInvoice": "This purchase already carries the withholdings from its invoice ({amount}), subtracted only once from the amount due. Add another one here only if this delivery comes with a different invoice.",
     "poCxpRetainedHint": "Already net of {amount} in withholdings.",
     "poUnpaidRetained": "Withholdings {amount}",
     "errRetentionExceedsBase": "A withholding cannot be larger than its base.",
@@ -8976,6 +8982,11 @@
     "invRecShowDetail": "Show details",
     "invRecHideDetail": "Hide details",
     "invRecDifferenceRow": "Difference",
+    "invRecInvoiceTotal": "Invoice total",
+    "invRecRetentions": "Withholdings you apply",
+    "invRecNetPayable": "Net payable to supplier",
+    "invRecPrintedGross": "The invoice prints the total before withholdings (as electronic invoices do). You apply the withholdings, and they are subtracted only once, in the net payable to the supplier.",
+    "invRecPrintedNet": "The invoice prints the total with the withholdings already subtracted: it is compared with the net payable to the supplier and they are not subtracted again.",
     "invTblItem": "Item",
     "invTblQty": "Qty",
     "invTblUnit": "Unit",
@@ -10178,6 +10189,17 @@
     "detailAvailable": "Detail available",
     "unknownAmount": "Amount not recorded",
     "tableNumber": "Table {number}"
+  },
+  "cancelledItems": {
+    "summary": "Cancelled dishes ({count})",
+    "kindCancel": "Cancelled",
+    "kindComp": "Comped",
+    "kindRound": "Round {seq} cancelled",
+    "by": "by {name}",
+    "byUnknown": "by the system (no user recorded)",
+    "timeUnknown": "time not recorded",
+    "reason": "Reason: {reason}",
+    "notCounted": "For reference only: these dishes don't count toward the bill total."
   },
   "help": {
     "metaTitle": "Help",
@@ -12174,5 +12196,29 @@
     "kwSetSalon": "map floor plan table layout",
     "kwSetSuscripcion": "membership plan monthly fee pay subscription debit",
     "kwSetBackups": "backups export data copy"
+  },
+  "orderReview": {
+    "badge": "Review",
+    "title": "Check this tab",
+    "staleCustomerDiscount": "Since {time}, this tab has the discount of customer {name} ({pct}%). Is it still the same customer?",
+    "openSince": "This tab has been open since {time} and went hours without rounds. Is it the same group?",
+    "openSinceDeclined": "This tab has been open since {time} with a declined charge. Is it the same group?",
+    "keep": "Keep",
+    "removeDiscount": "Remove discount",
+    "saveError": "Couldn't save. Please try again.",
+    "pushTitle": "Table {number}: check the tab",
+    "confirmTitle": "Before sending the order",
+    "keepAndSend": "Keep and send",
+    "removeAndSend": "Remove discount and send",
+    "sameGroupSend": "Yes, send the order",
+    "back": "Go back"
+  },
+  "discountOrigin": {
+    "customer": "Customer {name} discount {pct}%",
+    "customerNoPct": "Customer {name} discount",
+    "diner": "Diner {name} discount {pct}%",
+    "dinerNoPct": "Diner {name} discount",
+    "removeError": "Couldn't remove the discount: the tab already has payments, is being charged or is already invoiced.",
+    "reverted": "Customer {name}'s discount was removed because the charge wasn't completed. If it's still them, pick them again."
   }
 }

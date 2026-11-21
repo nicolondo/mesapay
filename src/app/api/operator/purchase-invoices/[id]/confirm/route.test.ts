@@ -193,3 +193,49 @@ describe("confirming against the printed invoice total", () => {
     expect((await post(body(lines, { ...totals, roundingCents }))).status).toBe(400);
   });
 });
+
+describe("a printed Total before or after the retentions", () => {
+  // Cifras inventadas: neto $1.000.000 + IVA $50.000 + consumo $80.000 = total
+  // de la factura $1.130.000; retención en la fuente 2,5 % = $25.000, que
+  // practica el comercio. Neto a pagar al proveedor: $1.105.000.
+  const lines = [line({ expectedCostCents: 100_000_000, taxPct: 5, expectedTaxCents: 5_000_000, expectedIncCents: 8_000_000 })];
+  const totals = { incCents: 8_000_000, retefuenteCents: 2_500_000 };
+  const printed = (extraction: Record<string, unknown>) =>
+    m.uploadFind.mockResolvedValue({ id: "up-1", restaurantId: "r1", status: "pending", extraction });
+
+  it.each([
+    ["gross Total (electronic invoice: retention not subtracted)", 113_000_000],
+    ["net Total (retention already subtracted by the supplier)", 110_500_000],
+  ])("accepts a %s without asking for confirmation", async (_case, invoiceTotalCents) => {
+    printed({ invoiceTotalCents });
+    const response = await post(body(lines, totals));
+    expect(response.status).toBe(201);
+    // The retention is stored once, on the purchase header (the payable subtracts it once).
+    expect(m.orderUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ incCents: 8_000_000, retefuenteCents: 2_500_000, reteIvaCents: 0, reteIcaCents: 0 }),
+    }));
+  });
+
+  it("still refuses a Total that matches neither, unless the operator confirms it", async () => {
+    printed({ invoiceTotalCents: 108_000_000 });
+    const response = await post(body(lines, totals));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "totals_unconfirmed" });
+    expect(m.createPurchaseOrder).not.toHaveBeenCalled();
+    expect((await post(body(lines, { ...totals, acknowledgedDifferences: true }))).status).toBe(201);
+  });
+
+  it("checks a net payable printed apart from the Total", async () => {
+    printed({ invoiceTotalCents: 113_000_000, invoiceNetPayableCents: 110_500_000 });
+    expect((await post(body(lines, totals))).status).toBe(201);
+    printed({ invoiceTotalCents: 113_000_000, invoiceNetPayableCents: 110_000_000 });
+    expect((await post(body(lines, totals))).status).toBe(409);
+  });
+
+  it("keeps comparing against the invoice total when there are no retentions", async () => {
+    printed({ invoiceTotalCents: 110_500_000 });
+    expect((await post(body(lines, { incCents: 8_000_000 }))).status).toBe(409);
+    printed({ invoiceTotalCents: 113_000_000 });
+    expect((await post(body(lines, { incCents: 8_000_000 }))).status).toBe(201);
+  });
+});

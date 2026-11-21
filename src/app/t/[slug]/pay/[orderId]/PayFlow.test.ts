@@ -3,14 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   session: null as null | { user: { id: string; role: string; restaurantId?: string } },
   activeId: "r1", tenant: vi.fn(), order: vi.fn(), invoiceRequest: vi.fn(), customers: vi.fn(), sync: vi.fn(),
-  claims: vi.fn(), terminalAvailable: true, invoiceView: vi.fn(),
+  claims: vi.fn(), terminalAvailable: true, invoiceView: vi.fn(), review: vi.fn(),
+  auditFindFirst: vi.fn(), customerFindFirst: vi.fn(),
   devices: [{ id: "kd-1", label: "Caja" }] as Array<{ id: string; label: string }>,
 }));
 vi.mock("@/auth", () => ({ auth: async () => m.session }));
 vi.mock("@/lib/activeRestaurant", () => ({ getActiveContext: async () => m.session ? { restaurantId: m.activeId, session: m.session } : null }));
 vi.mock("@/lib/db", () => ({ db: {
   restaurant: { findUnique: m.tenant }, order: { findUnique: m.order },
-  invoiceRequest: { findFirst: m.invoiceRequest }, billingCustomer: { count: m.customers },
+  invoiceRequest: { findFirst: m.invoiceRequest }, billingCustomer: { count: m.customers, findFirst: m.customerFindFirst },
+  auditEvent: { findFirst: m.auditFindFirst },
   financialOperation: { findMany: m.claims },
 } }));
 vi.mock("@/lib/payments/terminalAvailability", () => ({
@@ -25,6 +27,10 @@ vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) 
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not_found"); } }));
 vi.mock("./PayClient", () => ({ PayClient: () => null }));
 vi.mock("@/lib/orders/invoicedOrder", () => ({ loadOrderInvoiceView: m.invoiceView }));
+vi.mock("@/lib/orderReview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/orderReview")>()),
+  loadOrderReview: m.review,
+}));
 import { PayFlow } from "./PayFlow";
 
 const approved = { id: "cash-part", method: "cash", status: "approved", amountCents: 3300, tipCents: 300 };
@@ -40,6 +46,9 @@ beforeEach(() => {
   m.invoiceRequest.mockResolvedValue(null); m.customers.mockResolvedValue(0);
   m.claims.mockResolvedValue([]); m.terminalAvailable = true; m.devices = [{ id: "kd-1", label: "Caja" }];
   m.invoiceView.mockResolvedValue(null);
+  m.review.mockResolvedValue(null);
+  m.auditFindFirst.mockResolvedValue(null);
+  m.customerFindFirst.mockResolvedValue(null);
 });
 const flow = (op = "1") => PayFlow({ slug: "sample", orderId: "o1", op });
 
@@ -272,5 +281,42 @@ describe("base de la propina (sobre el valor antes de impuestos)", () => {
     });
     m.order.mockResolvedValue({ ...(await m.order()), subtotalCents: 10_800_000, taxCents: 0, discountCents: 0, items: [item({})], payments: [] });
     expect((await flow()).props.tipBase).toEqual({ chargeableCents: 10_800_000, preTaxCents: 10_800_000 });
+  });
+});
+
+describe("descuento del cliente y aviso «Revisar» en el cobro del staff", () => {
+  const review = { flags: ["stale_customer_discount"], customerName: "Cliente Demo", discountPct: 20, discountAppliedAt: "2026-11-18T18:20:00.000Z", openedAt: "2026-11-18T18:00:00.000Z" };
+
+  it("el staff recibe el origen del descuento y el aviso; el comensal nada de eso", async () => {
+    m.order.mockResolvedValue({
+      id: "o1", restaurantId: "r1", shortCode: "TEST", subtotalCents: 10000, taxCents: 0, discountCents: 2000, discountPct: 20,
+      discountBillingCustomerId: "cust-1", discountBillingCustomer: { customerName: "Cliente Demo" }, diner: null,
+      status: "served", table: { id: "t1", number: 1, kind: "standard" }, items: [], payments: [], simpleInvoiceEmail: null,
+    });
+    m.review.mockResolvedValue(review);
+    const staff = await flow();
+    expect(staff.props).toMatchObject({ discountOrigin: { kind: "customer", name: "Cliente Demo" }, review, revertedCustomerName: null });
+    m.session = null;
+    const diner = await flow("0");
+    expect(diner.props).toMatchObject({ discountOrigin: null, review: null, revertedCustomerName: null });
+  });
+
+  it("al volver de un cobro rechazado avisa qué descuento de cliente se deshizo", async () => {
+    m.order.mockResolvedValue({
+      id: "o1", restaurantId: "r1", shortCode: "TEST", subtotalCents: 10000, taxCents: 0, discountCents: 0, discountPct: null,
+      discountBillingCustomerId: null, discountBillingCustomer: null, diner: null,
+      status: "served", table: { id: "t1", number: 1, kind: "standard" }, items: [], payments: [], simpleInvoiceEmail: null,
+    });
+    m.auditFindFirst.mockResolvedValue({ diff: { reason: "charge_failed", billingCustomerId: "cust-1" } });
+    m.customerFindFirst.mockResolvedValue({ customerName: "Cliente Demo" });
+    const page = await PayFlow({ slug: "sample", orderId: "o1", op: "1", declined: "1" });
+    expect(page.props.revertedCustomerName).toBe("Cliente Demo");
+    expect(m.auditFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ kind: "order.customer_discount_reverted", targetId: "o1", restaurantId: "r1" }),
+    }));
+    // Sin el rechazo en la URL no se consulta nada.
+    m.auditFindFirst.mockClear();
+    expect((await flow()).props.revertedCustomerName).toBeNull();
+    expect(m.auditFindFirst).not.toHaveBeenCalled();
   });
 });

@@ -13,7 +13,7 @@ test.use({ actionTimeout: 15_000, navigationTimeout: 60_000 });
 const db = new PrismaClient();
 const tenants = new Set<string>();
 
-async function fixture(page: Page, locale = "es") {
+async function fixture(page: Page, locale = "es", extraOrders = 0) {
   const browserErrors: string[] = [];
   page.on("pageerror", error => {
     // WebKit reports the unrelated background version fetch as a CORS failure
@@ -30,6 +30,12 @@ async function fixture(page: Page, locale = "es") {
   const orders = [];
   for (const [date, suffix] of [["2026-10-31", "A"], ["2026-11-01", "B"]]) {
     orders.push(await db.order.create({ data: { restaurantId: restaurant.id, tableId: table.id, shortCode: `CAL-${uid}-${suffix}`, status: "paid", subtotalCents: 100_000, totalCents: 100_000, createdAt: new Date("2026-10-30T18:00:00Z"), paidAt: new Date(`${date}T22:00:00Z`) } }));
+  }
+  if (extraOrders) {
+    await db.order.createMany({ data: Array.from({ length: extraOrders }, (_, i) => ({
+      restaurantId: restaurant.id, tableId: table.id, shortCode: `CAL-${uid}-${i}`,
+      status: "paid" as const, paidAt: new Date(Date.UTC(2026, 9, 31, 18, i)),
+    })) });
   }
   await page.route(/^https?:\/\//, route => ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.context().addCookies([{ name: "MESAPAY_LOCALE", value: locale, domain: application.hostname, path: "/" }]);
@@ -183,3 +189,40 @@ for (const [locale, title, month, date, apply] of [
     expect(browserErrors).toEqual([]);
   });
 }
+
+test("returning from an order restores the filtered list and its scroll", async ({ page }, info) => {
+  await fixture(page, "es", 42);
+  const listUrl = page.url();
+  const scroller = page.locator("#operator-content");
+  const rows = page.locator('#ordenes-lista a[href^="/operator/orders/"]:visible');
+  const offset = () => scroller.evaluate(element => element.scrollTop);
+  for (const [index, back] of [[30, "browser"], [22, "link"], [27, "missing-token"]] as const) {
+    const order = rows.nth(index);
+    await order.evaluate(element => element.scrollIntoView({ block: "center" }));
+    const top = await offset();
+    expect(top).toBeGreaterThan(500);
+    await page.screenshot({ path: info.outputPath(`${back}-list.png`) });
+    if (back === "missing-token") {
+      // Simulate a refresh replacing the list's history metadata on departure.
+      await order.evaluate(link => link.addEventListener("click", () => {
+        const state = { ...history.state };
+        delete state.mpScrollId;
+        history.replaceState(state, "");
+      }, { once: true }));
+    }
+    await order.click();
+    const returnLink = scroller.locator('a[href="/operator/orders"]').first();
+    await expect(returnLink).toBeVisible();
+    if (back === "link") await returnLink.click();
+    else await page.goBack();
+    await expect(page).toHaveURL(listUrl);
+    await expect(rows.nth(index)).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`${back}-return.png`) });
+    await expect.poll(offset).toBe(top);
+  }
+  const direct = await rows.nth(22).getAttribute("href");
+  await page.goto(direct!);
+  await scroller.locator('a[href="/operator/orders"]').first().click();
+  await expect(page).toHaveURL(new URL("/operator/orders", listUrl).href);
+  await expect.poll(offset).toBe(0);
+});

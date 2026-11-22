@@ -288,4 +288,19 @@ describe("buildInvoiceCommands — la tirilla del datáfono (55 mm)", () => {
     const sin = buildInvoiceCommands(snapshot, 6723, "https://mesapay.co/factura/inv-1");
     expect(renderCommands(sin)).not.toContain("TOTAL PAGADO");
   });
+
+  it("separadores: todo divider que sigue a un text lleva antes un space de 24 px (spacedDividers)", () => {
+    // En el Sunmi el `divider` no avanza renglón: pegado a un `text` se
+    // dibuja ENCIMA del último renglón (fotos FESM8617/8618 del dueño).
+    const all = commands();
+    all.forEach((c, i) => {
+      if (c.type !== "divider") return;
+      const prev = all[i - 1];
+      expect(prev?.type, `divider en ${i} pegado a un "${prev?.type}"`).not.toBe("text");
+      if (prev?.type === "space") expect(prev.pixels).toBe(24);
+    });
+    // El del encabezado (tras el teléfono, texto) es uno de los que lo lleva.
+    const tel = all.findIndex((c) => c.type === "text" && c.text.startsWith("Tel"));
+    expect(all.slice(tel + 1, tel + 3).map((c) => c.type)).toEqual(["space", "divider"]);
+  });
 });

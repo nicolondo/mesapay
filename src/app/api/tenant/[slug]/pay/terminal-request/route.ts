@@ -1,3 +1,4 @@
+import { rememberStaffTerminalRequest, staffTerminalRequestKey } from "@/lib/payments/staffTerminalRequest";
 import { lockOrder } from "@/lib/orderLock";
 import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
 import { secureApi } from "@/lib/secureApi";
@@ -35,6 +36,7 @@ import { formatNumber } from "@/lib/format";
  */
 
 const schema = z.object({
+  attemptId: z.string().uuid().optional(),
   orderId: z.string().min(1),
   amountCents: amountCentsSchema,
   tipCents: tipCentsSchema,
@@ -128,9 +130,18 @@ async function POSTHandler(
   const payment = await db.$transaction(async (tx) => {
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    const requestKey = staff && parsed.data.attemptId
+      ? staffTerminalRequestKey(order.id, "kushki_card_terminal", parsed.data.attemptId) : undefined;
+    if (requestKey) {
+      const prior = await tx.financialOperation.findUnique({ where: { key: requestKey } });
+      if (prior) return tx.payment.findUniqueOrThrow({ where: { id: prior.paymentId } });
+    }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "kushki_card_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });
-    if (existing) return existing;
+    if (existing) {
+      await rememberStaffTerminalRequest(tx, requestKey, existing);
+      return existing;
+    }
     // El comensal: sus otros pendientes conservan la reserva hasta que se
     // confirme su resultado. El staff: reemplaza las solicitudes (efectivo,
     // datáfono propio, Smart POS sin empujar) y choca con 409 accionable si
@@ -150,8 +161,13 @@ async function POSTHandler(
       where: { id: order.id },
       data: { status: order.status === "paid" ? order.status : "paying" },
     });
+    await rememberStaffTerminalRequest(tx, requestKey, p);
     return p;
   });
+
+  if (payment.status !== "pending") {
+    return NextResponse.json({ paymentId: payment.id, pending: false, status: payment.status });
+  }
 
   publishOrderEvent(tenant.id, {
     type: "order.terminal_requested",

@@ -8,7 +8,7 @@ import { mixedPaymentBudget, allocateMixedPayment } from "@/lib/payments/mixedAm
 import { useApplePaySupport } from "@/lib/browser/capabilities";
 import { onlineMethodsInOrder } from "@/lib/payments/defaultOnlineMethod";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
 import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
@@ -72,6 +72,7 @@ import {
   type SerialMethod,
   type SerialMode,
 } from "@/lib/payments/serialCharge";
+import { observeTerminalStatus, watchStaffTerminal } from "@/lib/payments/staffTerminalWatch";
 import { useSerialCharge } from "./useSerialCharge";
 import { SerialChargeCard } from "./SerialChargeCard";
 
@@ -387,6 +388,13 @@ export function PayClient({
   const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
+  const terminalWatch = useRef<ReturnType<typeof watchStaffTerminal> | null>(null);
+  const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number } | null>(null);
+  const [manualCancel, setManualCancel] = useState(false);
+  const tAttempt = useTranslations("terminalAttempt");
+  const [consultingTerminal, setConsultingTerminal] = useState(false);
+  const [terminalUnknown, setTerminalUnknown] = useState(false);
+  useEffect(() => () => { terminalWatch.current?.stop(); terminalWatch.current = null; }, [orderId]);
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<PayMode | "mixed">("full");
   const [refreshing, refreshTransition] = useTransition();
@@ -693,12 +701,39 @@ export function PayClient({
     ? tipBaseCentsOf(tipBaseAmount, tipBase)
     : null;
   const amountCents = amountSubtotal + amountTip;
+  // A mounted checkout may already have requests (reload, other staff, or a
+  // local external POS awaiting manual settlement). Poll those rows as well.
+  const pendingTerminalIds = operatorMode ? pendingPayments
+    .filter(p => p.method === "kushki_card_terminal" || p.method === "external_terminal")
+    .map(p => p.id).join(",") : "";
+  const pendingTerminalResolved = useEffectEvent((declined: boolean) => {
+    if (declined && !terminalWatch.current && !serialMode) setErr(t("declinedTitle"));
+    router.refresh();
+  });
+  useEffect(() => {
+    if (!pendingTerminalIds) return;
+    const observers = pendingTerminalIds.split(",").map(id => {
+      const observer = observeTerminalStatus(tenantSlug, async () => id, result => {
+        pendingTerminalResolved(result.status === "declined");
+      });
+      return observer;
+    });
+    return () => observers.forEach(observer => observer.stop());
+  }, [tenantSlug, pendingTerminalIds]);
+
   const pendingBlocksMixed = pendingPayments.some(payment => !isCashMethod(payment.method));
   const interactionLocked = busy !== null || refreshing || cashUncertain;
   // Factura anulada con nota crédito: la cuenta ya no tiene factura válida y
   // cobrarla dejaría una venta sin factura. Se cierra sin cobro (cortesía).
   const chargeDisabled =
     interactionLocked || amountCents <= 0 || (mixed && pendingBlocksMixed) || !!preInvoice?.annulled;
+  function terminalDisabled(method: MethodKind) {
+    // A mixed payment reserves the balance. Its own uncertain request can
+    // still be checked/retried under the original server key.
+    const prior = lastTerminalRequest;
+    return terminalUnknown && prior?.method === method && prior.amount === amountCents && prior.tip === amountTip
+      ? interactionLocked || !!preInvoice?.annulled || amountCents <= 0 : chargeDisabled;
+  }
   const locale = useLocale() as Locale;
   const exactMoney = (cents: number) => formatMoney(cents, { currency, locale, fractionDigits: cents % 100 ? 2 : 0 });
   // Renglón informativo "Incluye impoconsumo 8% · $X" sobre lo que se está
@@ -825,157 +860,161 @@ export function PayClient({
     }
   }
 
-  async function payWithTerminal() {
-    if (chargeDisabled) return;
-    // Staff: el cobro va a un datáfono del comercio. Con varios, primero se
-    // elige a cuál ("¿A qué datáfono?").
-    const target = operatorMode ? terminalChoice.selected : null;
-    if (operatorMode && terminalDevices.length > 0 && !target) {
+  async function requestTerminal(method: "kushki_card_terminal" | "external_terminal") {
+    const prior = terminalUnknown ? lastTerminalRequest : null;
+    const retryingSameRequest = prior?.method === method && prior.amount === amountCents && prior.tip === amountTip;
+    if (terminalDisabled(method)) return;
+    const smart = method === "kushki_card_terminal";
+    const target = smart && operatorMode ? terminalChoice.selected : null;
+    if (smart && operatorMode && terminalDevices.length && !target) {
       setErr(t("terminalPickFirst"));
       return;
     }
-    setBusy("kushki_card_terminal");
+    if (terminalUnknown && !window.confirm(t("terminalRetryConfirm"))) return;
+    const attemptId = operatorMode ? (retryingSameRequest ? prior.id : crypto.randomUUID()) : null;
+    if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip });
+    setManualCancel(false);
+    setBusy(method);
     setErr(null);
+    setTerminalUnknown(false);
+    terminalWatch.current?.stop();
+    const waitHref = (id: string) => `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${encodeURIComponent(id)}&op=1`;
+    const recordLaunch = (paymentId: string) => serial.chargeLaunched({
+      mode: serialMode, splitCount, method, paymentId, guest: mode === "mine" ? myGuest || null : null,
+    });
+    let launchedId: string | null = null;
+    const watch = attemptId ? watchStaffTerminal({
+      tenantSlug, orderId, attemptId, method,
+      onManualAvailable: () => setManualCancel(true),
+      onResult: (result, id) => {
+        watch?.stop();
+        terminalWatch.current = null;
+        setManualCancel(false);
+        setBusy(current => current === method ? null : current);
+        setTerminalUnknown(false);
+        if (result.nextPaymentId) {
+          recordLaunch(result.nextPaymentId);
+          router.push(waitHref(result.nextPaymentId));
+        } else if (result.status === "approved") {
+          if (id !== launchedId) recordLaunch(id);
+          paymentConfirmed(result.orderStatus === "paid");
+        } else {
+          if (serialMode) {
+            if (id !== launchedId) recordLaunch(id);
+            serial.chargeDeclined(id);
+          } else {
+            setErr(t(result.declineReason === "terminal_canceled" ? "terminalCanceledTitle" : "declinedTitle"));
+          }
+          router.refresh();
+        }
+      },
+      onTimeout: id => {
+        setManualCancel(false);
+        setBusy(null);
+        setTerminalUnknown(!id);
+        setFocusPayment("pending");
+        router.refresh();
+      },
+    }) : null;
+    terminalWatch.current = watch;
+    let awaitingStatus = false;
     try {
-      const res = await fetch(`/api/tenant/${tenantSlug}/pay/terminal-request`, {
+      const endpoint = smart ? "terminal-request" : "external-terminal-request";
+      const res = await fetch(`/api/tenant/${tenantSlug}/pay/${endpoint}`, {
         method: "POST",
+        signal: watch?.signal,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          // amountCents = TOTAL (food + tip). El backend deriva food
-          // restando tipCents — si mandáramos food acá, el cap y el
-          // recompute le restarían el tip de nuevo y el order quedaría
-          // con "FALTA $X" igual al tip.
-          amountCents,
-          tipCents: amountTip,
-        }),
+        body: JSON.stringify({ orderId, amountCents, tipCents: amountTip, ...(attemptId && { attemptId }) }),
       });
       const j = await res.json().catch(() => ({}));
+      if (watch?.signal.aborted) return;
       if (!res.ok || !j.paymentId) {
-        // Códigos conocidos (p. ej. pending_payment_in_flight: un pago en
-        // línea en curso no deja cobrar) se traducen; el resto cae al
-        // mensaje del servidor o al genérico.
+        if (watch && (res.status >= 500 || res.ok)) { awaitingStatus = true; return; }
         setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
         if (operatorMode) refreshBalance();
         return;
       }
-
-      // Cuenta dividida en serie: se anota el cobro lanzado ANTES de salir a
-      // la espera del datáfono. Al volver (aprobado o rechazado), la
-      // reconciliación avanza la parte o la deja para reintentar.
-      if (operatorMode) {
-        serial.chargeLaunched({
-          mode: serialMode,
-          splitCount,
-          method: "kushki_card_terminal",
-          paymentId: j.paymentId,
-          guest: mode === "mine" ? myGuest || null : null,
-        });
-      }
-
-      // Staff con el datáfono elegido (o el único del comercio): el cobro
-      // va directo a ese equipo, sin pasar por Salón. Quien cobra ya está
-      // en la mesa con el datáfono en la mano.
-      if (operatorMode && target) {
-        const pushRes = await fetch(
-          `/api/tenant/${tenantSlug}/terminal/charge`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              paymentId: j.paymentId,
-              deviceId: target.id,
-            }),
-          },
-        );
-        if (!pushRes.ok) {
-          const pj = await pushRes.json().catch(() => ({}));
-          setErr(apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
-          refreshBalance();
-          return;
-        }
-        // Land on the operator-side waiting screen instead of /salón
-        // — they can stay focused on this transaction until it
-        // approves or declines.
-        router.push(
-          `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&op=1`,
-        );
+      if (!operatorMode) {
+        router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}${smart ? "" : "&external=1"}`);
         return;
       }
-
-      // El comensal (o, si no hubiera ningún datáfono disponible, el staff):
-      // la solicitud queda pendiente y se envía desde Salón.
-      router.push(
-        operatorMode
-          ? staffServeHref
-          : `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}`,
-      );
-    } catch {
-      setErr(t("mixed.checkStatus"));
-      if (operatorMode) refreshBalance();
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /**
-   * Datáfono propio del comercio — el comercio cobra con su POS
-   * físico externo (Bancolombia, etc.), MESAPAY sólo registra el
-   * cobro. Mismo patrón que cash: crea pending, mesero confirma
-   * en Salón.
-   */
-  async function payWithExternalTerminal() {
-    if (chargeDisabled) return;
-    setBusy("external_terminal");
-    setErr(null);
-    try {
-      const res = await fetch(
-        `/api/tenant/${tenantSlug}/pay/external-terminal-request`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            orderId,
-            // amountCents = TOTAL (food + tip). Ver comentario en
-            // payWithTerminal sobre por qué no mandamos food acá.
-            amountCents,
-            tipCents: amountTip,
-          }),
-        },
-      );
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.paymentId) {
-        setErr(apiError(j, j.message ?? j.error ?? t("errNotifyWaiter")));
+      launchedId = j.paymentId;
+      watch?.registered(j.paymentId);
+      recordLaunch(j.paymentId);
+      if (j.pending === false) {
+        awaitingStatus = true;
         return;
       }
-      if (mixed) { setMixedInput(null); setUseRemainder(true); setFocusPayment("pending"); refreshBalance(); return; }
-      if (operatorMode) {
-        // El staff se queda ACÁ: la solicitud sale arriba con "Confirmar
-        // pago recibido" (como en el modo mixto), en vez de rebotar a Salón
-        // y rearmar el cobro. Con la cuenta dividida, al confirmarse avanza
-        // la parte siguiente.
-        serial.chargeLaunched({
-          mode: serialMode,
-          splitCount,
-          method: "external_terminal",
-          paymentId: j.paymentId,
-          guest: mode === "mine" ? myGuest || null : null,
-        });
+      if (!smart) {
+        if (mixed) { setMixedInput(null); setUseRemainder(true); }
         setFocusPayment("pending");
         refreshBalance();
         return;
       }
-      // El comensal ve la pantalla "esperando" hasta que el mesero confirma
-      // desde Salón. Bandera external=1 para que la pantalla diga "datáfono
-      // del comercio" en vez de "Smart POS".
-      router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}&external=1`);
+      if (!target) { router.push(staffServeHref); return; }
+      const pushRes = await fetch(`/api/tenant/${tenantSlug}/terminal/charge`, {
+        method: "POST", signal: watch?.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paymentId: j.paymentId, deviceId: target.id }),
+      });
+      if (!pushRes.ok) {
+        const pj = await pushRes.json().catch(() => ({}));
+        if (watch?.signal.aborted) return;
+        if (pushRes.status >= 500) { awaitingStatus = true; return; }
+        if (pj.status === "declined" && serialMode) serial.chargeDeclined(j.paymentId);
+        else setErr(pj.status === "declined" ? t("declinedTitle") : apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
+        refreshBalance();
+        return;
+      }
+      if (!watch?.signal.aborted) {
+        awaitingStatus = true;
+        router.push(waitHref(j.paymentId));
+      }
     } catch {
-      setErr(t("mixed.checkStatus"));
-      refreshBalance();
+      if (watch) awaitingStatus = true;
+      else { setErr(t("mixed.checkStatus")); if (!smart) refreshBalance(); }
     } finally {
-      setBusy(null);
+      if (!watch?.signal.aborted && !awaitingStatus) {
+        watch?.stop();
+        terminalWatch.current = null;
+        setManualCancel(false);
+        setBusy(null);
+      }
     }
   }
+
+  async function cancelStaffTerminal() {
+    const watch = terminalWatch.current;
+    if (!watch || watch.signal.aborted) return;
+    setManualCancel(false);
+    const declined = await watch.cancel(() => window.confirm(tAttempt("confirmCancel")));
+    if (terminalWatch.current !== watch) return;
+    setBusy(null);
+    setTerminalUnknown(!declined);
+    if (declined) setErr(t("terminalCanceledTitle"));
+    void watch.check();
+    router.refresh();
+  }
+
+  async function consultTerminal() {
+    const watch = terminalWatch.current;
+    if (!watch || consultingTerminal) return;
+    setConsultingTerminal(true);
+    try { await watch.consult(); }
+    finally {
+      setConsultingTerminal(false);
+      router.refresh();
+    }
+  }
+
+  const cancelTerminalButton = manualCancel && (
+    <button type="button" className="min-h-11 w-full underline text-sm" onClick={cancelStaffTerminal}>
+      {t("terminalCancelRetry")}
+    </button>
+  );
+
+  const payWithTerminal = () => requestTerminal("kushki_card_terminal");
+  const payWithExternalTerminal = () => requestTerminal("external_terminal");
 
   /**
    * PSE — el diner elige su banco + ingresa email/doc en el sheet.
@@ -1771,6 +1810,10 @@ export function PayClient({
       </div>
 
       {err && <div className="mt-4 text-danger text-sm" role="alert">{err}</div>}
+      {operatorMode && terminalUnknown && <div role="status" className="mt-4 space-y-2 text-sm">
+        <p>{t("terminalUnknown")}</p>
+        <button type="button" className="min-h-11 underline" disabled={consultingTerminal} onClick={consultTerminal}>{tBreB(consultingTerminal ? "checking" : "checkStatus")}</button>
+      </div>}
       {cashUncertain && <div className="mt-3 rounded-xl border border-hairline p-4 space-y-3">
         <p className="text-sm text-muted">{t("mixed.retryHint")}</p>
         <button type="button" onClick={() => payWithCash(null, null, true)} disabled={busy !== null || refreshing}
@@ -1925,12 +1968,13 @@ export function PayClient({
           <div className="space-y-2">
             <PayButton currency={currency}
               kind="terminal"
-              disabled={chargeDisabled || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
+              disabled={terminalDisabled("kushki_card_terminal") || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
               busy={busy === "kushki_card_terminal"}
               onClick={payWithTerminal}
               amountCents={amountCents}
               operatorMode={operatorMode}
             />
+            {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker
                 variant="pay"
@@ -1961,14 +2005,17 @@ export function PayClient({
             </>
           )}
         {enabledMethods.includes("external_terminal") && !payLinkMode && (
+          <>
           <PayButton currency={currency}
             kind="external_terminal"
-            disabled={chargeDisabled}
+            disabled={terminalDisabled("external_terminal")}
             busy={busy === "external_terminal"}
             onClick={payWithExternalTerminal}
             amountCents={amountCents}
             operatorMode={operatorMode}
           />
+          {busy === "external_terminal" && cancelTerminalButton}
+          </>
         )}
         {kushkiReady &&
           enabledMethods.includes("kushki_pse") &&
@@ -2052,12 +2099,13 @@ export function PayClient({
                 without having to activate pagos para el restaurante. */}
             <PayButton currency={currency}
               kind="demo_terminal"
-              disabled={chargeDisabled || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
+              disabled={terminalDisabled("kushki_card_terminal") || (operatorMode && terminalChoice.needsPicker && !terminalChoice.selected)}
               busy={busy === "kushki_card_terminal"}
               onClick={payWithTerminal}
               operatorMode={operatorMode}
               amountCents={amountCents}
             />
+            {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker
                 variant="pay"

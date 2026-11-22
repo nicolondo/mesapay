@@ -182,9 +182,14 @@ export function TerminalWait({
 
   useEffect(() => {
     const poll = setInterval(() => refetch(), 4000);
-    return () => clearInterval(poll);
+    const onFocus = () => { void refetch(); };
+    if (continueHref) window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(poll);
+      if (continueHref) window.removeEventListener("focus", onFocus);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantSlug, paymentId]);
+  }, [tenantSlug, paymentId, continueHref]);
 
   if (status === "approved") {
     return (

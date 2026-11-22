@@ -72,7 +72,7 @@ import {
   type SerialMethod,
   type SerialMode,
 } from "@/lib/payments/serialCharge";
-import { observeTerminalStatus, watchStaffTerminal } from "@/lib/payments/staffTerminalWatch";
+import { observeTerminalStatus, pendingTerminalIdsToObserve, watchStaffTerminal, type TerminalResult } from "@/lib/payments/staffTerminalWatch";
 import { useSerialCharge } from "./useSerialCharge";
 import { SerialChargeCard } from "./SerialChargeCard";
 
@@ -390,6 +390,8 @@ export function PayClient({
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const terminalWatch = useRef<ReturnType<typeof watchStaffTerminal> | null>(null);
   const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number } | null>(null);
+  const [watchedPaymentId, setWatchedPaymentId] = useState<string | null>(null);
+  const settledTerminalIds = useRef(new Set<string>());
   const [manualCancel, setManualCancel] = useState(false);
   const tAttempt = useTranslations("terminalAttempt");
   const [consultingTerminal, setConsultingTerminal] = useState(false);
@@ -703,21 +705,27 @@ export function PayClient({
   const amountCents = amountSubtotal + amountTip;
   // A mounted checkout may already have requests (reload, other staff, or a
   // local external POS awaiting manual settlement). Poll those rows as well.
-  const pendingTerminalIds = operatorMode ? pendingPayments
-    .filter(p => p.method === "kushki_card_terminal" || p.method === "external_terminal")
-    .map(p => p.id).join(",") : "";
-  const pendingTerminalResolved = useEffectEvent((declined: boolean) => {
-    if (declined && !terminalWatch.current && !serialMode) setErr(t("declinedTitle"));
+  const pendingTerminalIds = operatorMode ? pendingTerminalIdsToObserve(pendingPayments, watchedPaymentId).join(",") : "";
+  const waitHref = (id: string) => `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${encodeURIComponent(id)}&op=1`;
+  function terminalOutcomeNotice(result: TerminalResult) {
+    if (result.status === "refunded") return t("terminalRefunded");
+    if (result.declineReason === "terminal_canceled") return t("terminalCanceledTitle");
+    return t("terminalNotApproved");
+  }
+  const pendingTerminalResolved = useEffectEvent((result: TerminalResult, id: string) => {
+    if (settledTerminalIds.current.has(id)) return;
+    settledTerminalIds.current.add(id);
+    if (!terminalWatch.current && result.terminalAmount && result.status === "approved") {
+      router.push(waitHref(id));
+      return;
+    }
+    if (result.status !== "approved" && !terminalWatch.current && !serialMode) setErr(terminalOutcomeNotice(result));
     router.refresh();
   });
   useEffect(() => {
     if (!pendingTerminalIds) return;
-    const observers = pendingTerminalIds.split(",").map(id => {
-      const observer = observeTerminalStatus(tenantSlug, async () => id, result => {
-        pendingTerminalResolved(result.status === "declined");
-      });
-      return observer;
-    });
+    const observers = pendingTerminalIds.split(",").filter(id => !settledTerminalIds.current.has(id))
+      .map(id => observeTerminalStatus(tenantSlug, async () => id, pendingTerminalResolved));
     return () => observers.forEach(observer => observer.stop());
   }, [tenantSlug, pendingTerminalIds]);
 
@@ -862,7 +870,7 @@ export function PayClient({
 
   async function requestTerminal(method: "kushki_card_terminal" | "external_terminal") {
     const prior = terminalUnknown ? lastTerminalRequest : null;
-    const retryingSameRequest = prior?.method === method && prior.amount === amountCents && prior.tip === amountTip;
+    let retryingSameRequest = prior?.method === method && prior.amount === amountCents && prior.tip === amountTip;
     if (terminalDisabled(method)) return;
     const smart = method === "kushki_card_terminal";
     const target = smart && operatorMode ? terminalChoice.selected : null;
@@ -871,49 +879,69 @@ export function PayClient({
       return;
     }
     if (terminalUnknown && !window.confirm(t("terminalRetryConfirm"))) return;
-    const attemptId = operatorMode ? (retryingSameRequest ? prior.id : crypto.randomUUID()) : null;
+    if (retryingSameRequest && terminalWatch.current) {
+      const previous = terminalWatch.current;
+      setBusy(method);
+      const result = await previous.check();
+      if (result?.status === "declined" && !result.nextPaymentId) retryingSameRequest = false;
+      else if (result || terminalWatch.current !== previous) return;
+    }
+    const attemptId = operatorMode ? (retryingSameRequest && prior ? prior.id : crypto.randomUUID()) : null;
     if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip });
     setManualCancel(false);
     setBusy(method);
     setErr(null);
     setTerminalUnknown(false);
     terminalWatch.current?.stop();
-    const waitHref = (id: string) => `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${encodeURIComponent(id)}&op=1`;
     const recordLaunch = (paymentId: string) => serial.chargeLaunched({
       mode: serialMode, splitCount, method, paymentId, guest: mode === "mine" ? myGuest || null : null,
     });
-    let launchedId: string | null = null;
+    setWatchedPaymentId(null);
     const watch = attemptId ? watchStaffTerminal({
       tenantSlug, orderId, attemptId, method,
+      onRegistered: id => {
+        setWatchedPaymentId(id);
+        // Record the launch while its controls are locked. After recovery the
+        // user may already have changed the split, guest or payment method.
+        if (!watch?.signal.aborted) recordLaunch(id);
+      },
       onManualAvailable: () => setManualCancel(true),
       onResult: (result, id) => {
+        const postWasReleased = watch?.signal.aborted;
+        settledTerminalIds.current.add(id);
         watch?.stop();
+        setWatchedPaymentId(null);
         terminalWatch.current = null;
         setManualCancel(false);
         setBusy(current => current === method ? null : current);
         setTerminalUnknown(false);
         if (result.nextPaymentId) {
-          recordLaunch(result.nextPaymentId);
+          if (!postWasReleased) recordLaunch(result.nextPaymentId);
           router.push(waitHref(result.nextPaymentId));
         } else if (result.status === "approved") {
-          if (id !== launchedId) recordLaunch(id);
-          paymentConfirmed(result.orderStatus === "paid");
+          // #620: the waiting page shows the actual amount for six seconds,
+          // then returns a partial approval to this checkout with its balance.
+          if (result.terminalAmount) router.push(waitHref(id));
+          else if (postWasReleased && result.orderStatus !== "paid") router.refresh();
+          else paymentConfirmed(result.orderStatus === "paid");
         } else {
-          if (serialMode) {
-            if (id !== launchedId) recordLaunch(id);
-            serial.chargeDeclined(id);
-          } else {
-            setErr(t(result.declineReason === "terminal_canceled" ? "terminalCanceledTitle" : "declinedTitle"));
+          if (!serial.chargeDeclined(id)) {
+            setErr(terminalOutcomeNotice(result));
           }
           router.refresh();
         }
       },
-      onTimeout: () => {
+      onRecovery: outcome => {
         setManualCancel(false);
         setBusy(null);
-        // Even a registered request is ambiguous if its status cannot be
-        // refreshed. Keep the explicit confirmation and the original key.
-        setTerminalUnknown(true);
+        setTerminalUnknown(outcome !== "absent");
+        if (outcome === "absent") {
+          watch?.stop();
+          terminalWatch.current = null;
+          setWatchedPaymentId(null);
+          setLastTerminalRequest(null);
+          setErr(t("terminalNotCharged"));
+        }
         setFocusPayment("pending");
         router.refresh();
       },
@@ -940,9 +968,7 @@ export function PayClient({
         router.push(`/t/${tenantSlug}/pay/${orderId}/terminal?pid=${j.paymentId}${smart ? "" : "&external=1"}`);
         return;
       }
-      launchedId = j.paymentId;
       watch?.registered(j.paymentId);
-      recordLaunch(j.paymentId);
       if (j.pending === false) {
         awaitingStatus = true;
         return;
@@ -964,7 +990,7 @@ export function PayClient({
         if (watch?.signal.aborted) return;
         if (pushRes.status >= 500) { awaitingStatus = true; return; }
         if (pj.status === "declined" && serialMode) serial.chargeDeclined(j.paymentId);
-        else setErr(pj.status === "declined" ? t("declinedTitle") : apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
+        else setErr(pj.status === "declined" ? t("terminalNotApproved") : apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
         refreshBalance();
         return;
       }
@@ -978,6 +1004,7 @@ export function PayClient({
     } finally {
       if (!watch?.signal.aborted && !awaitingStatus) {
         watch?.stop();
+        setWatchedPaymentId(null);
         terminalWatch.current = null;
         setManualCancel(false);
         setBusy(null);
@@ -2008,15 +2035,15 @@ export function PayClient({
           )}
         {enabledMethods.includes("external_terminal") && !payLinkMode && (
           <>
-          <PayButton currency={currency}
-            kind="external_terminal"
-            disabled={terminalDisabled("external_terminal")}
-            busy={busy === "external_terminal"}
-            onClick={payWithExternalTerminal}
-            amountCents={amountCents}
-            operatorMode={operatorMode}
-          />
-          {busy === "external_terminal" && cancelTerminalButton}
+            <PayButton currency={currency}
+              kind="external_terminal"
+              disabled={terminalDisabled("external_terminal")}
+              busy={busy === "external_terminal"}
+              onClick={payWithExternalTerminal}
+              amountCents={amountCents}
+              operatorMode={operatorMode}
+            />
+            {busy === "external_terminal" && cancelTerminalButton}
           </>
         )}
         {kushkiReady &&

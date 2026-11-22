@@ -1,4 +1,4 @@
-import { rememberStaffTerminalRequest, staffTerminalRequestKey } from "@/lib/payments/staffTerminalRequest";
+import { priorStaffTerminalRequest, rememberStaffTerminalRequest, staffTerminalRequestKey } from "@/lib/payments/staffTerminalRequest";
 import { lockOrder } from "@/lib/orderLock";
 import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
 import { secureApi } from "@/lib/secureApi";
@@ -115,8 +115,8 @@ async function POSTHandler(
     const requestKey = staff && parsed.data.attemptId
       ? staffTerminalRequestKey(order.id, "external_terminal", parsed.data.attemptId) : undefined;
     if (requestKey) {
-      const prior = await tx.financialOperation.findUnique({ where: { key: requestKey } });
-      if (prior) return tx.payment.findUniqueOrThrow({ where: { id: prior.paymentId } });
+      const prior = await priorStaffTerminalRequest(tx, requestKey);
+      if (prior) return prior;
     }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "external_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });

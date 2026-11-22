@@ -223,7 +223,7 @@ test("mesero recupera el cobro cuando el datáfono rechaza y el POST sigue sin r
     await expect(page.getByRole("button", { name: "Cancelar y volver a intentar" })).toBeVisible({ timeout: 8000 });
     await mockTerminalResult(page, paymentId, "declined");
     await expect(charge).toBeEnabled({ timeout: 10_000 });
-    await expect(page.getByText("Tu pago no fue aprobado", { exact: true })).toBeVisible();
+    await expect(page.getByText("El datáfono no aprobó el cobro.", { exact: true })).toBeVisible();
     await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
     await charge.scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath("despues.png"), fullPage: true });
@@ -315,13 +315,32 @@ for (const registered of [false, true]) {
     await page.clock.install();
     let posts = 0;
     const endpoint = registered ? "**/terminal/charge" : "**/pay/terminal-request";
-    await page.route(endpoint, async route => { posts++; await route.abort(); });
+    let initialBody: Record<string, unknown> = {};
+    let requestUrl = "";
+    await page.route(endpoint, async route => {
+      posts++;
+      requestUrl = route.request().url();
+      initialBody = route.request().postDataJSON();
+      await route.abort();
+    });
     const charge = page.getByRole("button", { name: /Cobrar con datáfono ·/ });
     await charge.click();
     await expect.poll(() => posts).toBe(1);
     await expect(page.getByRole("button", { name: "Procesando…" })).toBeDisabled();
     await page.clock.fastForward(120_001);
     await expect(charge).toBeEnabled();
+    if (!registered) {
+      await expect(page.getByText("No se registró el cobro. Puedes volver a intentarlo.")).toBeVisible();
+      // A delayed copy of the original POST cannot revive the closed attempt.
+      const latePost = await page.request.post(requestUrl, { data: initialBody });
+      expect(latePost.status()).toBe(409);
+      expect(await db.payment.count({ where: { orderId: String(initialBody.orderId) } })).toBe(0);
+      const oldAttempt = initialBody.attemptId;
+      await charge.click();
+      await expect.poll(() => posts).toBe(2);
+      expect(initialBody.attemptId).not.toBe(oldAttempt);
+      return;
+    }
     await expect(page.getByText(/No sabemos si el datáfono alcanzó a cobrar/)).toBeVisible();
     const checking = page.waitForRequest(r => r.url().includes(registered ? "/terminal-attempt" : "/terminal-status?"));
     await page.getByRole("button", { name: "Consultar estado", exact: true }).click();
@@ -331,5 +350,42 @@ for (const registered of [false, true]) {
     await (await confirmation).dismiss();
     await click;
     expect(posts).toBe(1);
+
+    // The server declines between automatic reads. A conscious retry must
+    // claim a fresh payment even though the stale card still says unknown.
+    const declinedId = String(initialBody.paymentId);
+    await mockTerminalResult(page, declinedId, "declined");
+    page.once("dialog", dialog => dialog.accept());
+    await charge.click();
+    await expect.poll(() => posts).toBe(2);
+    expect(initialBody.paymentId).not.toBe(declinedId);
+  });
+}
+
+for (const adjustment of ["partial", "tip"] as const) {
+  test(`mesero: el sondeo conserva el importe autorizado por el datáfono (${adjustment})`, async ({ page }) => {
+    const f = await fixture(page, { role: "mesero", smartTerminal: true });
+    let paymentId = "";
+    await page.route("**/terminal/charge", async route => {
+      paymentId = route.request().postDataJSON().paymentId;
+      await route.abort();
+    });
+    await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
+    await expect.poll(() => paymentId).toBeTruthy();
+    const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    const authorizedCents = adjustment === "partial" ? 7_000_000 : payment.amountCents + 500_000;
+    // Same ledger/amount snapshot the mock provider commits on a confirmed adjustment.
+    await db.$transaction([
+      db.financialOperation.create({ data: { key: `terminal:${paymentId}`, paymentId, kind: "terminal",
+        status: "completed", amountCents: payment.amountCents, authorizedCents, amountCheck: adjustment } }),
+      db.payment.update({ where: { id: paymentId }, data: { amountCents: authorizedCents,
+        tipCents: adjustment === "partial" ? 0 : payment.tipCents + 500_000 } }),
+    ]);
+    await mockTerminalResult(page, paymentId, "approved");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const expected = adjustment === "partial" ? /El datáfono aprobó solo .*Quedan .* por pagar/ : /se registró como propina.*Total cobrado/;
+    await expect(page.getByRole("status").filter({ hasText: expected })).toBeVisible({ timeout: 10_000 });
+    if (adjustment === "partial") await expect(page).toHaveURL(`${application.origin}${f.checkout}`, { timeout: 12_000 });
+    else await expect(page).toHaveURL(/\/done(?:\?|$)/, { timeout: 12_000 });
   });
 }

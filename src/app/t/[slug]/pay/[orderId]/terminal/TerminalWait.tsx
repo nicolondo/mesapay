@@ -174,13 +174,18 @@ export function TerminalWait({
   // SSE visibility-aware + poll de respaldo. Si el diner bloquea el
   // teléfono mientras el cajero pasa el datáfono, al desbloquear
   // onResume refetcha el estado al instante.
+  // Polling a completed staff payment would renew the amount notice every
+  // four seconds and prevent its six-second redirect from ever running.
+  const staffPaymentComplete = !!continueHref && status === "approved";
   useVisibleEventSource(
     `/api/tenant/${tenantSlug}/events`,
     (es) => es.addEventListener("message", () => refetch()),
     () => refetch(),
+    { enabled: !staffPaymentComplete },
   );
 
   useEffect(() => {
+    if (staffPaymentComplete) return;
     const poll = setInterval(() => refetch(), 4000);
     const onFocus = () => { void refetch(); };
     if (continueHref) window.addEventListener("focus", onFocus);
@@ -189,7 +194,7 @@ export function TerminalWait({
       if (continueHref) window.removeEventListener("focus", onFocus);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantSlug, paymentId, continueHref]);
+  }, [tenantSlug, paymentId, continueHref, staffPaymentComplete]);
 
   if (status === "approved") {
     return (

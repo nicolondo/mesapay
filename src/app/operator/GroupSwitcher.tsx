@@ -24,8 +24,10 @@ export function GroupSwitcher({
   const [pending, startTx] = useTransition();
   if (siblings.length === 0) return null;
   return (
-    <form action={action} className="inline-flex items-center gap-1.5">
-      <label className="font-mono text-[10px] tracking-wider uppercase opacity-80">
+    <form action={action} className="min-w-0 inline-flex items-center gap-1.5">
+      {/* En pantallas angostas la etiqueta se oculta: el placeholder del select
+          ya dice qué hace, y la franja de impersonación debe ser una línea. */}
+      <label className="hidden md:inline font-mono text-[10px] tracking-wider uppercase opacity-80">
         {t("switchTo")}
       </label>
       <select
@@ -39,7 +41,7 @@ export function GroupSwitcher({
             form.requestSubmit();
           });
         }}
-        className="bg-bone text-ink text-xs font-medium px-2 py-1 rounded-md border border-bone/40 cursor-pointer disabled:opacity-60"
+        className="min-w-[3.5rem] max-w-[9rem] bg-bone text-ink text-xs font-medium px-2 py-1 rounded-md border border-bone/40 cursor-pointer disabled:opacity-60"
       >
         <option value="" disabled>
           {pending ? t("loading") : t("chooseLocal")}

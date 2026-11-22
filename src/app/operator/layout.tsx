@@ -18,6 +18,7 @@ import { computeBoardActivity, type BoardActivity } from "./boardActivity";
 import { GroupSwitcher } from "./GroupSwitcher";
 import { BillRequestAlert } from "./BillRequestAlert";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { ImpersonationBar } from "@/components/ImpersonationBar";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 import { Icon } from "@/components/ui/Icon";
 
@@ -264,23 +265,18 @@ async function OperatorLayoutContent({
   const banners = (
     <>
       {impersonating && (
-        <div className="print:hidden shrink-0 bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
-          <div className="min-w-0 flex items-center gap-3 flex-wrap">
-            <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-              {isGroupAdmin ? t("impGroup") : t("impImpersonating")}
-            </span>
-            <span className="truncate">
-              {isGroupAdmin ? t("impViewing") : t("impViewingAsOperator")}{" "}
-              <strong>{tenant?.name ?? "…"}</strong>
-            </span>
+        <ImpersonationBar
+          label={isGroupAdmin ? t("impGroup") : t("impImpersonating")}
+          name={tenant?.name ?? t("loading")}
+          exitLabel={isGroupAdmin ? t("impBackToGroup") : t("impStop")}
+          exitAction={stopImpersonating}
+        >
+          {/* Sólo cuando hay hermanos: así la franja sabe que comparte la
+              línea con un control y acomoda el nombre. */}
+          {siblingRestaurants.length > 0 ? (
             <GroupSwitcher siblings={siblingRestaurants} action={switchToSibling} />
-          </div>
-          <form action={stopImpersonating} className="shrink-0">
-            <button className="font-mono text-[10px] tracking-wider uppercase underline">
-              {isGroupAdmin ? t("impBackToGroup") : t("impStop")}
-            </button>
-          </form>
-        </div>
+          ) : null}
+        </ImpersonationBar>
       )}
       {membership === "vencido" && (
         <div className="print:hidden shrink-0 bg-danger/15 border-b border-danger/30 text-danger px-4 md:px-6 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">

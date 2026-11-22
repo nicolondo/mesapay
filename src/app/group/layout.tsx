@@ -8,6 +8,7 @@ import {
   IMPERSONATE_GROUP_COOKIE,
   getActiveGroupShellContext,
 } from "@/lib/activeRestaurant";
+import { ImpersonationBar } from "@/components/ImpersonationBar";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /**
@@ -122,24 +123,12 @@ async function GroupLayoutContent({
   return (
     <div className="flex flex-1 flex-col bg-op-bg text-op-text min-h-screen">
       {isImpersonating && (
-        <div className="bg-terracotta text-bone px-4 md:px-6 py-2 flex items-center justify-between gap-3 text-sm flex-wrap">
-          <div className="min-w-0 flex items-center gap-3 flex-wrap">
-            <span className="font-mono text-[10px] tracking-wider uppercase opacity-80">
-              {t("impersonatingGroup")}
-            </span>
-            <span className="truncate">
-              {t.rich("viewingAsGroupAdmin", {
-                name: group.name,
-                b: (chunks) => <strong>{chunks}</strong>,
-              })}
-            </span>
-          </div>
-          <form action={stopImpersonatingGroup} className="shrink-0">
-            <button className="font-mono text-[10px] tracking-wider uppercase underline">
-              {t("backToAdmin")}
-            </button>
-          </form>
-        </div>
+        <ImpersonationBar
+          label={t("impersonatingGroup")}
+          name={group.name}
+          exitLabel={t("backToAdmin")}
+          exitAction={stopImpersonatingGroup}
+        />
       )}
       <header className="border-b border-op-border bg-op-surface sticky top-0 z-10">
         <div className="flex items-center justify-between px-4 md:px-6 py-3 gap-3">

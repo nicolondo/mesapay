@@ -129,6 +129,7 @@ const MIGRATED = [
   "src/app/operator/tables/FreeLineLimitNotice.tsx",
   "src/app/operator/OperatorCockpit.tsx",
   "src/app/operator/GroupSwitcher.tsx",
+  "src/components/ImpersonationBar.tsx",
   "src/app/operator/BillRequestAlert.tsx",
   "src/app/operator/page.tsx",
   "src/app/operator/ratings/**/*.{ts,tsx}",

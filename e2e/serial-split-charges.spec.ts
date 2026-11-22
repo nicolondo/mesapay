@@ -309,17 +309,27 @@ test("operador por ficha: liberar un datáfono externo aunque se haya perdido la
   } finally { release(); }
 });
 
-test("usuario datáfono: sin pago registrado se libera a los dos minutos y permite consultar", async ({ page }) => {
-  await fixture(page, { role: "terminal", smartTerminal: true });
-  await page.clock.install();
-  await page.route("**/pay/terminal-request", route => route.abort());
-  const charge = page.getByRole("button", { name: /Cobrar con datáfono ·/ });
-  await charge.click();
-  await expect(page.getByRole("button", { name: "Procesando…" })).toBeDisabled();
-  await page.clock.fastForward(120_001);
-  await expect(charge).toBeEnabled();
-  await expect(page.getByText(/No sabemos si el datáfono alcanzó a cobrar/)).toBeVisible();
-  const checking = page.waitForRequest(r => r.url().includes("/terminal-status?"));
-  await page.getByRole("button", { name: "Consultar estado", exact: true }).click();
-  await checking;
-});
+for (const registered of [false, true]) {
+  test(`usuario datáfono: el límite exige consultar o confirmar el reintento, pago registrado: ${registered}`, async ({ page }) => {
+    await fixture(page, { role: "terminal", smartTerminal: true });
+    await page.clock.install();
+    let posts = 0;
+    const endpoint = registered ? "**/terminal/charge" : "**/pay/terminal-request";
+    await page.route(endpoint, async route => { posts++; await route.abort(); });
+    const charge = page.getByRole("button", { name: /Cobrar con datáfono ·/ });
+    await charge.click();
+    await expect.poll(() => posts).toBe(1);
+    await expect(page.getByRole("button", { name: "Procesando…" })).toBeDisabled();
+    await page.clock.fastForward(120_001);
+    await expect(charge).toBeEnabled();
+    await expect(page.getByText(/No sabemos si el datáfono alcanzó a cobrar/)).toBeVisible();
+    const checking = page.waitForRequest(r => r.url().includes(registered ? "/terminal-attempt" : "/terminal-status?"));
+    await page.getByRole("button", { name: "Consultar estado", exact: true }).click();
+    await checking;
+    const confirmation = page.waitForEvent("dialog");
+    const click = charge.click();
+    await (await confirmation).dismiss();
+    await click;
+    expect(posts).toBe(1);
+  });
+}

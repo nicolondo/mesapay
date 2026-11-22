@@ -908,10 +908,12 @@ export function PayClient({
           router.refresh();
         }
       },
-      onTimeout: id => {
+      onTimeout: () => {
         setManualCancel(false);
         setBusy(null);
-        setTerminalUnknown(!id);
+        // Even a registered request is ambiguous if its status cannot be
+        // refreshed. Keep the explicit confirmation and the original key.
+        setTerminalUnknown(true);
         setFocusPayment("pending");
         router.refresh();
       },

@@ -1,3 +1,4 @@
+import { priorStaffTerminalRequest, rememberStaffTerminalRequest, staffTerminalRequestKey } from "@/lib/payments/staffTerminalRequest";
 import { lockOrder } from "@/lib/orderLock";
 import { validPaymentAmounts, amountCentsSchema, tipCentsSchema } from "@/lib/payments/validation";
 import { secureApi } from "@/lib/secureApi";
@@ -32,6 +33,7 @@ import { formatNumber } from "@/lib/format";
  * Mismo cap server-side que las otras rieles para evitar over-payment.
  */
 const schema = z.object({
+  attemptId: z.string().uuid().optional(),
   orderId: z.string().min(1),
   amountCents: amountCentsSchema,
   tipCents: tipCentsSchema,
@@ -110,9 +112,18 @@ async function POSTHandler(
   const payment = await db.$transaction(async (tx) => {
     await lockOrder(tx, order.id);
     const current = await tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    const requestKey = staff && parsed.data.attemptId
+      ? staffTerminalRequestKey(order.id, "external_terminal", parsed.data.attemptId) : undefined;
+    if (requestKey) {
+      const prior = await priorStaffTerminalRequest(tx, requestKey);
+      if (prior) return prior;
+    }
     if (["paid", "cancelled"].includes(current.status)) throw new Error("order_closed");
     const existing = await tx.payment.findFirst({ where: { orderId: order.id, method: "external_terminal", status: "pending", amountCents: parsed.data.amountCents, tipCents: parsed.data.tipCents } });
-    if (existing) return existing;
+    if (existing) {
+      await rememberStaffTerminalRequest(tx, requestKey, existing);
+      return existing;
+    }
     // El comensal: sus otros pendientes conservan la reserva hasta que se
     // confirme su resultado. El staff: reemplaza las solicitudes (efectivo,
     // datáfono propio) y choca con 409 accionable si un pago en línea en
@@ -132,12 +143,17 @@ async function POSTHandler(
       where: { id: order.id },
       data: { status: order.status === "paid" ? order.status : "paying" },
     });
+    await rememberStaffTerminalRequest(tx, requestKey, p);
     return p;
   });
 
   // Reusamos order.terminal_requested para que el ServeBoard pesque
   // ambos tipos de cobro con tarjeta en la misma sección "datáfono".
   // El consumer distingue por payment.method al renderizar.
+  if (payment.status !== "pending") {
+    return NextResponse.json({ paymentId: payment.id, pending: false, status: payment.status });
+  }
+
   publishOrderEvent(tenant.id, {
     type: "order.terminal_requested",
     orderId: order.id,

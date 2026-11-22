@@ -272,7 +272,8 @@ export function salesFiltersToSearchParams(f: SalesFilters): URLSearchParams {
 
 export function salesHref(f: SalesFilters, base: string = SALES_ANALYSIS_PATH): string {
   const qs = salesFiltersToSearchParams(f).toString();
-  return qs ? `${base}?${qs}` : base;
+  // Una selección explícita del valor por defecto también debe poder compartirse.
+  return `${base}?${qs || `periodo=${DEFAULT_PERIOD}`}`;
 }
 
 /** Aplica (o reemplaza) un filtro de dimensión; queda al final de las migas. */
@@ -344,7 +345,7 @@ export function breadcrumbs(f: SalesFilters): Crumb[] {
   const crumbs: Crumb[] = [];
   const base: SalesFilters = { ...f, dims: {}, dimOrder: [] };
   // La raíz olvida período y filtros, pero no el eje de tiempo elegido.
-  const root = f.axis === DEFAULT_TIME_AXIS ? SALES_ANALYSIS_PATH : `${SALES_ANALYSIS_PATH}?tiempo=${f.axis}`;
+  const root = f.axis === DEFAULT_TIME_AXIS ? `${SALES_ANALYSIS_PATH}?periodo=${DEFAULT_PERIOD}` : `${SALES_ANALYSIS_PATH}?tiempo=${f.axis}`;
   crumbs.push({ kind: "root", href: root, current: false });
   const origin = backToOrigin(base);
   if (origin) crumbs.push({ kind: "period", href: salesHref(origin), current: false });

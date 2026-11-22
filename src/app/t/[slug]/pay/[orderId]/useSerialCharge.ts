@@ -57,6 +57,7 @@ export type SerialCharge = {
     paid: boolean;
     guest?: string | null;
   }) => void;
+  chargeDeclined: (paymentId: string) => boolean;
   clear: () => void;
 };
 
@@ -240,5 +241,14 @@ export function useSerialCharge({
 
   const dismissEvent = useCallback(() => setEvent(null), []);
 
-  return { plan, event, dismissEvent, setSplitCount, chargeLaunched, chargeApproved, clear };
+  const chargeDeclined = useCallback((paymentId: string) => {
+    const current = planRef.current;
+    const flight = current?.inFlight;
+    if (!current || !flight || flight.paymentId !== paymentId) return false;
+    persist({ ...current, inFlight: null });
+    setEvent({ kind: "declined", method: flight.method, guest: flight.guest });
+    return true;
+  }, [persist]);
+
+  return { chargeDeclined, plan, event, dismissEvent, setSplitCount, chargeLaunched, chargeApproved, clear };
 }

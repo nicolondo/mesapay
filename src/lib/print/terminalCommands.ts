@@ -30,6 +30,7 @@ import {
   amountRow,
   fit,
   paymentsSectionCommands,
+  spacedDividers,
   terminalCols,
   type PrintCommand,
 } from "@/lib/payments/kushki/cloudPrint";
@@ -159,7 +160,8 @@ export function invoiceToTerminalCommands(doc: ThermalInvoice): PrintCommand[] {
   if (doc.footerLines.length > 0) {
     c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
   }
-  return [...c, ...end];
+  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
+  return spacedDividers([...c, ...end]);
 }
 
 /** La precuenta: "PRECUENTA", "no es una factura", consumo y propina sugerida. */
@@ -189,7 +191,8 @@ export function prebillToTerminalCommands(doc: ThermalPrebill): PrintCommand[] {
     if (doc.tipNotice) c.push(left(doc.tipNotice, SIZE.small));
   }
   if (doc.footerLines.length > 0) c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
-  return [...c, ...end];
+  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
+  return spacedDividers([...c, ...end]);
 }
 
 /** Un reporte de caja (el cierre de turno): secciones de etiqueta → monto. */
@@ -203,5 +206,6 @@ export function reportToTerminalCommands(doc: ThermalReport): PrintCommand[] {
     for (const n of section.notes) c.push(left(n, SIZE.small));
   }
   if (doc.footerLines.length > 0) c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
-  return [...c, ...end];
+  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
+  return spacedDividers([...c, ...end]);
 }

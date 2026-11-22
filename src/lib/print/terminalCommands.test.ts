@@ -7,9 +7,11 @@ vi.mock("@/lib/platformConfig", () => ({ getKushkiModeSync: () => "production" }
 
 import type { ThermalInvoice } from "@/lib/escpos/invoice";
 import type { ThermalPrebill } from "@/lib/escpos/prebill";
+import type { ThermalReport } from "@/lib/escpos/report";
 import {
   invoiceToTerminalCommands,
   prebillToTerminalCommands,
+  reportToTerminalCommands,
 } from "./terminalCommands";
 import type { PrintCommand } from "@/lib/payments/kushki/cloudPrint";
 
@@ -246,5 +248,77 @@ describe("prebillToTerminalCommands — mismo diseño", () => {
     const text = renderCommands(commands);
     expect(text).toContain("2 x $ 58,000");
     expect(text.split("\n").some((l) => l.includes("electrónica"))).toBe(true);
+  });
+});
+
+describe("separadores — nunca montados sobre el renglón anterior (fotos FESM8617/8618)", () => {
+  /**
+   * En el Sunmi el `divider` no avanza renglón: pegado a un `text` se
+   * dibuja ENCIMA del último renglón, como un tachado. La regla: todo
+   * separador que sigue a un `text` lleva antes un `space` de 24 px
+   * (`spacedDividers`); tras `columns` no hace falta — la fila cierra su
+   * renglón. Este test FALLA con la secuencia anterior (text → divider).
+   */
+  function assertDividerClearance(commands: PrintCommand[], label: string) {
+    commands.forEach((c, i) => {
+      if (c.type !== "divider") return;
+      const prev = commands[i - 1];
+      expect(
+        prev?.type,
+        `${label}: divider en ${i} pegado a un "${prev?.type}"`,
+      ).not.toBe("text");
+      if (prev?.type === "space") {
+        expect(prev.pixels, `${label}: space antes del divider en ${i}`).toBe(24);
+      }
+    });
+  }
+
+  const reportDoc: ThermalReport = {
+    paperWidthMm: 58,
+    businessName: "SON Y MELONA S.A.S.",
+    businessLines: ["NIT 901.234.567-8"],
+    title: "CIERRE DE TURNO",
+    metaRows: [{ label: "Apertura", value: "22/11/26, 8:00 a. m." }],
+    sections: [
+      {
+        title: "POR MÉTODO DE PAGO",
+        rows: [{ label: "Efectivo", value: "$ 120,000" }],
+        notes: ["Una nota corrida debajo de las filas del cierre de turno."],
+      },
+    ],
+    footerLines: ["Generado con MESAPAY"],
+  };
+
+  it("factura, precuenta y cierre: todo divider que sigue a texto lleva su space de 24 px", () => {
+    assertDividerClearance(invoiceToTerminalCommands(fotoDoc()), "factura");
+    assertDividerClearance(
+      invoiceToTerminalCommands({
+        ...fotoDoc(),
+        paymentsSection: null,
+        paymentTitle: "Forma de pago",
+        paymentRows: [{ label: "Tarjeta · datáfono", amount: "$ 37,039" }],
+      }),
+      "factura legacy",
+    );
+    assertDividerClearance(reportToTerminalCommands(reportDoc), "cierre");
+  });
+
+  it("los casos de la foto: el separador tras «Cliente: Consumidor final» y tras la leyenda DIAN va con aire", () => {
+    const commands = invoiceToTerminalCommands(fotoDoc());
+    const after = (needle: string) => {
+      const i = commands.findIndex((c) => c.type === "text" && c.text.includes(needle));
+      expect(i, needle).toBeGreaterThanOrEqual(0);
+      return commands.slice(i + 1, i + 3).map((c) => c.type);
+    };
+    // text → space → divider, nunca text → divider.
+    expect(after("Consumidor final")).toEqual(["space", "divider"]);
+    expect(after("Representación impresa")).toEqual(["space", "divider"]);
+  });
+
+  it("la secuencia de TIPOS de la factura queda fija (snapshot)", () => {
+    const seq = invoiceToTerminalCommands(fotoDoc()).map((c) =>
+      c.type === "divider" ? `divider:${c.dividerType}` : c.type === "space" ? `space:${c.pixels}` : c.type,
+    );
+    expect(seq).toMatchSnapshot();
   });
 });

@@ -135,6 +135,36 @@ export function amountRow(text: string, amount: string): PrintCommand[] {
 }
 
 /**
+ * Aire antes de un separador que sigue a un `text`: el alto de la letra
+ * normal (24 px). En el Sunmi, el `divider` del Print API no avanza
+ * renglón por sí mismo: dibujado justo después de un `text` sale MONTADO
+ * sobre el último renglón impreso, como un tachado — en las facturas
+ * FESM del dueño la línea punteada salió encima de «Cliente: Consumidor
+ * final» y de «…factura electrónica de venta». Tras un `columns` la fila
+ * sí cierra su renglón y el separador queda bien, por eso el aire se mete
+ * SOLO después de texto (ver `spacedDividers`).
+ */
+export const DIVIDER_TEXT_CLEARANCE_PX = 24;
+
+/**
+ * Mete un `space` de `DIVIDER_TEXT_CLEARANCE_PX` antes de cada `divider`
+ * que viene inmediatamente después de un `text`, para que la línea se
+ * dibuje DEBAJO del renglón y no encima. Es el último paso de TODOS los
+ * armadores del datáfono (esta tirilla y `print/terminalCommands.ts`):
+ * los armadores piensan en contenido y este paso piensa en el firmware.
+ */
+export function spacedDividers(commands: PrintCommand[]): PrintCommand[] {
+  const out: PrintCommand[] = [];
+  for (const command of commands) {
+    if (command.type === "divider" && out[out.length - 1]?.type === "text") {
+      out.push({ type: "space", pixels: DIVIDER_TEXT_CLEARANCE_PX });
+    }
+    out.push(command);
+  }
+  return out;
+}
+
+/**
  * La sección «Pagos» como comandos del datáfono: un bloque por pago
  * aprobado con su detalle sangrado, el TOTAL PAGADO y el saldo pendiente
  * si falta. La usan los DOS armadores del datáfono: esta tirilla (desde
@@ -310,7 +340,8 @@ export function buildInvoiceCommands(
   c.push(center("Gracias por su visita"));
   c.push({ type: "feed", lines: 3 });
   c.push({ type: "cut" });
-  return c;
+  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
+  return spacedDividers(c);
 }
 
 export type PrintJobResult = {

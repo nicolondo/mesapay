@@ -9,6 +9,7 @@ import { isModuleEnabled } from "@/lib/modules";
 import { parseSalesFilters } from "@/lib/salesAnalysis/filters";
 import { loadSalesAnalysis } from "@/lib/salesAnalysis/load";
 import { SalesAnalysisView } from "./_components/SalesAnalysisView";
+import { PeriodMemory } from "./_components/PeriodMemory";
 
 export const dynamic = "force-dynamic";
 
@@ -65,5 +66,10 @@ export default async function SalesAnalysisPage({
     getCurrencyForCountry(ctx.country),
   ]);
 
-  return <SalesAnalysisView t={t} analysis={analysis} locale={locale} currency={currency} tenantName={tenant.name} />;
+  return (
+    <>
+      <PeriodMemory restaurantId={ctx.restaurantId} />
+      <SalesAnalysisView t={t} analysis={analysis} locale={locale} currency={currency} tenantName={tenant.name} />
+    </>
+  );
 }

@@ -67,7 +67,7 @@ describe("eje de tiempo (hora del pedido / hora del pago)", () => {
   it("por defecto es la hora del pedido y no ensucia la URL", () => {
     expect(parse("").axis).toBe("pedido");
     expect(parse("tiempo=pedido").axis).toBe("pedido");
-    expect(salesHref(parse("tiempo=pedido"))).toBe("/operator/reports/ventas");
+    expect(salesHref(parse("tiempo=pedido"))).toBe("/operator/reports/ventas?periodo=30d");
   });
 
   it("la hora del pago queda recordada en la URL y sobrevive a filtros, drill y migas", () => {
@@ -145,7 +145,7 @@ describe("drill-down y migas", () => {
     const crumbs = breadcrumbs(f);
     expect(crumbs.map((c) => c.kind)).toEqual(["root", "period", "period", "categoria", "producto"]);
     expect(crumbs.map((c) => c.href)).toEqual([
-      "/operator/reports/ventas",
+      "/operator/reports/ventas?periodo=30d",
       "/operator/reports/ventas?periodo=mes",
       "/operator/reports/ventas?periodo=rango&desde=2026-10-14&hasta=2026-10-14&origen=mes",
       "/operator/reports/ventas?periodo=rango&desde=2026-10-14&hasta=2026-10-14&origen=mes&categoria=c1",

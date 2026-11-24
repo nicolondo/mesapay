@@ -251,27 +251,16 @@ describe("prebillToTerminalCommands — mismo diseño", () => {
   });
 });
 
-describe("separadores — nunca montados sobre el renglón anterior (fotos FESM8617/8618)", () => {
+describe("separadores — línea fina de guiones, nunca el divider del equipo", () => {
   /**
-   * En el Sunmi el `divider` no avanza renglón: pegado a un `text` se
-   * dibuja ENCIMA del último renglón, como un tachado. La regla: todo
-   * separador que sigue a un `text` lleva antes un `space` de 24 px
-   * (`spacedDividers`); tras `columns` no hace falta — la fila cierra su
-   * renglón. Este test FALLA con la secuencia anterior (text → divider).
+   * El `divider` del Print API en el Sunmi sale GRUESO (el dueño pidió
+   * «sólidas y delgadas», foto FESM8648) y además no avanza renglón
+   * (pegado a un `text` salía montado encima, fotos FESM8617/8618). El
+   * separador es ahora una línea de TEXTO de 32 guiones — la misma de la
+   * tirilla de la caja —, que consume su propio renglón. Estos tests
+   * FALLAN con los `divider` anteriores.
    */
-  function assertDividerClearance(commands: PrintCommand[], label: string) {
-    commands.forEach((c, i) => {
-      if (c.type !== "divider") return;
-      const prev = commands[i - 1];
-      expect(
-        prev?.type,
-        `${label}: divider en ${i} pegado a un "${prev?.type}"`,
-      ).not.toBe("text");
-      if (prev?.type === "space") {
-        expect(prev.pixels, `${label}: space antes del divider en ${i}`).toBe(24);
-      }
-    });
-  }
+  const SEPARATOR = "-".repeat(32) + "\n";
 
   const reportDoc: ThermalReport = {
     paperWidthMm: 58,
@@ -289,35 +278,62 @@ describe("separadores — nunca montados sobre el renglón anterior (fotos FESM8
     footerLines: ["Generado con MESAPAY"],
   };
 
-  it("factura, precuenta y cierre: todo divider que sigue a texto lleva su space de 24 px", () => {
-    assertDividerClearance(invoiceToTerminalCommands(fotoDoc()), "factura");
-    assertDividerClearance(
-      invoiceToTerminalCommands({
-        ...fotoDoc(),
-        paymentsSection: null,
-        paymentTitle: "Forma de pago",
-        paymentRows: [{ label: "Tarjeta · datáfono", amount: "$ 37,039" }],
-      }),
-      "factura legacy",
-    );
-    assertDividerClearance(reportToTerminalCommands(reportDoc), "cierre");
+  const prebillDoc: ThermalPrebill = {
+    paperWidthMm: 58,
+    businessName: "SON Y MELONA S.A.S.",
+    businessLines: ["NIT 901.234.567-8"],
+    title: "PRECUENTA",
+    notInvoiceLine: "Este documento no es una factura",
+    metaRows: [{ label: "Mesa", value: "3" }],
+    items: [{ qty: 2, name: "Plato de muestra", amount: "$ 50,000", unit: "$ 25,000", modifiers: [], notes: null }],
+    totals: [{ label: "TOTAL", amount: "$ 50,000", strong: true }],
+    tipRows: [],
+    tipNotice: null,
+    footerLines: ["¡Gracias!"],
+  };
+
+  it("los cuatro armadores: ningún comando divider; los separadores son texto de 32 guiones", () => {
+    const builds: Array<[string, PrintCommand[]]> = [
+      ["factura", invoiceToTerminalCommands(fotoDoc())],
+      [
+        "factura legacy",
+        invoiceToTerminalCommands({
+          ...fotoDoc(),
+          paymentsSection: null,
+          paymentTitle: "Forma de pago",
+          paymentRows: [{ label: "Tarjeta · datáfono", amount: "$ 37,039" }],
+        }),
+      ],
+      ["precuenta", prebillToTerminalCommands(prebillDoc)],
+      ["cierre", reportToTerminalCommands(reportDoc)],
+    ];
+    for (const [label, commands] of builds) {
+      expect(commands.some((c) => c.type === "divider"), `${label}: divider`).toBe(false);
+      const separators = commands.filter((c) => c.type === "text" && c.text === SEPARATOR);
+      expect(separators.length, `${label}: separadores`).toBeGreaterThan(0);
+    }
   });
 
-  it("los casos de la foto: el separador tras «Cliente: Consumidor final» y tras la leyenda DIAN va con aire", () => {
+  it("los casos de la foto: tras «Cliente: Consumidor final» y tras la leyenda DIAN viene la línea de guiones", () => {
     const commands = invoiceToTerminalCommands(fotoDoc());
     const after = (needle: string) => {
       const i = commands.findIndex((c) => c.type === "text" && c.text.includes(needle));
       expect(i, needle).toBeGreaterThanOrEqual(0);
-      return commands.slice(i + 1, i + 3).map((c) => c.type);
+      const next = commands[i + 1];
+      return next?.type === "text" ? next.text : next?.type;
     };
-    // text → space → divider, nunca text → divider.
-    expect(after("Consumidor final")).toEqual(["space", "divider"]);
-    expect(after("Representación impresa")).toEqual(["space", "divider"]);
+    // Una línea de texto consume su renglón: no puede salir montada.
+    expect(after("Consumidor final")).toBe(SEPARATOR);
+    expect(after("Representación impresa")).toBe(SEPARATOR);
   });
 
   it("la secuencia de TIPOS de la factura queda fija (snapshot)", () => {
     const seq = invoiceToTerminalCommands(fotoDoc()).map((c) =>
-      c.type === "divider" ? `divider:${c.dividerType}` : c.type === "space" ? `space:${c.pixels}` : c.type,
+      c.type === "text" && c.text === SEPARATOR
+        ? "separator"
+        : c.type === "space"
+          ? `space:${c.pixels}`
+          : c.type,
     );
     expect(seq).toMatchSnapshot();
   });

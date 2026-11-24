@@ -565,6 +565,8 @@ export type InvoicePaymentDetail = {
   cardBrand?: string | null;
   cardLast4?: string | null;
   approvalCode?: string | null;
+  /** Referencia de la transacción en Kushki — cruza con el extracto. */
+  kushkiReference?: string | null;
   /** Bre-B: la referencia de la transferencia. */
   breBReference?: string | null;
 };
@@ -644,6 +646,10 @@ export function buildPaymentsSection(
           : null,
       ].filter((x): x is string => !!x);
       if (parts.length > 0) lines.push(parts.join(" · "));
+      // La referencia de Kushki en su renglón chico: es lo que el comercio
+      // cruza con el extracto de Kushki.
+      const ref = p.kushkiReference?.trim();
+      if (ref) lines.push(t("paymentRef", { ref }));
     } else if (p.method === "cash" || p.method === "demo_cash") {
       // Recibido y vuelto sólo si lo recibido alcanza: un tender menor que
       // el pago es un dato a medias que confunde más de lo que dice.

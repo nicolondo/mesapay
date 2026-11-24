@@ -5,10 +5,12 @@ import { costRecipeItems } from "@/lib/erp/recipes";
 import type { RestaurantTax } from "@/lib/salesTax";
 import {
   hasItemFilter,
+  withoutDimension,
   resolveComparison,
   resolveRange,
   type SalesFilters,
 } from "./filters";
+import { categorySelection } from "./categorySelection";
 import { rangeDays, rangeInstants, resolveGranularity, type DayRange, type Granularity } from "./period";
 import { deriveKpis, summarizeReturns } from "./metrics";
 import { buildMenuEngineering, type RecipeCostInfo } from "./menuEngineering";
@@ -118,28 +120,37 @@ async function loadRecipeCosts(
 }
 
 export async function loadSalesAnalysis(client: SalesDb, input: SalesAnalysisInput): Promise<SalesAnalysis> {
-  const { filters } = input;
+  let { filters } = input;
   const range = resolveRange(filters, input.today);
   const compareRange = resolveComparison(filters, range);
   const granularity = resolveGranularity(range, filters.granularity);
-  const [scope, compareScope] = await Promise.all([
+  const [scope, compareScope, options] = await Promise.all([
     scopeFor(client, input, range),
     compareRange ? scopeFor(client, input, compareRange) : null,
+    loadFilterOptions(client, input.restaurantId),
   ]);
+  if (filters.dims.categoria?.length) {
+    const { explicit, included } = categorySelection(options.categories, filters.dims.categoria);
+    filters = explicit.length
+      ? { ...filters, dims: { ...filters.dims, categoria: explicit } }
+      : withoutDimension(filters, "categoria");
+    // La URL conserva el padre. Ambos períodos consultan también sus hijas.
+    scope.dims = explicit.length ? { ...filters.dims, categoria: [...included] } : filters.dims;
+    if (compareScope) compareScope.dims = scope.dims;
+  }
   const itemFilter = hasItemFilter(filters);
   const singleDay = rangeDays(range) === 1;
   const dimsBesidesCategory = Object.keys(filters.dims).filter((d) => d !== "categoria");
 
-  const [current, compare, heat, tables, modifiers, orders, options, available] = await Promise.all([
+  const [current, compare, heat, tables, modifiers, orders, available] = await Promise.all([
     loadPeriod(client, scope, range, granularity, input.tax),
     compareRange && compareScope ? loadPeriod(client, compareScope, compareRange, granularity, input.tax) : null,
     loadHeat(client, scope),
     loadTables(client, scope),
     loadModifiers(client, scope),
     singleDay ? loadOrders(client, scope, ORDER_LIST_LIMIT + 1) : null,
-    loadFilterOptions(client, input.restaurantId),
     dimsBesidesCategory.length === 0
-      ? loadAvailableItems(client, input.restaurantId, filters.dims.categoria)
+      ? loadAvailableItems(client, input.restaurantId, scope.dims.categoria)
       : null,
   ]);
 

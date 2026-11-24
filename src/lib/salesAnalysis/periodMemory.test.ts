@@ -12,6 +12,15 @@ describe("sales period memory", () => {
     expect(restoredPeriodHref("", saved, now + 30 * day)).toBe(`${SALES_ANALYSIS_PATH}?periodo=semana&tiempo=pago`);
   });
 
+  it("restores remaining categories, even with the default period, and respects expiration", () => {
+    const saved = save("categoria=old&categoria=wines&categoria=food");
+    expect(restoredPeriodHref("", saved, now, ["food", "wines"])).toBe(
+      SALES_ANALYSIS_PATH + "?categoria=wines&categoria=food",
+    );
+    expect(restoredPeriodHref("", saved, now, [])).toBeNull();
+    expect(restoredPeriodHref("", saved, now + 31 * day, ["food"])).toBeNull();
+  });
+
   it("restores both custom dates", () => {
     const query = "periodo=rango&desde=2026-10-01&hasta=2026-10-31";
     expect(restoredPeriodHref("", save(query), now)).toBe(`${SALES_ANALYSIS_PATH}?${query}`);

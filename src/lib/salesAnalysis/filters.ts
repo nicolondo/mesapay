@@ -95,7 +95,7 @@ export const ITEM_DIMENSIONS: readonly Dimension[] = ["categoria", "producto"];
 export type DimensionFilters = {
   canal?: Channel;
   mesero?: string;
-  categoria?: string;
+  categoria?: string[];
   producto?: string;
   pago?: ReportingMethod;
   mesa?: string;
@@ -140,12 +140,12 @@ function entries(input: SearchInput): [string, string][] {
     for (const [k, v] of input) {
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push([k, v]);
+      out.push([k, k === "categoria" ? input.getAll(k).join(",") : v]);
     }
     return out;
   }
   return Object.entries(input)
-    .map(([k, v]) => [k, first(v)] as [string, string | undefined])
+    .map(([k, v]) => [k, k === "categoria" && Array.isArray(v) ? v.join(",") : first(v)] as [string, string | undefined])
     .filter((e): e is [string, string] => typeof e[1] === "string");
 }
 
@@ -157,6 +157,10 @@ export function parseDimension<D extends Dimension>(
   if (raw === undefined) return undefined;
   const v = raw.trim();
   switch (key) {
+    case "categoria": {
+      const ids = [...new Set(v.split(",").map((id) => id.trim()).filter((id) => ID.test(id)))];
+      return (ids.length ? ids : undefined) as DimensionFilters[D];
+    }
     case "canal":
       return ((CHANNELS as readonly string[]).includes(v) ? v : undefined) as DimensionFilters[D];
     case "pago":
@@ -265,7 +269,8 @@ export function salesFiltersToSearchParams(f: SalesFilters): URLSearchParams {
   const order = [...f.dimOrder, ...DIMENSIONS.filter((d) => !f.dimOrder.includes(d))];
   for (const d of order) {
     const v = f.dims[d];
-    if (v !== undefined) sp.set(d, String(v));
+    if (Array.isArray(v)) v.forEach((id) => sp.append(d, id));
+    else if (v !== undefined) sp.set(d, String(v));
   }
   return sp;
 }
@@ -321,7 +326,7 @@ export function backToOrigin(f: SalesFilters): SalesFilters | null {
 }
 
 export function hasItemFilter(f: Pick<SalesFilters, "dims">): boolean {
-  return f.dims.categoria !== undefined || f.dims.producto !== undefined;
+  return Boolean(f.dims.categoria?.length) || f.dims.producto !== undefined;
 }
 
 /** Rango efectivo del período (con el día operativo de hoy). */

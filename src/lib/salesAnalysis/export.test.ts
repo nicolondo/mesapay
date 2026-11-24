@@ -54,7 +54,7 @@ function analysis(patch: Partial<SalesAnalysis> = {}): SalesAnalysis {
     ordersTruncated: false,
     unsold: [],
     engineering: null,
-    options: { waiters: [{ id: "w1", name: "Ana", disabled: false }], categories: [{ id: "c1", label: "Fuertes", parentLabel: null }], products: [], tables: [] },
+    options: { waiters: [{ id: "w1", name: "Ana", disabled: false }], categories: [{ id: "c1", label: "Fuertes", parentId: null, parentLabel: null }], products: [], tables: [] },
     ...patch,
   };
 }

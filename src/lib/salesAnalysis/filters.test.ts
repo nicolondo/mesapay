@@ -22,6 +22,16 @@ import {
 const parse = (qs: string) => parseSalesFilters(new URLSearchParams(qs));
 
 describe("filtros desde la URL", () => {
+  it("conserva varias categorías en enlaces y migas y admite enlaces de una categoría", () => {
+    const filters = parse("canal=salon&categoria=a&categoria=b&categoria=a&categoria=%24");
+    expect(filters.dims.categoria).toEqual(["a", "b"]);
+    expect(filters.dimOrder).toEqual(["canal", "categoria"]);
+    expect(salesFiltersToSearchParams(filters).toString()).toBe("canal=salon&categoria=a&categoria=b");
+    expect(parseSalesFilters({ categoria: ["a", "b"] }).dims.categoria).toEqual(["a", "b"]);
+    expect(parse("categoria=a").dims.categoria).toEqual(["a"]);
+    expect(hasItemFilter(parse("categoria="))).toBe(false);
+  });
+
   it("sin parámetros: últimos 30 días contra el período anterior, granularidad automática, por hora del pedido", () => {
     const f = parse("");
     expect(f).toMatchObject({ period: "30d", compare: "anterior", granularity: "auto", axis: "pedido", dims: {}, dimOrder: [] });
@@ -86,7 +96,7 @@ describe("eje de tiempo (hora del pedido / hora del pago)", () => {
 
 describe("filtros hacia la URL", () => {
   it("omite los valores por defecto y conserva el orden de los filtros", () => {
-    const f = withDimension(withDimension(parse(""), "categoria", "c1"), "mesero", "u1");
+    const f = withDimension(withDimension(parse(""), "categoria", ["c1"]), "mesero", "u1");
     expect(salesHref(f)).toBe("/operator/reports/ventas?categoria=c1&mesero=u1");
   });
 
@@ -138,7 +148,7 @@ describe("drill-down y migas", () => {
 
   it("migas: raíz › origen › período › cada filtro en orden; la última es la actual", () => {
     const f = withDimension(
-      withDimension(drillToRange(parse("periodo=mes"), { from: "2026-10-14", to: "2026-10-14" }), "categoria", "c1"),
+      withDimension(drillToRange(parse("periodo=mes"), { from: "2026-10-14", to: "2026-10-14" }), "categoria", ["c1"]),
       "producto",
       "p1",
     );

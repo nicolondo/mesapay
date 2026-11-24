@@ -109,7 +109,8 @@ async function tenant(name: string) {
     db.table.create({ data: { restaurantId: r.id, number, qrToken: randomUUID(), ...extra } });
   const [t1, t2, pick, manual] = [await table(1), await table(2, { label: "Terraza" }), await table(-1, { kind: "pickup" }), await table(-100, { kind: "manual" })];
   const cat = await db.category.create({ data: { restaurantId: r.id, slug: `c-${randomUUID()}`, label: "Fuertes" } });
-  const drinks = await db.category.create({ data: { restaurantId: r.id, slug: `d-${randomUUID()}`, label: "Bebidas" } });
+  const beverages = await db.category.create({ data: { restaurantId: r.id, slug: "beverages", label: "Carta de bebidas" } });
+  const drinks = await db.category.create({ data: { restaurantId: r.id, slug: `d-${randomUUID()}`, label: "Bebidas", parentId: beverages.id } });
   const mk = (n: string, price: number, categoryId: string, modifiers?: Prisma.InputJsonValue) =>
     db.menuItem.create({ data: { restaurantId: r.id, categoryId, name: n, priceCents: price, modifiers } });
   const lomo = await mk("Lomo", 3_000_000, cat.id, [{ id: "term", label: "Término", type: "radio", opts: [{ label: "Medio" }] }]);
@@ -117,7 +118,7 @@ async function tenant(name: string) {
   const limonada = await mk("Limonada", 800_000, drinks.id, [{ id: "extras", label: "Extras", type: "checkbox", opts: [{ label: "Hierbabuena" }, { label: "Jengibre" }] }]);
   const user = (n: string) => db.user.create({ data: { email: `${n}-${randomUUID()}@example.test`, name: n, role: "mesero", restaurantId: r.id, passwordHash: "x" } });
   const [w1, w2] = [await user("Ana"), await user("Luis")];
-  return { r, t1, t2, pick, manual, drinks, lomo, pasta, limonada, w1, w2 };
+  return { r, t1, t2, pick, manual, drinks, beverages, lomo, pasta, limonada, w1, w2 };
 }
 
 let A: Awaited<ReturnType<typeof tenant>>;
@@ -246,7 +247,26 @@ describe("análisis de ventas en PostgreSQL", () => {
       return s + o.lines.filter((l) => l.live).reduce((a, l, i) => a + (l.menuItemId === A.lomo.id ? alloc[i]!.netCents : 0), 0);
     }, 0);
     expect(Math.abs(lomo.netCents - Math.round(ref))).toBeLessThanOrEqual(1);
-    expect((await loadTotals(db, scope({ categoria: A.drinks.id }))).compsCents).toBe(1_000_000);
+    expect((await loadTotals(db, scope({ categoria: [A.drinks.id] }))).compsCents).toBe(1_000_000);
+  });
+
+  it("aplica las categorías explícitas y sus hijas a las consultas del informe", async () => {
+    const report = (ids: string[]) => loadSalesAnalysis(db, {
+      restaurantId: A.r.id, cutoffHour: 5, tax: INC8, today: RANGE.from, counterMode: false, recipesEnabled: false,
+      filters: parseSalesFilters({ periodo: "hoy", tiempo: "pago", categoria: ids }),
+    });
+    const child = await report([A.drinks.id]);
+    const parent = await report([A.beverages.id, "desaparecida"]);
+    expect(parent.filters.dims.categoria).toEqual([A.beverages.id]);
+    expect(parent.current.products.map((p) => p.menuItemId)).toEqual([A.limonada.id]);
+    expect(parent.current).toEqual(child.current);
+    expect(parent.compare).toEqual(child.compare);
+    const both = await report([A.beverages.id, A.lomo.categoryId]);
+    expect(both.current.totals.netCents).toBeGreaterThan(parent.current.totals.netCents);
+    expect(both.current.products.map((p) => p.menuItemId)).toContain(A.lomo.id);
+    const all = await report(["desaparecida"]);
+    expect(all.itemFilter).toBe(false);
+    expect(all.current.totals).toEqual(await loadTotals(db, scope()));
   });
 
   it("mesero de la cuenta: comisión sellada o quien montó; y los filtros de cuenta", async () => {

@@ -3,10 +3,10 @@ import { parsePeriodToken, parseSalesFilters, periodToken, salesHref, DEFAULT_PE
 const MAX_AGE = 30 * 86_400_000;
 
 export function serializePeriod(filters: SalesFilters, now: number): string {
-  return JSON.stringify({ period: periodToken(filters), axis: filters.axis, savedAt: now });
+  return JSON.stringify({ period: periodToken(filters), axis: filters.axis, categories: filters.dims.categoria, savedAt: now });
 }
 
-export function restoredPeriodHref(search: string, stored: string | null, now: number): string | null {
+export function restoredPeriodHref(search: string, stored: string | null, now: number, categoryIds: readonly string[] = []): string | null {
   if (search || !stored) return null;
   try {
     const value = JSON.parse(stored);
@@ -15,8 +15,13 @@ export function restoredPeriodHref(search: string, stored: string | null, now: n
         typeof value.period !== "string") return null;
     const selection = parsePeriodToken(value.period);
     if (!selection || periodToken(selection) !== value.period) return null;
-    if (selection.period === DEFAULT_PERIOD && value.axis === DEFAULT_TIME_AXIS) return null;
-    return salesHref({ ...parseSalesFilters({}), ...selection, axis: value.axis });
+    const available = new Set(categoryIds);
+    const categories = Array.isArray(value.categories)
+      ? value.categories.filter((id: unknown): id is string => typeof id === "string" && available.has(id))
+      : [];
+    const filters = parseSalesFilters({ categoria: categories });
+    if (!filters.dims.categoria && selection.period === DEFAULT_PERIOD && value.axis === DEFAULT_TIME_AXIS) return null;
+    return salesHref({ ...filters, ...selection, axis: value.axis });
   } catch {
     return null;
   }

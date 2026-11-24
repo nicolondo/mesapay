@@ -68,7 +68,7 @@ export default async function SalesAnalysisPage({
 
   return (
     <>
-      <PeriodMemory restaurantId={ctx.restaurantId} />
+      <PeriodMemory restaurantId={ctx.restaurantId} categoryIds={analysis.options.categories.map((c) => c.id)} />
       <SalesAnalysisView t={t} analysis={analysis} locale={locale} currency={currency} tenantName={tenant.name} />
     </>
   );

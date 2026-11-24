@@ -5,15 +5,12 @@
 // pago), granularidad y dimensiones. Cada cambio
 // navega a la URL nueva (todo el estado vive en la URL) y los gráficos se
 // quedan atenuados mientras llega la página.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useChartNav } from "@/components/charts/ChartNav";
 import { defaultLocale, isLocale } from "@/i18n/config";
 import {
-  CHANNELS,
   DIMENSIONS,
-  NO_WAITER,
-  REPORTING_METHODS,
   TIME_AXES,
   normalizeRange,
   parseDimension,
@@ -26,7 +23,9 @@ import {
 } from "@/lib/salesAnalysis/filters";
 import { COMPARE_MODES, PERIOD_PRESETS, type DayRange, type Granularity } from "@/lib/salesAnalysis/period";
 import type { FilterOptions } from "@/lib/salesAnalysis/types";
-import { categoryName, channelLabel, dimName, dimValueLabel, methodLabel, tableName } from "@/lib/salesAnalysis/dimLabels";
+import { dimName, dimValueLabel } from "@/lib/salesAnalysis/dimLabels";
+import { CategoryFilter } from "./CategoryFilter";
+import { buildFilterChoices } from "@/lib/salesAnalysis/filterChoices";
 import { hourLabel, weekdayName } from "@/lib/salesAnalysis/labels";
 
 const inputClass =
@@ -56,7 +55,7 @@ export function FilterBar({
   const [custom, setCustom] = useState(filters.period === "rango");
   const [desde, setDesde] = useState(range.from);
   const [hasta, setHasta] = useState(range.to);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(filters.dims.categoria?.length));
   const go = (next: SalesFilters) => navigate(salesHref(next));
 
   const setDim = (dim: Dimension, raw: string) => {
@@ -65,9 +64,10 @@ export function FilterBar({
     if (value !== undefined) go(withDimension(filters, dim, value as never));
   };
 
-  const products = filters.dims.categoria
-    ? options.products.filter((p) => p.categoryId === filters.dims.categoria)
-    : options.products;
+  const choices = useMemo(
+    () => buildFilterChoices(options, t, locale, counterMode, filters.dims.categoria),
+    [options, t, locale, counterMode, filters.dims.categoria],
+  );
   const activeDims = filters.dimOrder.filter((d) => filters.dims[d] !== undefined);
   const labelCtx = { t, locale, options, counterMode };
 
@@ -168,63 +168,21 @@ export function FilterBar({
       </div>
 
       <div className="mp-sales-dims" data-open={open || undefined}>
-        <label className="mp-sales-field">
-          <span>{dimName("canal", t)}</span>
-          <select className={inputClass} value={filters.dims.canal ?? ""} onChange={(e) => setDim("canal", e.target.value)}>
-            <option value="">{t("all")}</option>
-            {CHANNELS.map((c) => (
-              <option key={c} value={c}>{channelLabel(c, t, counterMode)}</option>
-            ))}
-          </select>
-        </label>
-        <label className="mp-sales-field">
-          <span>{dimName("mesero", t)}</span>
-          <select className={inputClass} value={filters.dims.mesero ?? ""} onChange={(e) => setDim("mesero", e.target.value)}>
-            <option value="">{t("all")}</option>
-            {options.waiters.map((w) => (
-              <option key={w.id} value={w.id}>{w.disabled ? t("disabledWaiter", { name: w.name }) : w.name}</option>
-            ))}
-            <option value={NO_WAITER}>{t("noWaiter")}</option>
-          </select>
-        </label>
-        <label className="mp-sales-field">
-          <span>{dimName("categoria", t)}</span>
-          <select className={inputClass} value={filters.dims.categoria ?? ""} onChange={(e) => setDim("categoria", e.target.value)}>
-            <option value="">{t("all")}</option>
-            {options.categories.map((c) => (
-              <option key={c.id} value={c.id}>{categoryName(c, t)}</option>
-            ))}
-          </select>
-        </label>
-        <label className="mp-sales-field">
-          <span>{dimName("producto", t)}</span>
-          <select className={inputClass} value={filters.dims.producto ?? ""} onChange={(e) => setDim("producto", e.target.value)}>
-            <option value="">{t("all")}</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="mp-sales-field">
-          <span>{dimName("pago", t)}</span>
-          <select className={inputClass} value={filters.dims.pago ?? ""} onChange={(e) => setDim("pago", e.target.value)}>
-            <option value="">{t("all")}</option>
-            {REPORTING_METHODS.map((m) => (
-              <option key={m} value={m}>{methodLabel(m, t)}</option>
-            ))}
-          </select>
-        </label>
-        {!counterMode && options.tables.length > 0 && (
-          <label className="mp-sales-field">
-            <span>{dimName("mesa", t)}</span>
-            <select className={inputClass} value={filters.dims.mesa ?? ""} onChange={(e) => setDim("mesa", e.target.value)}>
-              <option value="">{t("all")}</option>
-              {options.tables.map((x) => (
-                <option key={x.id} value={x.id}>{tableName(x, t)}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        {(["canal", "mesero", "categoria", "producto", "pago", "mesa"] as const)
+          .filter((dim) => dim !== "mesa" || (!counterMode && options.tables.length > 0))
+          .map((dim) => dim === "categoria" ? (
+            <CategoryFilter key={dim} choices={choices.categoria} selected={filters.dims.categoria ?? []}
+              onApply={(ids) => go(ids.length ? withDimension(filters, dim, ids) : withoutDimension(filters, dim))} />
+          ) : (
+            <label key={dim} className="mp-sales-field">
+              <span>{dimName(dim, t)}</span>
+              <select className={inputClass} value={filters.dims[dim] ?? ""} onChange={(e) => setDim(dim, e.target.value)}>
+                {choices[dim].map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+          ))}
         <label className="mp-sales-field">
           <span>{dimName("dia", t)}</span>
           <select className={inputClass} value={filters.dims.dia ?? ""} onChange={(e) => setDim("dia", e.target.value)}>

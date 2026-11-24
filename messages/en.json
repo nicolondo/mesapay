@@ -2319,6 +2319,9 @@
     "mapOffHeading": "Not on the map",
     "mapOffHint": "These tables aren't placed on the floor plan.",
     "mapEditLink": "Edit the map",
+    "activeHeading": "Active ({count})",
+    "allTablesHeading": "All tables",
+    "allTablesHint": "In their usual order. Occupied tables show up here too, in their own spot.",
     "manualPendingLink": "Manual invoices ({count})",
     "tileOnCredit": "On credit"
   },

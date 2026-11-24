@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
+import { trapTabWithin } from "./focusTrap";
 import { useLockBodyScroll } from "@/lib/useLockBodyScroll";
 import { useVisualViewport } from "@/lib/useVisualViewport";
 import { centerInVisualViewport } from "@/lib/visualViewport";
@@ -127,36 +128,7 @@ export function AppDialog({
       aria-modal="true"
       className={`mp-dialog ${className}`}
       style={placementStyle ? { ...placementStyle, ...style } : style}
-      onKeyDown={(e) => {
-        if (e.key !== "Tab") return;
-        const controls = Array.from(
-          e.currentTarget.querySelectorAll<HTMLElement>(
-            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-          ),
-        ).filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
-        const first = controls[0];
-        const last = controls.at(-1);
-        if (!first || !last) {
-          e.preventDefault();
-          e.currentTarget.focus();
-          return;
-        }
-        if (
-          e.shiftKey &&
-          (document.activeElement === first ||
-            document.activeElement === e.currentTarget)
-        ) {
-          e.preventDefault();
-          last.focus();
-        } else if (
-          !e.shiftKey &&
-          (document.activeElement === last ||
-            document.activeElement === e.currentTarget)
-        ) {
-          e.preventDefault();
-          first.focus();
-        }
-      }}
+      onKeyDown={trapTabWithin}
       onCancel={(e) => {
         e.preventDefault();
         onClose();

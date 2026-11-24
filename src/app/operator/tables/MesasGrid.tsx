@@ -14,7 +14,9 @@ import {
 } from "@/lib/walkoutRisk";
 import {
   isPhonePaidHighlighted,
+  isSalonTableActive,
   sortTablesForSalon,
+  sortTablesInSalonOrder,
   type SalonSortOptions,
 } from "@/lib/tables/sortTables";
 import {
@@ -22,6 +24,7 @@ import {
   minutesSincePaid,
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
+import { resolveOpenDetail, type OpenTileRef } from "./openDetail";
 import { TablesToolbar, type TableFilter } from "./TablesToolbar";
 import { SalonMap, useSalonView, type SalonFloor } from "./SalonMap";
 import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
@@ -41,14 +44,36 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * Densidad target: 3 cols en mobile (iPhone 390px → ~24 tiles
  * visibles), 4 en tablet, 5-6 en desktop.
  *
- * ORDEN: las mesas activas (cuenta abierta) van primero — las que piden
- * acción arriba de todo — y después las vacías, cada grupo por número.
- * Ver src/lib/tables/sortTables.ts. El orden vale dentro de cada chip y
- * se recalcula con cada refresh (los tiles llegan nuevos del servidor).
+ * ORDEN, en dos secciones (pedido del dueño: "las mesas ocupadas están en
+ * la parte de arriba, o sea que se desaparecen de su ubicación original,
+ * quisiera que esto siga así, pero que no se desaparezcan de su ubicación
+ * original para poderlas ver en orden también"):
  *
- * El sheet de detalle (TableDetailSheet) se renderea en modo
- * controlled — el padre maneja qué tile está expandido. Sólo uno a
- * la vez. Tap fuera o tap en el mismo tile lo cierra.
+ *   «Activas (N)»      las de cuenta abierta — las que piden acción arriba
+ *                      de todo — y la que acaba de pagar desde el celular.
+ *   «Todas las mesas»  el salón completo en su orden natural (por número),
+ *                      con las ocupadas EN SU SITIO y con su color/estado.
+ *
+ * Así una mesa ocupada aparece DOS veces, y las dos apariciones son la
+ * misma mesa: abren la misma ficha y se refrescan juntas (salen del mismo
+ * array `liveTiles`). Ver src/lib/tables/sortTables.ts.
+ *
+ * La sección de arriba solo sale en el chip «Todas» y solo si hay alguna
+ * activa: en «Por cobrar» / «Recién pagadas» / «Libres» la lista ya es de
+ * un solo estado y repetirla no agrega nada, así que esos chips siguen con
+ * una sola lista en el orden de siempre (activas primero). En modo edición
+ * tampoco: ahí se renombra y se borra, no se atiende.
+ *
+ * En Mostrador (`counterMode`) no hay doble vista: el salón es UNA sola
+ * tarjeta y dibujarla dos veces bajo encabezados de mesas no dice nada.
+ *
+ * El sheet de detalle (TableDetailSheet) se renderea en modo controlled y
+ * se monta UNA sola vez, fuera de las listas: cuelga de la mesa + la
+ * cuenta, no de la tarjeta que lo abrió (ver openDetail.ts). Así da igual
+ * desde qué aparición se tocó, las dos apariciones no montan dos fichas, y
+ * la ficha no se esconde si la mesa cambia de aparición entre dos
+ * refrescos (p. ej. se ubica en el plano del mapa, o se saca de él).
+ * Sólo una ficha a la vez. Tap fuera o tap en el mismo tile la cierra.
  *
  * FACTURAS MANUALES: cuentas sin mesa física (mesas ocultas
  * `kind = manual`, ver src/lib/manualInvoice.ts). NUNCA se dibujan acá:
@@ -56,6 +81,14 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * "Factura manual" en la barra de facturación crea una y va a su ficha; al lado,
  * el acceso a las pendientes.
  */
+
+/**
+ * Listas vacías estables para las tarjetas cerradas: `ActiveTile` sólo usa
+ * los destinos de «Mover a otra mesa» con la ficha abierta, y una literal
+ * `[]` nueva en cada render rompería su memoización.
+ */
+const NO_FREE_TABLES: FreeTable[] = [];
+const NO_ALL_TABLES: AllTable[] = [];
 
 export type TileData =
   | {
@@ -246,10 +279,20 @@ export function MesasGrid({
     () => ({ now, phonePaidHighlightMinutes }),
     [now, phonePaidHighlightMinutes],
   );
-  // ID del tile cuyo sheet está abierto. Solo uno a la vez.
-  const [openTileId, setOpenTileId] = useState<string | null>(
-    initialOpenTileId,
-  );
+  // Qué ficha está abierta: la mesa Y su cuenta (ver openDetail.ts). Sólo
+  // una a la vez. No guarda en qué tarjeta se tocó: la ficha se monta en
+  // un solo lugar, así que la aparición da igual.
+  //
+  // La cuenta se fija al abrir, también la que llega por URL (`?open=`):
+  // así, cuando esa cuenta termina, la selección deja de resolver para
+  // siempre y la ficha no reaparece sola al abrirse la SIGUIENTE cuenta en
+  // esa mesa. `?open=` de una mesa sin cuenta no abre nada.
+  const [openTile, setOpenTile] = useState<OpenTileRef | null>(() => {
+    const t = initialOpenTileId
+      ? tiles.find((x) => x.id === initialOpenTileId)
+      : undefined;
+    return t?.state === "active" ? { tableId: t.id, orderId: t.order.id } : null;
+  });
   const [openingManual, setOpeningManual] = useState(false);
 
   /**
@@ -339,11 +382,56 @@ export function MesasGrid({
     return ordered.filter((t) => t.state === "free");
   }, [ordered, filter]);
 
+  // Sección de arriba: las mesas que `ordered` adelanta (cuenta abierta +
+  // la que acaba de pagar desde el celular), en ese mismo orden.
+  const activeTiles = useMemo(
+    () => filtered.filter((t) => isSalonTableActive(t, sortOpts)),
+    [filtered, sortOpts],
+  );
+  // Lista completa en el orden natural del salón: cada mesa en su sitio de
+  // siempre, ocupada o no. Es la misma gente de `filtered`, solo reordenada.
+  const inSalonOrder = useMemo(() => sortTablesInSalonOrder(filtered), [filtered]);
+
   // Vista «Mapa»: las mesas en su lugar real. Solo si hay plano y fuera
   // del modo edición (que usa las tarjetas para renombrar/borrar).
   const [view, setView] = useSalonView(viewerId);
   const canMap = !!floor && !counterMode;
   const showMap = canMap && !editMode && view === "map";
+  // Doble vista solo en «Todas» y solo con alguna mesa activa: si no, la
+  // sección de arriba sería la misma lista repetida (o estaría vacía). En
+  // Mostrador nunca: el salón es una sola tarjeta («Mostrador»), repetirla
+  // bajo dos encabezados de mesas no ayuda a nadie.
+  const showActiveSection =
+    !showMap &&
+    !editMode &&
+    !counterMode &&
+    filter === "all" &&
+    activeTiles.length > 0;
+  // La mesa cuya ficha está abierta, si su cuenta sigue viva. Sale de
+  // `liveTiles` (no de las listas filtradas): un chip o el mapa no cierran
+  // la ficha de una mesa que dejó de estar a la vista.
+  const openDetail = useMemo(() => {
+    const tile = resolveOpenDetail(openTile, liveTiles);
+    // `resolveOpenDetail` ya garantiza la cuenta abierta; el chequeo
+    // vuelve a estrechar la unión de TileData para TypeScript.
+    return tile?.state === "active" ? tile : null;
+  }, [openTile, liveTiles]);
+  // Si la cuenta terminó (se cobró, se canceló), `openDetail` ya es null y
+  // la ficha se va. La selección que queda colgando es inerte: apunta a una
+  // cuenta que no vuelve, así que ninguna cuenta futura la revive. La
+  // próxima mesa que se toque la reemplaza.
+
+  // Destinos de «Mover a otra mesa»: sólo los usa la ficha abierta, que es
+  // una sola. Calcularlos por tarjeta rehacía dos listas por cada mesa
+  // ocupada en cada tick del reloj (10 s), con las fichas cerradas.
+  const detailFreeTables = useMemo(
+    () => (openDetail ? freeTables.filter((ft) => ft.id !== openDetail.id) : NO_FREE_TABLES),
+    [openDetail, freeTables],
+  );
+  const detailAllTables = useMemo(
+    () => (openDetail ? allTables.filter((at) => at.id !== openDetail.id) : NO_ALL_TABLES),
+    [openDetail, allTables],
+  );
   const visibleIds = useMemo(() => new Set(filtered.map((t) => t.id)), [filtered]);
   const isHighlighted = useCallback(
     (t: Extract<TileData, { state: "recently_paid" }>) => isPhonePaidHighlighted(t, sortOpts),
@@ -357,7 +445,7 @@ export function MesasGrid({
       const tile = liveTiles.find((t) => t.id === id);
       if (!tile) return;
       if (tile.state === "active") {
-        setOpenTileId(id);
+        setOpenTile({ tableId: id, orderId: tile.order.id });
         return;
       }
       const href = isMeseroView
@@ -372,18 +460,20 @@ export function MesasGrid({
     () => (floor ? filtered.filter((t) => !floor.tables[t.id]) : []),
     [filtered, floor],
   );
-  const openOnMap =
-    showMap && openTileId && floor?.tables[openTileId]
-      ? liveTiles.find((t) => t.id === openTileId && t.state === "active")
-      : undefined;
-
-  // Una tarjeta del Salón. La usan la grilla y, en la vista «Mapa», las
-  // mesas que no están en el plano y la ficha de la mesa tocada.
+  // Una tarjeta del Salón. La usan las dos secciones de la grilla y, en la
+  // vista «Mapa», las mesas que no están en el plano. Con `sheetOnly` es
+  // la ficha abierta: el único sitio donde se monta el sheet.
+  //
+  // La `key` es el id de la mesa a secas: una mesa ocupada se dibuja en
+  // «Activas» y otra vez en «Todas las mesas», pero cada lista es un padre
+  // distinto y las `key` sólo tienen que ser únicas entre hermanas.
   function renderTile(tile: TileData, opts?: { sheetOnly?: boolean }) {
+          const sheetOnly = opts?.sheetOnly ?? false;
+          const key = tile.id;
           if (editMode) {
             return (
               <ManageTileButton
-                key={tile.id}
+                key={key}
                 number={tile.number}
                 label={tile.label}
                 counterMode={counterMode}
@@ -400,7 +490,7 @@ export function MesasGrid({
           if (tile.state === "free") {
             return (
               <FreeTile
-                key={tile.id}
+                key={key}
                 tile={tile}
                 counterMode={counterMode}
                 isMeseroView={isMeseroView}
@@ -411,7 +501,7 @@ export function MesasGrid({
           if (tile.state === "recently_paid") {
             return (
               <RecentlyPaidTile
-                key={tile.id}
+                key={key}
                 now={now}
                 tile={tile}
                 highlight={isPhonePaidHighlighted(tile, sortOpts)}
@@ -424,16 +514,20 @@ export function MesasGrid({
           // active
           return (
             <ActiveTile
-              key={tile.id}
+              key={key}
               tile={tile}
-              sheetOnly={opts?.sheetOnly}
+              sheetOnly={sheetOnly}
               counterMode={counterMode}
-              open={openTileId === tile.id}
+              // La tarjeta nunca monta el sheet: sólo avisa qué mesa se
+              // tocó. El sheet lo monta la instancia `sheetOnly`.
+              open={sheetOnly}
               onOpenChange={(next) =>
-                setOpenTileId(next ? tile.id : null)
+                setOpenTile(
+                  next ? { tableId: tile.id, orderId: tile.order.id } : null,
+                )
               }
-              freeTables={freeTables.filter((ft) => ft.id !== tile.id)}
-              allTables={allTables.filter((at) => at.id !== tile.id)}
+              freeTables={sheetOnly ? detailFreeTables : NO_FREE_TABLES}
+              allTables={sheetOnly ? detailAllTables : NO_ALL_TABLES}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
               country={country}
@@ -459,7 +553,7 @@ export function MesasGrid({
         editMode={editMode}
         onEditModeChange={(editing) => {
           setEditMode(editing);
-          setOpenTileId(null);
+          setOpenTile(null);
         }}
         tableManagement={tableManagement}
         canOpenManual={canOpenManual}
@@ -478,9 +572,6 @@ export function MesasGrid({
             now={now}
             onActivate={activateFromMap}
           />
-          {/* La ficha de una mesa con cuenta tocada en el mapa (la misma
-              que abre su tarjeta). */}
-          {openOnMap && renderTile(openOnMap, { sheetOnly: true })}
           {offMap.length > 0 && (
             <section className="mt-5">
               <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-op-muted">
@@ -497,9 +588,34 @@ export function MesasGrid({
                   </>
                 )}
               </p>
-              <div className="mp-table-grid">{offMap.map((tile) => renderTile(tile))}</div>
+              <div className="mp-table-grid">
+                {offMap.map((tile) => renderTile(tile))}
+              </div>
             </section>
           )}
+        </>
+      ) : showActiveSection ? (
+        /* Dos secciones: las activas arriba y el salón completo debajo, con
+           las ocupadas otra vez en su sitio. Son dos listas hermanas, cada
+           una con sus propias `key`s. */
+        <>
+          <section>
+            <h2 className="mp-table-section-heading mb-2">
+              {tr("activeHeading", { count: activeTiles.length })}
+            </h2>
+            <div className="mp-table-grid">
+              {activeTiles.map((tile) => renderTile(tile))}
+            </div>
+          </section>
+          <section className="mt-5">
+            <h2 className="mp-table-section-heading">{tr("allTablesHeading")}</h2>
+            <p className="text-[11px] text-op-muted mt-0.5 mb-2">
+              {tr("allTablesHint")}
+            </p>
+            <div className="mp-table-grid">
+              {inSalonOrder.map((tile) => renderTile(tile))}
+            </div>
+          </section>
         </>
       ) : (
         /* Grid de tiles compactos */
@@ -512,6 +628,11 @@ export function MesasGrid({
           {filtered.map((tile) => renderTile(tile))}
         </div>
       )}
+
+      {/* La ficha de la mesa abierta: UN solo sitio, fuera de las listas.
+          Da igual desde qué tarjeta (o desde el mapa) se tocó, y no se
+          esconde si la mesa cambia de aparición en un refresco. */}
+      {openDetail && renderTile(openDetail, { sheetOnly: true })}
 
       {manageTile && (
         <ManageTableSheet

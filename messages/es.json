@@ -2319,6 +2319,9 @@
     "mapOffHeading": "Fuera del mapa",
     "mapOffHint": "Estas mesas no están ubicadas en el mapa del salón.",
     "mapEditLink": "Editar el mapa",
+    "activeHeading": "Activas ({count})",
+    "allTablesHeading": "Todas las mesas",
+    "allTablesHint": "En su orden de siempre. Las mesas ocupadas también salen aquí, en su sitio.",
     "manualPendingLink": "Facturas manuales ({count})",
     "tileOnCredit": "A crédito"
   },

@@ -4,9 +4,12 @@ import type { TableVisualState } from "@/lib/walkoutRisk";
 import {
   compareTableIdentity,
   isPhonePaidHighlighted,
+  isSalonTableActive,
   salonRank,
   sortTablesForSalon,
+  sortTablesInSalonOrder,
   type SalonSortable,
+  type SalonSortOptions,
 } from "./sortTables";
 
 /**
@@ -213,5 +216,82 @@ describe("salonRank", () => {
     const t: SalonSortable = { number: 1, state: "active" };
     expect(salonRank(t)).toBe(salonRank(active(2, "eating")));
     expect(salonRank(t)).toBeGreaterThan(salonRank(active(3, "needs_payment")));
+  });
+});
+
+/**
+ * "Que no se desaparezcan de su ubicación original para poderlas ver en
+ * orden también": la lista completa de la vista de tarjetas usa el orden
+ * natural, el sitio de siempre de cada mesa.
+ */
+describe("sortTablesInSalonOrder", () => {
+  it("por número, con las ocupadas en su sitio", () => {
+    const tiles = [free(5), active(2, "danger"), free(1), active(9, "needs_payment")];
+    expect(numbers(sortTablesInSalonOrder(tiles))).toEqual([1, 2, 5, 9]);
+  });
+
+  it("no adelanta a la que acaba de pagar desde el celular", () => {
+    const tiles = [
+      free(1),
+      { id: "t9", number: 9, label: null, state: "recently_paid" as const, paidFromPhone: true, paidAt: new Date() },
+      free(3),
+    ];
+    expect(numbers(sortTablesInSalonOrder(tiles))).toEqual([1, 3, 9]);
+  });
+
+  it("de empate por número desempata la etiqueta, como el orden del salón", () => {
+    const tiles = [
+      active(1, "eating", { label: "Barra 10" }),
+      free(1, "Barra 2"),
+      free(1, "barra 1"),
+    ];
+    expect(sortTablesInSalonOrder(tiles).map((t) => t.label)).toEqual([
+      "barra 1",
+      "Barra 2",
+      "Barra 10",
+    ]);
+  });
+
+  it("no muta la entrada y aguanta la lista vacía", () => {
+    const tiles = [free(3), free(1)];
+    sortTablesInSalonOrder(tiles);
+    expect(numbers(tiles)).toEqual([3, 1]);
+    expect(sortTablesInSalonOrder([])).toEqual([]);
+  });
+});
+
+/** Quién va en la sección «Activas (N)» de arriba. */
+describe("isSalonTableActive", () => {
+  const T0 = Date.parse("2026-11-24T20:00:00Z");
+  const opts: SalonSortOptions = { now: T0, phonePaidHighlightMinutes: 3 };
+
+  it("las de cuenta abierta sí; libres y recién pagadas no", () => {
+    expect(isSalonTableActive(active(1))).toBe(true);
+    expect(isSalonTableActive(active(2, "danger"))).toBe(true);
+    expect(isSalonTableActive(free(3))).toBe(false);
+    expect(isSalonTableActive(recentlyPaid(4))).toBe(false);
+  });
+
+  it("la que acaba de pagar desde el celular acompaña a las activas mientras dure el resalte", () => {
+    const phonePaid: SalonSortable = {
+      number: 9,
+      label: null,
+      state: "recently_paid",
+      paidFromPhone: true,
+      paidAt: new Date(T0 - 60_000).toISOString(),
+    };
+    expect(isSalonTableActive(phonePaid, opts)).toBe(true);
+    // Vencido el resalte vuelve a ser una recién pagada cualquiera.
+    expect(isSalonTableActive(phonePaid, { ...opts, now: T0 + 4 * 60_000 })).toBe(false);
+    // Y sin `opts` nadie se adelanta (orden clásico).
+    expect(isSalonTableActive(phonePaid)).toBe(false);
+  });
+
+  it("marca exactamente a las que sortTablesForSalon adelanta", () => {
+    const tiles = [free(1), active(2), free(3), active(4, "needs_payment")];
+    const ordered = sortTablesForSalon(tiles);
+    const lifted = ordered.filter((t) => isSalonTableActive(t));
+    expect(numbers(lifted)).toEqual(numbers(ordered.slice(0, lifted.length)));
+    expect(numbers(lifted)).toEqual([4, 2]);
   });
 });

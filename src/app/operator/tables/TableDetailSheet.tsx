@@ -34,6 +34,7 @@ import {
 } from "@/lib/orders/cancellationPolicy";
 import { StaffPrintNotice, useStaffPrint } from "@/components/print/StaffPrintButton";
 import { PrintDestinationPicker } from "@/components/print/PrintDestinationPicker";
+import { trapTabWithin, useDialogFocus } from "@/components/ui/focusTrap";
 import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
@@ -309,6 +310,16 @@ export function TableDetailSheet({
     else setInternalOpen(next);
   };
 
+  // Foco de teclado. La ficha es un diálogo: al abrirla el foco entra en
+  // ella, el Tab da la vuelta adentro (trapTabWithin) y al cerrarla vuelve
+  // al botón que la abrió. Hace falta desde que el sheet se monta una sola
+  // vez al final de la grilla (ver MesasGrid.tsx): antes venía justo
+  // después del botón de su tarjeta, y ahora el siguiente nodo es la
+  // última tarjeta del salón — con Tab el foco se iba al fondo de la lista
+  // y arrastraba la página con él. `preventScroll` en las dos puntas: ni
+  // al entrar ni al volver debe saltar el scroll.
+  const sheetRef = useDialogFocus<HTMLDivElement>(open);
+
   // Back-button integration: cuando abrimos el sheet pusheamos una
   // entry al history del browser. Si el usuario aprieta back (o
   // swipe-back en iOS / hardware back en Android), popstate dispara
@@ -330,6 +341,14 @@ export function TableDetailSheet({
     const marker = `mp-sheet-${orderId}-${Date.now()}`;
     window.history.pushState({ mesapaySheet: marker }, "");
     closingFromPopRef.current = false;
+    // PENDIENTE (no es de este cambio): `onPop` cierra ante CUALQUIER
+    // popstate, sin mirar si la entry que se fue es la suya (`marker`), y
+    // la limpieza de más abajo llama `history.back()`, que es asíncrono.
+    // Si la grilla se remonta con otra key y otro `initialOpenTileId`
+    // mientras hay una ficha abierta, el `back()` de la ficha vieja llega
+    // cuando la nueva ya montó su listener y la cierra: queda ninguna
+    // abierta. Arreglarlo pide comparar `history.state.mesapaySheet` con
+    // el `marker` propio, con el riesgo de timing que eso trae; va aparte.
     const onPop = () => {
       closingFromPopRef.current = true;
       setOpenRef.current(false);
@@ -836,7 +855,13 @@ export function TableDetailSheet({
           }}
         >
           <div
-            className="w-full md:max-w-lg bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={tableLabel}
+            tabIndex={-1}
+            onKeyDown={trapTabWithin}
+            className="w-full md:max-w-lg bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1788,6 +1813,7 @@ function MoveTableSheet({
   onPick: (targetTableId: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [busy, setBusy] = useState(false);
   async function pick(id: string) {
     if (busy) return;
@@ -1804,7 +1830,13 @@ function MoveTableSheet({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("movePickTitle")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -1878,6 +1910,7 @@ function MoveItemSheet({
   onPick: (targetTableId: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [busy, setBusy] = useState(false);
   async function pick(id: string) {
     if (busy) return;
@@ -1894,7 +1927,13 @@ function MoveItemSheet({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("moveItemFromDish")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -2002,6 +2041,7 @@ function FreeLineSheet({
   }) => Promise<string | null>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const canInclude = !!salesTax && salesTax.kind !== "none";
   const [name, setName] = useState("");
   const [qtyRaw, setQtyRaw] = useState("1");
@@ -2086,7 +2126,13 @@ function FreeLineSheet({
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("addFreeLine")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -2291,6 +2337,7 @@ function CancelItemSheet({
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const trimmed = reason.trim();
@@ -2326,7 +2373,13 @@ function CancelItemSheet({
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

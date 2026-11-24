@@ -37,6 +37,12 @@ import {
  *   - Sin `visualState` (una lista que no lo calculó) se deduce del estado
  *     del datáfono: con un pago pendiente la mesa cuenta como "cobro pedido";
  *     si no, como cuenta abierta sin urgencia. Nunca cae debajo de una pagada.
+ *   - El datáfono NO tiene la doble vista de Mesas (sección de activas +
+ *     salón completo en orden natural, ver MesasGrid). En el Sunmi la grilla
+ *     va a dos columnas en una pantalla angosta: repetir cada mesa ocupada
+ *     duplicaría el scroll de la única pantalla donde se cobra de pie y de
+ *     afán. Acá se cobra la mesa que pide cobro, no se busca la mesa 7 entre
+ *     la 6 y la 8, así que se queda con activas primero, como hoy.
  *
  * Función pura, sin dependencias de servidor: la usa la grilla (cliente).
  */

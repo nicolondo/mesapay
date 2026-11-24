@@ -53,7 +53,7 @@ export function CategoryFilter({ choices, selected, onApply }: {
         <span aria-hidden="true" className="size-2 shrink-0 -translate-y-0.5 rotate-45 border-b border-r" />
       </button>
       {open && (
-        <div id="sales-category-options" role="group" aria-labelledby="sales-category-label"
+        <div id="sales-category-options" role="group" tabIndex={-1} aria-labelledby="sales-category-label"
           className="absolute left-0 top-full z-30 mt-1 w-full min-w-0 rounded-xl border border-op-border bg-op-surface p-2 text-sm text-op-text shadow-lg sm:min-w-64">
           <div className="max-h-[min(40dvh,22rem)] overflow-y-auto overscroll-contain">
             <label className="flex min-h-10 items-center gap-2 px-2">

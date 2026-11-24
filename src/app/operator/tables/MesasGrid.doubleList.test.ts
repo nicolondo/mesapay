@@ -177,6 +177,18 @@ describe("MesasGrid — las ocupadas arriba sin desaparecer de su sitio", () => 
     expect(count(html, "orderStatusTitle")).toBe(0);
   });
 
+  it("la ficha se anuncia como diálogo y puede recibir el foco", () => {
+    // El patrón de diálogo que sostiene la contención del foco: la ficha
+    // se monta al final de la grilla, lejos del botón que la abrió, así
+    // que tiene que capturar el foco y devolverlo al cerrar (ver
+    // TableDetailSheet + focusTrap).
+    const html = render([free(1), active(2), free(3)], { openTileId: "t2" });
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('tabindex="-1"');
+    expect(count(html, 'role="dialog"')).toBe(1);
+  });
+
   it("`?open=` de una mesa sin cuenta no abre ninguna ficha", () => {
     const html = render([free(1), active(2)], { openTileId: "t1" });
     expect(count(html, "orderStatusTitle")).toBe(0);

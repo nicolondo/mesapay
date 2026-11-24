@@ -831,6 +831,15 @@
   padding: 16px;
   border-radius: 14px;
 }
+/* Encabezados de las dos secciones de Mesas («Activas (6)» / «Todas las
+   mesas»): discretos, separan las listas sin competir con las fichas. */
+.mp-table-section-heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+}
 .mp-table-grid .font-display {
   font-family: var(--font-sans);
   font-weight: 600;

@@ -77,10 +77,28 @@ function render(tiles: TileData[], opts: { now?: number; minutes?: number } = {}
 const tileOrder = (html: string) =>
   [...html.matchAll(/tileTableShort:(\d+)/g)].map((m) => Number(m[1]));
 
+/**
+ * La vista de tarjetas dibuja DOS listas cuando hay mesas activas: la
+ * sección «Activas (N)» de arriba y, debajo, el salón completo en orden
+ * natural (ver MesasGrid). La mesa que acaba de pagar desde el celular va
+ * en las dos: de primera arriba y en su sitio de siempre abajo.
+ * `active: null` = no hay sección de arriba (ninguna mesa activa).
+ */
+function sections(html: string): { active: number[] | null; all: number[] } {
+  const cut = html.indexOf("allTablesHeading");
+  if (cut < 0) return { active: null, all: tileOrder(html) };
+  return {
+    active: tileOrder(html.slice(0, cut)),
+    all: tileOrder(html.slice(cut)),
+  };
+}
+
 describe("MesasGrid — mesa que acaba de pagar desde el celular", () => {
   it("sale de primera, en verde fuerte y con «Pagó desde el celular · hace 1 min»", () => {
     const html = render([free(1), recentlyPaid(9, 1, true), free(3)]);
-    expect(tileOrder(html)).toEqual([9, 1, 3]);
+    // Arriba de todo en la sección de activas y, sin desaparecer de su
+    // ubicación original, otra vez entre la 3 y nada en la lista completa.
+    expect(sections(html)).toEqual({ active: [9], all: [1, 3, 9] });
     expect(html).toContain("tilePaidFromPhone");
     expect(html).toContain("elapsedAgo:1");
     expect(html).toContain("bg-ok text-bone");
@@ -97,7 +115,8 @@ describe("MesasGrid — mesa que acaba de pagar desde el celular", () => {
     const tiles = [free(1), recentlyPaid(9, 1, true), free(3)];
     // Mismos tiles del servidor, dos minutos y medio después (reloj del cliente).
     const html = render(tiles, { now: T0 + min(2.5) });
-    expect(tileOrder(html)).toEqual([1, 3, 9]);
+    // Sin ninguna mesa activa no hay sección de arriba: una sola lista.
+    expect(sections(html)).toEqual({ active: null, all: [1, 3, 9] });
     expect(html).not.toContain("tilePaidFromPhone");
     expect(html).toContain("bg-ok/10");
     expect(html).toContain("tileMinutesAgo:3");
@@ -105,20 +124,20 @@ describe("MesasGrid — mesa que acaba de pagar desde el celular", () => {
 
   it("la que cobró el mesero nunca sube ni se resalta, aunque sea de hace un minuto", () => {
     const html = render([free(1), recentlyPaid(9, 1, false)]);
-    expect(tileOrder(html)).toEqual([1, 9]);
+    expect(sections(html)).toEqual({ active: null, all: [1, 9] });
     expect(html).not.toContain("tilePaidFromPhone");
     expect(html).toContain("bg-ok/10");
   });
 
   it("con el ajuste en 0 (apagado) se comporta como cualquier recién pagada", () => {
     const html = render([free(1), recentlyPaid(9, 1, true)], { minutes: 0 });
-    expect(tileOrder(html)).toEqual([1, 9]);
+    expect(sections(html)).toEqual({ active: null, all: [1, 9] });
     expect(html).not.toContain("tilePaidFromPhone");
   });
 
   it("respeta los minutos del comercio y el filtro «Recién pagadas» la incluye", () => {
     const html = render([free(1), recentlyPaid(9, 10, true)], { minutes: 15 });
-    expect(tileOrder(html)).toEqual([9, 1]);
+    expect(sections(html)).toEqual({ active: [9], all: [1, 9] });
     expect(html).toContain("tilePaidFromPhone");
     expect(html).toContain("elapsedAgo:10");
   });

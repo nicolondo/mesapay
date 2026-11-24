@@ -32,6 +32,14 @@ import { isPhonePaidHighlightActive } from "./phonePaid";
  *
  * Las mesas `pickup` y `manual` no pasan por acá: viven en sus propias
  * secciones y el grid nunca las mezcla con las físicas.
+ *
+ * DOBLE VISTA (tercer pedido del dueño: "que esto siga así, pero que no se
+ * desaparezcan de su ubicación original para poderlas ver en orden
+ * también"). La vista de tarjetas de Mesas ya no usa UNA sola lista: arriba
+ * va la sección de activas con este orden (`sortTablesForSalon` +
+ * `isSalonTableActive`) y debajo el salón completo en su orden natural
+ * (`sortTablesInSalonOrder`), donde cada mesa conserva su sitio de siempre.
+ * Una mesa ocupada sale dos veces, y las dos apariciones son la misma mesa.
  */
 
 export type SalonSortable = {
@@ -104,6 +112,20 @@ export function salonRank(t: SalonSortable, opts?: SalonSortOptions): number {
 }
 
 /**
+ * ¿Esta mesa va en la sección de arriba del salón? Son exactamente las que
+ * `sortTablesForSalon` adelanta: las que tienen cuenta abierta y la que
+ * acaba de pagar desde el celular mientras dure su resalte (va de primera
+ * por pedido del dueño, y el tile dice "Pagó desde el celular", así que
+ * acompaña a las activas en lugar de perder su sitio arriba).
+ */
+export function isSalonTableActive(
+  t: SalonSortable,
+  opts?: SalonSortOptions,
+): boolean {
+  return salonRank(t, opts) < RANK_EMPTY;
+}
+
+/**
  * Identidad de la mesa: número (siempre entero en el schema) y, de
  * empate, la etiqueta en orden alfabético natural ("Barra 2" < "Barra 10").
  * En la práctica el número es único por restaurante; la etiqueta sólo
@@ -136,4 +158,16 @@ export function sortTablesForSalon<T extends SalonSortable>(
     }
     return compareTableIdentity(a, b);
   });
+}
+
+/**
+ * Orden natural del salón: el sitio de siempre de cada mesa (por número y,
+ * de empate, por etiqueta). Ninguna mesa se adelanta por estar ocupada ni
+ * por acabar de pagar — es la lista completa de la vista de tarjetas, la que
+ * deja encontrar la mesa 7 entre la 6 y la 8 aunque esté ocupada.
+ */
+export function sortTablesInSalonOrder<
+  T extends Pick<SalonSortable, "number" | "label">,
+>(tables: readonly T[]): T[] {
+  return [...tables].sort(compareTableIdentity);
 }

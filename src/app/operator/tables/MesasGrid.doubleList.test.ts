@@ -79,7 +79,10 @@ function active(
   };
 }
 
-function render(tiles: TileData[], opts: { openTileId?: string } = {}) {
+function render(
+  tiles: TileData[],
+  opts: { openTileId?: string; counterMode?: boolean } = {},
+) {
   return renderToStaticMarkup(
     createElement(MesasGrid, {
       initialTime: T0,
@@ -89,7 +92,7 @@ function render(tiles: TileData[], opts: { openTileId?: string } = {}) {
       manualPendingCount: 0,
       canOpenManual: false,
       tenantSlug: "test",
-      counterMode: false,
+      counterMode: opts.counterMode ?? false,
       isMeseroView: false,
       chargeLocked: false,
       moveLocked: false,
@@ -147,6 +150,22 @@ describe("MesasGrid — las ocupadas arriba sin desaparecer de su sitio", () => 
     expect(sections(html)).toEqual({ active: [2, 1], all: [1, 2] });
   });
 
+  it("en Mostrador no hay doble vista: una sola tarjeta, sin encabezados", () => {
+    // El salón de un mostrador es UNA tarjeta («Mostrador»); repetirla bajo
+    // «Activas» y «Todas las mesas» no dice nada.
+    const html = render([active(1)], { counterMode: true });
+    expect(html).not.toContain("activeHeading");
+    expect(html).not.toContain("allTablesHeading");
+    expect(count(html, "tileCounterShort")).toBe(1);
+  });
+
+  it("los encabezados de sección son h2 (van bajo el h1 de la página)", () => {
+    const html = render([free(1), active(2)]);
+    expect(html).toContain("<h2");
+    expect(html).toMatch(/<h2[^>]*>activeHeading:1<\/h2>/);
+    expect(html).toMatch(/<h2[^>]*>allTablesHeading<\/h2>/);
+  });
+
   it("las dos apariciones son la misma mesa: una sola ficha abierta", () => {
     const html = render([free(1), active(2), free(3)], { openTileId: "t2" });
     // El sheet se monta una vez (en la lista completa), no una por aparición.
@@ -155,6 +174,11 @@ describe("MesasGrid — las ocupadas arriba sin desaparecer de su sitio", () => 
 
   it("sin ficha abierta no se monta ningún sheet", () => {
     const html = render([free(1), active(2)]);
+    expect(count(html, "orderStatusTitle")).toBe(0);
+  });
+
+  it("`?open=` de una mesa sin cuenta no abre ninguna ficha", () => {
+    const html = render([free(1), active(2)], { openTileId: "t1" });
     expect(count(html, "orderStatusTitle")).toBe(0);
   });
 });

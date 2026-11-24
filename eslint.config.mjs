@@ -163,6 +163,9 @@ const MIGRATED = [
   "src/components/floorplan/**/*.{ts,tsx}",
   // Desplegable «Platos cancelados» (ficha de la mesa e historial): nació trilingüe.
   "src/components/orders/**/*.{ts,tsx}",
+  // Acciones compartidas de la cabecera del personal («Salir»): nacieron
+  // trilingües, quedan blindadas.
+  "src/components/staff/**/*.{ts,tsx}",
   "src/app/operator/settings/estaciones/**/*.{ts,tsx}",
   "src/app/operator/settings/reservas/**/*.{ts,tsx}",
   "src/app/operator/settings/etiquetas/**/*.{ts,tsx}",

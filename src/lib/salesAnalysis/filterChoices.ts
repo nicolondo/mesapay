@@ -7,6 +7,11 @@ import type { FilterOptions } from "./types";
 
 type Choice = { value: string; label: string };
 
+// Dos etiquetas pueden ser equivalentes para el idioma. El id único desempata.
+function compareId(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function buildFilterChoices(
   options: FilterOptions,
   t: Tr,
@@ -17,13 +22,14 @@ export function buildFilterChoices(
   const { compare } = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
   const all = { value: "", label: t("all") };
   const alphabetical = (choices: Choice[]) => [
-    all, ...choices.sort((a, b) => compare(a.label, b.label)),
+    all, ...choices.sort((a, b) => compare(a.label, b.label) || compareId(a.value, b.value)),
   ];
 
   const categories = [...options.categories].sort((a, b) =>
     compare(a.parentLabel ?? a.label, b.parentLabel ?? b.label) ||
-    compare(a.parentId ?? a.id, b.parentId ?? b.id) ||
-    compare(a.parentLabel ? a.label : "", b.parentLabel ? b.label : ""),
+    compareId(a.parentId ?? a.id, b.parentId ?? b.id) ||
+    compare(a.parentLabel ? a.label : "", b.parentLabel ? b.label : "") ||
+    compareId(a.id, b.id),
   );
   const { included } = categorySelection(categories, categoryIds);
   const products = included.size

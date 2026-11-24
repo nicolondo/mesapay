@@ -55,7 +55,8 @@ export function FilterBar({
   const [custom, setCustom] = useState(filters.period === "rango");
   const [desde, setDesde] = useState(range.from);
   const [hasta, setHasta] = useState(range.to);
-  const [open, setOpen] = useState(Boolean(filters.dims.categoria?.length));
+  const activeDims = filters.dimOrder.filter((d) => filters.dims[d] !== undefined);
+  const [open, setOpen] = useState(activeDims.length > 0);
   const go = (next: SalesFilters) => navigate(salesHref(next));
 
   const setDim = (dim: Dimension, raw: string) => {
@@ -68,7 +69,6 @@ export function FilterBar({
     () => buildFilterChoices(options, t, locale, counterMode, filters.dims.categoria),
     [options, t, locale, counterMode, filters.dims.categoria],
   );
-  const activeDims = filters.dimOrder.filter((d) => filters.dims[d] !== undefined);
   const labelCtx = { t, locale, options, counterMode };
 
   return (

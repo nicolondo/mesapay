@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import es from "../../../messages/es.json";
+import type { Tr } from "./dimLabels";
 import ExcelJS from "exceljs";
 import { buildExportSections, exportFilename, sectionsToCsv, sectionsToXlsx } from "./export";
 import { parseSalesFilters } from "./filters";
@@ -84,6 +87,16 @@ describe("secciones de la vista actual", () => {
       { kind: "money", cents: 9_600_000 },
       { kind: "money", cents: 8_000_000 },
       { kind: "pct", value: 0.2 },
+    ]);
+  });
+
+  it("muestra la cantidad de categorías en la cabecera de filtros del export", () => {
+    const filters = parseSalesFilters(new URLSearchParams("categoria=c1&categoria=c2"));
+    const translate = createTranslator({ locale: "es", messages: es.salesAnalysis }) as Tr;
+    const [summary] = buildExportSections(analysis({ filters }), { ...ctx, t: translate });
+    expect(summary!.rows).toContainEqual([
+      { kind: "text", value: translate("activeFilters") },
+      { kind: "text", value: "Categoría: 2 categorías" },
     ]);
   });
 

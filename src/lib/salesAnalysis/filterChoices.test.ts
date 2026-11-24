@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import es from "../../../messages/es.json";
 import en from "../../../messages/en.json";
 import type { Tr } from "./dimLabels";
+import { categorySelection } from "./categorySelection";
+import { parseSalesFilters } from "./filters";
 import { buildFilterChoices } from "./filterChoices";
 import type { FilterOptions } from "./types";
 
@@ -38,6 +40,28 @@ describe("opciones del análisis de ventas", () => {
       "aceites", "Ácidas", "nueces", "Ñame", "otro", "Vinos",
       "Vinos › Árabe", "Vinos › tempranillo", "Vinos blancos",
     ]);
+  });
+
+  it("deduplica los ids para la consulta y conserva la selección explícita en el orden del enlace", () => {
+    const filters = parseSalesFilters(new URLSearchParams("categoria=child&categoria=other&categoria=parent"));
+    const categories = [
+      { id: "parent", parentId: null }, { id: "child", parentId: "parent" }, { id: "other", parentId: null },
+    ];
+    for (const rows of [categories, [...categories].reverse()]) {
+      const { explicit, included } = categorySelection(rows, filters.dims.categoria);
+      expect(explicit).toEqual(["other", "parent"]);
+      expect([...included].sort()).toEqual(["child", "other", "parent"]);
+    }
+  });
+
+  it("desempata etiquetas equivalentes por id con cualquier orden de entrada", () => {
+    const products = [{ id: "a", name: "Ají", categoryId: "p" }, { id: "b", name: "aji", categoryId: "p" }];
+    for (const rows of [products, [...products].reverse()]) {
+      const categories = rows.map((p) => ({ id: p.id, label: p.name, parentId: "p", parentLabel: "Verduras" }));
+      const result = buildFilterChoices({ ...options, categories, products: rows }, t, "es", false);
+      expect(result.categoria.map((c) => c.value)).toEqual(["a", "b"]);
+      expect(result.producto.map((p) => p.value)).toEqual(["", "a", "b"]);
+    }
   });
 
   it("mantiene el número de mesa, los ids y el filtro de productos por categoría", () => {

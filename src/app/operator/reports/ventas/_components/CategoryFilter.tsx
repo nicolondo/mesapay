@@ -42,7 +42,7 @@ export function CategoryFilter({ choices, selected, onApply }: {
 
   return (
     <div className="mp-sales-field relative" ref={field}
-      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}
+      onBlur={(e) => { if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}
       onKeyDown={(e) => { if (open && e.key === "Escape") { e.preventDefault(); close(); } }}>
       <span id="sales-category-label">{t("dim.categoria")}</span>
       <button type="button" ref={trigger} aria-expanded={open} aria-controls="sales-category-options"
@@ -63,7 +63,7 @@ export function CategoryFilter({ choices, selected, onApply }: {
             {choices.map((c) => {
               const inherited = c.parentId !== null && draft.includes(c.parentId);
               return (
-                <label key={c.value} className="flex min-h-10 items-center gap-2 px-2 has-disabled:text-op-muted">
+                <label key={c.value} className={`flex min-h-10 items-center gap-2 px-2 ${inherited ? "text-op-muted" : ""}`}>
                   <input type="checkbox" checked={inherited || draft.includes(c.value)} disabled={inherited}
                     onChange={() => toggle(c)} />
                   {c.label}

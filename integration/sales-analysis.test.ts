@@ -261,6 +261,15 @@ describe("análisis de ventas en PostgreSQL", () => {
     expect(parent.current.products.map((p) => p.menuItemId)).toEqual([A.limonada.id]);
     expect(parent.current).toEqual(child.current);
     expect(parent.compare).toEqual(child.compare);
+    const redundant = await report([A.drinks.id, A.beverages.id]);
+    expect(redundant.filters.dims.categoria).toEqual([A.beverages.id]);
+    expect(redundant.current).toEqual(parent.current);
+    const mixed = await report([B.drinks.id, A.drinks.id]);
+    expect(mixed.filters.dims.categoria).toEqual([A.drinks.id]);
+    expect(mixed.current).toEqual(child.current);
+    const foreign = await report([B.drinks.id]);
+    expect(foreign.filters.dims.categoria).toBeUndefined();
+    expect(foreign.current.totals).toEqual(await loadTotals(db, scope()));
     const both = await report([A.beverages.id, A.lomo.categoryId]);
     expect(both.current.totals.netCents).toBeGreaterThan(parent.current.totals.netCents);
     expect(both.current.products.map((p) => p.menuItemId)).toContain(A.lomo.id);

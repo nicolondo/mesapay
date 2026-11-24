@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { LandscapeLock } from "@/components/LandscapeLock";
+import { StaffSignOutButton } from "@/components/staff/StaffHeaderActions";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /** Ver `src/app/mesero/layout.tsx` para el racional. */
@@ -63,19 +64,7 @@ async function CocinaLayoutContent({
         }
       >
         <div className="font-display text-lg">Cocina</div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/signin" });
-          }}
-        >
-          <button
-            type="submit"
-            className="text-xs text-op-muted hover:text-ink"
-          >
-            Salir
-          </button>
-        </form>
+        {await StaffSignOutButton()}
       </header>
       {children}
     </div>

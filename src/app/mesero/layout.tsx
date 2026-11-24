@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import type { Locale } from "@/i18n/config";
 import { hasHelpFor } from "@/lib/help/content";
 import { MESERO_HELP_BASE } from "@/lib/help/constants";
+import {
+  StaffSignOutButton,
+  staffHeaderActionClass,
+} from "@/components/staff/StaffHeaderActions";
 import { PushSetup } from "./PushSetup";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 
@@ -94,29 +98,20 @@ async function MeseroLayoutContent({
         }
       >
         <div className="font-display text-lg">Mesero</div>
+        {/* «Ayuda» y «Salir» comparten `staffHeaderActionClass` para que
+            queden a la misma altura y con la misma área táctil; ver
+            src/components/staff/StaffHeaderActions.tsx. */}
         <div className="flex items-center gap-4">
           {showHelp && (
             <Link
               href={MESERO_HELP_BASE}
               prefetch={false}
-              className="text-xs text-op-muted hover:text-ink"
+              className={staffHeaderActionClass}
             >
               {tHelp("meseroNavLabel")}
             </Link>
           )}
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/signin" });
-            }}
-          >
-            <button
-              type="submit"
-              className="text-xs text-op-muted hover:text-ink"
-            >
-              Salir
-            </button>
-          </form>
+          {await StaffSignOutButton()}
         </div>
       </header>
 

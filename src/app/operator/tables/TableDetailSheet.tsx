@@ -34,7 +34,7 @@ import {
 } from "@/lib/orders/cancellationPolicy";
 import { StaffPrintNotice, useStaffPrint } from "@/components/print/StaffPrintButton";
 import { PrintDestinationPicker } from "@/components/print/PrintDestinationPicker";
-import { trapTabWithin } from "@/components/ui/focusTrap";
+import { trapTabWithin, useDialogFocus } from "@/components/ui/focusTrap";
 import {
   lineTaxEmbeddedCents,
   lineTaxOnTopCents,
@@ -318,15 +318,7 @@ export function TableDetailSheet({
   // última tarjeta del salón — con Tab el foco se iba al fondo de la lista
   // y arrastraba la página con él. `preventScroll` en las dos puntas: ni
   // al entrar ni al volver debe saltar el scroll.
-  const sheetRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const trigger = document.activeElement as HTMLElement | null;
-    sheetRef.current?.focus({ preventScroll: true });
-    return () => {
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-    };
-  }, [open]);
+  const sheetRef = useDialogFocus<HTMLDivElement>(open);
 
   // Back-button integration: cuando abrimos el sheet pusheamos una
   // entry al history del browser. Si el usuario aprieta back (o
@@ -1821,6 +1813,7 @@ function MoveTableSheet({
   onPick: (targetTableId: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [busy, setBusy] = useState(false);
   async function pick(id: string) {
     if (busy) return;
@@ -1837,7 +1830,13 @@ function MoveTableSheet({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("movePickTitle")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -1911,6 +1910,7 @@ function MoveItemSheet({
   onPick: (targetTableId: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [busy, setBusy] = useState(false);
   async function pick(id: string) {
     if (busy) return;
@@ -1927,7 +1927,13 @@ function MoveItemSheet({
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("moveItemFromDish")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -2035,6 +2041,7 @@ function FreeLineSheet({
   }) => Promise<string | null>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const canInclude = !!salesTax && salesTax.kind !== "none";
   const [name, setName] = useState("");
   const [qtyRaw, setQtyRaw] = useState("1");
@@ -2119,7 +2126,13 @@ function FreeLineSheet({
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tr("addFreeLine")}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -2324,6 +2337,7 @@ function CancelItemSheet({
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
   const tr = useTranslations("opTables");
+  const sheetRef = useDialogFocus<HTMLDivElement>();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const trimmed = reason.trim();
@@ -2359,7 +2373,13 @@ function CancelItemSheet({
       className="fixed inset-0 z-[60] bg-ink/50 flex items-end md:items-center justify-center p-0 md:p-6"
     >
       <div
-        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        onKeyDown={trapTabWithin}
+        className="w-full md:max-w-md bg-paper rounded-t-3xl md:rounded-3xl border border-hairline p-5 space-y-4 max-h-[90dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

@@ -81,8 +81,8 @@ export function ProductsPanel({
       valueLabel: formatValue(c.netCents, money),
       sub: t("products.categorySub", { share: pct === null ? t("emptyDash") : fmtPercent(pct, locale), units: c.units }),
       delta: d === null ? null : { text: fmtDelta(d, locale), tone: deltaTone(d, "up") },
-      href: c.categoryId ? salesHref(withDimension(filters, "categoria", c.categoryId)) : undefined,
-      selected: c.categoryId !== null && c.categoryId === filters.dims.categoria,
+      href: c.categoryId ? salesHref(withDimension(filters, "categoria", [c.categoryId])) : undefined,
+      selected: c.categoryId !== null && (filters.dims.categoria?.includes(c.categoryId) ?? false),
       tooltip: {
         title: name,
         rows: [

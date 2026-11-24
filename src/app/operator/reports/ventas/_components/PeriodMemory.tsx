@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { parseSalesFilters } from "@/lib/salesAnalysis/filters";
 import { restoredPeriodHref, serializePeriod } from "@/lib/salesAnalysis/periodMemory";
 
-export function PeriodMemory({ restaurantId }: { restaurantId: string }) {
+export function PeriodMemory({ restaurantId, categoryIds }: { restaurantId: string; categoryIds: string[] }) {
   const router = useRouter();
   const search = useSearchParams().toString();
 
@@ -16,13 +16,13 @@ export function PeriodMemory({ restaurantId }: { restaurantId: string }) {
         const filters = parseSalesFilters(new URLSearchParams(search));
         localStorage.setItem(key, serializePeriod(filters, Date.now()));
       } else {
-        const href = restoredPeriodHref(search, localStorage.getItem(key), Date.now());
+        const href = restoredPeriodHref(search, localStorage.getItem(key), Date.now(), categoryIds);
         if (href) router.replace(href, { scroll: false });
       }
     } catch {
       // El informe sigue funcionando cuando el navegador bloquea localStorage.
     }
-  }, [restaurantId, router, search]);
+  }, [restaurantId, router, search, categoryIds]);
 
   return null;
 }

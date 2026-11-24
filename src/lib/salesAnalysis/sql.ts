@@ -181,7 +181,7 @@ function orderConditions(scope: SalesScope, slotAtAccount: boolean): Prisma.Sql 
 function lineMatch(scope: SalesScope): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
   if (scope.dims.producto) parts.push(Prisma.sql`it."menuItemId" = ${scope.dims.producto}`);
-  if (scope.dims.categoria) parts.push(Prisma.sql`mi."categoryId" = ${scope.dims.categoria}`);
+  if (scope.dims.categoria?.length) parts.push(Prisma.sql`mi."categoryId" IN (${Prisma.join(scope.dims.categoria)})`);
   return parts.length ? Prisma.sql`(${Prisma.join(parts, " AND ")})` : Prisma.sql`true`;
 }
 
@@ -413,7 +413,7 @@ function sliceFacts(scope: SalesScope, item: boolean, pct: number): Prisma.Sql {
           - CASE WHEN fo."invoiceId" IS NULL THEN fo."curTax" WHEN fo."menuGross" > 0 THEN fo."included" ELSE 0 END`,
         net: Prisma.sql`(CASE WHEN fo."orderRawNet" > 0 THEN 0 ELSE fo."net" END)::numeric`,
       };
-  const menuJoin = scope.dims.categoria
+  const menuJoin = scope.dims.categoria?.length
     ? Prisma.sql`LEFT JOIN "MenuItem" mi ON mi."id" = it."menuItemId" AND mi."restaurantId" = ${scope.restaurantId}`
     : Prisma.empty;
   const s = slotOf(Prisma.sql`s."at"`, scope.cutoffHour);

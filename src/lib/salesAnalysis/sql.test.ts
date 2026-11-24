@@ -31,7 +31,7 @@ const scope = (dims: SalesScope["dims"] = {}, axis: SalesScope["axis"] = "pago")
 const AXES: SalesScope["axis"][] = ["pago", "pedido"];
 
 const ALL_FILTERS: SalesScope["dims"] = {
-  canal: "salon", mesero: "waiter-xyz", categoria: "cat-xyz", producto: "item-xyz",
+  canal: "salon", mesero: "waiter-xyz", categoria: ["cat-xyz", "cat-child"], producto: "item-xyz",
   pago: "cash", mesa: "table-xyz", dia: 5, hora: 21,
 };
 
@@ -71,10 +71,10 @@ describe("consultas acotadas por comercio", () => {
   it.each(BUILDERS)("%s: los filtros viajan como parámetros, nunca en el texto", (_, build) => {
     for (const axis of AXES) {
       const sql = build(scope(ALL_FILTERS, axis));
-      for (const value of ["waiter-xyz", "cat-xyz", "item-xyz", "table-xyz", RID]) {
+      for (const value of ["waiter-xyz", "cat-xyz", "cat-child", "item-xyz", "table-xyz", RID]) {
         expect(sql.sql).not.toContain(value);
       }
-      expect(sql.values).toEqual(expect.arrayContaining(["salon", "waiter-xyz", "cat-xyz", "item-xyz", "table-xyz", "cash", "demo_cash"]));
+      expect(sql.values).toEqual(expect.arrayContaining(["salon", "waiter-xyz", "cat-xyz", "cat-child", "item-xyz", "table-xyz", "cash", "demo_cash"]));
     }
   });
 

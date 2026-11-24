@@ -114,7 +114,7 @@ export type PeriodData = {
 
 export type FilterOptions = {
   waiters: { id: string; name: string; disabled: boolean }[];
-  categories: { id: string; label: string; parentLabel: string | null }[];
+  categories: { id: string; label: string; parentId: string | null; parentLabel: string | null }[];
   products: { id: string; name: string; categoryId: string }[];
   tables: { id: string; number: number; label: string | null }[];
 };

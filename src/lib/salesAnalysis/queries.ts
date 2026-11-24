@@ -333,22 +333,18 @@ export async function loadFilterOptions(client: SalesDb, restaurantId: string): 
     client.user.findMany({
       where: { restaurantId, role: "mesero" },
       select: { id: true, name: true, email: true, disabledAt: true },
-      orderBy: [{ name: "asc" }, { email: "asc" }],
     }),
     client.category.findMany({
       where: { restaurantId },
-      select: { id: true, label: true, sortOrder: true, parent: { select: { label: true } } },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: { id: true, label: true, parentId: true, parent: { select: { label: true } } },
     }),
     client.menuItem.findMany({
       where: { restaurantId },
       select: { id: true, name: true, categoryId: true },
-      orderBy: { name: "asc" },
     }),
     client.table.findMany({
       where: { restaurantId, kind: "standard" },
       select: { id: true, number: true, label: true },
-      orderBy: { number: "asc" },
     }),
   ]);
   return {
@@ -357,7 +353,7 @@ export async function loadFilterOptions(client: SalesDb, restaurantId: string): 
       name: w.name?.trim() || w.email || w.id,
       disabled: w.disabledAt !== null,
     })),
-    categories: categories.map((c) => ({ id: c.id, label: c.label, parentLabel: c.parent?.label ?? null })),
+    categories: categories.map((c) => ({ id: c.id, label: c.label, parentId: c.parentId, parentLabel: c.parent?.label ?? null })),
     products,
     tables,
   };
@@ -367,10 +363,10 @@ export async function loadFilterOptions(client: SalesDb, restaurantId: string): 
 export async function loadAvailableItems(
   client: SalesDb,
   restaurantId: string,
-  categoryId?: string,
+  categoryIds?: string[],
 ): Promise<{ id: string; name: string }[]> {
   return client.menuItem.findMany({
-    where: { restaurantId, available: true, ...(categoryId ? { categoryId } : {}) },
+    where: { restaurantId, available: true, ...(categoryIds?.length ? { categoryId: { in: categoryIds } } : {}) },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

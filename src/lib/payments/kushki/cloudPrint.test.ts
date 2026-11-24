@@ -289,18 +289,18 @@ describe("buildInvoiceCommands — la tirilla del datáfono (55 mm)", () => {
     expect(renderCommands(sin)).not.toContain("TOTAL PAGADO");
   });
 
-  it("separadores: todo divider que sigue a un text lleva antes un space de 24 px (spacedDividers)", () => {
-    // En el Sunmi el `divider` no avanza renglón: pegado a un `text` se
-    // dibuja ENCIMA del último renglón (fotos FESM8617/8618 del dueño).
+  it("separadores: ningún divider del equipo — la línea fina de guiones en texto", () => {
+    // El `divider` del Sunmi sale grueso (el dueño pidió «sólidas y
+    // delgadas», FESM8648) y no avanza renglón (FESM8617/8618): el
+    // separador es una línea de TEXTO de 32 guiones, que consume su renglón.
     const all = commands();
-    all.forEach((c, i) => {
-      if (c.type !== "divider") return;
-      const prev = all[i - 1];
-      expect(prev?.type, `divider en ${i} pegado a un "${prev?.type}"`).not.toBe("text");
-      if (prev?.type === "space") expect(prev.pixels).toBe(24);
-    });
-    // El del encabezado (tras el teléfono, texto) es uno de los que lo lleva.
+    expect(all.some((c) => c.type === "divider")).toBe(false);
+    const separators = all.filter((c) => c.type === "text" && c.text === "-".repeat(32) + "\n");
+    expect(separators.length).toBeGreaterThanOrEqual(4);
+    // El del encabezado va justo después del teléfono (texto): al ser texto
+    // no puede salir montado sobre él.
     const tel = all.findIndex((c) => c.type === "text" && c.text.startsWith("Tel"));
-    expect(all.slice(tel + 1, tel + 3).map((c) => c.type)).toEqual(["space", "divider"]);
+    const next = all[tel + 1];
+    expect(next.type === "text" && next.text).toBe("-".repeat(32) + "\n");
   });
 });

@@ -30,7 +30,7 @@ import {
   amountRow,
   fit,
   paymentsSectionCommands,
-  spacedDividers,
+  separatorCommand,
   terminalCols,
   type PrintCommand,
 } from "@/lib/payments/kushki/cloudPrint";
@@ -66,12 +66,14 @@ const left = (text: string, size: number = SIZE.body, bold = false): PrintComman
  * encima con nada (el mismo patrón de `buildInvoiceCommands`).
  */
 const strongRow = (label: string, value: string): PrintCommand[] => [
-  { type: "divider", dividerType: "SOLID", offset: 4 },
+  separatorCommand(),
   { type: "text", text: fit(label, SIZE.strongLabel) + "\n", align: "LEFT", size: SIZE.strongLabel, bold: true },
   { type: "text", text: value + "\n", align: "RIGHT", size: SIZE.amount, bold: true },
 ];
-const dotted: PrintCommand = { type: "divider", dividerType: "DOTTED", offset: 8 };
-const solid: PrintCommand = { type: "divider", dividerType: "SOLID", offset: 8 };
+// Un solo separador para todo: la línea fina de guiones de la caja (ver
+// `separatorCommand` — el `divider` del Print API sale grueso y montado).
+const dotted: PrintCommand = separatorCommand();
+const solid: PrintCommand = separatorCommand();
 const end: PrintCommand[] = [{ type: "feed", lines: 3 }, { type: "cut" }];
 
 function header(businessName: string, businessLines: string[]): PrintCommand[] {
@@ -160,8 +162,7 @@ export function invoiceToTerminalCommands(doc: ThermalInvoice): PrintCommand[] {
   if (doc.footerLines.length > 0) {
     c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
   }
-  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
-  return spacedDividers([...c, ...end]);
+  return [...c, ...end];
 }
 
 /** La precuenta: "PRECUENTA", "no es una factura", consumo y propina sugerida. */
@@ -191,8 +192,7 @@ export function prebillToTerminalCommands(doc: ThermalPrebill): PrintCommand[] {
     if (doc.tipNotice) c.push(left(doc.tipNotice, SIZE.small));
   }
   if (doc.footerLines.length > 0) c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
-  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
-  return spacedDividers([...c, ...end]);
+  return [...c, ...end];
 }
 
 /** Un reporte de caja (el cierre de turno): secciones de etiqueta → monto. */
@@ -206,6 +206,5 @@ export function reportToTerminalCommands(doc: ThermalReport): PrintCommand[] {
     for (const n of section.notes) c.push(left(n, SIZE.small));
   }
   if (doc.footerLines.length > 0) c.push(dotted, ...doc.footerLines.map((l) => center(l, SIZE.small)));
-  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
-  return spacedDividers([...c, ...end]);
+  return [...c, ...end];
 }

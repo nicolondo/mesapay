@@ -61,7 +61,9 @@ export function dimValueLabel<D extends Dimension>(
       if (value === NO_WAITER) return t("noWaiter");
       return options.waiters.find((w) => w.id === value)?.name ?? t("unknownValue");
     case "categoria": {
-      const c = options.categories.find((x) => x.id === value);
+      const ids = value as string[];
+      if (ids.length > 1) return t("categoryCount", { count: ids.length });
+      const c = options.categories.find((x) => x.id === ids[0]);
       return c ? categoryName(c, t) : t("unknownValue");
     }
     case "producto":

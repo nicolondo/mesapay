@@ -286,8 +286,10 @@ export function terminalAnswerCode(answer: CloudTerminalAnswer | null | undefine
  */
 export const CLOUD_TERMINAL_VALIDATION_STATUSES: ReadonlySet<number> = new Set([400, 401, 403, 404, 409, 422]);
 
-/** Dónde puede venir el código de aprobación (número de autorización). */
-const APPROVAL_CODE_KEYS = ["approval_code", "approvalCode", "authorization_code", "authorizationCode"];
+/** Dónde puede venir el código de aprobación (número de autorización).
+ * `authCode` es como lo manda el sync charge del Sunmi (visto en prod:
+ * la fila de FESM8648 quedó sin aprobación porque faltaba esta clave). */
+const APPROVAL_CODE_KEYS = ["approval_code", "approvalCode", "authorization_code", "authorizationCode", "authCode", "auth_code"];
 /** Dónde puede venir el código de respuesta del adquirente (ISO 8583). */
 const RESPONSE_CODE_KEYS = ["responseCode", "response_code"];
 /** "00" = aprobada (ISO 8583); Kushki ONE también manda "000". */

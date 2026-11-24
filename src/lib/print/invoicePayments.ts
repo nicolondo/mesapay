@@ -12,6 +12,10 @@
  */
 
 import { db } from "@/lib/db";
+import {
+  extractKushkiCardInfo,
+  extractKushkiReference,
+} from "@/lib/payments/kushki/chargeDetails";
 import type { InvoicePaymentDetail } from "./invoiceDoc";
 
 export async function loadInvoicePaymentDetails(
@@ -32,7 +36,13 @@ export async function loadInvoicePaymentDetails(
         where: { kind: "charge", status: "approved" },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { cardBrand: true, cardLast4: true, approvalCode: true },
+        select: {
+          cardBrand: true,
+          cardLast4: true,
+          approvalCode: true,
+          kushkiTxId: true,
+          raw: true,
+        },
       },
       breBCharge: { select: { transactionReference: true } },
     },
@@ -41,15 +51,26 @@ export async function loadInvoicePaymentDetails(
     // `?? []`: los mocks de los tests (y un cliente Prisma recortado)
     // pueden no traer las relaciones; un pago sin ellas imprime igual.
     const tx = (p.kushkiTransactions ?? [])[0] ?? null;
+    // Columnas tipadas primero; si están en NULL (los cobros del DATÁFONO
+    // guardados antes de extraerlas: `authCode`/`cardData` en el raw), el
+    // detalle se saca del raw acá — así las facturas YA emitidas también
+    // imprimen franquicia, últimos 4 y aprobación al reimprimir.
+    const fromRaw = tx && (!tx.cardBrand || !tx.cardLast4 || !tx.approvalCode)
+      ? extractKushkiCardInfo(tx.raw)
+      : null;
     return {
       method: p.method,
       amountCents: p.amountCents,
       tipCents: p.tipCents,
       cashTenderCents: p.cashTenderCents,
       billingCustomerName: p.billingCustomer?.customerName ?? null,
-      cardBrand: tx?.cardBrand ?? null,
-      cardLast4: tx?.cardLast4 ?? null,
-      approvalCode: tx?.approvalCode ?? null,
+      cardBrand: tx?.cardBrand ?? fromRaw?.cardBrand ?? null,
+      cardLast4: tx?.cardLast4 ?? fromRaw?.cardLast4 ?? null,
+      approvalCode: tx?.approvalCode ?? fromRaw?.approvalCode ?? null,
+      // La referencia de Kushki, para cruzar con el extracto: la del raw
+      // (el terminal la manda como `transactionReference`) o, si no, el id
+      // con el que quedó asentada la transacción.
+      kushkiReference: tx ? extractKushkiReference(tx.raw) ?? tx.kushkiTxId ?? null : null,
       breBReference: p.breBCharge?.transactionReference ?? null,
     };
   });

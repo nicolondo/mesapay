@@ -679,6 +679,19 @@ describe("buildPaymentsSection — la sección «Pagos»", () => {
     expect(corto.blocks[0].lines).toEqual([]);
   });
 
+  it("tarjeta con referencia de Kushki: «Ref.» en su renglón chico, después del detalle", () => {
+    const ps = buildPaymentsSection(
+      [{ ...card, kushkiReference: "4152912345678901" }],
+      t,
+      money,
+    )!;
+    expect(ps.blocks[0].lines).toEqual([
+      "VISA · ····4242 · paymentApproval(123456)",
+      "paymentRef(4152912345678901)",
+      "paymentIncludesTip($1800)",
+    ]);
+  });
+
   it("crédito de cliente: a nombre de quién; Bre-B: la referencia", () => {
     const ps = buildPaymentsSection(
       [

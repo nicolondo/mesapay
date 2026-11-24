@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getActiveContext } from "@/lib/activeRestaurant";
+import { StaffSignOutButton } from "@/components/staff/StaffHeaderActions";
+import { terminalSignOut } from "@/components/staff/signOutActions";
 import { FullIntlProvider } from "@/i18n/IntlProviders";
 
 /**
@@ -65,16 +67,13 @@ async function TerminalLayoutContent({
           </div>
           <div className="font-display text-xl">{"MESAPAY"}</div>
         </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <button className="text-bone/70 text-sm hover:underline">
-            {t("signOut")}
-          </button>
-        </form>
+        {/* Mismo botón compartido que mesero/cocina/bar, con la paleta
+            oscura del datáfono. Ver StaffHeaderActions. */}
+        {await StaffSignOutButton({
+          action: terminalSignOut,
+          className:
+            "inline-flex min-h-11 items-center text-bone/70 text-sm hover:underline",
+        })}
       </header>
       <main className="flex-1">{children}</main>
     </div>

@@ -135,33 +135,18 @@ export function amountRow(text: string, amount: string): PrintCommand[] {
 }
 
 /**
- * Aire antes de un separador que sigue a un `text`: el alto de la letra
- * normal (24 px). En el Sunmi, el `divider` del Print API no avanza
- * renglón por sí mismo: dibujado justo después de un `text` sale MONTADO
- * sobre el último renglón impreso, como un tachado — en las facturas
- * FESM del dueño la línea punteada salió encima de «Cliente: Consumidor
- * final» y de «…factura electrónica de venta». Tras un `columns` la fila
- * sí cierra su renglón y el separador queda bien, por eso el aire se mete
- * SOLO después de texto (ver `spacedDividers`).
+ * Separador de la tirilla del datáfono: una línea de TEXTO de guiones, la
+ * misma de la tirilla ESC/POS de la caja, y no el `divider` del Print
+ * API. Dos razones, las dos vistas en papel por el dueño: el `divider`
+ * del Sunmi sale GRUESO (pidió «sólidas y delgadas», foto FESM8648) y no
+ * avanza renglón por sí mismo (pegado a un `text` salía montado encima,
+ * fotos FESM8617/8618 — una línea de texto consume su renglón y el
+ * problema desaparece de raíz). Guiones ASCII a propósito: el contrato
+ * del Print API no documenta el charset del equipo y un box-drawing
+ * («────») puede salir como basura; el guion es el trazo fino seguro.
  */
-export const DIVIDER_TEXT_CLEARANCE_PX = 24;
-
-/**
- * Mete un `space` de `DIVIDER_TEXT_CLEARANCE_PX` antes de cada `divider`
- * que viene inmediatamente después de un `text`, para que la línea se
- * dibuje DEBAJO del renglón y no encima. Es el último paso de TODOS los
- * armadores del datáfono (esta tirilla y `print/terminalCommands.ts`):
- * los armadores piensan en contenido y este paso piensa en el firmware.
- */
-export function spacedDividers(commands: PrintCommand[]): PrintCommand[] {
-  const out: PrintCommand[] = [];
-  for (const command of commands) {
-    if (command.type === "divider" && out[out.length - 1]?.type === "text") {
-      out.push({ type: "space", pixels: DIVIDER_TEXT_CLEARANCE_PX });
-    }
-    out.push(command);
-  }
-  return out;
+export function separatorCommand(): PrintCommand {
+  return { type: "text", text: "-".repeat(TERMINAL_COLS) + "\n", align: "LEFT", size: 24 };
 }
 
 /**
@@ -173,7 +158,7 @@ export function spacedDividers(commands: PrintCommand[]): PrintCommand[] {
  */
 export function paymentsSectionCommands(ps: PaymentsSection): PrintCommand[] {
   const c: PrintCommand[] = [];
-  c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
+  c.push(separatorCommand());
   c.push({ type: "text", text: fit(ps.title) + "\n", align: "LEFT", size: 24, bold: true });
   for (const b of ps.blocks) {
     c.push(...amountRow(b.label, b.amount));
@@ -248,7 +233,7 @@ export function buildInvoiceCommands(
     c.push(center(snapshot.legalAddress + (snapshot.legalCity ? ` · ${snapshot.legalCity}` : "")));
   }
   if (snapshot.legalPhone) c.push(center(`Tel ${snapshot.legalPhone}`));
-  c.push({ type: "divider", dividerType: "SOLID", offset: 10 });
+  c.push(separatorCommand());
 
   c.push(center(`FACTURA ${formatInvoiceNumber(snapshot, invoiceNumber)}`, 32, true));
   const paidAt = new Date(snapshot.paidAtIso);
@@ -269,7 +254,7 @@ export function buildInvoiceCommands(
   );
 
   if (snapshot.customer) {
-    c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
+    c.push(separatorCommand());
     c.push({ type: "text", text: fit(`Cliente: ${snapshot.customer.name}`) + "\n" });
     c.push({
       type: "text",
@@ -277,7 +262,7 @@ export function buildInvoiceCommands(
     });
   }
 
-  c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
+  c.push(separatorCommand());
   // Repetidos AGRUPADOS ("2x Bretaña"), con los modificadores y la nota
   // debajo — igual que la térmica de la caja (ver src/lib/invoiceLines.ts).
   // El nombre envuelto por palabra: la primera línea al lado del precio y
@@ -294,7 +279,7 @@ export function buildInvoiceCommands(
       }
     }
   }
-  c.push({ type: "divider", dividerType: "SOLID", offset: 8 });
+  c.push(separatorCommand());
 
   const totalRow = (label: string, amount: string): PrintCommand[] =>
     amountRow(label, amount);
@@ -314,7 +299,7 @@ export function buildInvoiceCommands(
     payableLabelsFrom(t, { einvoice: true }),
   )) {
     if (row.strong) {
-      c.push({ type: "divider", dividerType: "SOLID", offset: 4 });
+      c.push(separatorCommand());
       c.push({ type: "text", text: fit(row.label, 28) + "\n", align: "LEFT", size: 28, bold: true });
       c.push({ type: "text", text: money(row.cents) + "\n", align: "RIGHT", size: 32, bold: true });
     } else {
@@ -327,12 +312,12 @@ export function buildInvoiceCommands(
   // saldo — lo mismo que la tirilla de la caja.
   if (paymentsSection) c.push(...paymentsSectionCommands(paymentsSection));
 
-  c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
+  c.push(separatorCommand());
   c.push(center(t("tipNoticeTitle"), 24, true));
   c.push({ type: "text", text: fit(t("tipNoticeBody")) + "\n", align: "LEFT", size: 24 });
 
   if (snapshot.dianResolution) {
-    c.push({ type: "divider", dividerType: "DOTTED", offset: 8 });
+    c.push(separatorCommand());
     c.push(center(`Res. DIAN ${snapshot.dianResolution}`));
   }
   c.push({ type: "space", pixels: 16 });
@@ -340,8 +325,7 @@ export function buildInvoiceCommands(
   c.push(center("Gracias por su visita"));
   c.push({ type: "feed", lines: 3 });
   c.push({ type: "cut" });
-  // Aire antes de cada separador que sigue a texto (ver `spacedDividers`).
-  return spacedDividers(c);
+  return c;
 }
 
 export type PrintJobResult = {

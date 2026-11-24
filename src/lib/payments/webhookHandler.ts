@@ -1,3 +1,4 @@
+import { extractKushkiCardInfo } from "@/lib/payments/kushki/chargeDetails";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { publishOrderEvent } from "@/lib/events";
@@ -217,10 +218,19 @@ export async function settleKushkiEventInTx(tx: Prisma.TransactionClient, payloa
   if (payload.providerRef) {
     const ledger = await tx.kushkiTransaction.findUnique({ where: { kushkiTxId: payload.providerRef } });
     if (ledger?.paymentId && ledger.paymentId !== payment.id) throw new Error("reference_in_use");
+    // Columnas tipadas de la tarjeta desde el raw — también para el cobro
+    // del DATÁFONO (claves `authCode`/`cardData`…), que antes quedaba con
+    // todo en NULL y la factura salía sin franquicia/últimos 4/aprobación.
+    // En el update solo lo que el raw de ESTA entrega sí trae: una entrega
+    // tardía más pobre no borra lo ya extraído.
+    const cardInfo = extractKushkiCardInfo(payload.raw);
+    const knownCardInfo = Object.fromEntries(
+      Object.entries(cardInfo).filter(([, v]) => v !== null),
+    );
     await tx.kushkiTransaction.upsert({ where: { kushkiTxId: payload.providerRef }, create: {
       restaurantId: payment.order.restaurantId, paymentId: payment.id, kushkiTxId: payload.providerRef,
-      kind: "charge", status, amountCents: chargedCents, raw: (payload.raw ?? {}) as object,
-    }, update: { status, message: payload.message, ...(adjust ? { amountCents: chargedCents } : {}) } });
+      kind: "charge", status, amountCents: chargedCents, raw: (payload.raw ?? {}) as object, ...cardInfo,
+    }, update: { status, message: payload.message, ...knownCardInfo, ...(adjust ? { amountCents: chargedCents } : {}) } });
   }
   await tx.payment.update({ where: { id: payment.id }, data: {
     status, providerRef: payload.providerRef ?? payment.providerRef,

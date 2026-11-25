@@ -25,7 +25,11 @@ import { useCallback, useState, useSyncExternalStore } from "react";
  *     entera, aunque el evento `storage` sí llegue;
  *   - al cambiar de comercio sin remontar, el nuevo —que no tiene nada
  *     guardado— heredaría el plegado del anterior.
- * Por eso el respaldo guarda también SU clave y sólo vale para ella.
+ * Por eso el respaldo guarda también SU clave y sólo vale para ella, y
+ * CADUCA en cuanto otra pestaña escribe: si el `storage` llegó, el
+ * almacenamiento volvió a funcionar y lo persistido vuelve a mandar. Sin
+ * eso, un fallo pasajero de escritura (una cuota llena que se libera al
+ * rato) dejaba la pestaña pegada a su respaldo para siempre.
  */
 
 const EVENT = "mesapay:active-section";
@@ -83,22 +87,43 @@ export function resolveCollapsed(
 }
 
 /**
+ * Qué queda del respaldo cuando llega un aviso de cambio.
+ *
+ * `external` = lo mandó el navegador desde OTRA pestaña (evento
+ * `storage`): el almacenamiento está vivo y escribiéndose, así que el
+ * respaldo de esta clave sobra y lo persistido manda. Un aviso propio
+ * (`external: false`) es justamente el que disparamos después de que la
+ * escritura FALLÓ: ahí el respaldo es lo único que hay y se conserva.
+ */
+export function fallbackAfterSignal(
+  fallback: CollapsedFallback | null,
+  key: string,
+  external: boolean,
+): CollapsedFallback | null {
+  if (!external) return fallback;
+  return fallback?.key === key ? null : fallback;
+}
+
+/**
  * Avisa cuando cambia el plegado de ESTA clave: `storage` lo manda el
  * navegador desde las OTRAS pestañas, y el evento propio cubre la actual
  * (donde `storage` no dispara).
  */
 export function subscribeToActiveSection(
   key: string,
-  onChange: () => void,
+  onChange: (external: boolean) => void,
 ): () => void {
+  // `storage` sólo llega desde otras pestañas; `key: null` es un `clear()`
+  // y también nos toca.
   const onStorage = (e: StorageEvent) => {
-    if (!e.key || e.key === key) onChange();
+    if (!e.key || e.key === key) onChange(true);
   };
+  const onLocal = () => onChange(false);
   window.addEventListener("storage", onStorage);
-  window.addEventListener(EVENT, onChange);
+  window.addEventListener(EVENT, onLocal);
   return () => {
     window.removeEventListener("storage", onStorage);
-    window.removeEventListener(EVENT, onChange);
+    window.removeEventListener(EVENT, onLocal);
   };
 }
 
@@ -109,7 +134,11 @@ export function useActiveSectionCollapsed(
   const key = activeSectionKey(tenantSlug);
   const [fallback, setFallback] = useState<CollapsedFallback | null>(null);
   const subscribe = useCallback(
-    (cb: () => void) => subscribeToActiveSection(key, cb),
+    (cb: () => void) =>
+      subscribeToActiveSection(key, (external) => {
+        setFallback((f) => fallbackAfterSignal(f, key, external));
+        cb();
+      }),
     [key],
   );
   const stored = useSyncExternalStore<boolean>(

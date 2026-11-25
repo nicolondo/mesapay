@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   activeSectionKey,
+  fallbackAfterSignal,
   parseCollapsed,
   readCollapsed,
   resolveCollapsed,
@@ -148,12 +149,12 @@ describe("resolveCollapsed", () => {
 });
 
 describe("subscribeToActiveSection", () => {
-  it("avisa cuando otra pestaña toca ESTA clave", () => {
+  it("avisa cuando otra pestaña toca ESTA clave, y lo marca como externo", () => {
     const { win } = install();
     const onChange = vi.fn();
     subscribeToActiveSection(TERESITA, onChange);
     win.emit("storage", { key: TERESITA });
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true);
   });
 
   it("no avisa por la clave de otro comercio", () => {
@@ -164,20 +165,20 @@ describe("subscribeToActiveSection", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("un borrado completo del almacenamiento (key null) también avisa", () => {
+  it("un borrado completo del almacenamiento (key null) también avisa, y es externo", () => {
     const { win } = install();
     const onChange = vi.fn();
     subscribeToActiveSection(TERESITA, onChange);
     win.emit("storage", { key: null });
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true);
   });
 
-  it("el evento propio cubre la pestaña actual, donde «storage» no dispara", () => {
+  it("el evento propio cubre la pestaña actual y NO es externo", () => {
     const { win } = install();
     const onChange = vi.fn();
     subscribeToActiveSection(TERESITA, onChange);
     win.emit("mesapay:active-section");
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 
   it("al desuscribir deja de avisar", () => {
@@ -190,9 +191,32 @@ describe("subscribeToActiveSection", () => {
   });
 });
 
+describe("fallbackAfterSignal", () => {
+  const propio = { key: TERESITA, collapsed: true };
+
+  it("un aviso EXTERNO de esa clave lo caduca: el almacenamiento volvió", () => {
+    expect(fallbackAfterSignal(propio, TERESITA, true)).toBeNull();
+  });
+
+  it("el aviso propio tras una escritura fallida lo conserva", () => {
+    // Es el único momento en que el respaldo existe: si el aviso que
+    // nosotros mismos disparamos lo borrara, el clic no haría nada.
+    expect(fallbackAfterSignal(propio, TERESITA, false)).toBe(propio);
+  });
+
+  it("un aviso externo de OTRA clave no toca este respaldo", () => {
+    expect(fallbackAfterSignal(propio, OTRO, true)).toBe(propio);
+  });
+
+  it("sin respaldo no hay nada que caducar", () => {
+    expect(fallbackAfterSignal(null, TERESITA, true)).toBeNull();
+    expect(fallbackAfterSignal(null, TERESITA, false)).toBeNull();
+  });
+});
+
 /**
- * Las dos secuencias que reprodujo la revisión, armadas con las piezas
- * reales del hook (lo que React hace es llamarlas en este orden).
+ * Las secuencias que reprodujo la revisión, armadas con las piezas reales
+ * del hook (lo que React hace es llamarlas en este orden).
  */
 describe("secuencias entre pestañas y comercios", () => {
   it("pestaña A desplegada, pestaña B pliega → A se entera", () => {
@@ -208,6 +232,32 @@ describe("secuencias entre pestañas y comercios", () => {
     writeCollapsed(TERESITA, true);
     win.emit("storage", { key: TERESITA });
     expect(resolveCollapsed(stored, fallback, TERESITA)).toBe(true);
+  });
+
+  it("un fallo pasajero al escribir no deja la pestaña pegada al respaldo", () => {
+    const { storage, win } = install();
+    // A pliega, pero el almacenamiento está lleno justo en ese momento.
+    storage.break();
+    let fallback = writeCollapsed(TERESITA, true)
+      ? null
+      : { key: TERESITA, collapsed: true };
+    win.emit("mesapay:active-section");
+    fallback = fallbackAfterSignal(fallback, TERESITA, false);
+    expect(fallback).toEqual({ key: TERESITA, collapsed: true });
+    expect(resolveCollapsed(readCollapsed(TERESITA), fallback, TERESITA)).toBe(true);
+
+    // El almacenamiento se recupera y B pliega y después despliega.
+    const sano = install({ [TERESITA]: "collapsed" });
+    sano.win.emit("storage", { key: TERESITA });
+    fallback = fallbackAfterSignal(fallback, TERESITA, true);
+    expect(fallback).toBeNull();
+    expect(resolveCollapsed(readCollapsed(TERESITA), fallback, TERESITA)).toBe(true);
+
+    writeCollapsed(TERESITA, false); // B despliega
+    sano.win.emit("storage", { key: TERESITA });
+    fallback = fallbackAfterSignal(fallback, TERESITA, true);
+    // A sigue a B en vez de quedarse plegada con el almacenamiento vacío.
+    expect(resolveCollapsed(readCollapsed(TERESITA), fallback, TERESITA)).toBe(false);
   });
 
   it("plegar en un comercio y cambiar al otro sin remontar no lo hereda", () => {

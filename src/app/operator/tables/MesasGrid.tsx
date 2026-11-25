@@ -89,6 +89,16 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * los destinos de «Mover a otra mesa» con la ficha abierta, y una literal
  * `[]` nueva en cada render rompería su memoización.
  */
+/**
+ * Toda tarjeta de mesa —libre, recién pagada o con cuenta— lleva
+ * `data-table-id`: identifica QUÉ mesa dibuja, en cualquiera de sus
+ * apariciones. Es lo que deja rescatar el foco cuando la tarjeta desde la
+ * que se abrió la ficha se desmonta (se plegó «Activas», incluso desde
+ * otra pestaña, o la mesa pasó a libre en un refresco). Ver
+ * `restoreActiveFocus`.
+ */
+const TABLE_TILE_SELECTOR = (id: string) => `[data-table-id="${CSS.escape(id)}"]`;
+
 /** El botón que pliega «Activas»: último recurso para devolver el foco. */
 const ACTIVE_TOGGLE_SELECTOR = "button.mp-table-section-toggle";
 
@@ -441,17 +451,19 @@ export function MesasGrid({
   // cuenta que no vuelve, así que ninguna cuenta futura la revive. La
   // próxima mesa que se toque la reemplaza.
 
-  // A dónde va el foco al cerrar la ficha si el botón que la abrió ya no
+  // A dónde va el foco al cerrar la ficha si la tarjeta que la abrió ya no
   // está: la mesa se dibuja arriba y otra vez en «Todas», y la de arriba
-  // puede desaparecer (se plegó la sección —incluso desde otra pestaña—,
-  // o la mesa dejó de estar activa). Se busca la otra aparición VISIBLE de
-  // la misma mesa y, si tampoco hay, el encabezado «Activas», que siempre
-  // está mientras la sección exista. `null` = que lo resuelva el navegador.
+  // puede desaparecer (se plegó la sección —incluso desde otra pestaña—, o
+  // la mesa dejó de estar activa). Se busca cualquier aparición VISIBLE de
+  // la misma mesa, sea cual sea su estado: si en ese refresco pasó a
+  // libre, su tarjeta de «Todas» sigue ahí y es el sitio natural. Si la
+  // mesa ya no está en ninguna parte, queda el encabezado «Activas»; y si
+  // tampoco (se quedó sin activas), `null` y que lo resuelva el navegador.
   const restoreActiveFocus = useCallback((): HTMLElement | null => {
     const id = openTile?.tableId;
     if (!id) return null;
     const visible = Array.from(
-      document.querySelectorAll<HTMLElement>(`[data-table-id="${CSS.escape(id)}"]`),
+      document.querySelectorAll<HTMLElement>(TABLE_TILE_SELECTOR(id)),
     ).find((el) => el.getClientRects().length > 0);
     return visible ?? document.querySelector<HTMLElement>(ACTIVE_TOGGLE_SELECTOR);
   }, [openTile]);
@@ -931,6 +943,7 @@ function FreeTile({
       href={href}
       prefetch={false}
       {...targetProps}
+      data-table-id={tile.id}
       className="aspect-[4/3] rounded-xl border border-op-border bg-op-surface hover:bg-op-bg flex flex-col items-center justify-center p-2 text-center transition-colors"
     >
       <div className="font-display text-base leading-none">
@@ -996,6 +1009,7 @@ function RecentlyPaidTile({
       href={href}
       prefetch={false}
       {...targetProps}
+      data-table-id={tile.id}
       className={
         base +
         (highlight
@@ -1129,9 +1143,6 @@ function ActiveTile({
       {!sheetOnly && (
       <button
         type="button"
-        // Identifica la tarjeta como aparición de ESTA mesa: si el botón
-        // que abrió la ficha se desmonta, el foco busca por acá la otra
-        // aparición que siga a la vista (ver `restoreActiveFocus`).
         data-table-id={tile.id}
         onClick={() => onOpenChange(true)}
         className={

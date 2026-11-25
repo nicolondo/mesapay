@@ -48,6 +48,19 @@ function free(number: number): TileData {
   return { id: `t${number}`, number, label: null, qrToken: `qr${number}`, state: "free" };
 }
 
+/** Recién pagada por el equipo (sin el resalte del celular). */
+function paid(number: number): TileData {
+  return {
+    id: `t${number}`,
+    number,
+    label: null,
+    qrToken: `qr${number}`,
+    state: "recently_paid",
+    paidAt: new Date(T0 - 60_000).toISOString(),
+    paidFromPhone: false,
+  };
+}
+
 /** Mesa con cuenta abierta. `visualState` es lo que decide su urgencia. */
 function active(
   number: number,
@@ -281,6 +294,17 @@ describe("MesasGrid — «Activas» se pliega y se despliega", () => {
     expect(count(collapsed, 'data-table-id="t2"')).toBe(1);
     // Y si tampoco estuviera, queda el encabezado como último recurso.
     expect(collapsed).toContain("mp-table-section-toggle");
+  });
+
+  it("la mesa también se identifica estando libre o recién pagada", () => {
+    // Si un refresco deja TODAS las mesas libres, se va el encabezado
+    // «Activas» con su botón: sin marcar estas tarjetas, el foco al
+    // cerrar la ficha caía al body aunque la mesa siguiera a la vista.
+    const html = render([free(1), paid(2), free(3)]);
+    expect(html).not.toContain("mp-table-section-toggle");
+    expect(html).toContain('data-table-id="t1"');
+    expect(html).toContain('data-table-id="t2"');
+    expect(html).toContain('data-table-id="t3"');
   });
 
   it("en Mostrador no hay sección, así que tampoco hay nada que plegar", () => {

@@ -1,7 +1,7 @@
 "use client";
 import { useClock } from "@/lib/browser/clock";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useId, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -15,6 +15,7 @@ import {
 import {
   isPhonePaidHighlighted,
   isSalonTableActive,
+  mostUrgentVisualState,
   sortTablesForSalon,
   sortTablesInSalonOrder,
   type SalonSortOptions,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
 import { resolveOpenDetail, type OpenTileRef } from "./openDetail";
+import { useActiveSectionCollapsed } from "./activeSectionMemory";
 import { TablesToolbar, type TableFilter } from "./TablesToolbar";
 import { SalonMap, useSalonView, type SalonFloor } from "./SalonMap";
 import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
@@ -407,6 +409,21 @@ export function MesasGrid({
     !counterMode &&
     filter === "all" &&
     activeTiles.length > 0;
+  // Plegar/desplegar «Activas», recordado en este equipo para este
+  // comercio (ver activeSectionMemory.ts). Plegada, el encabezado con el
+  // contador se queda: se ve cuántas hay sin que ocupen pantalla.
+  const [activeCollapsed, setActiveCollapsed] =
+    useActiveSectionCollapsed(tenantSlug);
+  const activeGridId = useId();
+  // Con la sección plegada no se ven las tarjetas, así que el encabezado
+  // insinúa con un punto del mismo tono que ya usan los tiles si alguna
+  // mesa pide acción (riesgo de fuga, cobro pedido, mesero llamado). NO se
+  // despliega sola: el que la plegó decidió que quería la pantalla libre,
+  // y abrírsela de golpe mientras cobra sería peor que el aviso.
+  const urgentState = useMemo(
+    () => (activeCollapsed ? mostUrgentVisualState(activeTiles, sortOpts) : null),
+    [activeCollapsed, activeTiles, sortOpts],
+  );
   // La mesa cuya ficha está abierta, si su cuenta sigue viva. Sale de
   // `liveTiles` (no de las listas filtradas): un chip o el mapa no cierran
   // la ficha de una mesa que dejó de estar a la vista.
@@ -600,11 +617,51 @@ export function MesasGrid({
            una con sus propias `key`s. */
         <>
           <section>
-            <h2 className="mp-table-section-heading mb-2">
-              {tr("activeHeading", { count: activeTiles.length })}
+            <h2 className="mp-table-section-heading">
+              <button
+                type="button"
+                aria-expanded={!activeCollapsed}
+                aria-controls={activeGridId}
+                onClick={() => setActiveCollapsed(!activeCollapsed)}
+                className="mp-table-section-toggle"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                  className="mp-table-section-chevron"
+                  data-open={!activeCollapsed}
+                >
+                  <path
+                    d="m3 4.5 3 3 3-3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>{tr("activeHeading", { count: activeTiles.length })}</span>
+                {urgentState && (
+                  <>
+                    <span
+                      aria-hidden
+                      className={
+                        "mp-table-section-dot " +
+                        tileTokensForState(urgentState).dot +
+                        (tileTokensForState(urgentState).pulse ? " animate-pulse" : "")
+                      }
+                    />
+                    {/* El punto es color: el motivo, en texto, para quien
+                        no lo ve. Entra en el nombre accesible del botón. */}
+                    <span className="sr-only">{tr("activeUrgentHint")}</span>
+                  </>
+                )}
+              </button>
             </h2>
-            <div className="mp-table-grid">
-              {activeTiles.map((tile) => renderTile(tile))}
+            <div className="mp-table-grid" id={activeGridId} hidden={activeCollapsed}>
+              {!activeCollapsed && activeTiles.map((tile) => renderTile(tile))}
             </div>
           </section>
           <section className="mt-5">

@@ -5,6 +5,7 @@ import {
   compareTableIdentity,
   isPhonePaidHighlighted,
   isSalonTableActive,
+  mostUrgentVisualState,
   salonRank,
   sortTablesForSalon,
   sortTablesInSalonOrder,
@@ -293,5 +294,47 @@ describe("isSalonTableActive", () => {
     const lifted = ordered.filter((t) => isSalonTableActive(t));
     expect(numbers(lifted)).toEqual(numbers(ordered.slice(0, lifted.length)));
     expect(numbers(lifted)).toEqual([4, 2]);
+  });
+});
+
+/**
+ * Con la sección «Activas» plegada no se ven las tarjetas: el encabezado
+ * insinúa con el tono de la mesa más urgente. Es el mismo orden de
+ * precedencia con el que esa mesa iría de primera.
+ */
+describe("mostUrgentVisualState", () => {
+  it("devuelve el estado de la que iría de primera", () => {
+    const tiles = [active(1, "eating"), active(2, "needs_payment"), active(3, "danger")];
+    expect(mostUrgentVisualState(tiles)).toBe("danger");
+    expect(mostUrgentVisualState(sortTablesForSalon(tiles))).toBe("danger");
+  });
+
+  it("respeta la precedencia entre los tres niveles de urgencia", () => {
+    expect(mostUrgentVisualState([active(1, "needs_payment"), active(2, "needs_payment_urgent")]))
+      .toBe("needs_payment_urgent");
+    expect(mostUrgentVisualState([active(1, "eating"), active(2, "needs_payment")]))
+      .toBe("needs_payment");
+  });
+
+  it("ocupadas sin urgencia no insinúan nada", () => {
+    expect(mostUrgentVisualState([active(1, "eating"), active(2, "cooking")])).toBeNull();
+    expect(mostUrgentVisualState([active(1, "ready_to_serve")])).toBeNull();
+  });
+
+  it("un mesero llamado cuenta como cobro pedido, aunque el estado visual no lo diga", () => {
+    expect(mostUrgentVisualState([active(1, "eating", { needsWaiter: true })]))
+      .toBe("needs_payment");
+  });
+
+  it("libres y recién pagadas no cuentan, ni la del celular", () => {
+    const phonePaid: SalonSortable = {
+      number: 9,
+      label: null,
+      state: "recently_paid",
+      paidFromPhone: true,
+      paidAt: new Date().toISOString(),
+    };
+    expect(mostUrgentVisualState([free(1), recentlyPaid(2), phonePaid])).toBeNull();
+    expect(mostUrgentVisualState([])).toBeNull();
   });
 });

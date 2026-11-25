@@ -125,6 +125,36 @@ export function isSalonTableActive(
   return salonRank(t, opts) < RANK_EMPTY;
 }
 
+/** De vuelta del rango al estado visual, para los que piden acción. */
+const RANK_STATE: Partial<Record<number, TableVisualState>> = {
+  [RANK_DANGER]: "danger",
+  [RANK_NEEDS_PAYMENT_URGENT]: "needs_payment_urgent",
+  [RANK_NEEDS_PAYMENT]: "needs_payment",
+};
+
+/**
+ * El estado visual MÁS urgente entre las mesas con cuenta abierta, o
+ * `null` si ninguna pide acción. Misma precedencia que el orden
+ * (URGENCY_RANK), así que lo que devuelve es el estado de la mesa que va
+ * de primera en la sección «Activas».
+ *
+ * Lo usa el encabezado plegable de Mesas: con la sección cerrada no se ven
+ * las tarjetas, así que el encabezado insinúa con un punto del mismo tono
+ * que hay algo que atender. Ver MesasGrid.
+ */
+export function mostUrgentVisualState(
+  tables: readonly SalonSortable[],
+  opts?: SalonSortOptions,
+): TableVisualState | null {
+  let best = RANK_ACTIVE_PLAIN;
+  for (const t of tables) {
+    if (t.state !== "active") continue;
+    const rank = salonRank(t, opts);
+    if (rank < best) best = rank;
+  }
+  return RANK_STATE[best] ?? null;
+}
+
 /**
  * Identidad de la mesa: número (siempre entero en el schema) y, de
  * empate, la etiqueta en orden alfabético natural ("Barra 2" < "Barra 10").

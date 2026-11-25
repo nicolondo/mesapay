@@ -145,6 +145,7 @@ export function TableDetailSheet({
   open: externalOpen,
   onOpenChange,
   hideTrigger,
+  restoreFocusTo,
   orderStatus,
   outstandingCents,
   subtotalCents,
@@ -198,6 +199,13 @@ export function TableDetailSheet({
   // tap en el tile), pasamos `hideTrigger` para esconder el link
   // interno "Ver detalle del pedido →".
   hideTrigger?: boolean;
+  /**
+   * A dónde mandar el foco al cerrar si el botón que abrió la ficha ya no
+   * está montado (la lista de atrás se refrescó, o se plegó la sección).
+   * Sin esto el foco cae al `body`. Lo arma quien dibuja la lista, que es
+   * el que sabe qué otra aparición de la mesa quedó a la vista.
+   */
+  restoreFocusTo?: () => HTMLElement | null;
   // Estado de la orden + monto pendiente. Necesarios para mostrar
   // el botón "Cobrar la cuenta" (sólo si outstanding > 0) y para el
   // botón "Cancelar" (sólo si placed/in_kitchen). Cuando no se
@@ -318,7 +326,7 @@ export function TableDetailSheet({
   // última tarjeta del salón — con Tab el foco se iba al fondo de la lista
   // y arrastraba la página con él. `preventScroll` en las dos puntas: ni
   // al entrar ni al volver debe saltar el scroll.
-  const sheetRef = useDialogFocus<HTMLDivElement>(open);
+  const sheetRef = useDialogFocus<HTMLDivElement>(open, restoreFocusTo);
 
   // Back-button integration: cuando abrimos el sheet pusheamos una
   // entry al history del browser. Si el usuario aprieta back (o

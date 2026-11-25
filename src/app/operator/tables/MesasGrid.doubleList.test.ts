@@ -1,6 +1,6 @@
 import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
  * "Actualmente, en la página de mesas las mesas que están ocupadas están en
@@ -32,6 +32,12 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
     params ? `${key}:${Object.values(params).join(",")}` : key,
 }));
+// El plegado vive en localStorage (por equipo y comercio); acá se fija a
+// mano para poder renderear los dos estados. Por defecto, desplegada.
+const memory = vi.hoisted(() => ({ collapsed: false }));
+vi.mock("./activeSectionMemory", () => ({
+  useActiveSectionCollapsed: () => [memory.collapsed, () => {}],
+}));
 
 import { MesasGrid, type TileData } from "./MesasGrid";
 import type { TableVisualState } from "@/lib/walkoutRisk";
@@ -40,6 +46,19 @@ const T0 = Date.parse("2026-11-24T20:00:00Z");
 
 function free(number: number): TileData {
   return { id: `t${number}`, number, label: null, qrToken: `qr${number}`, state: "free" };
+}
+
+/** Recién pagada por el equipo (sin el resalte del celular). */
+function paid(number: number): TileData {
+  return {
+    id: `t${number}`,
+    number,
+    label: null,
+    qrToken: `qr${number}`,
+    state: "recently_paid",
+    paidAt: new Date(T0 - 60_000).toISOString(),
+    paidFromPhone: false,
+  };
 }
 
 /** Mesa con cuenta abierta. `visualState` es lo que decide su urgencia. */
@@ -161,8 +180,8 @@ describe("MesasGrid — las ocupadas arriba sin desaparecer de su sitio", () => 
 
   it("los encabezados de sección son h2 (van bajo el h1 de la página)", () => {
     const html = render([free(1), active(2)]);
-    expect(html).toContain("<h2");
-    expect(html).toMatch(/<h2[^>]*>activeHeading:1<\/h2>/);
+    // El de «Activas» envuelve el botón que pliega; el otro es texto.
+    expect(html).toMatch(/<h2[^>]*>\s*<button[^>]*>.*?activeHeading:1.*?<\/button>\s*<\/h2>/);
     expect(html).toMatch(/<h2[^>]*>allTablesHeading<\/h2>/);
   });
 
@@ -192,5 +211,106 @@ describe("MesasGrid — las ocupadas arriba sin desaparecer de su sitio", () => 
   it("`?open=` de una mesa sin cuenta no abre ninguna ficha", () => {
     const html = render([free(1), active(2)], { openTileId: "t1" });
     expect(count(html, "orderStatusTitle")).toBe(0);
+  });
+});
+
+/**
+ * "Quiero que las mesas activas en la página de mesas se puedan ocultar y
+ * desplegar." Plegada, el encabezado con el contador se queda a la vista
+ * y las tarjetas no se dibujan; la lista completa no se entera.
+ */
+describe("MesasGrid — «Activas» se pliega y se despliega", () => {
+  afterEach(() => {
+    memory.collapsed = false;
+  });
+
+  /** El `id` del grid de «Activas», que es lo que el botón controla. */
+  const controls = (html: string) =>
+    html.match(/aria-controls="([^"]+)"[^>]*class="mp-table-section-toggle"/)?.[1] ??
+    html.match(/class="mp-table-section-toggle"[^>]*aria-controls="([^"]+)"/)?.[1] ??
+    null;
+
+  it("desplegada por defecto: aria-expanded y las tarjetas dibujadas", () => {
+    const html = render([free(1), active(2), free(3)]);
+    expect(html).toContain('aria-expanded="true"');
+    expect(sections(html)).toEqual({ active: [2], all: [1, 2, 3] });
+  });
+
+  it("plegada: queda el encabezado con el contador y ninguna tarjeta", () => {
+    memory.collapsed = true;
+    const html = render([free(1), active(2), active(7, "needs_payment"), free(3)]);
+    // El contador sigue diciendo cuántas hay, sin ocupar pantalla.
+    expect(html).toContain("activeHeading:2");
+    expect(html).toContain('aria-expanded="false"');
+    // Arriba, cero tarjetas; la lista completa, intacta.
+    expect(sections(html)).toEqual({ active: [], all: [1, 2, 3, 7] });
+  });
+
+  it("el botón controla el grid de «Activas» por id, y plegado va hidden", () => {
+    const expanded = render([free(1), active(2)]);
+    const id = controls(expanded);
+    expect(id).toBeTruthy();
+    expect(expanded).toContain(`class="mp-table-grid" id="${id}"`);
+    expect(expanded).not.toContain(`id="${id}" hidden`);
+
+    memory.collapsed = true;
+    const collapsed = render([free(1), active(2)]);
+    expect(collapsed).toContain(`id="${controls(collapsed)}" hidden`);
+  });
+
+  it("plegada con una mesa urgente, el encabezado lo insinúa", () => {
+    memory.collapsed = true;
+    const html = render([free(1), active(2, "danger")]);
+    // Punto del mismo tono que el tile (rojo + pulse) y el motivo en texto.
+    expect(html).toContain("mp-table-section-dot");
+    expect(html).toContain("bg-[#C9302C]");
+    expect(html).toContain("animate-pulse");
+    expect(html).toContain("activeUrgentHint");
+  });
+
+  it("plegada sin nada urgente, el encabezado va limpio", () => {
+    memory.collapsed = true;
+    const html = render([free(1), active(2, "eating")]);
+    expect(html).not.toContain("mp-table-section-dot");
+    expect(html).not.toContain("activeUrgentHint");
+  });
+
+  it("desplegada no insinúa nada: las tarjetas ya lo dicen", () => {
+    const html = render([free(1), active(2, "danger")]);
+    expect(html).not.toContain("mp-table-section-dot");
+    expect(html).not.toContain("activeUrgentHint");
+  });
+
+  it("cada aparición de una mesa ocupada se identifica, para rescatar el foco", () => {
+    // Si el botón que abrió la ficha se desmonta (se plegó «Activas»,
+    // incluso desde otra pestaña), el foco busca la otra aparición VISIBLE
+    // de la misma mesa por este atributo. Ver `restoreActiveFocus`.
+    const expanded = render([free(1), active(2)]);
+    expect(count(expanded, 'data-table-id="t2"')).toBe(2);
+
+    memory.collapsed = true;
+    const collapsed = render([free(1), active(2)]);
+    // Plegada queda sólo la de «Todas», que es justo adonde va el foco.
+    expect(count(collapsed, 'data-table-id="t2"')).toBe(1);
+    // Y si tampoco estuviera, queda el encabezado como último recurso.
+    expect(collapsed).toContain("mp-table-section-toggle");
+  });
+
+  it("la mesa también se identifica estando libre o recién pagada", () => {
+    // Si un refresco deja TODAS las mesas libres, se va el encabezado
+    // «Activas» con su botón: sin marcar estas tarjetas, el foco al
+    // cerrar la ficha caía al body aunque la mesa siguiera a la vista.
+    const html = render([free(1), paid(2), free(3)]);
+    expect(html).not.toContain("mp-table-section-toggle");
+    expect(html).toContain('data-table-id="t1"');
+    expect(html).toContain('data-table-id="t2"');
+    expect(html).toContain('data-table-id="t3"');
+  });
+
+  it("en Mostrador no hay sección, así que tampoco hay nada que plegar", () => {
+    memory.collapsed = true;
+    const html = render([active(1)], { counterMode: true });
+    expect(html).not.toContain("mp-table-section-toggle");
+    expect(count(html, "tileCounterShort")).toBe(1);
   });
 });

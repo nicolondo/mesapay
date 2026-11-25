@@ -89,17 +89,32 @@ export function trapTabWithin(e: KeyboardEvent<HTMLElement>): void {
  * `tabIndex={-1}` para poder recibir el foco. Pensado para componentes que
  * sólo se montan mientras están abiertos (el caso de todas las hojas de la
  * ficha de mesa); si el tuyo vive montado, pásale `open`.
+ *
+ * `fallback` es para cuando el disparador YA NO ESTÁ al cerrar: la lista
+ * de atrás se refrescó, o se plegó desde otra pestaña, y el botón que
+ * abrió el diálogo se desmontó. Sin él, el foco cae al `body` y quien usa
+ * teclado tiene que recorrer la página entera de nuevo. Devuelve el
+ * elemento al que pasarle el foco, o `null` si tampoco hay.
  */
 export function useDialogFocus<T extends HTMLElement>(
   open: boolean = true,
+  fallback?: () => HTMLElement | null,
 ): RefObject<T | null> {
   const ref = useRef<T>(null);
+  // El `fallback` se lee al cerrar, no al abrir: así el efecto no se
+  // rehace (ni se roba el foco de nuevo) cada vez que el padre cambia la
+  // función de lugar.
+  const fallbackRef = useRef(fallback);
+  useEffect(() => {
+    fallbackRef.current = fallback;
+  }, [fallback]);
   useEffect(() => {
     if (!open) return;
     const trigger = document.activeElement as HTMLElement | null;
     ref.current?.focus({ preventScroll: true });
     return () => {
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      const target = trigger?.isConnected ? trigger : fallbackRef.current?.();
+      target?.focus({ preventScroll: true });
     };
   }, [open]);
   return ref;

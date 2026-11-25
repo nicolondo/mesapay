@@ -818,6 +818,12 @@
   border-radius: 6px;
   margin-top: 10px;
 }
+/* `display: grid` de acá abajo le gana al `display: none` del atributo
+   `hidden` (hoja del navegador): sin esto, la sección plegada seguiría
+   ocupando su caja. */
+.mp-table-grid[hidden] {
+  display: none;
+}
 .mp-table-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -839,6 +845,46 @@
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--op-muted);
+}
+/* Encabezado plegable de «Activas (N)»: el renglón entero es el botón,
+   con área táctil cómoda (≥44 px) para la tablet de la caja y el celular
+   del mesero. El anillo de foco lo pone la regla global de :focus-visible. */
+.mp-table-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-right: 8px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+.mp-table-section-chevron {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 150ms ease;
+}
+.mp-table-section-chevron[data-open="true"] {
+  transform: rotate(0deg);
+}
+/* Plegada y con algo que atender: un punto del mismo tono que el de las
+   tarjetas, para que el encabezado lo insinúe sin desplegarse solo. */
+.mp-table-section-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-table-section-chevron {
+    transition: none;
+  }
+  .mp-table-section-dot {
+    animation: none;
+  }
 }
 .mp-table-grid .font-display {
   font-family: var(--font-sans);

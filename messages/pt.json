@@ -2320,6 +2320,7 @@
     "mapOffHint": "Estas mesas não estão posicionadas no mapa do salão.",
     "mapEditLink": "Editar o mapa",
     "activeHeading": "Ativas ({count})",
+    "activeUrgentHint": "Há mesas pedindo atenção",
     "allTablesHeading": "Todas as mesas",
     "allTablesHint": "Na ordem de sempre. As mesas ocupadas também aparecem aqui, no lugar delas.",
     "manualPendingLink": "Faturas manuais ({count})",

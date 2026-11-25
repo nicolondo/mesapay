@@ -1,7 +1,7 @@
 "use client";
 import { useClock } from "@/lib/browser/clock";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useId, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -15,6 +15,7 @@ import {
 import {
   isPhonePaidHighlighted,
   isSalonTableActive,
+  mostUrgentVisualState,
   sortTablesForSalon,
   sortTablesInSalonOrder,
   type SalonSortOptions,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/tables/phonePaid";
 import { TableDetailSheet } from "./TableDetailSheet";
 import { resolveOpenDetail, type OpenTileRef } from "./openDetail";
+import { useActiveSectionCollapsed } from "./activeSectionMemory";
 import { TablesToolbar, type TableFilter } from "./TablesToolbar";
 import { SalonMap, useSalonView, type SalonFloor } from "./SalonMap";
 import { tileStateLabelKey } from "@/lib/tables/tileStateLabel";
@@ -87,6 +89,19 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * los destinos de «Mover a otra mesa» con la ficha abierta, y una literal
  * `[]` nueva en cada render rompería su memoización.
  */
+/**
+ * Toda tarjeta de mesa —libre, recién pagada o con cuenta— lleva
+ * `data-table-id`: identifica QUÉ mesa dibuja, en cualquiera de sus
+ * apariciones. Es lo que deja rescatar el foco cuando la tarjeta desde la
+ * que se abrió la ficha se desmonta (se plegó «Activas», incluso desde
+ * otra pestaña, o la mesa pasó a libre en un refresco). Ver
+ * `restoreActiveFocus`.
+ */
+const TABLE_TILE_SELECTOR = (id: string) => `[data-table-id="${CSS.escape(id)}"]`;
+
+/** El botón que pliega «Activas»: último recurso para devolver el foco. */
+const ACTIVE_TOGGLE_SELECTOR = "button.mp-table-section-toggle";
+
 const NO_FREE_TABLES: FreeTable[] = [];
 const NO_ALL_TABLES: AllTable[] = [];
 
@@ -407,6 +422,21 @@ export function MesasGrid({
     !counterMode &&
     filter === "all" &&
     activeTiles.length > 0;
+  // Plegar/desplegar «Activas», recordado en este equipo para este
+  // comercio (ver activeSectionMemory.ts). Plegada, el encabezado con el
+  // contador se queda: se ve cuántas hay sin que ocupen pantalla.
+  const [activeCollapsed, setActiveCollapsed] =
+    useActiveSectionCollapsed(tenantSlug);
+  const activeGridId = useId();
+  // Con la sección plegada no se ven las tarjetas, así que el encabezado
+  // insinúa con un punto del mismo tono que ya usan los tiles si alguna
+  // mesa pide acción (riesgo de fuga, cobro pedido, mesero llamado). NO se
+  // despliega sola: el que la plegó decidió que quería la pantalla libre,
+  // y abrírsela de golpe mientras cobra sería peor que el aviso.
+  const urgentState = useMemo(
+    () => (activeCollapsed ? mostUrgentVisualState(activeTiles, sortOpts) : null),
+    [activeCollapsed, activeTiles, sortOpts],
+  );
   // La mesa cuya ficha está abierta, si su cuenta sigue viva. Sale de
   // `liveTiles` (no de las listas filtradas): un chip o el mapa no cierran
   // la ficha de una mesa que dejó de estar a la vista.
@@ -420,6 +450,23 @@ export function MesasGrid({
   // la ficha se va. La selección que queda colgando es inerte: apunta a una
   // cuenta que no vuelve, así que ninguna cuenta futura la revive. La
   // próxima mesa que se toque la reemplaza.
+
+  // A dónde va el foco al cerrar la ficha si la tarjeta que la abrió ya no
+  // está: la mesa se dibuja arriba y otra vez en «Todas», y la de arriba
+  // puede desaparecer (se plegó la sección —incluso desde otra pestaña—, o
+  // la mesa dejó de estar activa). Se busca cualquier aparición VISIBLE de
+  // la misma mesa, sea cual sea su estado: si en ese refresco pasó a
+  // libre, su tarjeta de «Todas» sigue ahí y es el sitio natural. Si la
+  // mesa ya no está en ninguna parte, queda el encabezado «Activas»; y si
+  // tampoco (se quedó sin activas), `null` y que lo resuelva el navegador.
+  const restoreActiveFocus = useCallback((): HTMLElement | null => {
+    const id = openTile?.tableId;
+    if (!id) return null;
+    const visible = Array.from(
+      document.querySelectorAll<HTMLElement>(TABLE_TILE_SELECTOR(id)),
+    ).find((el) => el.getClientRects().length > 0);
+    return visible ?? document.querySelector<HTMLElement>(ACTIVE_TOGGLE_SELECTOR);
+  }, [openTile]);
 
   // Destinos de «Mover a otra mesa»: sólo los usa la ficha abierta, que es
   // una sola. Calcularlos por tarjeta rehacía dos listas por cada mesa
@@ -528,6 +575,7 @@ export function MesasGrid({
               }
               freeTables={sheetOnly ? detailFreeTables : NO_FREE_TABLES}
               allTables={sheetOnly ? detailAllTables : NO_ALL_TABLES}
+              restoreFocusTo={sheetOnly ? restoreActiveFocus : undefined}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
               country={country}
@@ -600,11 +648,51 @@ export function MesasGrid({
            una con sus propias `key`s. */
         <>
           <section>
-            <h2 className="mp-table-section-heading mb-2">
-              {tr("activeHeading", { count: activeTiles.length })}
+            <h2 className="mp-table-section-heading">
+              <button
+                type="button"
+                aria-expanded={!activeCollapsed}
+                aria-controls={activeGridId}
+                onClick={() => setActiveCollapsed(!activeCollapsed)}
+                className="mp-table-section-toggle"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                  className="mp-table-section-chevron"
+                  data-open={!activeCollapsed}
+                >
+                  <path
+                    d="m3 4.5 3 3 3-3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>{tr("activeHeading", { count: activeTiles.length })}</span>
+                {urgentState && (
+                  <>
+                    <span
+                      aria-hidden
+                      className={
+                        "mp-table-section-dot " +
+                        tileTokensForState(urgentState).dot +
+                        (tileTokensForState(urgentState).pulse ? " animate-pulse" : "")
+                      }
+                    />
+                    {/* El punto es color: el motivo, en texto, para quien
+                        no lo ve. Entra en el nombre accesible del botón. */}
+                    <span className="sr-only">{tr("activeUrgentHint")}</span>
+                  </>
+                )}
+              </button>
             </h2>
-            <div className="mp-table-grid">
-              {activeTiles.map((tile) => renderTile(tile))}
+            <div className="mp-table-grid" id={activeGridId} hidden={activeCollapsed}>
+              {!activeCollapsed && activeTiles.map((tile) => renderTile(tile))}
             </div>
           </section>
           <section className="mt-5">
@@ -855,6 +943,7 @@ function FreeTile({
       href={href}
       prefetch={false}
       {...targetProps}
+      data-table-id={tile.id}
       className="aspect-[4/3] rounded-xl border border-op-border bg-op-surface hover:bg-op-bg flex flex-col items-center justify-center p-2 text-center transition-colors"
     >
       <div className="font-display text-base leading-none">
@@ -920,6 +1009,7 @@ function RecentlyPaidTile({
       href={href}
       prefetch={false}
       {...targetProps}
+      data-table-id={tile.id}
       className={
         base +
         (highlight
@@ -986,6 +1076,7 @@ function RecentlyPaidTile({
 function ActiveTile({
   tile,
   sheetOnly = false,
+  restoreFocusTo,
   counterMode,
   open,
   onOpenChange,
@@ -1003,6 +1094,8 @@ function ActiveTile({
   tile: Extract<TileData, { state: "active" }>;
   /** Solo la ficha (la abrió el mapa): sin la tarjeta. */
   sheetOnly?: boolean;
+  /** Ver `restoreFocusTo` en TableDetailSheet. Solo con `sheetOnly`. */
+  restoreFocusTo?: () => HTMLElement | null;
   counterMode: boolean;
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -1050,6 +1143,7 @@ function ActiveTile({
       {!sheetOnly && (
       <button
         type="button"
+        data-table-id={tile.id}
         onClick={() => onOpenChange(true)}
         className={
           "aspect-[4/3] rounded-xl border p-2 flex flex-col items-center justify-center text-center transition-colors relative " +
@@ -1148,6 +1242,7 @@ function ActiveTile({
           initialRounds={tile.order.rounds}
           open={open}
           onOpenChange={onOpenChange}
+          restoreFocusTo={restoreFocusTo}
           hideTrigger
           orderStatus={tile.order.status}
           outstandingCents={tile.order.outstandingCents}

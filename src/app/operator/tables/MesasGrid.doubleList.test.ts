@@ -268,6 +268,21 @@ describe("MesasGrid — «Activas» se pliega y se despliega", () => {
     expect(html).not.toContain("activeUrgentHint");
   });
 
+  it("cada aparición de una mesa ocupada se identifica, para rescatar el foco", () => {
+    // Si el botón que abrió la ficha se desmonta (se plegó «Activas»,
+    // incluso desde otra pestaña), el foco busca la otra aparición VISIBLE
+    // de la misma mesa por este atributo. Ver `restoreActiveFocus`.
+    const expanded = render([free(1), active(2)]);
+    expect(count(expanded, 'data-table-id="t2"')).toBe(2);
+
+    memory.collapsed = true;
+    const collapsed = render([free(1), active(2)]);
+    // Plegada queda sólo la de «Todas», que es justo adonde va el foco.
+    expect(count(collapsed, 'data-table-id="t2"')).toBe(1);
+    // Y si tampoco estuviera, queda el encabezado como último recurso.
+    expect(collapsed).toContain("mp-table-section-toggle");
+  });
+
   it("en Mostrador no hay sección, así que tampoco hay nada que plegar", () => {
     memory.collapsed = true;
     const html = render([active(1)], { counterMode: true });

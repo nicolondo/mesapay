@@ -89,6 +89,9 @@ import type { DiscountOriginView, OrderReviewView } from "@/lib/orderReview";
  * los destinos de «Mover a otra mesa» con la ficha abierta, y una literal
  * `[]` nueva en cada render rompería su memoización.
  */
+/** El botón que pliega «Activas»: último recurso para devolver el foco. */
+const ACTIVE_TOGGLE_SELECTOR = "button.mp-table-section-toggle";
+
 const NO_FREE_TABLES: FreeTable[] = [];
 const NO_ALL_TABLES: AllTable[] = [];
 
@@ -438,6 +441,21 @@ export function MesasGrid({
   // cuenta que no vuelve, así que ninguna cuenta futura la revive. La
   // próxima mesa que se toque la reemplaza.
 
+  // A dónde va el foco al cerrar la ficha si el botón que la abrió ya no
+  // está: la mesa se dibuja arriba y otra vez en «Todas», y la de arriba
+  // puede desaparecer (se plegó la sección —incluso desde otra pestaña—,
+  // o la mesa dejó de estar activa). Se busca la otra aparición VISIBLE de
+  // la misma mesa y, si tampoco hay, el encabezado «Activas», que siempre
+  // está mientras la sección exista. `null` = que lo resuelva el navegador.
+  const restoreActiveFocus = useCallback((): HTMLElement | null => {
+    const id = openTile?.tableId;
+    if (!id) return null;
+    const visible = Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-table-id="${CSS.escape(id)}"]`),
+    ).find((el) => el.getClientRects().length > 0);
+    return visible ?? document.querySelector<HTMLElement>(ACTIVE_TOGGLE_SELECTOR);
+  }, [openTile]);
+
   // Destinos de «Mover a otra mesa»: sólo los usa la ficha abierta, que es
   // una sola. Calcularlos por tarjeta rehacía dos listas por cada mesa
   // ocupada en cada tick del reloj (10 s), con las fichas cerradas.
@@ -545,6 +563,7 @@ export function MesasGrid({
               }
               freeTables={sheetOnly ? detailFreeTables : NO_FREE_TABLES}
               allTables={sheetOnly ? detailAllTables : NO_ALL_TABLES}
+              restoreFocusTo={sheetOnly ? restoreActiveFocus : undefined}
               tenantSlug={tenantSlug}
               isMeseroView={isMeseroView}
               country={country}
@@ -1043,6 +1062,7 @@ function RecentlyPaidTile({
 function ActiveTile({
   tile,
   sheetOnly = false,
+  restoreFocusTo,
   counterMode,
   open,
   onOpenChange,
@@ -1060,6 +1080,8 @@ function ActiveTile({
   tile: Extract<TileData, { state: "active" }>;
   /** Solo la ficha (la abrió el mapa): sin la tarjeta. */
   sheetOnly?: boolean;
+  /** Ver `restoreFocusTo` en TableDetailSheet. Solo con `sheetOnly`. */
+  restoreFocusTo?: () => HTMLElement | null;
   counterMode: boolean;
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -1107,6 +1129,10 @@ function ActiveTile({
       {!sheetOnly && (
       <button
         type="button"
+        // Identifica la tarjeta como aparición de ESTA mesa: si el botón
+        // que abrió la ficha se desmonta, el foco busca por acá la otra
+        // aparición que siga a la vista (ver `restoreActiveFocus`).
+        data-table-id={tile.id}
         onClick={() => onOpenChange(true)}
         className={
           "aspect-[4/3] rounded-xl border p-2 flex flex-col items-center justify-center text-center transition-colors relative " +
@@ -1205,6 +1231,7 @@ function ActiveTile({
           initialRounds={tile.order.rounds}
           open={open}
           onOpenChange={onOpenChange}
+          restoreFocusTo={restoreFocusTo}
           hideTrigger
           orderStatus={tile.order.status}
           outstandingCents={tile.order.outstandingCents}

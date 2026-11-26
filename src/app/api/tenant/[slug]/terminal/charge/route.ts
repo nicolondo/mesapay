@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
 import { printConflict, printingUnderLock, refreshPreviousPrint } from "@/lib/payments/terminalPrinterLock";
 import { lockOrder } from "@/lib/orderLock";
@@ -337,7 +336,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -390,7 +389,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
         paymentId: payment.id,
         httpStatus: result.httpStatus,

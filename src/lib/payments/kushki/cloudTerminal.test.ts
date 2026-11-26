@@ -60,6 +60,11 @@ afterEach(() => {
 });
 
 describe("pushPaymentToCloudTerminal: Kushki no validó la solicitud (4xx)", () => {
+  it("conserva el código explícito del adquirente cuando el mensaje indica ocupado", async () => {
+    respond(400, { type: "ACQUIRER", code: "E020", message: "Terminal is busy. Please try again later." });
+    expect(await push()).toMatchObject({ status: "rejected", failure: { type: "ACQUIRER", code: "E020", busy: true } });
+  });
+
   it("el caso real: 400 CLOUDPAYMENT_VALIDATION_ERROR → rejected, con el código y el mensaje de Kushki", async () => {
     respond(400, VALIDATION_ERROR);
     const result = await push();
@@ -177,6 +182,11 @@ describe("pushPaymentToCloudTerminal: el datáfono canceló (Son y Melona, 2026-
   it("un rechazo del banco con el mismo cuerpo sigue siendo declined", async () => {
     respond(200, { rawResponse: { transaction_status: "DECLINED" }, ...REAL_CANCEL });
     expect(await push()).toMatchObject({ status: "declined" });
+  });
+
+  it("HTTP 200 con tipo desconocido y mensaje de ocupado conserva el código y cuenta como respuesta", async () => {
+    respond(200, { type: "OTHER", code: "E020", message: "Terminal is busy. Please try again later." });
+    expect(await push()).toMatchObject({ status: "error", deviceAnswered: true, failure: { code: "E020", busy: true } });
   });
 
   it.each([

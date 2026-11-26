@@ -141,6 +141,13 @@ describe("terminal/charge: Kushki rechaza la solicitud por validación (4xx)", (
     expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "declined" });
   });
 
+  it("muestra ocupado y conserva el código del adquirente aunque el mensaje sugiera otro", async () => {
+    const failure = { type: "ACQUIRER", code: "E020", message: "Terminal is busy. Please try again later." };
+    kushkiSays(400, failure);
+    expect(await charge()).toEqual({ status: 409, json: { error: "terminal_busy", status: "declined" } });
+    expect(h.events).toMatchObject([{ payload: { message: expect.stringContaining("ACQUIRER/E020"), raw: failure } }]);
+  });
+
   it("el caso real (400 CLOUDPAYMENT_VALIDATION_ERROR): el pago se declina, el reclamo queda failed y la cuenta libre", async () => {
     kushkiSays(400, {
       type: "INTERNAL",

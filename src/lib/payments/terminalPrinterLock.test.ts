@@ -2,16 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
-  lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
+  recordFault: vi.fn(), lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
   charge: vi.fn(), transaction: vi.fn(), jobState: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: {
-  $transaction: mocks.transaction,
+  $transaction: mocks.transaction, $executeRaw: mocks.recordFault,
   terminalPrintReservation: { findUnique: mocks.previous, deleteMany: mocks.release, updateMany: mocks.probe },
 } }));
 vi.mock("./kushki/cloudPrint", () => ({ getCloudPrintJobStatus: mocks.jobState }));
 
-import { printingUnderLock, refreshPreviousPrint, reservePrint } from "./terminalPrinterLock";
+import { printingUnderLock, recordPrintFault, refreshPreviousPrint, reservePrint } from "./terminalPrinterLock";
 
 const a = { serialNumber: "physical-A", kushkiDeviceId: "A" };
 const b = { serialNumber: "physical-B", kushkiDeviceId: "B" };
@@ -63,8 +63,43 @@ describe("exclusión por serial físico", () => {
       expect(mocks.release).toHaveBeenCalledWith({ where: row });
     });
 
+  it.each(["PENDING", "IN_PROGRESS"])("registra el último estado %s al expirar y libera el serial", async lastJobStatus => {
+    const createdAt = new Date(Date.now() - 181_000);
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", lastJobStatus, createdAt });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(await printingUnderLock(tx, a)).toBeNull();
+      expect(warn).toHaveBeenCalledWith("[terminal] print_expired_unfinished", expect.objectContaining({
+        serial: a.serialNumber, lastJobStatus, durationMs: expect.any(Number),
+      }));
+      expect(mocks.release).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("un fallo al registrar el diagnóstico no interrumpe el flujo de impresión", async () => {
+    const error = new Error("write failed");
+    mocks.recordFault.mockRejectedValue(error);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(recordPrintFault(a, "job", new Date(), "timeout")).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledExactlyOnceWith("[terminal] print_fault_not_recorded", { serial: a.serialNumber, error });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("una falla recién registrada después del sondeo conserva los 30 s de aviso suave", async () => {
+    const row = { serial: a.serialNumber, jobId: "job", fault: "unconfirmed", createdAt: new Date(Date.now() - 75_000), faultAt: new Date() };
+    mocks.previous.mockResolvedValue(row);
+    expect(await reservePrint(a, "otro")).toBe("terminal_print_backoff");
+    row.faultAt = new Date(Date.now() - 30_000);
+    expect(await reservePrint(a, "otro")).toBe("terminal_stuck");
+  });
+
   it("un busy confirmado frena nuevos envíos de impresión sin sondear trabajos inexistentes", async () => {
-    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", createdAt: new Date(Date.now() - 70_000) });
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", faultAt: new Date(Date.now() - 30_000), createdAt: new Date(Date.now() - 70_000) });
     await refreshPreviousPrint(a, setup);
     expect(mocks.jobState).not.toHaveBeenCalled();
     expect(await reservePrint(a, "otro")).toBe("terminal_stuck");

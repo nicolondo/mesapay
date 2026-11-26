@@ -7,6 +7,7 @@ import {
 } from "crypto";
 import { env } from "../../env";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
+import { isTerminalBusy } from "../terminalBusy";
 import { pesosToCents } from "../terminalAmount";
 
 /**
@@ -264,7 +265,7 @@ const NO_ANSWER_CODES: ReadonlySet<string> = new Set(["TER-002", "TER-172"]);
  */
 export function isTerminalDeviceAnswer(answer: CloudTerminalAnswer | null | undefined): boolean {
   if (!answer?.code) return false;
-  if (isTerminalCancelAnswer(answer)) return true;
+  if (isTerminalCancelAnswer(answer) || answer.code.trim().toUpperCase() === "TERMINAL_BUSY") return true;
   const type = answer.type?.trim().toUpperCase() ?? "";
   if (!DEVICE_ANSWER_TYPES.has(type)) return false;
   return !NO_ANSWER_CODES.has(answer.code.trim().toUpperCase());
@@ -473,8 +474,10 @@ export async function pushPaymentToCloudTerminal(
   // o {failure:{...}} (con 4xx).
   const failure = asObj(obj.failure) || obj;
   const type = pick(failure, ["type"]);
-  const code = pick(failure, ["code"]);
   const fmsg = pick(failure, ["message"]);
+  const explicitCode = pick(failure, ["code", "errorCode"]);
+  const busy = isTerminalBusy(explicitCode, fmsg) || isTerminalBusy(pick(failure, ["error"])) || isTerminalBusy(type);
+  const code = busy && !isTerminalBusy(explicitCode) ? "TERMINAL_BUSY" : explicitCode;
   const answer: CloudTerminalAnswer | undefined = type || code || fmsg ? { type, code, message: fmsg } : undefined;
   const label =
     [type, code].filter(Boolean).join("/") +
@@ -596,7 +599,7 @@ export type CloudTerminalSearchResult =
    */
   | { status: "unknown"; reason: "reversed" | "amount_mismatch" | "unrecognized"; raw: unknown }
   /** La consulta misma falló (red, 5xx, cuerpo ilegible). */
-  | { status: "error"; httpStatus?: number };
+  | { status: "error"; httpStatus?: number; terminalBusy?: boolean };
 
 /**
  * Busca el resultado REAL de un cobro del datáfono cuando la respuesta del
@@ -674,7 +677,12 @@ export async function searchCloudTerminalCharge(
     clientTransactionId: args.clientTransactionId,
     items: Array.isArray(items) ? items.length : null,
   });
-  if (!res.ok || !Array.isArray(items)) return { status: "error", httpStatus: res.status };
+  if (!res.ok || !Array.isArray(items)) {
+    const failure = asObj(asObj(json)?.failure) ?? asObj(json);
+    const busy = ["code", "errorCode", "error", "type"].some(key => isTerminalBusy(pick(failure, [key]))) ||
+      isTerminalBusy(null, pick(failure, ["message"]));
+    return { status: "error", httpStatus: res.status, ...(busy && { terminalBusy: true }) };
+  }
 
   // Sólo lo que es de ESTE cobro, por su `client_transaction_id` EXACTO. Un
   // ítem sin id no se atribuye: si el filtro del endpoint no se aplicara, una

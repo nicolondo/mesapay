@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
+import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
+import { printConflict, printingUnderLock, refreshPreviousPrint } from "@/lib/payments/terminalPrinterLock";
 import { lockOrder } from "@/lib/orderLock";
 import { markPaymentUncertain } from "@/lib/payments/intent";
 import { secureApi } from "@/lib/secureApi";
@@ -176,18 +179,33 @@ async function POSTHandler(
   const pushedAt = new Date();
   const currency = await getCurrencyForCountry(tenant.country);
   const tracking = useRealTerminal ? await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, terminalBusinessCode: businessCode }) : {};
+  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal });
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
     if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
     // `deviceId`: a qué equipo va (para «Reintentar en el datáfono» y para
     // pedirle que cancele un cobro en curso).
+    const reservation = await printingUnderLock(tx, device);
+    if (reservation && reservation.fault !== "busy") {
+      // A duplicate POST (possibly selecting another serial) must never
+      // decline a payment that has already been dispatched.
+      if (current.providerRef || current.reconciliationRequired ||
+          await tx.financialOperation.findUnique({ where: { key: terminalClaimKey(payment.id) } })) return false;
+      await tx.payment.update({ where: { id: current.id }, data: { status: "declined", settledAt: new Date() } });
+      await releaseOrderFromPaying(tx, current.orderId, current.order.status);
+      return printConflict(reservation);
+    }
     const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents, deviceId: device.kushkiDeviceId, clientTransactionId, createdAt: pushedAt }], skipDuplicates: true });
     if (result.count === 1 && !current.walletTrackingKey && Object.keys(tracking).length) {
       await tx.payment.update({ where: { id: current.id }, data: tracking });
     }
     return result.count === 1;
   });
+  if (typeof claimed === "string") {
+    publishOrderEvent(tenant.id, { type: "payment.declined", orderId: payment.orderId, paymentId: payment.id, reason: claimed });
+    return NextResponse.json({ error: claimed, status: "declined" }, { status: 409 });
+  }
   if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
 
   await db.terminalDevice.update({
@@ -319,6 +337,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
+      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -371,6 +390,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
+      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
         paymentId: payment.id,
         httpStatus: result.httpStatus,
@@ -409,6 +429,13 @@ async function POSTHandler(
 
     // Transport failure does not establish whether the terminal charged:
     // buscar el resultado real antes de dejarlo incierto.
+    if (result.httpStatus === 504) {
+      const at = new Date();
+      console.warn("[terminal] charge_gateway_timeout", { serial: serialNumber, paymentId: payment.id, durationMs: at.getTime() - pushedAt.getTime() });
+      await db.financialOperation.updateMany({ where: { key: terminalClaimKey(payment.id) }, data: { gatewayTimedOutAt: at } })
+        .catch(err => console.warn("[terminal] timeout_notice_failed", { paymentId: payment.id, err }));
+      publishOrderEvent(tenant.id, { type: "order.updated", orderId: payment.orderId });
+    }
     return noAnswer();
   }
 

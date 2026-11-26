@@ -17,6 +17,9 @@ const m = vi.hoisted(() => ({
   buildInvoice: vi.fn(),
   loadPayments: vi.fn(),
 }));
+vi.mock("@/lib/payments/terminalPrinterLock", () => ({
+  refreshPreviousPrint: vi.fn(), reservePrint: vi.fn(), releasePrint: vi.fn(), recordPrintFault: vi.fn(),
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     restaurant: { findUnique: m.restaurant },
@@ -112,6 +115,21 @@ describe("a qué datáfono va", () => {
 
 describe("imprimir en el datáfono", () => {
   const target = { kind: "prebill" as const, orderId: "order-1" };
+
+  it("traduce TERMINAL_BUSY sin devolver el mensaje de Kushki", async () => {
+    m.setup.mockResolvedValue({ mode: "sandbox", businessCode: "test", useRealTerminal: true });
+    const send = vi.fn(async () => ({ ok: false, httpStatus: 400, printJobId: "job", errorCode: "TERMINAL_BUSY", message: "Terminal is busy" }));
+    const result = await printOnTerminalDevice({ restaurantId: "rest-1", userId: "u", target }, { send });
+    expect(result).toEqual({ ok: false, error: "terminal_print_backoff" });
+  });
+
+  it.each([{ message: "timeout" }, { httpStatus: 504 }])("conserva el id y aplaza la impresión tras %o", async error => {
+    m.setup.mockResolvedValue({ mode: "sandbox", businessCode: "test", useRealTerminal: true });
+    const send = vi.fn(async () => ({ ok: false, printJobId: "job", ...error }));
+    const result = await printOnTerminalDevice({ restaurantId: "rest-1", userId: "u", target, printJobId: "job" }, { send });
+    expect(result).toEqual({ ok: false, error: "terminal_print_backoff", printJobId: "job" });
+    expect(send).toHaveBeenCalledOnce();
+  });
 
   it("mock (sin Business-Code): simula el envío, sin llamar a Kushki", async () => {
     const send = vi.fn();

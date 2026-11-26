@@ -389,3 +389,152 @@ for (const adjustment of ["partial", "tip"] as const) {
     else await expect(page).toHaveURL(/\/done(?:\?|$)/, { timeout: 12_000 });
   });
 }
+
+test.describe("mesero en un navegador Android sin impresión local", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    userAgent: "Mozilla/5.0 (Android 11; Mobile; rv:107.0) Gecko/107.0 Firefox/107.0",
+  });
+  for (const flow of ["factura previa", "partes iguales"] as const) {
+    test(`mesero cobra con datáfono mock tras ${flow}`, async ({ page }, info) => {
+      test.skip(process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED !== "+0", "Run with deterministic mock approval (+0) on both server and runner");
+      const f = await fixture(page, { role: "mesero", smartTerminal: true });
+      if (flow === "factura previa") {
+        const customer = await page.request.post(`/api/tenant/${f.restaurant.slug}/orders/${f.order.id}/invoice-request`, {
+          data: { customerName: "Cliente de prueba", docNumber: "12345678", docType: "CC",
+            email: "cliente@example.test", rememberCustomer: true },
+        });
+        expect(customer.ok(), await customer.text()).toBe(true);
+        expect(await db.billingCustomer.count({ where: { restaurantId: f.restaurant.id, email: "cliente@example.test" } })).toBe(1);
+        const invoice = await page.request.post(`/api/operator/orders/${f.order.id}/pre-invoice`, { data: {} });
+        expect(invoice.ok(), await invoice.text()).toBe(true);
+        // Reproduce the accepted banner without contacting the tax authority.
+        await db.dianDocument.create({ data: {
+          restaurantId: f.restaurant.id, orderId: f.order.id, simpleInvoiceId: (await invoice.json()).invoiceId, state: "accepted",
+        } });
+        await page.reload();
+        await expect(page.getByText("Aceptada por la DIAN", { exact: true })).toBeVisible();
+        await page.getByRole("radio", { name: "Datáfono", exact: true }).click();
+      } else {
+        await chooseEqualSplit(page);
+      }
+      let resume!: () => void;
+      const waiting = new Promise<void>(resolve => { resume = resolve; });
+      await page.route("**/terminal/charge", async route => {
+        await waiting;
+        await route.continue();
+      });
+      try {
+        const push = page.waitForRequest(req => req.url().endsWith("/terminal/charge"));
+        await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
+        await push;
+        await expect(page.getByRole("button", { name: "Procesando…" })).toBeDisabled();
+        if (flow === "factura previa") {
+          const reprint = page.getByRole("button", { name: "Reimprimir factura" });
+          await expect(reprint).toBeDisabled();
+          await expect(page.getByRole("radio", { name: "Datáfono", exact: true })).toBeDisabled();
+          await expect(page.getByRole("radio", { name: "Este dispositivo" })).toBeDisabled();
+          await expect(page.getByRole("radio", { name: "Impresora de caja" })).toBeEnabled();
+          await reprint.scrollIntoViewIfNeeded();
+        }
+        await page.screenshot({ path: info.outputPath(flow + ".png") });
+      } finally { resume(); }
+      if (flow === "partes iguales") {
+        await expect(page.getByText("Pago 1 de 2 aprobado", { exact: true })).toBeVisible({ timeout: 30000 });
+        await page.getByTestId("serial-charge-next").click();
+      }
+      await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status,
+        { timeout: 30000 }).toBe("paid");
+      expect(await db.payment.count({ where: { orderId: f.order.id, status: "approved" } })).toBe(flow === "partes iguales" ? 2 : 1);
+      if (flow === "factura previa") {
+        await expect(page).toHaveURL(/\/done(?:\?|$)/);
+        await page.getByRole("radio", { name: "Datáfono", exact: true }).click();
+        await page.getByRole("button", { name: "Imprimir factura", exact: true }).click();
+        const notice = page.getByText(/Espera un minuto desde la aprobación/);
+        await expect(notice).toBeVisible();
+        await notice.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: info.outputPath("despues-aprobacion.png") });
+      }
+    });
+  }
+});
+
+test("la API protege el serial cuando coinciden una impresión y un cobro", async ({ page }) => {
+  const f = await fixture(page, { role: "mesero", smartTerminal: true });
+  const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+  const serial = randomUUID();
+  await db.terminalDevice.update({ where: { id: device.id }, data: { serialNumber: serial } });
+  const second = await db.terminalDevice.create({ data: {
+    restaurantId: f.restaurant.id, kushkiDeviceId: randomUUID(), serialNumber: randomUUID(), label: "Segundo equipo",
+  } });
+  const tenant = `/api/tenant/${f.restaurant.slug}`;
+  const requestPayment = async () => {
+    const response = await page.request.post(`${tenant}/pay/terminal-request`, {
+      data: { orderId: f.order.id, amountCents: f.order.totalCents / 2, tipCents: 0, attemptId: randomUUID() },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    return (await response.json()).paymentId as string;
+  };
+  const push = (paymentId: string) => page.request.post(`${tenant}/terminal/charge`, { data: { paymentId, deviceId: device.kushkiDeviceId } });
+  const print = (deviceId: string) => page.request.post("/api/operator/print/terminal", {
+    data: { kind: "prebill", orderId: f.order.id, deviceId },
+  });
+  const jobId = randomUUID();
+  await db.terminalPrintReservation.create({ data: { serial, jobId } });
+  try {
+    const paymentId = await requestPayment();
+    const blocked = await push(paymentId);
+    expect(blocked.status()).toBe(409);
+    expect(await blocked.json()).toMatchObject({ error: "terminal_printing", status: "declined" });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).status).toBe("declined");
+    expect(await db.financialOperation.findUnique({ where: { key: `terminal:${paymentId}` } })).toBeNull();
+    expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
+  } finally {
+    await db.terminalPrintReservation.deleteMany({ where: { serial, jobId } });
+  }
+  const paymentId = await requestPayment();
+  // A previous job may still be pending at the provider after our deadline.
+  await db.terminalPrintReservation.create({ data: { serial, jobId, fault: "timeout", createdAt: new Date(Date.now() - 181_000) } });
+  expect((await push(paymentId)).ok()).toBe(true);
+  expect(await db.terminalPrintReservation.findUnique({ where: { serial } })).toBeNull();
+  const conflict = await print(device.kushkiDeviceId);
+  expect(conflict.status()).toBe(409);
+  expect(await conflict.json()).toEqual({ error: "terminal_charging" });
+  expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
+  await expect.poll(async () => (await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).status)
+    .not.toBe("pending");
+  if (process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED === "+0") {
+    expect(await (await print(device.kushkiDeviceId)).json()).toMatchObject({ error: "terminal_post_approval" });
+    expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
+    await db.payment.update({ where: { id: paymentId }, data: { settledAt: new Date(Date.now() - 61_000) } });
+    expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
+
+    // Deliberately seed unresolved snapshots. None may hold printing indefinitely.
+    await db.payment.update({ where: { id: paymentId }, data: { status: "pending", settledAt: null } });
+    for (const update of [{ status: "uncertain" }, { status: "pending", createdAt: new Date(Date.now() - 151_000) }]) {
+      await db.financialOperation.update({ where: { key: `terminal:${paymentId}` }, data: update });
+      expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
+    }
+  }
+});
+
+test("un datáfono ocupado permite reintentar la misma parte en serie", async ({ page }) => {
+  test.skip(process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED !== "+0");
+  const f = await fixture(page, { role: "mesero", smartTerminal: true });
+  const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+  const serial = `mock:${device.kushkiDeviceId}`;
+  await db.terminalPrintReservation.create({ data: { serial, jobId: randomUUID() } });
+  try {
+    await chooseEqualSplit(page);
+    await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
+    await expect(page.getByTestId("serial-charge-next")).toHaveText(/^Reintentar/);
+    await expect(page.getByText("El datáfono está imprimiendo.", { exact: false })).toBeVisible();
+    expect(await db.payment.count({ where: { orderId: f.order.id, status: "pending" } })).toBe(0);
+  } finally {
+    await db.terminalPrintReservation.deleteMany({ where: { serial } });
+  }
+  await page.getByTestId("serial-charge-next").click();
+  await expect(page.getByText("Pago 1 de 2 aprobado", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("serial-charge-next").click();
+  await expect.poll(() => db.payment.count({ where: { orderId: f.order.id, status: "approved" } }), { timeout: 30_000 }).toBe(2);
+});

@@ -27,6 +27,12 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
+  webServer: process.env.CI_TERMINAL_MOCK === "1" ? {
+    command: "npx next dev -H 127.0.0.1 -p 3391",
+    url: "http://localhost:3391/api/health",
+    reuseExistingServer: false,
+    timeout: 120_000,
+  } : undefined,
   projects: [
     { name: "mobile", use: { ...devices["iPhone 13"] } },
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

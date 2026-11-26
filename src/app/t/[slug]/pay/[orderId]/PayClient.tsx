@@ -14,7 +14,8 @@ import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { terminalAttemptState } from "@/lib/payments/terminalAttempt";
+import { useLocale, useNow, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import Link from "next/link";
 import { fmtCOP, formatMoney, formatNumber } from "@/lib/format";
@@ -389,10 +390,20 @@ export function PayClient({
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const terminalWatch = useRef<ReturnType<typeof watchStaffTerminal> | null>(null);
-  const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number } | null>(null);
+  const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number; deviceId: string | null } | null>(null);
   const [watchedPaymentId, setWatchedPaymentId] = useState<string | null>(null);
   const settledTerminalIds = useRef(new Set<string>());
   const [manualCancel, setManualCancel] = useState(false);
+  const hasTerminalAttempts = operatorMode && !!preInvoice && pendingPayments.some(p => !!p.terminalAttempt);
+  const printClock = useNow({ updateInterval: hasTerminalAttempts ? 1000 : undefined });
+  const chargingDevices = pendingPayments.flatMap(({ terminalAttempt: attempt }) => {
+    if (!attempt?.deviceId || (attempt.claimStatus && attempt.claimStatus !== "pending")) return [];
+    return terminalAttemptState(attempt, printClock.getTime()) === "in_flight" ? [attempt.deviceId] : [];
+  });
+  const knownAttempt = pendingPayments.some(p => p.id === watchedPaymentId && p.terminalAttempt);
+  if (busy === "kushki_card_terminal" && !knownAttempt && lastTerminalRequest?.deviceId) {
+    chargingDevices.push(lastTerminalRequest.deviceId);
+  }
   const tAttempt = useTranslations("terminalAttempt");
   const [consultingTerminal, setConsultingTerminal] = useState(false);
   const [terminalUnknown, setTerminalUnknown] = useState(false);
@@ -887,7 +898,7 @@ export function PayClient({
       else if (result || terminalWatch.current !== previous) return;
     }
     const attemptId = operatorMode ? (retryingSameRequest && prior ? prior.id : crypto.randomUUID()) : null;
-    if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip });
+    if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip, deviceId: target?.id ?? null });
     setManualCancel(false);
     setBusy(method);
     setErr(null);
@@ -905,6 +916,7 @@ export function PayClient({
         // user may already have changed the split, guest or payment method.
         if (!watch?.signal.aborted) recordLaunch(id);
       },
+      onGatewayTimeout: () => setErr(apiError({ error: "terminal_stuck" })),
       onManualAvailable: () => setManualCancel(true),
       onResult: (result, id) => {
         const postWasReleased = watch?.signal.aborted;
@@ -989,8 +1001,10 @@ export function PayClient({
         const pj = await pushRes.json().catch(() => ({}));
         if (watch?.signal.aborted) return;
         if (pushRes.status >= 500) { awaitingStatus = true; return; }
-        if (pj.status === "declined" && serialMode) serial.chargeDeclined(j.paymentId);
-        else setErr(pj.status === "declined" ? t("terminalNotApproved") : apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
+        const serialDeclined = pj.status === "declined" && serialMode && serial.chargeDeclined(j.paymentId);
+        if (pj.error || !serialDeclined) {
+          setErr(apiError(pj, pj.status === "declined" ? t("terminalNotApproved") : t("errPushTerminal")));
+        }
         refreshBalance();
         return;
       }
@@ -1898,6 +1912,7 @@ export function PayClient({
             <InvoicedOrderBanner
               orderId={orderId}
               invoice={preInvoice}
+              chargingDevices={chargingDevices}
               compact
               sameTab={printSameTab}
               canConfigurePrinters={canConfigurePrinters}
@@ -2003,6 +2018,9 @@ export function PayClient({
               amountCents={amountCents}
               operatorMode={operatorMode}
             />
+            {operatorMode && busy === "kushki_card_terminal" && (
+              <p role="status" className="text-sm text-muted">{t("terminalAwaitCard")}</p>
+            )}
             {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker
@@ -2134,6 +2152,9 @@ export function PayClient({
               operatorMode={operatorMode}
               amountCents={amountCents}
             />
+            {operatorMode && busy === "kushki_card_terminal" && (
+              <p role="status" className="text-sm text-muted">{t("terminalAwaitCard")}</p>
+            )}
             {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker

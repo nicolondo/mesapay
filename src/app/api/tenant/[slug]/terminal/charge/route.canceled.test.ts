@@ -73,6 +73,7 @@ vi.mock("@/lib/activeRestaurant", () => ({
 }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: async () => true }));
 vi.mock("@/lib/guestAccess", () => ({ canAccessOrder: async () => true, canAccessTable: async () => true }));
+vi.mock("@/lib/payments/terminalPrinterLock", () => ({ refreshPreviousPrint: vi.fn(), printingUnderLock: vi.fn() }));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: async () => {} }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: h.publish }));
 vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: async () => ({ status: "skipped" }) }));

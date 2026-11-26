@@ -147,6 +147,7 @@ export const UNRELATED_MODELS: Readonly<Record<string, string>> = {
   WalletBalanceSnapshot: "Observaciones de saldo conservadas con WalletTrackingAccount; no autorizan transferencias.",
   WalletTrackingJob: "Cursor y coordinación del procesamiento global de seguimiento de wallets.",
   Translation: "Caché global de traducciones, por texto.",
+  TerminalPrintReservation: "Reserva temporal del serial físico, compartida entre sus alias y sin relación con una cuenta o un comercio.",
   RateLimitBucket: "Contadores con vencimiento propio.",
   CreditNoteSeries:
     "Consecutivo de notas crédito por NIT y ambiente: los números ya usados quedan quemados, nunca se reinicia.",

@@ -63,6 +63,13 @@ describe("pedirle al servidor que imprima en el datáfono", () => {
   });
 
   it("qué se le dice a quien imprime", () => {
+    expect(terminalPrintMessage("print_failed", "Terminal is busy. Please try again later.")).toEqual({ key: "terminalBusy" });
+    expect(terminalPrintMessage("terminal_busy")).toEqual({ key: "terminalBusy" });
+    expect(terminalPrintMessage("terminal_printing")).toEqual({ key: "terminalBusy" });
+    expect(terminalPrintMessage("terminal_post_approval")).toEqual({ key: "terminalPostApproval" });
+    expect(terminalPrintMessage("terminal_stuck")).toEqual({ key: "terminalStuck" });
+    expect(terminalPrintMessage("terminal_print_backoff")).toEqual({ key: "terminalBackoff" });
+    expect(terminalPrintMessage("terminal_charging")).toEqual({ key: "terminalCharging" });
     expect(terminalPrintMessage("no_devices")).toEqual({ key: "terminalNoDevices" });
     expect(terminalPrintMessage("cloud_business_code_missing")).toEqual({ key: "terminalBusinessCode" });
     expect(terminalPrintMessage("print_failed", "http_400")).toEqual({ key: "terminalKushkiFailed", values: { reason: "http_400" } });

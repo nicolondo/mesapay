@@ -3,6 +3,7 @@ import { observeTerminalStatus, pendingTerminalIdsToObserve, watchStaffTerminal 
 
 const request = vi.fn<typeof fetch>();
 const onResult = vi.fn();
+const onGatewayTimeout = vi.fn();
 const onRecovery = vi.fn();
 const onManualAvailable = vi.fn();
 let watch: ReturnType<typeof watchStaffTerminal>;
@@ -10,7 +11,7 @@ let watch: ReturnType<typeof watchStaffTerminal>;
 function start() {
   watch = watchStaffTerminal({
     tenantSlug: "demo", orderId: "order", method: "kushki_card_terminal",
-    attemptId: "attempt", onRegistered: vi.fn(), onResult, onRecovery, onManualAvailable,
+    attemptId: "attempt", onRegistered: vi.fn(), onResult, onRecovery, onManualAvailable, onGatewayTimeout,
   });
 }
 beforeEach(() => {
@@ -59,6 +60,17 @@ describe("staff terminal checkout", () => {
     expect(watch.signal.aborted).toBe(true);
     expect(onRecovery).toHaveBeenCalledExactlyOnceWith("unknown");
     expect(onResult).not.toHaveBeenCalled();
+  });
+
+  it("shows the 504 notice while the charge POST is still waiting and keeps observing", async () => {
+    request.mockResolvedValueOnce(Response.json({ status: "pending", terminalAttempt: { gatewayTimedOut: true } }));
+    watch.registered("p");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onGatewayTimeout).toHaveBeenCalledOnce();
+    expect(onResult).not.toHaveBeenCalled();
+    request.mockResolvedValueOnce(Response.json({ status: "approved", orderStatus: "paid" }));
+    await watch.check();
+    expect(onResult).toHaveBeenCalledWith({ status: "approved", orderStatus: "paid" }, "p");
   });
 
   it("retains a registered pending payment through the deadline and follows its eventual approval", async () => {

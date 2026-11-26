@@ -7,6 +7,7 @@ export type TerminalResult = {
   terminalAmount?: TerminalAmountView | null;
   nextPaymentId?: string;
   declineReason?: string;
+  terminalAttempt?: { gatewayTimedOut?: boolean } | null;
 };
 
 type Options = {
@@ -14,6 +15,7 @@ type Options = {
   orderId: string;
   method: "kushki_card_terminal" | "external_terminal";
   attemptId: string;
+  onGatewayTimeout?: () => void;
   onManualAvailable: () => void;
   onResult: (result: TerminalResult, id: string) => void;
   onRegistered: (id: string) => void;
@@ -32,6 +34,7 @@ export function observeTerminalStatus(
   lookup: (signal: AbortSignal) => Promise<string | null>,
   onResult: (result: TerminalResult, id: string) => void,
   onResume?: () => void,
+  onGatewayTimeout?: () => void,
 ) {
   const started = Date.now();
   let poll: ReturnType<typeof setTimeout>;
@@ -52,6 +55,7 @@ export function observeTerminalStatus(
       if (!response.ok) return;
       const result: TerminalResult = await response.json();
       if (request.signal.aborted || stopped) return;
+      if (result.status === "pending" && result.terminalAttempt?.gatewayTimedOut) onGatewayTimeout?.();
       if (["approved", "declined", "refunded"].includes(result.status)) {
         stop();
         onResult(result, paymentId);
@@ -148,7 +152,7 @@ export function watchStaffTerminal(options: Options) {
 
   const observer = observeTerminalStatus(tenantSlug, lookup, options.onResult, () => {
     if (Date.now() >= deadline) expire();
-  });
+  }, options.onGatewayTimeout);
   const timeout = setTimeout(expire, 120_000);
   const manual = setTimeout(() => { if (!post.signal.aborted) options.onManualAvailable(); }, 4000);
   return {

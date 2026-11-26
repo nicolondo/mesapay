@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney } from "@/lib/format";
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import { useApiError } from "@/lib/useApiError";
 import {
   terminalAttemptState,
@@ -261,6 +262,7 @@ export function TerminalAttemptActions({
 
   const feedback = (
     <>
+      {attempt.gatewayTimedOut && <p role="status" className="text-sm">{apiError({ error: "terminal_stuck" })}</p>}
       {notice && (
         <p role="status" className="text-[11px] text-op-muted leading-snug">
           {notice}
@@ -299,7 +301,7 @@ export function TerminalAttemptActions({
     return (
       <div className="space-y-2">
         <p className="text-[12px] leading-snug">
-          {detail ? t("answeredBody", { detail }) : t("answeredBodyGeneric")}
+          {isTerminalBusy(attempt.answerCode) ? apiError({ error: "terminal_busy" }) : detail ? t("answeredBody", { detail }) : t("answeredBodyGeneric")}
         </p>
         {chargeLocked ? (
           <div className="rounded-lg border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">

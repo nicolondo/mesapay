@@ -8,6 +8,7 @@
  * localStorage, nada más).
  */
 
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import type { StaffPrintDoc } from "./staffPrint";
 
 export type TerminalPrintDevice = { id: string; label: string };
@@ -94,6 +95,11 @@ export function terminalPrintMessage(
   errorCode?: string,
 ): {
   key:
+    | "terminalBusy"
+    | "terminalCharging"
+    | "terminalStuck"
+    | "terminalBackoff"
+    | "terminalPostApproval"
     | "terminalNoDevices"
     | "terminalBusinessCode"
     | "terminalKushkiFailed"
@@ -103,12 +109,19 @@ export function terminalPrintMessage(
     | "terminalJobFailed";
   values?: { reason: string };
 } {
+  if (isTerminalBusy(errorCode, reason)) return { key: "terminalBusy" };
   // El datáfono la intentó y falló: lo que dijo el equipo.
   if (errorCode) {
     if (/PAPER/i.test(errorCode)) return { key: "terminalOutOfPaper" };
     return { key: "terminalJobFailed", values: { reason: errorCode } };
   }
   switch (code) {
+    case "terminal_stuck": return { key: "terminalStuck" };
+    case "terminal_print_backoff": return { key: "terminalBackoff" };
+    case "terminal_post_approval": return { key: "terminalPostApproval" };
+    case "terminal_charging": return { key: "terminalCharging" };
+    case "terminal_busy":
+    case "terminal_printing": return { key: "terminalBusy" };
     case "no_devices":
       return { key: "terminalNoDevices" };
     case "cloud_business_code_missing":

@@ -180,6 +180,7 @@ describe("pushPaymentToCloudTerminal: el datáfono canceló (Son y Melona, 2026-
   });
 
   it.each([
+    ["TERMINAL_BUSY", { code: "TERMINAL_BUSY", message: "Terminal is busy" }],
     ["TER-003 (ocupado con otra transacción)", { type: "TERMINAL", code: "TER-003", message: "Terminal is busy processing transaction" }],
     ["TER-001 (equipo no vinculado)", { type: "TERMINAL", code: "TER-001", message: "Terminal does not exist" }],
     ["ACQUIRER", { type: "ACQUIRER", code: "E020", message: "Either Invalid amount or Currency conversion field overflow" }],

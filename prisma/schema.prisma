@@ -4508,6 +4508,7 @@ model RateLimitBucket {
 
 // One durable record per financial operation (including uncertain refunds).
 model FinancialOperation {
+  gatewayTimedOutAt DateTime?
   key String @id
   paymentId String
   kind String
@@ -5509,4 +5510,13 @@ model WalletTrackingJob {
   leaseToken String?
   leaseUntil DateTime?
   updatedAt DateTime @updatedAt
+}
+
+// Shared across app processes and device aliases for one physical terminal.
+model TerminalPrintReservation {
+  fault String?
+  nextProbeAt DateTime?
+  serial    String   @id
+  jobId     String
+  createdAt DateTime @default(now())
 }

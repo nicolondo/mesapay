@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -34,6 +34,10 @@ import {
   type PrintPreferenceState,
   type PrintViewer,
 } from "./PrintDestinationPicker";
+
+const subscribePrintSupport = () => () => {};
+const browserCannotPrint = () => browserPrintSupport(navigator.userAgent, typeof window.print === "function") === "unsupported";
+const serverCannotPrint = () => false;
 
 export type StaffPrintTone = "ok" | "warn" | "error";
 type Tone = StaffPrintTone;
@@ -88,6 +92,7 @@ export function StaffPrintButton({
   showDestination = true,
   destinationVariant = "op",
   destinationClassName = "",
+  chargingDevices,
   viewer,
 }: {
   doc: StaffPrintDoc;
@@ -105,17 +110,29 @@ export function StaffPrintButton({
   showDestination?: boolean;
   destinationVariant?: PrintDestinationVariant;
   destinationClassName?: string;
+  chargingDevices?: string[];
   /** Rol y comercio de quien mira, si la pantalla ya los sabe. */
   viewer?: PrintViewer | null;
 }) {
   const t = useTranslations("staffPrint");
-  const print = useStaffPrint(doc, { openTab, viewer });
+  const print = useStaffPrint(doc, { openTab, viewer, chargingDevices });
+  const unsupported = useSyncExternalStore(subscribePrintSupport, browserCannotPrint, serverCannotPrint);
+  const allCharging = print.pref.terminalDevices.length > 0 &&
+    print.pref.terminalDevices.every(device => chargingDevices?.includes(device.id));
+  const disabledDestinations: PrintDestination[] = [];
+  if (allCharging) {
+    disabledDestinations.push("terminal");
+    if (print.pref.role === "terminal" || unsupported) {
+      disabledDestinations.push("device");
+    }
+  }
   return (
     <>
       {showDestination && (
         <PrintDestinationPicker
           pref={print.pref}
           disabled={print.busy}
+          disabledDestinations={disabledDestinations}
           variant={destinationVariant}
           className={destinationClassName}
         />
@@ -123,11 +140,12 @@ export function StaffPrintButton({
       <button
         type="button"
         onClick={() => void print.run()}
-        disabled={print.busy || !print.pref.ready}
+        disabled={print.busy || !print.pref.ready || disabledDestinations.includes(print.pref.destination)}
         className={className}
       >
         {print.busy ? t("sending") : label}
       </button>
+      {allCharging && <span role="status" className={statusClassName}>{t("terminalCharging")}</span>}
       <StaffPrintNotice
         print={print}
         className={statusClassName}
@@ -168,10 +186,12 @@ export function useStaffPrint(
   {
     openTab,
     viewer,
+    chargingDevices = [],
   }: {
     openTab?: (url: string) => boolean;
     /** El rol y el comercio, si la pantalla ya los sabe (si no, la sesión). */
     viewer?: PrintViewer | null;
+    chargingDevices?: string[];
   } = {},
 ): StaffPrintState {
   const t = useTranslations("staffPrint");
@@ -208,9 +228,18 @@ export function useStaffPrint(
     const dest: PrintDestination = pref.role === "terminal" ? "device" : "terminal";
     setNotice({ tone: "ok", text: t("terminalSending"), destination: dest });
     const scope = pref.scope;
+    const available = pref.terminalDevices.filter(d => !chargingDevices.includes(d.id));
+    const target = deviceId ?? readRememberedPrintTerminal(scope);
+    if (chargingDevices.length && (!available.length || !available.some(d => d.id === target))) {
+      setBusy(false);
+      setNotice(available.length
+        ? { tone: "warn", text: t("terminalChoose"), chooseDevices: available }
+        : { tone: "warn", text: t("terminalCharging") });
+      return;
+    }
     try {
       const result = await printOnTerminal(doc, {
-        deviceId: deviceId ?? readRememberedPrintTerminal(scope),
+        deviceId: target,
         printJobId,
       });
       if (result.via === "terminal") {
@@ -233,7 +262,11 @@ export function useStaffPrint(
           ...(result.reason && { message: result.reason }),
         });
         const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
-        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
+        const retryId = result.code === "terminal_print_backoff" ? result.printJobId ?? printJobId
+          : result.code === "terminal_stuck" ? printJobId : undefined;
+        const retryDevice = target ?? (available.length === 1 ? available[0].id : null);
+        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest,
+          ...(retryId && retryDevice && { retryJob: { deviceId: retryDevice, printJobId: retryId } }) });
       }
     } catch (err) {
       reportClientPrintError("terminal_print_failed", {
@@ -439,7 +472,7 @@ export function StaffPrintNotice({
           )}
         </>
       )}
-      {failed && notice.destination && (
+      {failed && !notice.retryJob && notice.destination && (
         <>
           {" "}
           <button

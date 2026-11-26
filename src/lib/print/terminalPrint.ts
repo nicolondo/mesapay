@@ -27,6 +27,9 @@
  * no imprime (`mock_print_disabled`).
  */
 
+import { randomUUID } from "node:crypto";
+import { refreshPreviousPrint, reservePrint, releasePrint } from "@/lib/payments/terminalPrinterLock";
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
 import { isModuleEnabled } from "@/lib/modules";
@@ -70,6 +73,9 @@ export type TerminalPrintError =
   | "choose_device"
   | "cloud_business_code_missing"
   | "mock_print_disabled"
+  | "terminal_charging"
+  | "terminal_printing"
+  | "terminal_busy"
   | "print_failed";
 
 export type TerminalPrintResult =
@@ -221,8 +227,8 @@ export function chooseTerminalDevice(
  */
 export async function listTerminalPrintDevices(
   restaurantId: string,
-  opts: { isProduction?: boolean } = {},
-): Promise<Array<{ id: string; label: string }>> {
+  opts: { isProduction?: boolean; includeActivity?: boolean } = {},
+): Promise<Array<{ id: string; label: string; charging?: boolean }>> {
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: { id: true, kushkiMode: true, cloudTerminalBusinessCode: true },
@@ -237,9 +243,25 @@ export async function listTerminalPrintDevices(
     orderBy: { createdAt: "asc" },
     select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true },
   });
-  return rows
-    .filter((d) => terminalDeviceUsable(d, useRealTerminal))
-    .map((d) => ({ id: d.kushkiDeviceId, label: d.label }));
+  const usable = rows.filter(d => terminalDeviceUsable(d, useRealTerminal));
+  const charging = new Set<string>();
+  if (opts.includeActivity && usable.length) {
+    const claims = await db.financialOperation.findMany({
+      where: {
+        kind: "terminal", status: { in: ["pending", "uncertain"] },
+        deviceId: { in: rows.map(device => device.kushkiDeviceId) },
+      },
+      select: { deviceId: true },
+    });
+    const claimed = new Set(claims.map(c => c.deviceId));
+    for (const device of rows) {
+      if (claimed.has(device.kushkiDeviceId)) charging.add(device.serialNumber || device.kushkiDeviceId);
+    }
+  }
+  return usable.map(device => ({
+    id: device.kushkiDeviceId, label: device.label,
+    ...(charging.has(device.serialNumber || device.kushkiDeviceId) && { charging: true }),
+  }));
 }
 
 export type TerminalPrintDeps = {
@@ -293,7 +315,20 @@ export async function printOnTerminalDevice(
   const built = await buildTerminalCommands(tenant.id, args.target);
   if (!built.ok) return { ok: false, error: built.error };
 
+  const jobId = args.printJobId ?? randomUUID();
+  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal });
+  const reservedAt = new Date();
+  const conflict = await reservePrint(device, jobId, reservedAt);
+  if (conflict === "already_queued") {
+    return {
+      ok: true, deviceId: device.kushkiDeviceId, deviceLabel: device.label,
+      printJobId: jobId, state: "queued", simulated: !useRealTerminal, reference: built.reference,
+    };
+  }
+  if (conflict) return { ok: false, error: conflict };
+
   if (!useRealTerminal) {
+    await releasePrint(device, jobId, reservedAt);
     console.log("[kushki/cloud-print] mock: impresión simulada", {
       restaurantId: tenant.id,
       device: device.kushkiDeviceId,
@@ -304,7 +339,7 @@ export async function printOnTerminalDevice(
       ok: true,
       deviceId: device.kushkiDeviceId,
       deviceLabel: device.label,
-      printJobId: args.printJobId ?? `mock-${Date.now()}`,
+      printJobId: jobId,
       state: "printed",
       simulated: true,
       reference: built.reference,
@@ -317,9 +352,14 @@ export async function printOnTerminalDevice(
     ...target,
     commands: built.commands,
     externalReference: built.externalReference,
-    ...(args.printJobId && { printJobId: args.printJobId }),
+    printJobId: jobId,
   });
   if (!result.ok) {
+    // A transport failure may have enqueued the job. Keep its reservation.
+    if (result.httpStatus && [400, 401, 403, 404, 409, 422].includes(result.httpStatus)) {
+      await releasePrint(device, jobId, reservedAt);
+    }
+    if (isTerminalBusy(result.errorCode, result.message)) return { ok: false, error: "terminal_busy" };
     return {
       ok: false,
       error: "print_failed",
@@ -329,7 +369,9 @@ export async function printOnTerminalDevice(
   }
   // 202 = encolado, NO impreso: el estado real se pregunta hasta ~30 s.
   const outcome = await (deps.waitJob ?? waitForCloudPrintJob)({ ...target, printJobId: result.printJobId });
+  if (outcome.state !== "pending") await releasePrint(device, jobId, reservedAt);
   if (outcome.state === "failed") {
+    if (isTerminalBusy(outcome.errorCode, outcome.errorMessage)) return { ok: false, error: "terminal_busy" };
     return {
       ok: false,
       error: "print_failed",

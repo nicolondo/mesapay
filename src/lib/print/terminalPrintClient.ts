@@ -8,6 +8,7 @@
  * localStorage, nada más).
  */
 
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import type { StaffPrintDoc } from "./staffPrint";
 
 export type TerminalPrintDevice = { id: string; label: string };
@@ -27,7 +28,7 @@ export type TerminalPrintClientResult =
 
 type FetchLike = (
   url: string,
-  init: { method: "POST"; headers: Record<string, string>; body: string },
+  init: { method: "POST"; headers: Record<string, string>; body: string } | { method: "GET"; cache: "no-store" },
 ) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
 
 /** El cuerpo que espera la ruta, según el documento. */
@@ -51,6 +52,17 @@ export async function printOnTerminal(
   let ok = false;
   let body: Record<string, unknown> | null = null;
   try {
+    // Another waiter may have started a charge from a different browser.
+    // The POST checks again under the database lock to cover the interval.
+    const activity = await doFetch("/api/operator/print/terminal?activity", { method: "GET", cache: "no-store" });
+    if (activity.ok) {
+      const list = (await activity.json()) as { devices?: Array<TerminalPrintDevice & { charging?: boolean }> } | null;
+      if (list?.devices?.some(d => d.charging)) {
+        const available = list.devices.filter(d => !d.charging);
+        if (!available.length) return { via: "error", code: "terminal_charging" };
+        if (!available.some(d => d.id === opts.deviceId)) return { via: "choose_device", devices: available };
+      }
+    }
     const res = await doFetch("/api/operator/print/terminal", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -94,6 +106,8 @@ export function terminalPrintMessage(
   errorCode?: string,
 ): {
   key:
+    | "terminalBusy"
+    | "terminalCharging"
     | "terminalNoDevices"
     | "terminalBusinessCode"
     | "terminalKushkiFailed"
@@ -103,12 +117,16 @@ export function terminalPrintMessage(
     | "terminalJobFailed";
   values?: { reason: string };
 } {
+  if (isTerminalBusy(errorCode, reason)) return { key: "terminalBusy" };
   // El datáfono la intentó y falló: lo que dijo el equipo.
   if (errorCode) {
     if (/PAPER/i.test(errorCode)) return { key: "terminalOutOfPaper" };
     return { key: "terminalJobFailed", values: { reason: errorCode } };
   }
   switch (code) {
+    case "terminal_charging": return { key: "terminalCharging" };
+    case "terminal_busy":
+    case "terminal_printing": return { key: "terminalBusy" };
     case "no_devices":
       return { key: "terminalNoDevices" };
     case "cloud_business_code_missing":

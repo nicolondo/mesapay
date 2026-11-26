@@ -36,6 +36,7 @@ export type TerminalAttemptState = "in_flight" | "answered" | "no_answer";
 
 /** Lo que las pantallas reciben de un intento enviado al datáfono. */
 export type TerminalAttemptView = {
+  deviceId?: string | null;
   /** Cuándo se envió al equipo (ISO). */
   pushedAt: string;
   /** Cuándo contestó el equipo que no aprobó (ISO); null = sin respuesta. */
@@ -58,6 +59,7 @@ export type TerminalAttemptView = {
 };
 
 type ClaimLike = {
+  deviceId?: string | null;
   createdAt: Date;
   answerCode?: string | null;
   answerMessage?: string | null;
@@ -74,6 +76,7 @@ export function toTerminalAttemptView(
 ): TerminalAttemptView | null {
   if (!claim) return null;
   return {
+    ...(claim.deviceId && { deviceId: claim.deviceId }),
     pushedAt: claim.createdAt.toISOString(),
     answeredAt: claim.answeredAt ? claim.answeredAt.toISOString() : null,
     answerCode: claim.answerCode ?? null,

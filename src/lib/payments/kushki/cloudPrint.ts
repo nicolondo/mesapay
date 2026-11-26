@@ -329,6 +329,7 @@ export function buildInvoiceCommands(
 }
 
 export type PrintJobResult = {
+  errorCode?: string;
   ok: boolean;
   printJobId: string;
   status?: string;
@@ -449,6 +450,7 @@ export async function printOnCloudTerminal(args: TerminalTarget & {
     ok,
     printJobId,
     status: str(r.body.status),
+    errorCode: str(r.body.code) ?? str(r.body.errorCode) ?? str(r.body.error) ?? str(r.body.type),
     message: str(r.body.message) ?? r.error,
     httpStatus: r.httpStatus ?? undefined,
     raw: r.body,

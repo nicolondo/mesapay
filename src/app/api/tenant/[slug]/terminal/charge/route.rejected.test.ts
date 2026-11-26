@@ -67,6 +67,7 @@ vi.mock("@/lib/activeRestaurant", () => ({
 }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: async () => true }));
 vi.mock("@/lib/guestAccess", () => ({ canAccessOrder: async () => true, canAccessTable: async () => true }));
+vi.mock("@/lib/payments/terminalPrinterLock", () => ({ refreshPreviousPrint: vi.fn(), printingUnderLock: vi.fn() }));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: async () => {} }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: h.publish }));
 vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: async () => ({ status: "skipped" }) }));
@@ -134,6 +135,12 @@ const kushkiSays = (status: number, body: unknown) =>
   h.fetch.mockResolvedValueOnce(new Response(JSON.stringify(body), { status }));
 
 describe("terminal/charge: Kushki rechaza la solicitud por validación (4xx)", () => {
+  it("TERMINAL_BUSY devuelve un código para traducir sin mostrar el mensaje del proveedor", async () => {
+    kushkiSays(400, { code: "TERMINAL_BUSY", message: "Terminal is busy" });
+    expect(await charge()).toEqual({ status: 409, json: { error: "terminal_busy", status: "rejected" } });
+    expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "declined" });
+  });
+
   it("el caso real (400 CLOUDPAYMENT_VALIDATION_ERROR): el pago se declina, el reclamo queda failed y la cuenta libre", async () => {
     kushkiSays(400, {
       type: "INTERNAL",

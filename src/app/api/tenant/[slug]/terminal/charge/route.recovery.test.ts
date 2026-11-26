@@ -80,6 +80,7 @@ vi.mock("@/lib/activeRestaurant", () => ({
 }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: async () => true }));
 vi.mock("@/lib/guestAccess", () => ({ canAccessOrder: async () => true, canAccessTable: async () => true }));
+vi.mock("@/lib/payments/terminalPrinterLock", () => ({ refreshPreviousPrint: vi.fn(), printingUnderLock: vi.fn() }));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: async () => {} }));
 vi.mock("@/lib/waiterCommissionsSeal", () => ({ sealOrderCommission: async () => {} }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: h.publish }));
@@ -267,6 +268,15 @@ describe("terminal/charge: 504 del gateway y el datáfono aprobó", () => {
     expect(h.issueInvoice).toHaveBeenCalledOnce();
     expect(h.issueInvoice).toHaveBeenCalledWith({ tenantId: "rest-1", orderId: ORDER_ID });
     expect(h.publish).toHaveBeenCalledWith("rest-1", { type: "order.paid", orderId: ORDER_ID });
+  });
+
+  it("504 HTML y dos búsquedas 400 dejan el cobro incierto y consultable", async () => {
+    html504();
+    h.fetch.mockImplementation(async () => new Response("{}", { status: 400 }));
+    expect(await charge()).toMatchObject({ status: 202, json: { pending: true } });
+    expect(searchCalls()).toHaveLength(2);
+    expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "pending", reconciliationRequired: true });
+    expect(claim()).toMatchObject({ checkStatus: "error", status: "pending" });
   });
 
   it("el aprobado síncrono de siempre también termina en la factura", async () => {

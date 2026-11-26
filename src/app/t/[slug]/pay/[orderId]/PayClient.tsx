@@ -389,7 +389,7 @@ export function PayClient({
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
   const [busy, setBusy] = useState<MethodKind | null>(null);
   const terminalWatch = useRef<ReturnType<typeof watchStaffTerminal> | null>(null);
-  const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number } | null>(null);
+  const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number; deviceId: string | null } | null>(null);
   const [watchedPaymentId, setWatchedPaymentId] = useState<string | null>(null);
   const settledTerminalIds = useRef(new Set<string>());
   const [manualCancel, setManualCancel] = useState(false);
@@ -887,7 +887,7 @@ export function PayClient({
       else if (result || terminalWatch.current !== previous) return;
     }
     const attemptId = operatorMode ? (retryingSameRequest && prior ? prior.id : crypto.randomUUID()) : null;
-    if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip });
+    if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip, deviceId: target?.id ?? null });
     setManualCancel(false);
     setBusy(method);
     setErr(null);
@@ -1898,6 +1898,10 @@ export function PayClient({
             <InvoicedOrderBanner
               orderId={orderId}
               invoice={preInvoice}
+              chargingDevices={[
+                ...((busy === "kushki_card_terminal" || terminalUnknown) && lastTerminalRequest?.deviceId ? [lastTerminalRequest.deviceId] : []),
+                ...pendingPayments.flatMap(p => p.terminalAttempt?.deviceId ? [p.terminalAttempt.deviceId] : []),
+              ]}
               compact
               sameTab={printSameTab}
               canConfigurePrinters={canConfigurePrinters}
@@ -2003,6 +2007,9 @@ export function PayClient({
               amountCents={amountCents}
               operatorMode={operatorMode}
             />
+            {operatorMode && busy === "kushki_card_terminal" && (
+              <p role="status" className="text-sm text-muted">{t("terminalAwaitCard")}</p>
+            )}
             {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker
@@ -2134,6 +2141,9 @@ export function PayClient({
               operatorMode={operatorMode}
               amountCents={amountCents}
             />
+            {operatorMode && busy === "kushki_card_terminal" && (
+              <p role="status" className="text-sm text-muted">{t("terminalAwaitCard")}</p>
+            )}
             {busy === "kushki_card_terminal" && cancelTerminalButton}
             {operatorMode && (
               <TerminalPicker

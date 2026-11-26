@@ -245,11 +245,13 @@ const STYLES: Record<
 export function PrintDestinationPicker({
   pref,
   disabled = false,
+  disabledDestinations = [],
   variant = "op",
   className = "",
 }: {
   pref: Pick<PrintPreferenceState, "destination" | "destinations" | "ready" | "setDestination">;
   disabled?: boolean;
+  disabledDestinations?: PrintDestination[];
   variant?: PrintDestinationVariant;
   className?: string;
 }) {
@@ -279,7 +281,7 @@ export function PrintDestinationPicker({
               type="button"
               role="radio"
               aria-checked={isOn(pref.destination === d.value)}
-              disabled={off}
+              disabled={off || disabledDestinations.includes(d.value)}
               onClick={() => pref.setDestination(d.value)}
               className={chip(isOn(pref.destination === d.value))}
             >

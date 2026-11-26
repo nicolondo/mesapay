@@ -66,6 +66,7 @@ export type TerminalCheckContext = {
 export type TerminalCheckResult = {
   /** Lo que dijo la búsqueda. */
   search: CloudTerminalSearchResult["status"];
+  searchHttpStatus?: number;
   /** Si con eso se saldó el pago. */
   settled: "approved" | "declined" | null;
   /** El resultado era definitivo pero no se pudo registrar (queda incierto). */
@@ -148,7 +149,7 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
     if (processed.status === "error" || processed.requiresReview) return { search: search.status, settled: null, settleFailed: true };
     return { search: search.status, settled: "declined", providerRef: search.transactionReference };
   }
-  return { search: search.status, settled: null };
+  return { search: search.status, settled: null, ...(search.status === "error" && { searchHttpStatus: search.httpStatus }) };
 }
 
 export type TerminalRecoveryOutcome =
@@ -166,6 +167,7 @@ export async function recoverTerminalOutcome(
   ctx: TerminalCheckContext & { pushedAt: Date },
 ): Promise<TerminalRecoveryOutcome> {
   const deadline = ctx.pushedAt.getTime() + TERMINAL_RECOVERY_WINDOW_MS;
+  let previousBadRequest = false;
   for (;;) {
     const check = await checkTerminalChargeOnce(ctx);
     if (check.settled === "approved") {
@@ -175,6 +177,8 @@ export async function recoverTerminalOutcome(
     if (check.settleFailed) return { status: "unresolved", last: "settle_failed" };
     if (check.amountMismatch) return { status: "unresolved", last: "amount_mismatch" };
     // Una reversión o un monto distinto no se arreglan esperando.
+    if (previousBadRequest && check.searchHttpStatus === 400) return { status: "unresolved", last: "error" };
+    previousBadRequest = check.searchHttpStatus === 400;
     if (check.search === "unknown") return { status: "unresolved", last: check.search };
     if (recoveryClock.now() + TERMINAL_RECOVERY_INTERVAL_MS > deadline) {
       return { status: "unresolved", last: check.search };

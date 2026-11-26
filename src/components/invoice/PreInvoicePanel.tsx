@@ -463,6 +463,7 @@ export function InvoicedOrderBanner({
   canConfigurePrinters = false,
   canAnnul = false,
   compact = false,
+  chargingDevices,
 }: {
   orderId: string;
   invoice: InvoicedOrderView;
@@ -471,6 +472,7 @@ export function InvoicedOrderBanner({
   canAnnul?: boolean;
   /** En el cobro: sin la explicación larga de la cuenta cerrada. */
   compact?: boolean;
+  chargingDevices?: string[];
 }) {
   const t = useTranslations("preInvoice");
   // null = comercio sin facturación electrónica (no hay documento DIAN).
@@ -553,6 +555,7 @@ export function InvoicedOrderBanner({
                 destinationVariant="pay"
                 doc={{ kind: "invoice", orderId, href: invoicePrintHref({ invoiceId: invoice.invoiceId }) }}
                 label={t("reprint")}
+                chargingDevices={chargingDevices}
                 sameTab={sameTab}
                 canConfigurePrinters={canConfigurePrinters}
                 className="h-9 px-3 rounded-full border border-hairline bg-paper text-xs font-medium disabled:opacity-60"

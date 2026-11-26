@@ -7,6 +7,7 @@ import {
 } from "crypto";
 import { env } from "../../env";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
+import { isTerminalBusy } from "../terminalBusy";
 import { pesosToCents } from "../terminalAmount";
 
 /**
@@ -264,7 +265,7 @@ const NO_ANSWER_CODES: ReadonlySet<string> = new Set(["TER-002", "TER-172"]);
  */
 export function isTerminalDeviceAnswer(answer: CloudTerminalAnswer | null | undefined): boolean {
   if (!answer?.code) return false;
-  if (isTerminalCancelAnswer(answer)) return true;
+  if (isTerminalCancelAnswer(answer) || answer.code.trim().toUpperCase() === "TERMINAL_BUSY") return true;
   const type = answer.type?.trim().toUpperCase() ?? "";
   if (!DEVICE_ANSWER_TYPES.has(type)) return false;
   return !NO_ANSWER_CODES.has(answer.code.trim().toUpperCase());
@@ -473,7 +474,7 @@ export async function pushPaymentToCloudTerminal(
   // o {failure:{...}} (con 4xx).
   const failure = asObj(obj.failure) || obj;
   const type = pick(failure, ["type"]);
-  const code = pick(failure, ["code"]);
+  const code = pick(failure, ["code", "errorCode", "error"]) ?? (isTerminalBusy(type) ? type : undefined);
   const fmsg = pick(failure, ["message"]);
   const answer: CloudTerminalAnswer | undefined = type || code || fmsg ? { type, code, message: fmsg } : undefined;
   const label =

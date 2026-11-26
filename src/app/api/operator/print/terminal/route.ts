@@ -107,12 +107,13 @@ async function POSTHandler(req: Request) {
  * GET: los datáfonos a los que se puede imprimir (`{ devices }`). Con la
  * lista vacía, «Imprimir en» no ofrece «Datáfono».
  */
-async function GETHandler() {
+async function GETHandler(req: Request) {
   const scope = await requireOperatorScope(STAFF_PRINT_ROLES);
   if (isScopeError(scope)) {
     return NextResponse.json({ error: scope.error }, { status: scope.error === "forbidden" ? 403 : 400 });
   }
-  return NextResponse.json({ devices: await listTerminalPrintDevices(scope.restaurantId) });
+  const includeActivity = new URL(req.url).searchParams.has("activity");
+  return NextResponse.json({ devices: await listTerminalPrintDevices(scope.restaurantId, { includeActivity }) });
 }
 
 export const POST = secureApi(POSTHandler);

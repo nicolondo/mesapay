@@ -5510,3 +5510,10 @@ model WalletTrackingJob {
   leaseUntil DateTime?
   updatedAt DateTime @updatedAt
 }
+
+// Shared across app processes and device aliases for one physical terminal.
+model TerminalPrintReservation {
+  serial    String   @id
+  jobId     String
+  createdAt DateTime @default(now())
+}

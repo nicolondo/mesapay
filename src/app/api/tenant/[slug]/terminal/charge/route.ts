@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { isTerminalBusy } from "@/lib/payments/terminalBusy";
+import { printingUnderLock, refreshPreviousPrint } from "@/lib/payments/terminalPrinterLock";
 import { lockOrder } from "@/lib/orderLock";
 import { markPaymentUncertain } from "@/lib/payments/intent";
 import { secureApi } from "@/lib/secureApi";
@@ -176,18 +178,21 @@ async function POSTHandler(
   const pushedAt = new Date();
   const currency = await getCurrencyForCountry(tenant.country);
   const tracking = useRealTerminal ? await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, terminalBusinessCode: businessCode }) : {};
+  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal });
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });
     if (current.status !== "pending" || current.order.status === "cancelled") throw new Error("operation_conflict");
     // `deviceId`: a qué equipo va (para «Reintentar en el datáfono» y para
     // pedirle que cancele un cobro en curso).
+    if (await printingUnderLock(tx, device)) return "terminal_printing";
     const result = await tx.financialOperation.createMany({ data: [{ key: terminalClaimKey(payment.id), paymentId: payment.id, kind: "terminal", amountCents: payment.amountCents, deviceId: device.kushkiDeviceId, clientTransactionId, createdAt: pushedAt }], skipDuplicates: true });
     if (result.count === 1 && !current.walletTrackingKey && Object.keys(tracking).length) {
       await tx.payment.update({ where: { id: current.id }, data: tracking });
     }
     return result.count === 1;
   });
+  if (claimed === "terminal_printing") return NextResponse.json({ error: claimed }, { status: 409 });
   if (!claimed) return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
 
   await db.terminalDevice.update({
@@ -319,6 +324,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
+      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "rejected" }, { status: 409 });
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -371,6 +377,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
+      if (isTerminalBusy(result.failure?.code)) return NextResponse.json({ error: "terminal_busy", status: "rejected" }, { status: 409 });
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
         paymentId: payment.id,
         httpStatus: result.httpStatus,

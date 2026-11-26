@@ -52,12 +52,16 @@ export async function recordPrintFault(
 ) {
   const serial = serialKey(device);
   // La primera falla inicia el aviso. Un sondeo posterior puede precisar el estado.
-  const updated = await db.$executeRaw`
-    UPDATE "TerminalPrintReservation"
-    SET fault = ${fault}, "faultAt" = COALESCE("faultAt", ${new Date()}),
-        "lastJobStatus" = COALESCE(${lastStatus ?? null}, "lastJobStatus")
-    WHERE serial = ${serial} AND "jobId" = ${jobId} AND "createdAt" = ${createdAt}`;
-  if (updated) console.warn("[terminal] print_unavailable", { serial, jobId, fault, durationMs: Date.now() - createdAt.getTime() });
+  try {
+    const updated = await db.$executeRaw`
+      UPDATE "TerminalPrintReservation"
+      SET fault = ${fault}, "faultAt" = COALESCE("faultAt", ${new Date()}),
+          "lastJobStatus" = COALESCE(${lastStatus ?? null}::text, "lastJobStatus")
+      WHERE serial = ${serial} AND "jobId" = ${jobId} AND "createdAt" = ${createdAt}`;
+    if (updated) console.warn("[terminal] print_unavailable", { serial, jobId, fault, durationMs: Date.now() - createdAt.getTime() });
+  } catch (error) {
+    console.warn("[terminal] print_fault_not_recorded", { serial, error });
+  }
 }
 
 export async function refreshPreviousPrint(device: Device, setup: KushkiTerminalSetup) {

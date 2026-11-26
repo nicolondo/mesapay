@@ -2,16 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
-  lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
+  recordFault: vi.fn(), lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
   charge: vi.fn(), transaction: vi.fn(), jobState: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: {
-  $transaction: mocks.transaction,
+  $transaction: mocks.transaction, $executeRaw: mocks.recordFault,
   terminalPrintReservation: { findUnique: mocks.previous, deleteMany: mocks.release, updateMany: mocks.probe },
 } }));
 vi.mock("./kushki/cloudPrint", () => ({ getCloudPrintJobStatus: mocks.jobState }));
 
-import { printingUnderLock, refreshPreviousPrint, reservePrint } from "./terminalPrinterLock";
+import { printingUnderLock, recordPrintFault, refreshPreviousPrint, reservePrint } from "./terminalPrinterLock";
 
 const a = { serialNumber: "physical-A", kushkiDeviceId: "A" };
 const b = { serialNumber: "physical-B", kushkiDeviceId: "B" };
@@ -73,6 +73,18 @@ describe("exclusión por serial físico", () => {
         serial: a.serialNumber, lastJobStatus, durationMs: expect.any(Number),
       }));
       expect(mocks.release).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("un fallo al registrar el diagnóstico no interrumpe el flujo de impresión", async () => {
+    const error = new Error("write failed");
+    mocks.recordFault.mockRejectedValue(error);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(recordPrintFault(a, "job", new Date(), "timeout")).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledExactlyOnceWith("[terminal] print_fault_not_recorded", { serial: a.serialNumber, error });
     } finally {
       warn.mockRestore();
     }

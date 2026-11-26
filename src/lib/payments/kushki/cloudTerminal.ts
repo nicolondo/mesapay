@@ -264,6 +264,7 @@ const NO_ANSWER_CODES: ReadonlySet<string> = new Set(["TER-002", "TER-172"]);
  * respuesta" (administrador + evidencia, sin espera obligatoria).
  */
 export function isTerminalDeviceAnswer(answer: CloudTerminalAnswer | null | undefined): boolean {
+  if (answer?.busy) return true;
   if (!answer?.code) return false;
   if (isTerminalCancelAnswer(answer) || answer.code.trim().toUpperCase() === "TERMINAL_BUSY") return true;
   const type = answer.type?.trim().toUpperCase() ?? "";

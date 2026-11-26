@@ -184,6 +184,11 @@ describe("pushPaymentToCloudTerminal: el datáfono canceló (Son y Melona, 2026-
     expect(await push()).toMatchObject({ status: "declined" });
   });
 
+  it("HTTP 200 con tipo desconocido y mensaje de ocupado conserva el código y cuenta como respuesta", async () => {
+    respond(200, { type: "OTHER", code: "E020", message: "Terminal is busy. Please try again later." });
+    expect(await push()).toMatchObject({ status: "error", deviceAnswered: true, failure: { code: "E020", busy: true } });
+  });
+
   it.each([
     ["TERMINAL_BUSY", { code: "TERMINAL_BUSY", message: "Terminal is busy" }],
     ["TER-003 (ocupado con otra transacción)", { type: "TERMINAL", code: "TER-003", message: "Terminal is busy processing transaction" }],

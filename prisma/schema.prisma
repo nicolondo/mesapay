@@ -5515,6 +5515,8 @@ model WalletTrackingJob {
 // Shared across app processes and device aliases for one physical terminal.
 model TerminalPrintReservation {
   fault String?
+  faultAt DateTime?
+  lastJobStatus String?
   nextProbeAt DateTime?
   serial    String   @id
   jobId     String

@@ -500,8 +500,8 @@ export type CloudPrintOutcome =
 
 /**
  * Sondea el estado cada `intervalMs` hasta COMPLETED o FAILED, o hasta
- * `timeoutMs`. Un error del sondeo (red, 5xx) no corta: se vuelve a
- * preguntar hasta el tiempo.
+ * `timeoutMs`. Un sondeo fallido se reintenta dentro de esa ventana.
+ * Dos fallos consecutivos aplazan la consulta. Solo se consulta el mismo trabajo.
  */
 export async function waitForCloudPrintJob(
   args: TerminalTarget & { printJobId: string },
@@ -520,21 +520,22 @@ export async function waitForCloudPrintJob(
   const now = opts.now ?? (() => Date.now());
   const deadline = now() + timeoutMs;
   let lastStatus: CloudPrintJobStatus | undefined;
+  let consecutiveFailures = 0;
   for (;;) {
     await sleep(intervalMs);
     const st = await getStatus(args);
-    if (st.status) lastStatus = st.status;
-    if (st.status === "COMPLETED") return { state: "completed" };
-    if (st.status === "FAILED") {
+    if (st.ok) lastStatus = st.status;
+    if (st.ok && st.status === "COMPLETED") return { state: "completed" };
+    if (st.ok && st.status === "FAILED") {
       return {
         state: "failed",
         ...(st.errorCode && { errorCode: st.errorCode }),
         ...(st.errorMessage && { errorMessage: st.errorMessage }),
       };
     }
-    if (st.error === "timeout" || st.httpStatus === 504 || isTerminalBusy(st.errorCode, st.errorMessage)) {
-      return { state: "pending", backoff: true };
+    consecutiveFailures = st.ok ? 0 : consecutiveFailures + 1;
+    if (consecutiveFailures >= 2 || now() >= deadline) {
+      return { state: "pending", ...(lastStatus && { lastStatus }), ...(consecutiveFailures >= 2 && { backoff: true }) };
     }
-    if (now() >= deadline) return { state: "pending", ...(lastStatus && { lastStatus }) };
   }
 }

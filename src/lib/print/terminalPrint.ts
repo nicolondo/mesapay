@@ -363,11 +363,12 @@ export async function printOnTerminalDevice(
   // 202 = encolado, NO impreso: el estado real se pregunta hasta ~30 s.
   const outcome = await (deps.waitJob ?? waitForCloudPrintJob)({ ...target, printJobId: result.printJobId });
   if (outcome.state === "failed" && isTerminalBusy(outcome.errorCode, outcome.errorMessage)) {
-    await recordPrintFault(device, jobId, reservedAt, "busy");
+    await recordPrintFault(device, jobId, reservedAt, "busy", "FAILED");
     return { ok: false, error: "terminal_print_backoff" };
   }
   if (outcome.state === "pending") {
-    await recordPrintFault(device, jobId, reservedAt, "unconfirmed");
+    const queuedStatus = result.status === "PENDING" || result.status === "IN_PROGRESS" ? result.status : undefined;
+    await recordPrintFault(device, jobId, reservedAt, "unconfirmed", outcome.lastStatus ?? queuedStatus);
     if (outcome.backoff) return { ok: false, error: "terminal_print_backoff", printJobId: jobId };
   } else {
     await releasePrint(device, jobId, reservedAt);

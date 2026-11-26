@@ -9250,7 +9250,7 @@
     "terminal_busy": "El datáfono está ocupado con otro cobro o impresión. Comprueba el resultado en el equipo antes de reintentar. Si sigue ocupado, abre la app de Kushki y termina o cierra lo que tenga en pantalla.",
     "terminal_stuck": "El datáfono está ocupado o no respondió. Abre la app de Kushki en el datáfono y termina o cierra lo que tenga en pantalla. Consulta el resultado antes de volver a cobrar.",
     "terminal_print_backoff": "La impresión sigue sin confirmar. Espera hasta tres minutos o elige otro datáfono para cobrar.",
-    "terminal_printing": "El datáfono está imprimiendo. Espera a que termine y vuelve a enviar el cobro.",
+    "terminal_printing": "El datáfono está imprimiendo. Cuando termine, inicia un nuevo cobro.",
     "terminal_request_rejected": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono ({detail}). No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "terminal_request_rejected_generic": "Kushki rechazó la solicitud por validación antes de enviarla al datáfono. No se cobró nada. Revisa la Llave Privada Card Present y el serial del equipo en Configuración → Datáfonos y vuelve a intentar, o cobra de otra forma.",
     "cancellation_admin_required": "Solo el administrador puede cancelar o dejar de cobrar platos cuya preparación ya empezó.",

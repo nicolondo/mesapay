@@ -199,7 +199,7 @@ export type CloudTerminalChargeResult = {
 };
 
 /** El detalle `{type, code, message}` con el que Kushki ONE contesta un error. */
-export type CloudTerminalAnswer = { type?: string; code?: string; message?: string };
+export type CloudTerminalAnswer = { type?: string; code?: string; message?: string; busy?: boolean };
 
 /**
  * ¿El datáfono dijo EXPLÍCITAMENTE que no cobró, porque el proceso se
@@ -477,8 +477,8 @@ export async function pushPaymentToCloudTerminal(
   const fmsg = pick(failure, ["message"]);
   const explicitCode = pick(failure, ["code", "errorCode"]);
   const busy = isTerminalBusy(explicitCode, fmsg) || isTerminalBusy(pick(failure, ["error"])) || isTerminalBusy(type);
-  const code = busy && !isTerminalBusy(explicitCode) ? "TERMINAL_BUSY" : explicitCode;
-  const answer: CloudTerminalAnswer | undefined = type || code || fmsg ? { type, code, message: fmsg } : undefined;
+  const code = explicitCode ?? (busy ? "TERMINAL_BUSY" : undefined);
+  const answer: CloudTerminalAnswer | undefined = type || code || fmsg ? { type, code, message: fmsg, ...(busy && { busy: true }) } : undefined;
   const label =
     [type, code].filter(Boolean).join("/") +
     (fmsg ? `${type || code ? ": " : ""}${fmsg}` : "");

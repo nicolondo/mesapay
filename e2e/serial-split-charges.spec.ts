@@ -518,7 +518,8 @@ test("la API protege el serial cuando coinciden una impresión y un cobro", asyn
   }
 });
 
-test("un datáfono ocupado permite reintentar la misma parte en serie", async ({ page }) => {
+test("un datáfono ocupado permite reintentar la misma parte en serie", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   test.skip(process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED !== "+0");
   const f = await fixture(page, { role: "mesero", smartTerminal: true });
   const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
@@ -528,7 +529,10 @@ test("un datáfono ocupado permite reintentar la misma parte en serie", async ({
     await chooseEqualSplit(page);
     await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
     await expect(page.getByTestId("serial-charge-next")).toHaveText(/^Reintentar/);
-    await expect(page.getByText("El datáfono está imprimiendo.", { exact: false })).toBeVisible();
+    const aviso = page.getByText("El datáfono está imprimiendo. Cuando termine, inicia un nuevo cobro.", { exact: true });
+    await expect(aviso).toBeVisible();
+    await aviso.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath("nuevo-cobro.png") });
     expect(await db.payment.count({ where: { orderId: f.order.id, status: "pending" } })).toBe(0);
   } finally {
     await db.terminalPrintReservation.deleteMany({ where: { serial } });

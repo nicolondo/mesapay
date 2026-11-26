@@ -145,10 +145,20 @@ describe("esperar el resultado real", () => {
     expect(getStatus.mock.calls.length).toBe(12);
   });
 
-  it.each([{ error: "timeout" }, { errorCode: "TERMINAL_BUSY", httpStatus: 400 }])("aplaza el sondeo tras %o", async error => {
-    const getStatus = seq({ ok: false, ...error });
-    expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({ state: "pending", backoff: true });
-    expect(getStatus).toHaveBeenCalledOnce();
+  it.each([{ error: "timeout" }, { httpStatus: 504 }, { errorCode: "TERMINAL_BUSY", httpStatus: 400 }])(
+    "un sondeo fallido %o se recupera al confirmar el trabajo", async error => {
+      const getStatus = seq({ ok: false, ...error }, { ok: true, status: "COMPLETED" });
+      expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({ state: "completed" });
+      expect(getStatus).toHaveBeenCalledTimes(2);
+    });
+
+  it("una respuesta válida reinicia la cuenta de sondeos fallidos", async () => {
+    const getStatus = seq({ ok: false, error: "timeout" }, { ok: true, status: "IN_PROGRESS" },
+      { ok: false, httpStatus: 504 }, { ok: false, error: "timeout" });
+    expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({
+      state: "pending", backoff: true, lastStatus: "IN_PROGRESS",
+    });
+    expect(getStatus).toHaveBeenCalledTimes(4);
   });
 
   it("un error del sondeo no corta: se vuelve a preguntar", async () => {

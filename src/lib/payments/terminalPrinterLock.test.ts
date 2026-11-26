@@ -63,8 +63,31 @@ describe("exclusión por serial físico", () => {
       expect(mocks.release).toHaveBeenCalledWith({ where: row });
     });
 
+  it.each(["PENDING", "IN_PROGRESS"])("registra el último estado %s al expirar y libera el serial", async lastJobStatus => {
+    const createdAt = new Date(Date.now() - 181_000);
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", lastJobStatus, createdAt });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(await printingUnderLock(tx, a)).toBeNull();
+      expect(warn).toHaveBeenCalledWith("[terminal] print_expired_unfinished", expect.objectContaining({
+        serial: a.serialNumber, lastJobStatus, durationMs: expect.any(Number),
+      }));
+      expect(mocks.release).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("una falla recién registrada después del sondeo conserva los 30 s de aviso suave", async () => {
+    const row = { serial: a.serialNumber, jobId: "job", fault: "unconfirmed", createdAt: new Date(Date.now() - 75_000), faultAt: new Date() };
+    mocks.previous.mockResolvedValue(row);
+    expect(await reservePrint(a, "otro")).toBe("terminal_print_backoff");
+    row.faultAt = new Date(Date.now() - 30_000);
+    expect(await reservePrint(a, "otro")).toBe("terminal_stuck");
+  });
+
   it("un busy confirmado frena nuevos envíos de impresión sin sondear trabajos inexistentes", async () => {
-    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", createdAt: new Date(Date.now() - 70_000) });
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", faultAt: new Date(Date.now() - 30_000), createdAt: new Date(Date.now() - 70_000) });
     await refreshPreviousPrint(a, setup);
     expect(mocks.jobState).not.toHaveBeenCalled();
     expect(await reservePrint(a, "otro")).toBe("terminal_stuck");

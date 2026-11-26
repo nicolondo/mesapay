@@ -1,7 +1,7 @@
 import type { Prisma, TerminalPrintReservation } from "@prisma/client";
 import { isTerminalBusy } from "./terminalBusy";
 import { db } from "@/lib/db";
-import { getCloudPrintJobStatus } from "./kushki/cloudPrint";
+import { getCloudPrintJobStatus, type CloudPrintJobStatus } from "./kushki/cloudPrint";
 import type { KushkiTerminalSetup } from "./terminalAvailability";
 import { TERMINAL_IN_FLIGHT_MAX_MS } from "./terminalAttempt";
 
@@ -20,7 +20,9 @@ function serialKey(device: Device) {
 
 export function printConflict(previous: TerminalPrintReservation) {
   if (!previous.fault) return "terminal_printing";
-  const durationMs = Date.now() - previous.createdAt.getTime();
+  // Reservas anteriores a la migración no tienen hora de falla. Expiran igualmente.
+  if (!previous.faultAt) return "terminal_print_backoff";
+  const durationMs = Date.now() - previous.faultAt.getTime();
   if (durationMs < STUCK_AFTER_MS) return "terminal_print_backoff";
   console.warn("[terminal] print_stuck", { serial: previous.serial, fault: previous.fault, durationMs });
   return "terminal_stuck";
@@ -33,8 +35,11 @@ export async function printingUnderLock(tx: Prisma.TransactionClient, device: De
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${serial}), 732)`;
   const row = await tx.terminalPrintReservation.findUnique({ where: { serial } });
   if (!row || Date.now() - row.createdAt.getTime() < PRINT_LIMIT_MS) return row;
+  const unfinished = row.lastJobStatus === "PENDING" || row.lastJobStatus === "IN_PROGRESS";
+  console.warn(unfinished ? "[terminal] print_expired_unfinished" : "[terminal] print_reservation_expired", {
+    serial, durationMs: Date.now() - row.createdAt.getTime(), fault: row.fault, lastJobStatus: row.lastJobStatus,
+  });
   await tx.terminalPrintReservation.deleteMany({ where: { serial, jobId: row.jobId, createdAt: row.createdAt } });
-  console.warn("[terminal] print_reservation_expired", { serial, durationMs: Date.now() - row.createdAt.getTime(), fault: row.fault });
   return null;
 }
 
@@ -42,10 +47,17 @@ export async function releasePrint(device: Device, jobId: string, createdAt: Dat
   await db.terminalPrintReservation.deleteMany({ where: { serial: serialKey(device), jobId, createdAt } });
 }
 
-export async function recordPrintFault(device: Device, jobId: string, createdAt: Date, fault: "busy" | "timeout" | "unconfirmed") {
+export async function recordPrintFault(
+  device: Device, jobId: string, createdAt: Date, fault: "busy" | "timeout" | "unconfirmed", lastStatus?: CloudPrintJobStatus,
+) {
   const serial = serialKey(device);
-  await db.terminalPrintReservation.updateMany({ where: { serial, jobId, createdAt }, data: { fault } });
-  console.warn("[terminal] print_unavailable", { serial, jobId, fault, durationMs: Date.now() - createdAt.getTime() });
+  // La primera falla inicia el aviso. Un sondeo posterior puede precisar el estado.
+  const updated = await db.$executeRaw`
+    UPDATE "TerminalPrintReservation"
+    SET fault = ${fault}, "faultAt" = COALESCE("faultAt", ${new Date()}),
+        "lastJobStatus" = COALESCE(${lastStatus ?? null}, "lastJobStatus")
+    WHERE serial = ${serial} AND "jobId" = ${jobId} AND "createdAt" = ${createdAt}`;
+  if (updated) console.warn("[terminal] print_unavailable", { serial, jobId, fault, durationMs: Date.now() - createdAt.getTime() });
 }
 
 export async function refreshPreviousPrint(device: Device, setup: KushkiTerminalSetup) {
@@ -67,8 +79,14 @@ export async function refreshPreviousPrint(device: Device, setup: KushkiTerminal
       serialNumber: device.serialNumber, mode: setup.mode, businessCode: setup.businessCode, printJobId: previous.jobId,
     });
     if (state.status === "FAILED" && isTerminalBusy(state.errorCode, state.errorMessage)) {
-      await recordPrintFault(device, previous.jobId, previous.createdAt, "busy");
+      await recordPrintFault(device, previous.jobId, previous.createdAt, "busy", "FAILED");
       return;
+    }
+    if (state.ok && (state.status === "PENDING" || state.status === "IN_PROGRESS") && state.status !== previous.lastJobStatus) {
+      await db.terminalPrintReservation.updateMany({
+        where: { serial, jobId: previous.jobId, createdAt: previous.createdAt, lastJobStatus: previous.lastJobStatus },
+        data: { lastJobStatus: state.status },
+      }).catch(() => console.warn("[terminal] print_status_not_recorded", { serial, jobId: previous.jobId }));
     }
     if (state.status !== "COMPLETED" && state.status !== "FAILED" && state.httpStatus !== 404) return;
   }

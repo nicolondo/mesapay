@@ -137,7 +137,7 @@ const kushkiSays = (status: number, body: unknown) =>
 describe("terminal/charge: Kushki rechaza la solicitud por validación (4xx)", () => {
   it("TERMINAL_BUSY devuelve un código para traducir sin mostrar el mensaje del proveedor", async () => {
     kushkiSays(400, { code: "TERMINAL_BUSY", message: "Terminal is busy" });
-    expect(await charge()).toEqual({ status: 409, json: { error: "terminal_busy", status: "rejected" } });
+    expect(await charge()).toEqual({ status: 409, json: { error: "terminal_busy", status: "declined" } });
     expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "declined" });
   });
 

@@ -1,5 +1,6 @@
 import { displayOrderCode } from "@/lib/orderCode";
 import { randomUUID } from "crypto";
+import { isTerminalBusy } from "../terminalBusy";
 import { createTranslator } from "next-intl";
 import esMessages from "../../../../messages/es.json";
 import { wrap } from "@/lib/escpos/commands";
@@ -375,6 +376,7 @@ async function cloudTerminalPost(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
+  let text: string;
   try {
     res = await fetch(url, {
       method: "POST",
@@ -387,15 +389,14 @@ async function cloudTerminalPost(
       cache: "no-store",
       signal: controller.signal,
     });
+    text = await res.text();
   } catch (err) {
-    clearTimeout(timer);
     const aborted = err instanceof Error && err.name === "AbortError";
     console.error("[kushki/cloud-print] network", { path, serial: target.serialNumber, aborted });
     return { httpStatus: null, body: {}, error: aborted ? "timeout" : "network_error", rawText: "" };
+  } finally {
+    clearTimeout(timer);
   }
-  clearTimeout(timer);
-
-  const text = await res.text().catch(() => "");
   let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
@@ -475,12 +476,14 @@ export async function getCloudPrintJobStatus(
   const r = await cloudTerminalPost(args, "sync/print_job", { print_job_id: args.printJobId }, 10_000);
   const status = str(r.body.status)?.toUpperCase();
   const known = status === "PENDING" || status === "IN_PROGRESS" || status === "COMPLETED" || status === "FAILED";
+  const code = str(r.body.errorCode) ?? str(r.body.code);
+  const message = str(r.body.errorMessage) ?? (isTerminalBusy(code, str(r.body.message)) ? str(r.body.message) : undefined);
   const state: CloudPrintJobState = {
     ok: r.httpStatus === 200 && known,
     httpStatus: r.httpStatus ?? undefined,
     ...(known && { status: status as CloudPrintJobStatus }),
-    ...(str(r.body.errorCode) && { errorCode: str(r.body.errorCode) }),
-    ...(str(r.body.errorMessage) && { errorMessage: str(r.body.errorMessage)!.slice(0, 200) }),
+    ...(code && { errorCode: code }),
+    ...(message && { errorMessage: message.slice(0, 200) }),
     ...(r.error && { error: r.error }),
   };
   console.log("[kushki/cloud-print] estado", { serial: args.serialNumber, printJobId: args.printJobId, ...state });
@@ -493,7 +496,7 @@ export type CloudPrintOutcome =
   /** El datáfono la intentó y falló (sin papel…). */
   | { state: "failed"; errorCode?: string; errorMessage?: string }
   /** Sigue encolada (o no se supo) al vencer el tiempo: reintentar con el mismo id. */
-  | { state: "pending"; lastStatus?: CloudPrintJobStatus };
+  | { state: "pending"; lastStatus?: CloudPrintJobStatus; backoff?: boolean };
 
 /**
  * Sondea el estado cada `intervalMs` hasta COMPLETED o FAILED, o hasta
@@ -528,6 +531,9 @@ export async function waitForCloudPrintJob(
         ...(st.errorCode && { errorCode: st.errorCode }),
         ...(st.errorMessage && { errorMessage: st.errorMessage }),
       };
+    }
+    if (st.error === "timeout" || st.httpStatus === 504 || isTerminalBusy(st.errorCode, st.errorMessage)) {
+      return { state: "pending", backoff: true };
     }
     if (now() >= deadline) return { state: "pending", ...(lastStatus && { lastStatus }) };
   }

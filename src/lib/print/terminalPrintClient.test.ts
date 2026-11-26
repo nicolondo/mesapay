@@ -11,13 +11,6 @@ const route = (status: number, body: unknown) =>
   vi.fn(async () => ({ ok: status >= 200 && status < 300, json: async () => body }));
 
 describe("pedirle al servidor que imprima en el datáfono", () => {
-  it("consulta el estado actual sin enviar el documento a un datáfono ocupado", async () => {
-    const fetch = route(200, { devices: [{ id: "A", label: "Caja", charging: true }] });
-    expect(await printOnTerminal(prebill, { deviceId: "A", fetch })).toEqual({ via: "error", code: "terminal_charging" });
-    expect(fetch).toHaveBeenCalledOnce();
-    expect(fetch).toHaveBeenCalledWith("/api/operator/print/terminal?activity", { method: "GET", cache: "no-store" });
-  });
-
   it("manda el documento y el datáfono recordado", async () => {
     const fetch = route(200, { ok: true, state: "printed", printJobId: "j-1", deviceId: "A", deviceLabel: "Caja", simulated: false });
     const r = await printOnTerminal(prebill, { deviceId: "A", fetch });
@@ -73,6 +66,9 @@ describe("pedirle al servidor que imprima en el datáfono", () => {
     expect(terminalPrintMessage("print_failed", "Terminal is busy. Please try again later.")).toEqual({ key: "terminalBusy" });
     expect(terminalPrintMessage("terminal_busy")).toEqual({ key: "terminalBusy" });
     expect(terminalPrintMessage("terminal_printing")).toEqual({ key: "terminalBusy" });
+    expect(terminalPrintMessage("terminal_post_approval")).toEqual({ key: "terminalPostApproval" });
+    expect(terminalPrintMessage("terminal_stuck")).toEqual({ key: "terminalStuck" });
+    expect(terminalPrintMessage("terminal_print_backoff")).toEqual({ key: "terminalBackoff" });
     expect(terminalPrintMessage("terminal_charging")).toEqual({ key: "terminalCharging" });
     expect(terminalPrintMessage("no_devices")).toEqual({ key: "terminalNoDevices" });
     expect(terminalPrintMessage("cloud_business_code_missing")).toEqual({ key: "terminalBusinessCode" });

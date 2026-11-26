@@ -274,9 +274,22 @@ describe("terminal/charge: 504 del gateway y el datáfono aprobó", () => {
     html504();
     h.fetch.mockImplementation(async () => new Response("{}", { status: 400 }));
     expect(await charge()).toMatchObject({ status: 202, json: { pending: true } });
-    expect(searchCalls()).toHaveLength(2);
+    const elapsed = clock - claim()!.createdAt.getTime();
+    expect(elapsed).toBeGreaterThanOrEqual(90_000);
+    expect(elapsed).toBeLessThan(90_000 + TERMINAL_RECOVERY_INTERVAL_MS);
+    expect(claim()).toMatchObject({ gatewayTimedOutAt: expect.any(Date) });
     expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "pending", reconciliationRequired: true });
     expect(claim()).toMatchObject({ checkStatus: "error", status: "pending" });
+  });
+
+  it("400 TERMINAL_BUSY en búsqueda conserva la ventana completa y recupera una aprobación tardía", async () => {
+    html504();
+    for (let i = 0; i < 12; i++) {
+      h.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ failure: { code: "TERMINAL_BUSY" } }), { status: 400 }));
+    }
+    searchSays(() => [sale()]);
+    expect(await charge()).toMatchObject({ status: 200, json: { status: "approved", recovered: true } });
+    expect(searchCalls()).toHaveLength(13);
   });
 
   it("el aprobado síncrono de siempre también termina en la factura", async () => {

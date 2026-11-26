@@ -190,7 +190,12 @@ export function PrintButton({
           ...(r.reason && { message: r.reason }),
         });
         const m = terminalPrintMessage(r.code, r.reason, r.errorCode);
-        setNote({ tone: "error", text: ts(m.key, m.values) });
+        const retryId = r.code === "terminal_print_backoff" ? r.printJobId ?? printJobId
+          : r.code === "terminal_stuck" ? printJobId : undefined;
+        const retryDevice = deviceId ?? readRememberedPrintTerminal(pref.scope)
+          ?? (pref.terminalDevices.length === 1 ? pref.terminalDevices[0].id : null);
+        setNote({ tone: "error", text: ts(m.key, m.values),
+          ...(retryId && retryDevice && { retryJob: { deviceId: retryDevice, printJobId: retryId } }) });
       }
     } catch {
       setNote({ tone: "error", text: ts("terminalFailed") });

@@ -35,6 +35,7 @@ import { settleTerminalApproval, type TerminalAdjustment } from "./terminalAppro
  * segundos más; el margen cubre que el adquirente registre la venta.
  */
 export const TERMINAL_RECOVERY_WINDOW_MS = 135_000;
+const CARD_WAIT_MS = 90_000;
 /** Cada cuánto se vuelve a consultar mientras no aparece nada. */
 export const TERMINAL_RECOVERY_INTERVAL_MS = 10_000;
 
@@ -66,7 +67,7 @@ export type TerminalCheckContext = {
 export type TerminalCheckResult = {
   /** Lo que dijo la búsqueda. */
   search: CloudTerminalSearchResult["status"];
-  searchHttpStatus?: number;
+  invalidSearch?: boolean;
   /** Si con eso se saldó el pago. */
   settled: "approved" | "declined" | null;
   /** El resultado era definitivo pero no se pudo registrar (queda incierto). */
@@ -149,7 +150,7 @@ export async function checkTerminalChargeOnce(ctx: TerminalCheckContext): Promis
     if (processed.status === "error" || processed.requiresReview) return { search: search.status, settled: null, settleFailed: true };
     return { search: search.status, settled: "declined", providerRef: search.transactionReference };
   }
-  return { search: search.status, settled: null, ...(search.status === "error" && { searchHttpStatus: search.httpStatus }) };
+  return { search: search.status, settled: null, ...(search.status === "error" && { invalidSearch: search.httpStatus === 400 && !search.terminalBusy }) };
 }
 
 export type TerminalRecoveryOutcome =
@@ -176,9 +177,11 @@ export async function recoverTerminalOutcome(
     if (check.settled === "declined") return { status: "declined" };
     if (check.settleFailed) return { status: "unresolved", last: "settle_failed" };
     if (check.amountMismatch) return { status: "unresolved", last: "amount_mismatch" };
-    // Una reversión o un monto distinto no se arreglan esperando.
-    if (previousBadRequest && check.searchHttpStatus === 400) return { status: "unresolved", last: "error" };
-    previousBadRequest = check.searchHttpStatus === 400;
+    // El equipo aún puede aceptar la tarjeta aunque el endpoint de búsqueda devuelva 400.
+    if (previousBadRequest && check.invalidSearch && recoveryClock.now() - ctx.pushedAt.getTime() >= CARD_WAIT_MS) {
+      return { status: "unresolved", last: "error" };
+    }
+    previousBadRequest = check.invalidSearch === true;
     if (check.search === "unknown") return { status: "unresolved", last: check.search };
     if (recoveryClock.now() + TERMINAL_RECOVERY_INTERVAL_MS > deadline) {
       return { status: "unresolved", last: check.search };

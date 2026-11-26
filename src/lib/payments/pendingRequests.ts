@@ -20,8 +20,10 @@ type Client = Pick<Prisma.TransactionClient, "financialOperation">;
 
 /** El reclamo `terminal:<id>` de un pago: cuándo se envió y qué contestó el equipo. */
 export type TerminalClaim = {
+  status?: string;
   createdAt: Date;
   deviceId: string | null;
+  gatewayTimedOutAt?: Date | null;
   answerCode: string | null;
   answerMessage: string | null;
   answeredAt: Date | null;
@@ -52,6 +54,8 @@ export async function terminalClaims(
       paymentId: true,
       createdAt: true,
       deviceId: true,
+      gatewayTimedOutAt: true,
+      status: true,
       answerCode: true,
       answerMessage: true,
       answeredAt: true,
@@ -66,6 +70,8 @@ export async function terminalClaims(
       o.paymentId,
       {
         createdAt: o.createdAt,
+        gatewayTimedOutAt: o.gatewayTimedOutAt,
+        status: o.status,
         deviceId: o.deviceId ?? null,
         answerCode: o.answerCode ?? null,
         answerMessage: o.answerMessage ?? null,

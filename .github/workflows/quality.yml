@@ -47,6 +47,14 @@ jobs:
       - run: node scripts/check-css-compat.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - name: Cobros e impresión de datáfono mock
+        run: npx playwright test e2e/serial-split-charges.spec.ts --project=desktop --grep 'datáfono mock tras|la API protege el serial|un datáfono ocupado'
+        env:
+          CI_TERMINAL_MOCK: "1"
+          PLAYWRIGHT_BASE_URL: http://localhost:3391
+          AUTH_URL: http://localhost:3391
+          APP_PUBLIC_BASE_URL: http://localhost:3391
+          KUSHKI_MOCK_TERMINAL_AUTHORIZED: "+0"
       # Traza + capturas de Playwright cuando falla: sin esto una falla de
       # navegador en CI sólo deja un "element(s) not found" y nadie puede
       # ver el DOM ni la red. Ver el FIXME del test de sign-in.

@@ -14,7 +14,8 @@ import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { terminalAttemptState } from "@/lib/payments/terminalAttempt";
+import { useLocale, useNow, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import Link from "next/link";
 import { fmtCOP, formatMoney, formatNumber } from "@/lib/format";
@@ -393,6 +394,16 @@ export function PayClient({
   const [watchedPaymentId, setWatchedPaymentId] = useState<string | null>(null);
   const settledTerminalIds = useRef(new Set<string>());
   const [manualCancel, setManualCancel] = useState(false);
+  const hasTerminalAttempts = operatorMode && !!preInvoice && pendingPayments.some(p => !!p.terminalAttempt);
+  const printClock = useNow({ updateInterval: hasTerminalAttempts ? 1000 : undefined });
+  const chargingDevices = pendingPayments.flatMap(({ terminalAttempt: attempt }) => {
+    if (!attempt?.deviceId || (attempt.claimStatus && attempt.claimStatus !== "pending")) return [];
+    return terminalAttemptState(attempt, printClock.getTime()) === "in_flight" ? [attempt.deviceId] : [];
+  });
+  const knownAttempt = pendingPayments.some(p => p.id === watchedPaymentId && p.terminalAttempt);
+  if (busy === "kushki_card_terminal" && !knownAttempt && lastTerminalRequest?.deviceId) {
+    chargingDevices.push(lastTerminalRequest.deviceId);
+  }
   const tAttempt = useTranslations("terminalAttempt");
   const [consultingTerminal, setConsultingTerminal] = useState(false);
   const [terminalUnknown, setTerminalUnknown] = useState(false);
@@ -905,6 +916,7 @@ export function PayClient({
         // user may already have changed the split, guest or payment method.
         if (!watch?.signal.aborted) recordLaunch(id);
       },
+      onGatewayTimeout: () => setErr(apiError({ error: "terminal_stuck" })),
       onManualAvailable: () => setManualCancel(true),
       onResult: (result, id) => {
         const postWasReleased = watch?.signal.aborted;
@@ -989,8 +1001,10 @@ export function PayClient({
         const pj = await pushRes.json().catch(() => ({}));
         if (watch?.signal.aborted) return;
         if (pushRes.status >= 500) { awaitingStatus = true; return; }
-        if (pj.status === "declined" && serialMode) serial.chargeDeclined(j.paymentId);
-        else setErr(pj.status === "declined" ? t("terminalNotApproved") : apiError(pj, pj.message ?? pj.error ?? t("errPushTerminal")));
+        const serialDeclined = pj.status === "declined" && serialMode && serial.chargeDeclined(j.paymentId);
+        if (pj.error || !serialDeclined) {
+          setErr(apiError(pj, pj.status === "declined" ? t("terminalNotApproved") : t("errPushTerminal")));
+        }
         refreshBalance();
         return;
       }
@@ -1898,10 +1912,7 @@ export function PayClient({
             <InvoicedOrderBanner
               orderId={orderId}
               invoice={preInvoice}
-              chargingDevices={[
-                ...((busy === "kushki_card_terminal" || terminalUnknown) && lastTerminalRequest?.deviceId ? [lastTerminalRequest.deviceId] : []),
-                ...pendingPayments.flatMap(p => p.terminalAttempt?.deviceId ? [p.terminalAttempt.deviceId] : []),
-              ]}
+              chargingDevices={chargingDevices}
               compact
               sameTab={printSameTab}
               canConfigurePrinters={canConfigurePrinters}

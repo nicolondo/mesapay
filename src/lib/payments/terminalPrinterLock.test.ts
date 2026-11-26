@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
-  lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), devices: vi.fn(),
+  lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
   charge: vi.fn(), transaction: vi.fn(), jobState: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: {
   $transaction: mocks.transaction,
-  terminalPrintReservation: { findUnique: mocks.previous, deleteMany: mocks.release },
+  terminalPrintReservation: { findUnique: mocks.previous, deleteMany: mocks.release, updateMany: mocks.probe },
 } }));
 vi.mock("./kushki/cloudPrint", () => ({ getCloudPrintJobStatus: mocks.jobState }));
 
@@ -17,44 +17,57 @@ const a = { serialNumber: "physical-A", kushkiDeviceId: "A" };
 const b = { serialNumber: "physical-B", kushkiDeviceId: "B" };
 const tx = {
   $executeRaw: mocks.lock,
-  financialOperation: { findFirst: mocks.charge },
-  terminalPrintReservation: { findUnique: mocks.previous, create: mocks.create },
-  terminalDevice: { findMany: mocks.devices },
+  $queryRaw: mocks.charge,
+  terminalPrintReservation: { findUnique: mocks.previous, create: mocks.create, deleteMany: mocks.release },
 } as unknown as Prisma.TransactionClient;
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.transaction.mockImplementation(callback => callback(tx));
-  mocks.devices.mockImplementation(({ where }) => where.serialNumber === a.serialNumber ? [a, { kushkiDeviceId: "alias" }] : [b]);
+  mocks.charge.mockResolvedValue([]);
+  mocks.probe.mockResolvedValue({ count: 1 });
 });
 
 describe("exclusión por serial físico", () => {
-  it("un cobro por otro alias del mismo serial impide imprimir, pero permite otro serial", async () => {
-    mocks.charge.mockImplementation(({ where }) => where.deviceId.in.includes("alias") ? { key: "terminal:payment" } : null);
-    expect(await reservePrint(a, "job-A")).toBe("terminal_charging");
-    expect(mocks.create).not.toHaveBeenCalled();
-    expect(await reservePrint(b, "job-B")).toBeNull();
-    expect(mocks.create).toHaveBeenCalledOnce();
-  });
+  it.each([["pending", "terminal_charging"], ["approved", "terminal_post_approval"]])(
+    "la consulta bloquea %s solo en el serial afectado", async (status, conflict) => {
+      mocks.charge.mockImplementation((_query, id) => id === a.kushkiDeviceId ? [{ status }] : []);
+      expect(await reservePrint(a, "job-A")).toBe(conflict);
+      expect(mocks.create).not.toHaveBeenCalled();
+      expect(await reservePrint(b, "job-B")).toBeNull();
+    });
 
-  it("una impresión bloquea el push de cobro solo al mismo serial", async () => {
-    mocks.previous.mockImplementation(({ where }) => where.serial === a.serialNumber ? { jobId: "job-A" } : null);
-    expect(await printingUnderLock(tx, a)).toEqual({ jobId: "job-A" });
+  it("la misma impresión en curso no se vuelve a enviar", async () => {
+    const row = { serial: a.serialNumber, jobId: "job-A", createdAt: new Date() };
+    mocks.previous.mockImplementation(({ where }) => where.serial === a.serialNumber ? row : null);
+    expect(await printingUnderLock(tx, a)).toEqual(row);
     expect(await printingUnderLock(tx, b)).toBeNull();
     expect(await reservePrint(a, "job-A")).toBe("already_queued");
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
-  it("el tiempo por sí solo no libera una impresión pendiente o sin respuesta", async () => {
-    mocks.previous.mockResolvedValue({ jobId: "job-A", createdAt: new Date(0) });
-    const setup = { mode: "sandbox" as const, useRealTerminal: true, businessCode: "mock" };
-    for (const result of [{ status: "IN_PROGRESS" }, { ok: false, httpStatus: 503 }]) {
-      mocks.jobState.mockResolvedValueOnce(result);
+  const setup = { mode: "sandbox" as const, useRealTerminal: true, businessCode: "mock" };
+  it.each([{ status: "PENDING" }, { ok: false, httpStatus: 503 }, { ok: false, error: "timeout" }])(
+    "una respuesta %o no prolonga la reserva original más de tres minutos", async state => {
+      const row = { serial: a.serialNumber, jobId: "job-A", createdAt: new Date(Date.now() - 75_000) };
+      mocks.previous.mockResolvedValue(row);
+      mocks.jobState.mockResolvedValue(state);
       await refreshPreviousPrint(a, setup);
+      expect(await printingUnderLock(tx, a)).toBe(row);
       expect(mocks.release).not.toHaveBeenCalled();
-    }
-    mocks.jobState.mockResolvedValueOnce({ status: "COMPLETED" });
+
+      row.createdAt = new Date(Date.now() - 180_000);
+      await refreshPreviousPrint(a, setup);
+      expect(mocks.jobState).toHaveBeenCalledOnce();
+      expect(await printingUnderLock(tx, a)).toBeNull();
+      expect(mocks.release).toHaveBeenCalledWith({ where: row });
+    });
+
+  it("un busy confirmado frena nuevos envíos de impresión sin sondear trabajos inexistentes", async () => {
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", createdAt: new Date(Date.now() - 70_000) });
     await refreshPreviousPrint(a, setup);
-    expect(mocks.release).toHaveBeenCalledOnce();
+    expect(mocks.jobState).not.toHaveBeenCalled();
+    expect(await reservePrint(a, "otro")).toBe("terminal_stuck");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });

@@ -446,6 +446,15 @@ test.describe("mesero en un navegador Android sin impresión local", () => {
       await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status,
         { timeout: 30000 }).toBe("paid");
       expect(await db.payment.count({ where: { orderId: f.order.id, status: "approved" } })).toBe(flow === "partes iguales" ? 2 : 1);
+      if (flow === "factura previa") {
+        await expect(page).toHaveURL(/\/done(?:\?|$)/);
+        await page.getByRole("radio", { name: "Datáfono", exact: true }).click();
+        await page.getByRole("button", { name: "Imprimir factura", exact: true }).click();
+        const notice = page.getByText(/Espera un minuto desde la aprobación/);
+        await expect(notice).toBeVisible();
+        await notice.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: info.outputPath("despues-aprobacion.png") });
+      }
     });
   }
 });
@@ -459,31 +468,73 @@ test("la API protege el serial cuando coinciden una impresión y un cobro", asyn
     restaurantId: f.restaurant.id, kushkiDeviceId: randomUUID(), serialNumber: randomUUID(), label: "Segundo equipo",
   } });
   const tenant = `/api/tenant/${f.restaurant.slug}`;
-  const request = await page.request.post(`${tenant}/pay/terminal-request`, {
-    data: { orderId: f.order.id, amountCents: f.order.totalCents, tipCents: 0, attemptId: randomUUID() },
-  });
-  expect(request.ok(), await request.text()).toBe(true);
-  const { paymentId } = await request.json();
-  const push = () => page.request.post(`${tenant}/terminal/charge`, { data: { paymentId, deviceId: device.kushkiDeviceId } });
+  const requestPayment = async () => {
+    const response = await page.request.post(`${tenant}/pay/terminal-request`, {
+      data: { orderId: f.order.id, amountCents: f.order.totalCents / 2, tipCents: 0, attemptId: randomUUID() },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    return (await response.json()).paymentId as string;
+  };
+  const push = (paymentId: string) => page.request.post(`${tenant}/terminal/charge`, { data: { paymentId, deviceId: device.kushkiDeviceId } });
   const print = (deviceId: string) => page.request.post("/api/operator/print/terminal", {
     data: { kind: "prebill", orderId: f.order.id, deviceId },
   });
   const jobId = randomUUID();
   await db.terminalPrintReservation.create({ data: { serial, jobId } });
   try {
-    const blocked = await push();
+    const paymentId = await requestPayment();
+    const blocked = await push(paymentId);
     expect(blocked.status()).toBe(409);
-    expect(await blocked.json()).toMatchObject({ error: "terminal_printing" });
+    expect(await blocked.json()).toMatchObject({ error: "terminal_printing", status: "declined" });
+    expect((await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).status).toBe("declined");
     expect(await db.financialOperation.findUnique({ where: { key: `terminal:${paymentId}` } })).toBeNull();
     expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
   } finally {
     await db.terminalPrintReservation.deleteMany({ where: { serial, jobId } });
   }
-  expect((await push()).ok()).toBe(true);
+  const paymentId = await requestPayment();
+  // A previous job may still be pending at the provider after our deadline.
+  await db.terminalPrintReservation.create({ data: { serial, jobId, fault: "timeout", createdAt: new Date(Date.now() - 181_000) } });
+  expect((await push(paymentId)).ok()).toBe(true);
+  expect(await db.terminalPrintReservation.findUnique({ where: { serial } })).toBeNull();
   const conflict = await print(device.kushkiDeviceId);
   expect(conflict.status()).toBe(409);
   expect(await conflict.json()).toEqual({ error: "terminal_charging" });
   expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
   await expect.poll(async () => (await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).status)
     .not.toBe("pending");
+  if (process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED === "+0") {
+    expect(await (await print(device.kushkiDeviceId)).json()).toMatchObject({ error: "terminal_post_approval" });
+    expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
+    await db.payment.update({ where: { id: paymentId }, data: { settledAt: new Date(Date.now() - 61_000) } });
+    expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
+
+    // Deliberately seed unresolved snapshots. None may hold printing indefinitely.
+    await db.payment.update({ where: { id: paymentId }, data: { status: "pending", settledAt: null } });
+    for (const update of [{ status: "uncertain" }, { status: "pending", createdAt: new Date(Date.now() - 151_000) }]) {
+      await db.financialOperation.update({ where: { key: `terminal:${paymentId}` }, data: update });
+      expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
+    }
+  }
+});
+
+test("un datáfono ocupado permite reintentar la misma parte en serie", async ({ page }) => {
+  test.skip(process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED !== "+0");
+  const f = await fixture(page, { role: "mesero", smartTerminal: true });
+  const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+  const serial = `mock:${device.kushkiDeviceId}`;
+  await db.terminalPrintReservation.create({ data: { serial, jobId: randomUUID() } });
+  try {
+    await chooseEqualSplit(page);
+    await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
+    await expect(page.getByTestId("serial-charge-next")).toHaveText(/^Reintentar/);
+    await expect(page.getByText("El datáfono está imprimiendo.", { exact: false })).toBeVisible();
+    expect(await db.payment.count({ where: { orderId: f.order.id, status: "pending" } })).toBe(0);
+  } finally {
+    await db.terminalPrintReservation.deleteMany({ where: { serial } });
+  }
+  await page.getByTestId("serial-charge-next").click();
+  await expect(page.getByText("Pago 1 de 2 aprobado", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("serial-charge-next").click();
+  await expect.poll(() => db.payment.count({ where: { orderId: f.order.id, status: "approved" } }), { timeout: 30_000 }).toBe(2);
 });

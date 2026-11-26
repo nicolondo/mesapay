@@ -28,7 +28,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { refreshPreviousPrint, reservePrint, releasePrint } from "@/lib/payments/terminalPrinterLock";
+import { refreshPreviousPrint, reservePrint, releasePrint, recordPrintFault } from "@/lib/payments/terminalPrinterLock";
 import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import { db } from "@/lib/db";
 import { getCurrencyForCountry } from "@/lib/billing/countries";
@@ -76,6 +76,9 @@ export type TerminalPrintError =
   | "terminal_charging"
   | "terminal_printing"
   | "terminal_busy"
+  | "terminal_stuck"
+  | "terminal_print_backoff"
+  | "terminal_post_approval"
   | "print_failed";
 
 export type TerminalPrintResult =
@@ -227,8 +230,8 @@ export function chooseTerminalDevice(
  */
 export async function listTerminalPrintDevices(
   restaurantId: string,
-  opts: { isProduction?: boolean; includeActivity?: boolean } = {},
-): Promise<Array<{ id: string; label: string; charging?: boolean }>> {
+  opts: { isProduction?: boolean } = {},
+): Promise<Array<{ id: string; label: string }>> {
   const tenant = await db.restaurant.findUnique({
     where: { id: restaurantId },
     select: { id: true, kushkiMode: true, cloudTerminalBusinessCode: true },
@@ -243,25 +246,9 @@ export async function listTerminalPrintDevices(
     orderBy: { createdAt: "asc" },
     select: { kushkiDeviceId: true, label: true, serialNumber: true, active: true },
   });
-  const usable = rows.filter(d => terminalDeviceUsable(d, useRealTerminal));
-  const charging = new Set<string>();
-  if (opts.includeActivity && usable.length) {
-    const claims = await db.financialOperation.findMany({
-      where: {
-        kind: "terminal", status: { in: ["pending", "uncertain"] },
-        deviceId: { in: rows.map(device => device.kushkiDeviceId) },
-      },
-      select: { deviceId: true },
-    });
-    const claimed = new Set(claims.map(c => c.deviceId));
-    for (const device of rows) {
-      if (claimed.has(device.kushkiDeviceId)) charging.add(device.serialNumber || device.kushkiDeviceId);
-    }
-  }
-  return usable.map(device => ({
-    id: device.kushkiDeviceId, label: device.label,
-    ...(charging.has(device.serialNumber || device.kushkiDeviceId) && { charging: true }),
-  }));
+  return rows
+    .filter((d) => terminalDeviceUsable(d, useRealTerminal))
+    .map((d) => ({ id: d.kushkiDeviceId, label: d.label }));
 }
 
 export type TerminalPrintDeps = {
@@ -356,10 +343,16 @@ export async function printOnTerminalDevice(
   });
   if (!result.ok) {
     // A transport failure may have enqueued the job. Keep its reservation.
+    const busy = isTerminalBusy(result.errorCode, result.message);
+    const unconfirmed = !result.httpStatus || result.httpStatus >= 500 || result.httpStatus === 408;
+    if (busy || unconfirmed) {
+      const fault = unconfirmed ? "timeout" : "busy";
+      await recordPrintFault(device, jobId, reservedAt, fault);
+      return { ok: false, error: "terminal_print_backoff", ...(fault === "timeout" && { printJobId: jobId }) };
+    }
     if (result.httpStatus && [400, 401, 403, 404, 409, 422].includes(result.httpStatus)) {
       await releasePrint(device, jobId, reservedAt);
     }
-    if (isTerminalBusy(result.errorCode, result.message)) return { ok: false, error: "terminal_busy" };
     return {
       ok: false,
       error: "print_failed",
@@ -369,9 +362,17 @@ export async function printOnTerminalDevice(
   }
   // 202 = encolado, NO impreso: el estado real se pregunta hasta ~30 s.
   const outcome = await (deps.waitJob ?? waitForCloudPrintJob)({ ...target, printJobId: result.printJobId });
-  if (outcome.state !== "pending") await releasePrint(device, jobId, reservedAt);
+  if (outcome.state === "failed" && isTerminalBusy(outcome.errorCode, outcome.errorMessage)) {
+    await recordPrintFault(device, jobId, reservedAt, "busy");
+    return { ok: false, error: "terminal_print_backoff" };
+  }
+  if (outcome.state === "pending") {
+    await recordPrintFault(device, jobId, reservedAt, "unconfirmed");
+    if (outcome.backoff) return { ok: false, error: "terminal_print_backoff", printJobId: jobId };
+  } else {
+    await releasePrint(device, jobId, reservedAt);
+  }
   if (outcome.state === "failed") {
-    if (isTerminalBusy(outcome.errorCode, outcome.errorMessage)) return { ok: false, error: "terminal_busy" };
     return {
       ok: false,
       error: "print_failed",

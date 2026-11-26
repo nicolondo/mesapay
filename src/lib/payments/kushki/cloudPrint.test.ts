@@ -145,8 +145,14 @@ describe("esperar el resultado real", () => {
     expect(getStatus.mock.calls.length).toBe(12);
   });
 
+  it.each([{ error: "timeout" }, { errorCode: "TERMINAL_BUSY", httpStatus: 400 }])("aplaza el sondeo tras %o", async error => {
+    const getStatus = seq({ ok: false, ...error });
+    expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({ state: "pending", backoff: true });
+    expect(getStatus).toHaveBeenCalledOnce();
+  });
+
   it("un error del sondeo no corta: se vuelve a preguntar", async () => {
-    const getStatus = seq({ ok: false, error: "timeout" }, { ok: false, httpStatus: 500 }, { ok: true, status: "COMPLETED" });
+    const getStatus = seq({ ok: false, httpStatus: 500 }, { ok: true, status: "COMPLETED" });
     expect(await waitForCloudPrintJob({ ...target, printJobId: "j" }, { ...clock(), getStatus })).toEqual({ state: "completed" });
   });
 });

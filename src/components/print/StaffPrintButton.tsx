@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -34,6 +34,10 @@ import {
   type PrintPreferenceState,
   type PrintViewer,
 } from "./PrintDestinationPicker";
+
+const subscribePrintSupport = () => () => {};
+const browserCannotPrint = () => browserPrintSupport(navigator.userAgent, typeof window.print === "function") === "unsupported";
+const serverCannotPrint = () => false;
 
 export type StaffPrintTone = "ok" | "warn" | "error";
 type Tone = StaffPrintTone;
@@ -112,12 +116,13 @@ export function StaffPrintButton({
 }) {
   const t = useTranslations("staffPrint");
   const print = useStaffPrint(doc, { openTab, viewer, chargingDevices });
+  const unsupported = useSyncExternalStore(subscribePrintSupport, browserCannotPrint, serverCannotPrint);
   const allCharging = print.pref.terminalDevices.length > 0 &&
     print.pref.terminalDevices.every(device => chargingDevices?.includes(device.id));
   const disabledDestinations: PrintDestination[] = [];
   if (allCharging) {
     disabledDestinations.push("terminal");
-    if (print.pref.role === "terminal" || browserPrintSupport(navigator.userAgent, typeof window.print === "function") === "unsupported") {
+    if (print.pref.role === "terminal" || unsupported) {
       disabledDestinations.push("device");
     }
   }
@@ -257,7 +262,11 @@ export function useStaffPrint(
           ...(result.reason && { message: result.reason }),
         });
         const m = terminalPrintMessage(result.code, result.reason, result.errorCode);
-        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest });
+        const retryId = result.code === "terminal_print_backoff" ? result.printJobId ?? printJobId
+          : result.code === "terminal_stuck" ? printJobId : undefined;
+        const retryDevice = target ?? (available.length === 1 ? available[0].id : null);
+        setNotice({ tone: "error", text: t(m.key, m.values), destination: dest,
+          ...(retryId && retryDevice && { retryJob: { deviceId: retryDevice, printJobId: retryId } }) });
       }
     } catch (err) {
       reportClientPrintError("terminal_print_failed", {
@@ -463,7 +472,7 @@ export function StaffPrintNotice({
           )}
         </>
       )}
-      {failed && notice.destination && (
+      {failed && !notice.retryJob && notice.destination && (
         <>
           {" "}
           <button

@@ -4,7 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import es from "../../../../messages/es.json";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/operator/tables",
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}));
 vi.mock("../kitchen/NewOrderChime", () => ({ NewOrderChime: () => null }));
 import { TableDetailSheet } from "./TableDetailSheet";
 import { KitchenBoard } from "../kitchen/KitchenBoard";

@@ -24,6 +24,7 @@ export type TerminalPrintClientResult =
       simulated: boolean;
     }
   | { via: "post_approval"; retryAfterMs: number; deviceId: string; printJobId: string }
+  | { via: "printing" }
   | { via: "choose_device"; devices: TerminalPrintDevice[] }
   | { via: "error"; code: string | null; reason?: string; errorCode?: string; printJobId?: string };
 
@@ -77,6 +78,7 @@ export async function printOnTerminal(
       && typeof body.deviceId === "string" && typeof body.printJobId === "string") {
     return { via: "post_approval", retryAfterMs: body.retryAfterMs, deviceId: body.deviceId, printJobId: body.printJobId };
   }
+  if (status === 409 && body?.error === "terminal_printing") return { via: "printing" };
   if (body?.error === "choose_device" && Array.isArray(body.devices)) {
     const devices = (body.devices as unknown[]).filter(
       (d): d is TerminalPrintDevice =>

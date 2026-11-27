@@ -39,6 +39,12 @@ describe("pedirle al servidor que imprima en el datáfono", () => {
     expect(await printOnTerminal(prebill, { fetch: route(502, hold) })).toMatchObject({ via: "error" });
   });
 
+  it("solo un 409 terminal_printing confirma que otro trabajo ocupa el equipo", async () => {
+    const body = { error: "terminal_printing" };
+    expect(await printOnTerminal(prebill, { fetch: route(409, body) })).toEqual({ via: "printing" });
+    expect(await printOnTerminal(prebill, { fetch: route(502, body) })).toMatchObject({ via: "error" });
+  });
+
   it("varios datáfonos: la lista para elegir", async () => {
     const r = await printOnTerminal(prebill, {
       fetch: route(409, { error: "choose_device", devices: [{ id: "A", label: "Caja" }, { id: "B", label: "Barra" }] }),

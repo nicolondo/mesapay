@@ -480,7 +480,6 @@ export function TableDetailSheet({
     },
   );
 
-
   /**
    * El mesero avisa a caja que la mesa quiere pagar. Dispara el aviso de
    * pantalla completa del administrador (evento order.bill_requested).

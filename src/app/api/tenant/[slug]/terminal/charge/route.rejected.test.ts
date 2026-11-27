@@ -146,12 +146,13 @@ describe("terminal/charge: Kushki rechaza la solicitud por validación (4xx)", (
   });
 
   it.each([
-    ["no", { approved: false }, true],
+    ["no", { approved: false, type: "INTERNAL" }, true],
     ["rejected", {}, true],
+    ["rejected", { type: "OTHER" }, true],
     ["rejected", {}, false],
   ] as const)("ocupado de la nube (%s) devuelve la acción correspondiente al serial", async (event, extra, unhealthy) => {
     h.health.mockResolvedValueOnce(unhealthy);
-    kushkiSays(400, { ...extra, type: "INTERNAL", code: "TERMINAL_BUSY", message: "Terminal is busy" });
+    kushkiSays(400, { ...extra, code: "TERMINAL_BUSY", message: "Terminal is busy" });
     expect(await charge()).toEqual({ status: 409, json: {
       error: unhealthy ? "terminal_unresponsive" : "terminal_busy", status: "declined",
     } });

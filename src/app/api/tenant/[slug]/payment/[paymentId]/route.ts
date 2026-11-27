@@ -1,4 +1,5 @@
-import { CLOUD_BUSY_ANSWER, unresponsiveAfterBusy } from "@/lib/payments/terminalHealth";
+import { isCloudTerminalBusy } from "@/lib/payments/terminalBusy";
+import { unresponsiveAfterBusy } from "@/lib/payments/terminalHealth";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -38,7 +39,7 @@ async function GETHandler(
   const staff = claim && (payment.status === "pending" || staffDecline)
     ? await staffForRestaurant(payment.order.restaurantId, COLLECTOR_ROLES)
     : null;
-  const unresponsive = staff && (staffDecline || claim?.answerCode?.toUpperCase() === CLOUD_BUSY_ANSWER)
+  const unresponsive = staff && (staffDecline || isCloudTerminalBusy(claim?.answerCode))
     && await unresponsiveAfterBusy(payment.order.restaurantId, payment.id);
   return NextResponse.json({
     id: payment.id,

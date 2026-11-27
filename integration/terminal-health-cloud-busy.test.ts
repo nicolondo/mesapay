@@ -23,7 +23,8 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
   const at = (sec: number) => new Date(since + sec * 1000);
   try {
     const table = await db.table.create({ data: { restaurantId, number: 1, qrToken: randomUUID() } });
-    const order = await db.order.create({ data: { restaurantId, tableId: table.id, shortCode: randomUUID(), totalCents: 1000, subtotalCents: 1000 } });
+    // The additional order day covers a recent charge on an older open table.
+    const order = await db.order.create({ data: { createdAt: new Date(Date.now() - 60 * 3600_000), restaurantId, tableId: table.id, shortCode: randomUUID(), totalCents: 1000, subtotalCents: 1000 } });
     const device = await db.terminalDevice.create({ data: { restaurantId, kushkiDeviceId: randomUUID(), serialNumber: randomUUID(), label: "Test" } });
     const warnings = () => readTerminalWarnings(restaurantId);
     async function claim(sec: number, timedOut = false) {
@@ -34,8 +35,8 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
         createdAt: at(sec), gatewayTimedOutAt: timedOut ? at(sec + 60) : null } });
       return pay.id;
     }
-    async function event(paymentId: string, sec: number, suffix: string, approved = false) {
-      const failure = { type: "INTERNAL", code: "TERMINAL_BUSY" };
+    async function event(paymentId: string, sec: number, suffix: string, approved = false, type: string | null = "INTERNAL") {
+      const failure = { ...(type && { type }), code: "TERMINAL_BUSY" };
       await db.kushkiWebhookEvent.create({ data: {
         restaurantId, eventId: `cloudterm:${paymentId}:${suffix}:${sec}`, type: approved ? "terminal.approved" : "terminal.declined",
         createdAt: at(sec), processedAt: at(sec), payload: { paymentId, raw: approved ? {} : suffix === "no" ? { failure } : failure },
@@ -48,7 +49,7 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
     await event(timeoutId, 71, "no");
     expect(await warnings()).toEqual([]);
     const firstBusy = await claim(91);
-    await event(firstBusy, 91, "rejected");
+    await event(firstBusy, 91, "rejected", false, null);
     expect(await warnings()).toMatchObject([{ count: 2, since: at(70).toISOString() }]);
     // The staff poll may win the race against POST /charge. A guest (even
     // copying the header) and an unrelated payment keep their original response.
@@ -63,7 +64,7 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
     expect(await poll(firstBusy)).toMatchObject({ status: "declined", staffTerminalError: "terminal_unresponsive" });
     expect(await poll(timeoutId)).not.toHaveProperty("staffTerminalError");
     const second = await claim(96);
-    await event(second, 96, "no");
+    await event(second, 96, "no", false, "OTHER");
     expect(await warnings()).toMatchObject([{ count: 3 }]);
     // A claim and webhook describing the same failed charge count just once.
     await db.financialOperation.update({ where: { key: `terminal:${second}` }, data: { answeredAt: at(96), answerCode: "INTERNAL/TERMINAL_BUSY" } });
@@ -82,7 +83,11 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
       const noteAnswer = (id: string, answerCode: string, sec: number) => db.financialOperation.update({
         where: { key: `terminal:${id}` }, data: { answerCode, answeredAt: at(sec) },
       });
-      await noteAnswer(busyId, "INTERNAL/TERMINAL_BUSY", start + 62);
+      if (recovery === "device") {
+        await db.financialOperation.update({ where: { key: `terminal:${busyId}` }, data: { answerCode: "TERMINAL_BUSY" } });
+      } else {
+        await noteAnswer(busyId, "OTHER/TERMINAL_BUSY", start + 62);
+      }
       expect(await warnings()).toMatchObject([{ count: 2 }]);
       if (recovery === "device") {
         await db.payment.update({ where: { id: busyId }, data: { status: "pending", reconciliationRequired: true } });
@@ -98,6 +103,11 @@ it("lee los 400 ya almacenados y distingue respuestas reales de rechazos de la n
       }
       expect(await warnings()).toEqual([]);
     }
+    await claim(400, true);
+    await event(await claim(470), 471, "rejected");
+    expect(await warnings()).toMatchObject([{ count: 2 }]);
+    await db.order.update({ where: { id: order.id }, data: { createdAt: new Date(Date.now() - 80 * 3600_000) } });
+    expect(await warnings()).toEqual([]);
   } finally {
     await db.kushkiWebhookEvent.deleteMany({ where: { restaurantId } });
     await db.financialOperation.deleteMany({ where: { paymentId: { in: ids } } });

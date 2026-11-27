@@ -267,6 +267,7 @@ export function TerminalAttemptActions({
   const feedback = (
     <>
       {healthCheck.dialog}
+      {attempt.unresponsive && state !== "answered" && <p role="status" className="text-sm">{apiError({ error: "terminal_unresponsive" })}</p>}
       {attempt.gatewayTimedOut && <p role="status" className="text-sm">{apiError({ error: "terminal_stuck" })}</p>}
       {notice && (
         <p role="status" className="text-[11px] text-op-muted leading-snug">

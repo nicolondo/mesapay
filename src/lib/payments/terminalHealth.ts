@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { CLOUD_BUSY_CODE } from "./terminalBusy";
 import { db } from "@/lib/db";
 
 type Device = { kushkiDeviceId: string; serialNumber: string | null; label: string; active: boolean };
@@ -58,7 +59,10 @@ export function terminalWarnings(devices: Device[], evidence: Evidence[]): Termi
 // Prisma stores DateTime as UTC timestamps without a time zone. CURRENT_TIMESTAMP
 // is stable throughout the statement, including all the response/print lookups.
 const HEALTH_WINDOW_START = Prisma.sql`(CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '48 hours'`;
-export const CLOUD_BUSY_ANSWER = "INTERNAL/TERMINAL_BUSY";
+// Match the code component used by isCloudTerminalBusy for both raw and stored answers.
+function cloudBusyCode(code: Prisma.Sql) {
+  return Prisma.sql`upper(btrim(split_part(${code}, '/', -1))) = ${CLOUD_BUSY_CODE}`;
+}
 export const TERMINAL_PRINT_COMPLETED = "terminal.print.completed";
 
 // Print reservations disappear when the job finishes. Keep the positive receipt
@@ -85,7 +89,8 @@ export async function readTerminalWarnings(restaurantId: string, busyPaymentId?:
   // its serial at push time, including for a reply received after reassignment.
   const evidence = await db.$queryRaw<Evidence[]>`
     WITH claims AS MATERIALIZED (
-      SELECT f."paymentId", f."createdAt", f."gatewayTimedOutAt", f."answeredAt", f."answerCode", COALESCE((
+      SELECT f."paymentId", f."createdAt", f."gatewayTimedOutAt", f."answeredAt",
+        ${cloudBusyCode(Prisma.sql`f."answerCode"`)} AS claim_busy, COALESCE((
         SELECT a.diff->>'previousSerial' FROM "AuditEvent" a
         WHERE a."restaurantId" = ${restaurantId} AND a.kind = 'terminal.serial.changed'
           AND a."targetId" = f."deviceId" AND a."occurredAt" >= ${HEALTH_WINDOW_START} AND a."occurredAt" > f."createdAt"
@@ -95,6 +100,7 @@ export async function readTerminalWarnings(restaurantId: string, busyPaymentId?:
       JOIN "FinancialOperation" f ON f.key = 'terminal:' || p.id
       JOIN "TerminalDevice" d ON d."kushkiDeviceId" = f."deviceId" AND d."restaurantId" = o."restaurantId"
       WHERE o."restaurantId" = ${restaurantId} AND p.method = 'kushki_card_terminal' AND f.kind = 'terminal'
+        AND o."createdAt" >= ${HEALTH_WINDOW_START} - INTERVAL '1 day'
         AND f."createdAt" >= ${HEALTH_WINDOW_START}
     ), candidates AS (
       SELECT DISTINCT serial FROM claims WHERE "gatewayTimedOutAt" IS NOT NULL
@@ -106,18 +112,18 @@ export async function readTerminalWarnings(restaurantId: string, busyPaymentId?:
         w.payload->>'message' AS message,
         -- Historical declines retain the provider body and the TYPE/CODE prefix
         -- from sync/charge, even when FinancialOperation.answerCode is null.
-        upper(COALESCE(
-          (w.payload #>> '{raw,failure,type}') || '/' || (w.payload #>> '{raw,failure,code}'),
-          (w.payload #>> '{raw,type}') || '/' || (w.payload #>> '{raw,code}'),
+        ${cloudBusyCode(Prisma.sql`COALESCE(
+          w.payload #>> '{raw,failure,code}', w.payload #>> '{raw,failure,errorCode}',
+          w.payload #>> '{raw,code}', w.payload #>> '{raw,errorCode}',
           split_part(w.payload->>'message', ':', 1)
-        )) = ${CLOUD_BUSY_ANSWER} AS cloud_busy
+        )`)} AS cloud_busy
       FROM "KushkiWebhookEvent" w JOIN affected f ON f."paymentId" = w.payload->>'paymentId'
       WHERE (w."restaurantId" IS NULL OR w."restaurantId" = ${restaurantId}) AND w."processedAt" IS NOT NULL
         AND w."createdAt" >= ${HEALTH_WINDOW_START} AND w.type IN ('terminal.approved', 'terminal.declined')
     ), observations AS (
-      SELECT serial, "paymentId", "answeredAt" AS at,
-        CASE WHEN upper("answerCode") = ${CLOUD_BUSY_ANSWER} THEN 'cloud_busy' ELSE 'answered' END AS kind
-      FROM affected WHERE "answeredAt" >= ${HEALTH_WINDOW_START}
+      SELECT serial, "paymentId", COALESCE("answeredAt", "createdAt") AS at,
+        CASE WHEN claim_busy THEN 'cloud_busy' ELSE 'answered' END AS kind
+      FROM affected WHERE claim_busy OR "answeredAt" >= ${HEALTH_WINDOW_START}
       UNION ALL
       SELECT serial, "paymentId", CASE WHEN message = 'transaction_search_online'
         THEN COALESCE("gatewayTimedOutAt", "createdAt") ELSE received END,

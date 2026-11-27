@@ -1,4 +1,5 @@
 import type { Prisma, TerminalPrintReservation } from "@prisma/client";
+import { recordCompletedPrint, terminalSerial as serialKey } from "./terminalHealth";
 import { isTerminalBusy } from "./terminalBusy";
 import { db } from "@/lib/db";
 import { getCloudPrintJobStatus, type CloudPrintJobStatus } from "./kushki/cloudPrint";
@@ -13,10 +14,6 @@ const PRINT_LIMIT_MS = 180_000;
 const FIRST_PROBE_MS = 65_000; // Allow 20s dispatch + 30s poll + one final lookup.
 const PROBE_INTERVAL_MS = 20_000;
 const STUCK_AFTER_MS = 30_000;
-
-function serialKey(device: Device) {
-  return device.serialNumber || `mock:${device.kushkiDeviceId}`;
-}
 
 export function printConflict(previous: TerminalPrintReservation) {
   if (!previous.fault) return "terminal_printing";
@@ -64,7 +61,7 @@ export async function recordPrintFault(
   }
 }
 
-export async function refreshPreviousPrint(device: Device, setup: KushkiTerminalSetup) {
+export async function refreshPreviousPrint(device: Device, setup: KushkiTerminalSetup, restaurantId: string) {
   const serial = serialKey(device);
   const previous = await db.terminalPrintReservation.findUnique({ where: { serial } });
   if (!previous) return;
@@ -92,6 +89,7 @@ export async function refreshPreviousPrint(device: Device, setup: KushkiTerminal
         data: { lastJobStatus: state.status },
       }).catch(() => console.warn("[terminal] print_status_not_recorded", { serial, jobId: previous.jobId }));
     }
+    if (state.ok && state.status === "COMPLETED") await recordCompletedPrint(restaurantId, device, previous.jobId);
     if (state.status !== "COMPLETED" && state.status !== "FAILED" && state.httpStatus !== 404) return;
   }
   await releasePrint(device, previous.jobId, previous.createdAt);

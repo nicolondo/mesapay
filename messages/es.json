@@ -514,6 +514,11 @@
     "preparedCancellationAdminOnly": "La preparación ya empezó. Pide ayuda al administrador para cancelar este plato."
   },
   "pay": {
+    "healthTitle": "Comprobar datáfono",
+    "healthWarning": "Este datáfono no responde desde las {time}. Abre la app de Kushki en el equipo y cierra lo que esté en pantalla, o reinicia el datáfono antes de cobrar.",
+    "healthUnknown": "No se pudo consultar el estado del datáfono. Puedes elegir otro medio o intentar el cobro.",
+    "healthOther": "Cobrar con otro medio",
+    "healthOverride": "Intentar de todos modos",
     "pay": "Pagar",
     "charge": "Cobrar",
     "close": "Cerrar",
@@ -1469,6 +1474,7 @@
     "dateFallback": "—"
   },
   "operator": {
+    "terminalHealthWarning": "{device} no responde desde {time}. Cobros sin respuesta: {count}.",
     "navSummary": "Resumen",
     "navKitchen": "Cocina",
     "navBar": "Bar",
@@ -5072,6 +5078,8 @@
     "audit_restaurant_create": "Creó restaurante",
     "audit_restaurant_group_update": "Cambió grupo del comercio",
     "audit_restaurant_delete": "Eliminó un comercio",
+    "audit_terminal_serial_changed": "Cambió el serial del datáfono",
+    "audit_terminal_print_completed": "Impresión confirmada en el datáfono",
     "audit_restaurant_archive_download": "Descargó el archivo de un comercio eliminado",
     "audit_restaurant_delete_blocker_payments_declined": "Anuló cobros pendientes para eliminar un comercio",
     "audit_restaurant_delete_blocker_payment_links_cancelled": "Anuló links de pago para eliminar un comercio",

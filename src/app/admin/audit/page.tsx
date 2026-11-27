@@ -59,6 +59,8 @@ export default async function AdminAuditPage({
     "restaurant.create",
     "restaurant.group.update",
     "restaurant.delete",
+    "terminal.print.completed",
+    "terminal.serial.changed",
     "restaurant.archive.download",
     "restaurant.delete_blocker.payments_declined",
     "restaurant.delete_blocker.payment_links_cancelled",

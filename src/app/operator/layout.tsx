@@ -16,6 +16,7 @@ import { NavDropdown } from "./NavDropdown";
 import { BoardDot, BOARD_BY_HREF } from "./BoardDot";
 import { computeBoardActivity, type BoardActivity } from "./boardActivity";
 import { GroupSwitcher } from "./GroupSwitcher";
+import { TerminalHealthBanner } from "./TerminalHealthBanner";
 import { BillRequestAlert } from "./BillRequestAlert";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { ImpersonationBar } from "@/components/ImpersonationBar";
@@ -264,6 +265,7 @@ async function OperatorLayoutContent({
   // Banners (impersonación + membresía) — compartidos por ambos shells.
   const banners = (
     <>
+      {tenant?.slug && <TerminalHealthBanner key={tenant.slug} slug={tenant.slug} />}
       {impersonating && (
         <ImpersonationBar
           label={isGroupAdmin ? t("impGroup") : t("impImpersonating")}

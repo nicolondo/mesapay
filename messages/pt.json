@@ -514,6 +514,11 @@
     "preparedCancellationAdminOnly": "O preparo já começou. Peça ajuda ao administrador para cancelar este prato."
   },
   "pay": {
+    "healthTitle": "Verificar maquininha",
+    "healthWarning": "Esta maquininha não responde desde as {time}. Abra o app da Kushki nela e feche o que estiver na tela ou reinicie a maquininha antes de cobrar.",
+    "healthUnknown": "Não foi possível consultar o estado da maquininha. Escolha outra forma de pagamento ou tente cobrar.",
+    "healthOther": "Cobrar de outra forma",
+    "healthOverride": "Tentar mesmo assim",
     "pay": "Pagar",
     "charge": "Cobrar",
     "close": "Fechar",
@@ -1469,6 +1474,7 @@
     "dateFallback": "—"
   },
   "operator": {
+    "terminalHealthWarning": "{device} não responde desde {time}. Cobranças sem resposta: {count}.",
     "navSummary": "Resumo",
     "navKitchen": "Cozinha",
     "navBar": "Bar",
@@ -5072,6 +5078,8 @@
     "audit_restaurant_create": "Criou restaurante",
     "audit_restaurant_group_update": "Alterou grupo do comércio",
     "audit_restaurant_delete": "Excluiu um comércio",
+    "audit_terminal_serial_changed": "Alterou o número de série da maquininha",
+    "audit_terminal_print_completed": "Impressão confirmada na maquininha",
     "audit_restaurant_archive_download": "Baixou o arquivo de um comércio excluído",
     "audit_restaurant_delete_blocker_payments_declined": "Anulou cobranças pendentes para excluir um comércio",
     "audit_restaurant_delete_blocker_payment_links_cancelled": "Anulou links de pagamento para excluir um comércio",

@@ -542,3 +542,111 @@ test("un datáfono ocupado permite reintentar la misma parte en serie", async ({
   await page.getByTestId("serial-charge-next").click();
   await expect.poll(() => db.payment.count({ where: { orderId: f.order.id, status: "approved" } }), { timeout: 30_000 }).toBe(2);
 });
+
+async function seedTerminalTimeouts(orderId: string, deviceId: string, minutesAgo = [0, 0]) {
+  const keys: string[] = [];
+  for (const minutes of minutesAgo) {
+    const at = new Date(Date.now() - minutes * 60_000);
+    const p = await db.payment.create({ data: { orderId, method: "kushki_card_terminal", amountCents: 1000, status: "declined" } });
+    const key = `terminal:${p.id}`;
+    await db.financialOperation.create({ data: { key, kind: "terminal", paymentId: p.id,
+      deviceId, amountCents: 1000, status: "failed", createdAt: at, gatewayTimedOutAt: at } });
+    keys.push(key);
+  }
+  return keys;
+}
+
+test("datáfono mock tras dos timeouts permite cambiar de medio o reintentar y despeja el aviso del panel", async ({ page }, info) => {
+  test.skip(process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED !== "+0");
+  const f = await fixture(page, { smartTerminal: true });
+  const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+  await db.terminalDevice.update({ where: { id: device.id }, data: { serialNumber: "SUNMI-TEST-01" } });
+  await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [10, 5]);
+  const panel = await page.context().newPage();
+  await panel.setViewportSize({ width: 1366, height: 900 });
+  await panel.goto("/operator/tables");
+  const banner = panel.getByText(/POS de prueba \(SUNMI-TEST-01\).*Cobros sin respuesta: 2/);
+  await expect(banner).toBeVisible();
+  await panel.screenshot({ path: info.outputPath("panel-escritorio.png") });
+  await panel.setViewportSize({ width: 390, height: 844 });
+  await panel.screenshot({ path: info.outputPath("panel-390.png") });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const collect = page.getByRole("button", { name: /Cobrar con datáfono ·/ });
+  const dialog = page.getByRole("dialog", { name: "Comprobar datáfono" });
+  let pushes = 0;
+  page.on("request", req => { if (req.url().endsWith("/terminal/charge")) pushes++; });
+  await collect.click();
+  await expect(dialog).toContainText(/no responde desde las \d\d:\d\d/);
+  await page.screenshot({ path: info.outputPath("cobro-390.png") });
+  await dialog.getByRole("button", { name: "Cobrar con otro medio" }).click();
+  await expect(page.getByRole("button", { name: /^Recibir en efectivo ·/ })).toBeEnabled();
+  expect(await db.payment.count({ where: { orderId: f.order.id } })).toBe(2);
+  expect(pushes).toBe(0);
+
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await collect.click();
+  await expect(dialog).toBeVisible();
+  await page.screenshot({ path: info.outputPath("cobro-escritorio.png") });
+  await dialog.getByRole("button", { name: "Intentar de todos modos" }).click();
+  await expect.poll(() => db.payment.count({ where: { orderId: f.order.id, status: "approved" } }), { timeout: 30_000 }).toBe(1);
+  expect(pushes).toBe(1);
+  await panel.bringToFront();
+  await expect(banner).toHaveCount(0, { timeout: 30_000 });
+  await panel.close();
+});
+
+test("la API protege el serial al reasignar un datáfono y reconoce el TER y la impresión completada", async ({ page }) => {
+  const f = await fixture(page, { smartTerminal: true });
+  const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+  const oldSerial = randomUUID();
+  await db.terminalDevice.update({ where: { id: device.id }, data: { serialNumber: oldSerial } });
+  const alias = await db.terminalDevice.create({ data: { restaurantId: f.restaurant.id, kushkiDeviceId: randomUUID(),
+    serialNumber: oldSerial, label: "Equipo original" } });
+  async function warnings() {
+    const res = await page.request.get(`/api/tenant/${f.restaurant.slug}/terminal-health`);
+    expect(res.ok()).toBe(true);
+    return (await res.json()).warnings;
+  }
+  const keys = await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [10, 5]);
+  // A positive lookup for an even older charge is historical evidence. Its
+  // arrival today cannot clear the two later timeouts on the physical device.
+  const [older] = await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [20]);
+  const oldId = older.slice("terminal:".length);
+  await db.kushkiWebhookEvent.create({ data: { restaurantId: f.restaurant.id,
+    eventId: `cloudterm:${oldId}:ok`, type: "terminal.approved", processedAt: new Date(),
+    payload: { paymentId: oldId, message: "transaction_search_online" } } });
+  expect(await warnings()).toMatchObject([{ count: 2, serial: oldSerial }]);
+  const replaced = await page.request.patch(`/api/operator/terminal-devices/${device.id}`, { data: { serialNumber: randomUUID() } });
+  expect(replaced.ok()).toBe(true);
+  expect(await warnings()).toMatchObject([{ serial: oldSerial, deviceIds: [alias.kushkiDeviceId] }]);
+  await db.financialOperation.update({ where: { key: keys[1] }, data: { answerCode: "TER-004", answeredAt: new Date() } });
+  expect(await warnings()).toEqual([]);
+  await seedTerminalTimeouts(f.order.id, alias.kushkiDeviceId);
+  expect(await warnings()).toMatchObject([{ count: 2, serial: oldSerial }]);
+  const print = (id: string) => page.request.post("/api/operator/print/terminal", {
+    data: { kind: "prebill", orderId: f.order.id, deviceId: id },
+  });
+  expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
+  expect(await warnings()).toMatchObject([{ count: 2, serial: oldSerial }]);
+  expect((await print(alias.kushkiDeviceId)).ok()).toBe(true);
+  expect(await warnings()).toEqual([]);
+});
+
+for (const role of ["mesero", "terminal"] as const) {
+  test(`datáfono mock tras dos timeouts: ${role} elige efectivo sin enviar un cobro al equipo`, async ({ page }) => {
+    const f = await fixture(page, { role, smartTerminal: true });
+    const device = await db.terminalDevice.findFirstOrThrow({ where: { restaurantId: f.restaurant.id } });
+    await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [10, 5]);
+    let terminalRequests = 0;
+    page.on("request", req => {
+      if (req.url().endsWith("/pay/terminal-request") || req.url().endsWith("/terminal/charge")) terminalRequests++;
+    });
+    await page.getByRole("button", { name: /Cobrar con datáfono ·/ }).click();
+    await page.getByRole("button", { name: "Cobrar con otro medio" }).click();
+    expect((await cashCurrentPart(page)).paid).toBe(true);
+    expect(terminalRequests).toBe(0);
+    const health = await page.request.get(`/api/tenant/${f.restaurant.slug}/terminal-health`);
+    expect((await health.json()).warnings).toMatchObject([{ count: 2, deviceIds: [device.kushkiDeviceId] }]);
+  });
+}

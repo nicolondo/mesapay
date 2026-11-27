@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 
 const mocks = vi.hoisted(() => ({
-  recordFault: vi.fn(), lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
+  audit: vi.fn(), recordFault: vi.fn(), lock: vi.fn(), previous: vi.fn(), create: vi.fn(), release: vi.fn(), probe: vi.fn(),
   charge: vi.fn(), transaction: vi.fn(), jobState: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: {
-  $transaction: mocks.transaction, $executeRaw: mocks.recordFault,
+  auditEvent: { create: mocks.audit }, $transaction: mocks.transaction, $executeRaw: mocks.recordFault,
   terminalPrintReservation: { findUnique: mocks.previous, deleteMany: mocks.release, updateMany: mocks.probe },
 } }));
 vi.mock("./kushki/cloudPrint", () => ({ getCloudPrintJobStatus: mocks.jobState }));
@@ -47,17 +47,24 @@ describe("exclusión por serial físico", () => {
   });
 
   const setup = { mode: "sandbox" as const, useRealTerminal: true, businessCode: "mock" };
+  it.each(["COMPLETED", "FAILED"])("sólo una confirmación tardía COMPLETED cuenta como respuesta (%s)", async status => {
+    mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", createdAt: new Date(Date.now() - 75_000) });
+    mocks.jobState.mockResolvedValue({ ok: true, status });
+    await refreshPreviousPrint(a, setup, "restaurant");
+    expect(mocks.audit).toHaveBeenCalledTimes(status === "COMPLETED" ? 1 : 0);
+    expect(mocks.release).toHaveBeenCalledOnce();
+  });
   it.each([{ status: "PENDING" }, { ok: false, httpStatus: 503 }, { ok: false, error: "timeout" }])(
     "una respuesta %o no prolonga la reserva original más de tres minutos", async state => {
       const row = { serial: a.serialNumber, jobId: "job-A", createdAt: new Date(Date.now() - 75_000) };
       mocks.previous.mockResolvedValue(row);
       mocks.jobState.mockResolvedValue(state);
-      await refreshPreviousPrint(a, setup);
+      await refreshPreviousPrint(a, setup, "restaurant");
       expect(await printingUnderLock(tx, a)).toBe(row);
       expect(mocks.release).not.toHaveBeenCalled();
 
       row.createdAt = new Date(Date.now() - 180_000);
-      await refreshPreviousPrint(a, setup);
+      await refreshPreviousPrint(a, setup, "restaurant");
       expect(mocks.jobState).toHaveBeenCalledOnce();
       expect(await printingUnderLock(tx, a)).toBeNull();
       expect(mocks.release).toHaveBeenCalledWith({ where: row });
@@ -100,7 +107,7 @@ describe("exclusión por serial físico", () => {
 
   it("un busy confirmado frena nuevos envíos de impresión sin sondear trabajos inexistentes", async () => {
     mocks.previous.mockResolvedValue({ serial: a.serialNumber, jobId: "job", fault: "busy", faultAt: new Date(Date.now() - 30_000), createdAt: new Date(Date.now() - 70_000) });
-    await refreshPreviousPrint(a, setup);
+    await refreshPreviousPrint(a, setup, "restaurant");
     expect(mocks.jobState).not.toHaveBeenCalled();
     expect(await reservePrint(a, "otro")).toBe("terminal_stuck");
     expect(mocks.create).not.toHaveBeenCalled();

@@ -514,6 +514,11 @@
     "preparedCancellationAdminOnly": "Preparation has started. Ask an administrator to help cancel this dish."
   },
   "pay": {
+    "healthTitle": "Check payment terminal",
+    "healthWarning": "This terminal has not responded since {time}. Open the Kushki app on the terminal and close what’s on screen, or restart the terminal before charging.",
+    "healthUnknown": "The terminal’s status could not be checked. Choose another payment method or try the charge.",
+    "healthOther": "Use another payment method",
+    "healthOverride": "Try anyway",
     "pay": "Pay",
     "charge": "Charge",
     "close": "Close",
@@ -1469,6 +1474,7 @@
     "dateFallback": "—"
   },
   "operator": {
+    "terminalHealthWarning": "{device} has not responded since {time}. Unanswered charges: {count}.",
     "navSummary": "Summary",
     "navKitchen": "Kitchen",
     "navBar": "Bar",
@@ -5072,6 +5078,8 @@
     "audit_restaurant_create": "Created restaurant",
     "audit_restaurant_group_update": "Changed merchant group",
     "audit_restaurant_delete": "Deleted a merchant",
+    "audit_terminal_serial_changed": "Changed terminal serial number",
+    "audit_terminal_print_completed": "Terminal print confirmed",
     "audit_restaurant_archive_download": "Downloaded a deleted merchant's archive",
     "audit_restaurant_delete_blocker_payments_declined": "Voided pending payments to delete a merchant",
     "audit_restaurant_delete_blocker_payment_links_cancelled": "Voided payment links to delete a merchant",

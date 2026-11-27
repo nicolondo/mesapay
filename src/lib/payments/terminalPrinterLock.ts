@@ -1,6 +1,6 @@
 import type { Prisma, TerminalPrintReservation } from "@prisma/client";
 import { recordCompletedPrint, terminalSerial as serialKey } from "./terminalHealth";
-import { isTerminalBusy } from "./terminalBusy";
+import { isTerminalBusy, POST_APPROVAL_PRINT_SECONDS } from "./terminalBusy";
 import { db } from "@/lib/db";
 import { getCloudPrintJobStatus, type CloudPrintJobStatus } from "./kushki/cloudPrint";
 import type { KushkiTerminalSetup } from "./terminalAvailability";
@@ -8,10 +8,9 @@ import { TERMINAL_IN_FLIGHT_MAX_MS } from "./terminalAttempt";
 
 type Device = { serialNumber: string | null; kushkiDeviceId: string };
 
-// Local policy. The provider has no "voucher screen closed" event or printer reset.
-const POST_APPROVAL_MS = 60_000;
 const PRINT_LIMIT_MS = 180_000;
-const FIRST_PROBE_MS = 65_000; // Allow 20s dispatch + 30s poll + one final lookup.
+// Desde la reserva de impresión: 20 s de envío + 30 s de sondeo + una última consulta.
+const FIRST_PROBE_MS = 65_000;
 const PROBE_INTERVAL_MS = 20_000;
 const STUCK_AFTER_MS = 30_000;
 
@@ -105,9 +104,9 @@ export async function reservePrint(device: Device, jobId: string, createdAt = ne
     // Join the payment and its claim in one snapshot: an approval transfers
     // protection directly from the live charge to the voucher grace period.
     const activeSince = new Date(createdAt.getTime() - TERMINAL_IN_FLIGHT_MAX_MS);
-    const approvedSince = new Date(createdAt.getTime() - POST_APPROVAL_MS);
-    const [payment] = await tx.$queryRaw<{ status: string }[]>`
-      SELECT p.status FROM "FinancialOperation" f
+    const approvedSince = new Date(createdAt.getTime() - POST_APPROVAL_PRINT_SECONDS * 1000);
+    const [payment] = await tx.$queryRaw<{ status: string; settledAt: Date }[]>`
+      SELECT p.status, p."settledAt" FROM "FinancialOperation" f
       JOIN "Payment" p ON p.id = f."paymentId"
       JOIN "TerminalDevice" d ON d."kushkiDeviceId" = f."deviceId"
       WHERE f.kind = 'terminal' AND (d."kushkiDeviceId" = ${device.kushkiDeviceId} OR d."serialNumber" = ${device.serialNumber})
@@ -115,7 +114,10 @@ export async function reservePrint(device: Device, jobId: string, createdAt = ne
               AND p.status = 'pending' AND NOT p."reconciliationRequired")
           OR (f.status = 'completed' AND p.status = 'approved' AND p."settledAt" > ${approvedSince}))
       ORDER BY p."settledAt" DESC NULLS FIRST LIMIT 1`;
-    if (payment) return payment.status === "approved" ? "terminal_post_approval" as const : "terminal_charging" as const;
+    if (payment?.status === "approved") {
+      return { error: "terminal_post_approval" as const, retryAfterMs: payment.settledAt.getTime() - approvedSince.getTime() };
+    }
+    if (payment) return "terminal_charging" as const;
     await tx.terminalPrintReservation.create({ data: { serial: serialKey(device), jobId, createdAt } });
     return null;
   });

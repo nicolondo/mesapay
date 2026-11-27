@@ -8,7 +8,7 @@
  * localStorage, nada más).
  */
 
-import { isTerminalBusy } from "@/lib/payments/terminalBusy";
+import { isTerminalBusy, POST_APPROVAL_PRINT_SECONDS } from "@/lib/payments/terminalBusy";
 import type { StaffPrintDoc } from "./staffPrint";
 
 export type TerminalPrintDevice = { id: string; label: string };
@@ -23,13 +23,15 @@ export type TerminalPrintClientResult =
       deviceLabel: string;
       simulated: boolean;
     }
+  | { via: "post_approval"; retryAfterMs: number; deviceId: string; printJobId: string }
+  | { via: "printing" }
   | { via: "choose_device"; devices: TerminalPrintDevice[] }
   | { via: "error"; code: string | null; reason?: string; errorCode?: string; printJobId?: string };
 
 type FetchLike = (
   url: string,
   init: { method: "POST"; headers: Record<string, string>; body: string },
-) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
+) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 /** El cuerpo que espera la ruta, según el documento. */
 export function terminalPrintBody(
@@ -49,7 +51,7 @@ export async function printOnTerminal(
   opts: { deviceId?: string | null; printJobId?: string | null; fetch?: FetchLike } = {},
 ): Promise<TerminalPrintClientResult> {
   const doFetch: FetchLike = opts.fetch ?? ((url, init) => fetch(url, init));
-  let ok = false;
+  let status: number;
   let body: Record<string, unknown> | null = null;
   try {
     const res = await doFetch("/api/operator/print/terminal", {
@@ -57,12 +59,12 @@ export async function printOnTerminal(
       headers: { "content-type": "application/json" },
       body: JSON.stringify(terminalPrintBody(doc, opts.deviceId, opts.printJobId)),
     });
-    ok = res.ok;
+    status = res.status;
     body = ((await res.json().catch(() => null)) as Record<string, unknown> | null) ?? null;
   } catch {
     return { via: "error", code: "network" };
   }
-  if (ok && body && body.ok === true && typeof body.deviceId === "string") {
+  if (status >= 200 && status < 300 && body && body.ok === true && typeof body.deviceId === "string") {
     return {
       via: "terminal",
       state: body.state === "queued" ? "queued" : "printed",
@@ -72,6 +74,11 @@ export async function printOnTerminal(
       simulated: body.simulated === true,
     };
   }
+  if (status === 409 && body?.error === "terminal_post_approval" && typeof body.retryAfterMs === "number" && Number.isFinite(body.retryAfterMs)
+      && typeof body.deviceId === "string" && typeof body.printJobId === "string") {
+    return { via: "post_approval", retryAfterMs: body.retryAfterMs, deviceId: body.deviceId, printJobId: body.printJobId };
+  }
+  if (status === 409 && body?.error === "terminal_printing") return { via: "printing" };
   if (body?.error === "choose_device" && Array.isArray(body.devices)) {
     const devices = (body.devices as unknown[]).filter(
       (d): d is TerminalPrintDevice =>
@@ -107,7 +114,7 @@ export function terminalPrintMessage(
     | "terminalFailed"
     | "terminalOutOfPaper"
     | "terminalJobFailed";
-  values?: { reason: string };
+  values?: { reason: string } | { seconds: number };
 } {
   if (isTerminalBusy(errorCode, reason)) return { key: "terminalBusy" };
   // El datáfono la intentó y falló: lo que dijo el equipo.
@@ -118,7 +125,7 @@ export function terminalPrintMessage(
   switch (code) {
     case "terminal_stuck": return { key: "terminalStuck" };
     case "terminal_print_backoff": return { key: "terminalBackoff" };
-    case "terminal_post_approval": return { key: "terminalPostApproval" };
+    case "terminal_post_approval": return { key: "terminalPostApproval", values: { seconds: POST_APPROVAL_PRINT_SECONDS } };
     case "terminal_charging": return { key: "terminalCharging" };
     case "terminal_busy":
     case "terminal_printing": return { key: "terminalBusy" };

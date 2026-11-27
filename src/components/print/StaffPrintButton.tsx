@@ -15,12 +15,12 @@ import {
   type StaffPrintFallbackReason,
 } from "@/lib/print/staffPrint";
 import {
-  printOnTerminal,
   readRememberedPrintTerminal,
   rememberPrintTerminal,
   terminalPrintMessage,
   type TerminalPrintDevice,
 } from "@/lib/print/terminalPrintClient";
+import { DeferredPrintNotice, useDeferredTerminalPrint } from "./DeferredPrintNotice";
 import { browserPrintSupport, reportClientPrintError } from "@/lib/print/devicePrint";
 import {
   devicePrintHelpHref,
@@ -131,7 +131,7 @@ export function StaffPrintButton({
       {showDestination && (
         <PrintDestinationPicker
           pref={print.pref}
-          disabled={print.busy}
+          disabled={print.busy && print.remaining === null}
           disabledDestinations={disabledDestinations}
           variant={destinationVariant}
           className={destinationClassName}
@@ -143,7 +143,7 @@ export function StaffPrintButton({
         disabled={print.busy || !print.pref.ready || disabledDestinations.includes(print.pref.destination)}
         className={className}
       >
-        {print.busy ? t("sending") : label}
+        {print.busy && print.remaining === null ? t("sending") : label}
       </button>
       {allCharging && <span role="status" className={statusClassName}>{t("terminalCharging")}</span>}
       <StaffPrintNotice
@@ -170,6 +170,8 @@ export type StaffPrintState = {
   /** Datáfono: reintenta un trabajo encolado (el mismo `printJobId`). */
   retryTerminal: (job: { deviceId: string; printJobId: string }) => Promise<void>;
   busy: boolean;
+  remaining: number | null;
+  cancelPending: () => void;
   notice: Notice | null;
   browser: BrowserPrintState | null;
   pref: PrintPreferenceState;
@@ -187,15 +189,18 @@ export function useStaffPrint(
     openTab,
     viewer,
     chargingDevices = [],
+    visible = true,
   }: {
     openTab?: (url: string) => boolean;
     /** El rol y el comercio, si la pantalla ya los sabe (si no, la sesión). */
     viewer?: PrintViewer | null;
     chargingDevices?: string[];
+    visible?: boolean;
   } = {},
 ): StaffPrintState {
   const t = useTranslations("staffPrint");
   const pref = usePrintPreference(viewer);
+  const { schedule, phase } = useDeferredTerminalPrint(doc, pref, visible);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [browser, setBrowser] = useState<BrowserPrintState | null>(null);
@@ -219,29 +224,25 @@ export function useStaffPrint(
    * MISMO trabajo (no imprime doble).
    */
   async function runOnTerminal(deviceId?: string, printJobId?: string) {
-    if (busy) return;
+    if (busy || phase !== null) return;
     if (timer.current) clearTimeout(timer.current);
-    setBusy(true);
     setBrowser(null);
     // El destino con el que se reintenta: «Datáfono», o el «Este
     // dispositivo» del usuario Datáfono.
     const dest: PrintDestination = pref.role === "terminal" ? "device" : "terminal";
-    setNotice({ tone: "ok", text: t("terminalSending"), destination: dest });
+    setNotice(null);
     const scope = pref.scope;
     const available = pref.terminalDevices.filter(d => !chargingDevices.includes(d.id));
     const target = deviceId ?? readRememberedPrintTerminal(scope);
     if (chargingDevices.length && (!available.length || !available.some(d => d.id === target))) {
-      setBusy(false);
       setNotice(available.length
         ? { tone: "warn", text: t("terminalChoose"), chooseDevices: available }
         : { tone: "warn", text: t("terminalCharging") });
       return;
     }
     try {
-      const result = await printOnTerminal(doc, {
-        deviceId: target,
-        printJobId,
-      });
+      const result = await schedule.run(doc, target, printJobId);
+      if (!result) return;
       if (result.via === "terminal") {
         rememberPrintTerminal(scope, result.deviceId);
         setNotice(
@@ -274,19 +275,18 @@ export function useStaffPrint(
         message: err instanceof Error ? err.message.slice(0, 300) : undefined,
       });
       setNotice({ tone: "error", text: t("terminalFailed"), destination: dest });
-    } finally {
-      setBusy(false);
     }
   }
 
   async function runAt(destination: PrintDestination) {
-    if (busy || !pref.ready) return;
+    if (busy || schedule.sending || !pref.ready) return;
     // «Datáfono» (y «Este dispositivo» del usuario Datáfono, que es lo
     // mismo): la impresora del Smart POS por Kushki.
     if (destination === "terminal" || (destination === "device" && pref.role === "terminal")) {
       await runOnTerminal();
       return;
     }
+    schedule.cancel();
     if (timer.current) clearTimeout(timer.current);
     // «Este dispositivo» en un navegador que no puede abrir la impresión
     // del sistema (Firefox para Android < 114, la app instalada del
@@ -351,6 +351,7 @@ export function useStaffPrint(
   const run = () => runAt(pref.destination);
 
   async function switchTo(destination: PrintDestination) {
+    if (schedule.sending) return;
     pref.setDestination(destination);
     await runAt(destination);
   }
@@ -368,8 +369,10 @@ export function useStaffPrint(
     chooseTerminal,
     runOnTerminal: () => runOnTerminal(),
     retryTerminal: (job: { deviceId: string; printJobId: string }) => runOnTerminal(job.deviceId, job.printJobId),
-    busy,
-    notice,
+    busy: busy || phase !== null,
+    remaining: typeof phase === "number" ? phase : null,
+    cancelPending: schedule.cancelWaiting,
+    notice: phase === "sending" ? { tone: "ok", text: t("terminalSending") } : notice,
     browser,
     pref,
   };
@@ -390,6 +393,8 @@ export function StaffPrintNotice({
     | "notice"
     | "browser"
     | "busy"
+    | "remaining"
+    | "cancelPending"
     | "runAt"
     | "switchTo"
     | "chooseTerminal"
@@ -403,6 +408,9 @@ export function StaffPrintNotice({
 }) {
   const t = useTranslations("staffPrint");
   const { notice, browser } = print;
+  if (print.remaining != null) return (
+    <DeferredPrintNotice seconds={print.remaining} onCancel={print.cancelPending} onCaja={() => void print.switchTo("caja")} className={className} />
+  );
   if (!notice) return null;
   const failed = notice.tone === "error" || browser?.step === "error";
   const unsupported = !!notice.device?.unsupported;

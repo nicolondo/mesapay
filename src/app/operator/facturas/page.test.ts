@@ -40,7 +40,10 @@ vi.mock("next-intl/server", () => ({
     createTranslator({ locale: "es", messages: es, namespace: namespace as never }),
   getLocale: async () => "es",
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/operator/facturas",
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}));
 // Las consultas de la vista de facturas electrónicas tienen su propio test
 // (lib/dian/invoiceListQueries.test.ts); acá se mira qué se les pide y qué
 // se muestra con lo que devuelven.

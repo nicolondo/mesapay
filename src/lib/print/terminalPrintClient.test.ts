@@ -8,7 +8,7 @@ import {
 
 const prebill = { kind: "prebill" as const, orderId: "order-1", href: "/terminal/precuenta/order-1" };
 const route = (status: number, body: unknown) =>
-  vi.fn(async () => ({ ok: status >= 200 && status < 300, json: async () => body }));
+  vi.fn(async () => ({ status, json: async () => body }));
 
 describe("pedirle al servidor que imprima en el datáfono", () => {
   it("manda el documento y el datáfono recordado", async () => {
@@ -29,6 +29,20 @@ describe("pedirle al servidor que imprima en el datáfono", () => {
     expect(fetch).toHaveBeenCalledWith("/api/operator/print/terminal", expect.objectContaining({
       body: JSON.stringify({ kind: "prebill", orderId: "order-1", deviceId: "A", printJobId: "j-1" }),
     }));
+  });
+
+  it("solo reprograma el 409 con el dispositivo, el trabajo y el margen restante", async () => {
+    const hold = { error: "terminal_post_approval", retryAfterMs: 2300, deviceId: "A", printJobId: "j-1" };
+    expect(await printOnTerminal(prebill, { fetch: route(409, hold) })).toEqual({
+      via: "post_approval", retryAfterMs: 2300, deviceId: "A", printJobId: "j-1",
+    });
+    expect(await printOnTerminal(prebill, { fetch: route(502, hold) })).toMatchObject({ via: "error" });
+  });
+
+  it("solo un 409 terminal_printing confirma que otro trabajo ocupa el equipo", async () => {
+    const body = { error: "terminal_printing" };
+    expect(await printOnTerminal(prebill, { fetch: route(409, body) })).toEqual({ via: "printing" });
+    expect(await printOnTerminal(prebill, { fetch: route(502, body) })).toMatchObject({ via: "error" });
   });
 
   it("varios datáfonos: la lista para elegir", async () => {
@@ -66,7 +80,7 @@ describe("pedirle al servidor que imprima en el datáfono", () => {
     expect(terminalPrintMessage("print_failed", "Terminal is busy. Please try again later.")).toEqual({ key: "terminalBusy" });
     expect(terminalPrintMessage("terminal_busy")).toEqual({ key: "terminalBusy" });
     expect(terminalPrintMessage("terminal_printing")).toEqual({ key: "terminalBusy" });
-    expect(terminalPrintMessage("terminal_post_approval")).toEqual({ key: "terminalPostApproval" });
+    expect(terminalPrintMessage("terminal_post_approval")).toEqual({ key: "terminalPostApproval", values: { seconds: 15 } });
     expect(terminalPrintMessage("terminal_stuck")).toEqual({ key: "terminalStuck" });
     expect(terminalPrintMessage("terminal_print_backoff")).toEqual({ key: "terminalBackoff" });
     expect(terminalPrintMessage("terminal_charging")).toEqual({ key: "terminalCharging" });

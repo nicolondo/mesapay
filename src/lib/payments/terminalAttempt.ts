@@ -39,6 +39,7 @@ export type TerminalAttemptView = {
   deviceId?: string | null;
   claimStatus?: string;
   gatewayTimedOut?: boolean;
+  unresponsive?: boolean;
   /** Cuándo se envió al equipo (ISO). */
   pushedAt: string;
   /** Cuándo contestó el equipo que no aprobó (ISO); null = sin respuesta. */

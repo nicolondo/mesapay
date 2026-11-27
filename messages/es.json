@@ -9259,6 +9259,7 @@
     "terminal_not_sent": "Este cobro nunca se envió al datáfono: cancela la solicitud en lugar de resolverlo.",
     "terminal_result_pending": "El datáfono todavía no ha confirmado el resultado de este cobro.",
     "terminal_busy": "El datáfono está ocupado con otro cobro o impresión. Comprueba el resultado en el equipo antes de reintentar. Si sigue ocupado, abre la app de Kushki y termina o cierra lo que tenga en pantalla.",
+    "terminal_unresponsive": "El datáfono no está respondiendo. Abre la app de Kushki y cierra lo que esté en pantalla, o reinicia el datáfono antes de volver a cobrar.",
     "terminal_stuck": "El datáfono está ocupado o no respondió. Abre la app de Kushki en el datáfono y termina o cierra lo que tenga en pantalla. Consulta el resultado antes de volver a cobrar.",
     "terminal_print_backoff": "La impresión sigue sin confirmar. Espera hasta tres minutos o elige otro datáfono para cobrar.",
     "terminal_printing": "El datáfono está imprimiendo. Cuando termine, inicia un nuevo cobro.",

@@ -9259,6 +9259,7 @@
     "terminal_not_sent": "Esta cobrança nunca foi enviada à maquininha: cancele a solicitação em vez de resolvê-la.",
     "terminal_result_pending": "A maquininha ainda não confirmou o resultado desta cobrança.",
     "terminal_busy": "A maquininha está ocupada com outra cobrança ou impressão. Confira o resultado no aparelho antes de tentar novamente. Se continuar ocupada, abra o app da Kushki e conclua ou feche o que estiver na tela.",
+    "terminal_unresponsive": "A maquininha não está respondendo. Abra o app da Kushki e feche o que estiver na tela ou reinicie a maquininha antes de cobrar novamente.",
     "terminal_stuck": "A maquininha está ocupada ou não respondeu. Abra o app da Kushki na maquininha e conclua ou feche o que estiver na tela. Consulte o resultado antes de cobrar novamente.",
     "terminal_print_backoff": "A impressão ainda está sem confirmação. Aguarde até três minutos ou escolha outra maquininha para cobrar.",
     "terminal_printing": "A maquininha está imprimindo. Quando terminar, inicie uma nova cobrança.",

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
 import { printConflict, printingUnderLock, refreshPreviousPrint } from "@/lib/payments/terminalPrinterLock";
+import { CLOUD_BUSY_ANSWER, unresponsiveAfterBusy } from "@/lib/payments/terminalHealth";
 import { lockOrder } from "@/lib/orderLock";
 import { markPaymentUncertain } from "@/lib/payments/intent";
 import { secureApi } from "@/lib/secureApi";
@@ -70,6 +71,12 @@ async function recordTerminalAnswer(paymentId: string, result: CloudTerminalChar
 async function leaveUncertain(restaurantId: string, payment: { id: string; orderId: string }) {
   await markPaymentUncertain(payment.id);
   publishOrderEvent(restaurantId, { type: "order.updated", orderId: payment.orderId });
+}
+
+async function busyDecline(restaurantId: string, paymentId: string, result: CloudTerminalChargeResult) {
+  const unresponsive = terminalAnswerCode(result.failure)?.toUpperCase() === CLOUD_BUSY_ANSWER
+    && await unresponsiveAfterBusy(restaurantId, paymentId);
+  return NextResponse.json({ error: unresponsive ? "terminal_unresponsive" : "terminal_busy", status: "declined" }, { status: 409 });
 }
 
 async function POSTHandler(
@@ -336,7 +343,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return busyDecline(tenant.id, payment.id, result);
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -389,7 +396,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return busyDecline(tenant.id, payment.id, result);
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
         paymentId: payment.id,
         httpStatus: result.httpStatus,

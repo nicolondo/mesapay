@@ -40,6 +40,17 @@ describe("staff terminal checkout", () => {
     expect(onRecovery).not.toHaveBeenCalled();
   });
 
+  it("propaga el aviso de salud si el sondeo del personal llega antes que el POST", async () => {
+    const result = { status: "declined", orderStatus: "served", staffTerminalError: "terminal_unresponsive" };
+    request.mockResolvedValueOnce(Response.json(result));
+    watch.registered("p");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(request).toHaveBeenCalledWith("/api/tenant/demo/payment/p", expect.objectContaining({
+      headers: { "x-mesapay-staff-checkout": "1" },
+    }));
+    expect(onResult).toHaveBeenCalledWith(result, "p");
+  });
+
   it.each(["focus", "visibilitychange"])("rechecks immediately on %s, superseding a suspended read", async event => {
     request.mockImplementationOnce(() => new Promise(() => {}))
       .mockResolvedValueOnce(Response.json({ status: "approved", orderStatus: "paid" }));

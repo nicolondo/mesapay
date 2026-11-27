@@ -721,6 +721,7 @@ export function PayClient({
   const pendingTerminalIds = operatorMode ? pendingTerminalIdsToObserve(pendingPayments, watchedPaymentId).join(",") : "";
   const waitHref = (id: string) => `/t/${tenantSlug}/pay/${orderId}/terminal?pid=${encodeURIComponent(id)}&op=1`;
   function terminalOutcomeNotice(result: TerminalResult) {
+    if (result.staffTerminalError) return apiError({ error: result.staffTerminalError });
     if (result.status === "refunded") return t("terminalRefunded");
     if (result.declineReason === "terminal_canceled") return t("terminalCanceledTitle");
     return t("terminalNotApproved");
@@ -732,7 +733,9 @@ export function PayClient({
       router.push(waitHref(id));
       return;
     }
-    if (result.status !== "approved" && !terminalWatch.current && !serialMode) setErr(terminalOutcomeNotice(result));
+    if (result.status !== "approved" && !terminalWatch.current && (!serialMode || result.staffTerminalError)) {
+      setErr(terminalOutcomeNotice(result));
+    }
     router.refresh();
   });
   useEffect(() => {
@@ -946,7 +949,7 @@ export function PayClient({
           else if (postWasReleased && result.orderStatus !== "paid") router.refresh();
           else paymentConfirmed(result.orderStatus === "paid");
         } else {
-          if (!serial.chargeDeclined(id)) {
+          if (!serial.chargeDeclined(id) || result.staffTerminalError) {
             setErr(terminalOutcomeNotice(result));
           }
           router.refresh();

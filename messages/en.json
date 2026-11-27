@@ -9259,6 +9259,7 @@
     "terminal_not_sent": "This charge was never sent to the card terminal: cancel the request instead of resolving it.",
     "terminal_result_pending": "The terminal has not confirmed the result of this charge yet.",
     "terminal_busy": "The card terminal is busy with another payment or print job. Check the result on the device before trying again. If it stays busy, open the Kushki app and finish or close what is on screen.",
+    "terminal_unresponsive": "The terminal is not responding. Open the Kushki app and close what is on screen, or restart the terminal before charging again.",
     "terminal_stuck": "The terminal is busy or did not respond. Open the Kushki app on the terminal and finish or close what is on screen. Check the payment result before charging again.",
     "terminal_print_backoff": "Printing is still unconfirmed. Wait up to three minutes or choose another terminal for the payment.",
     "terminal_printing": "The terminal is printing. When it finishes, start a new payment.",

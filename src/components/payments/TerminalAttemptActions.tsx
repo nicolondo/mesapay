@@ -306,7 +306,7 @@ export function TerminalAttemptActions({
     return (
       <div className="space-y-2">
         <p className="text-[12px] leading-snug">
-          {isTerminalBusy(attempt.answerCode, attempt.answerMessage) ? apiError({ error: "terminal_busy" }) : detail ? t("answeredBody", { detail }) : t("answeredBodyGeneric")}
+          {isTerminalBusy(attempt.answerCode, attempt.answerMessage) ? apiError({ error: attempt.unresponsive ? "terminal_unresponsive" : "terminal_busy" }) : detail ? t("answeredBody", { detail }) : t("answeredBodyGeneric")}
         </p>
         {chargeLocked ? (
           <div className="rounded-lg border border-op-border bg-op-bg px-3 py-2 text-[11px] text-op-muted text-center">

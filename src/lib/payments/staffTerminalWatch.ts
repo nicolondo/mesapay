@@ -7,6 +7,7 @@ export type TerminalResult = {
   terminalAmount?: TerminalAmountView | null;
   nextPaymentId?: string;
   declineReason?: string;
+  staffTerminalError?: "terminal_unresponsive";
   terminalAttempt?: { gatewayTimedOut?: boolean } | null;
 };
 
@@ -50,7 +51,7 @@ export function observeTerminalStatus(
       const paymentId = await lookup(request.signal);
       if (!paymentId || request.signal.aborted) return;
       const response = await fetch(`/api/tenant/${tenantSlug}/payment/${paymentId}`, {
-        cache: "no-store", signal: request.signal,
+        cache: "no-store", signal: request.signal, headers: { "x-mesapay-staff-checkout": "1" },
       });
       if (!response.ok) return;
       const result: TerminalResult = await response.json();

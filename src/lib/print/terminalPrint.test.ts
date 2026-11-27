@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const m = vi.hoisted(() => ({
+  audit: vi.fn(),
   restaurant: vi.fn(),
   devices: vi.fn(),
   setup: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/payments/terminalPrinterLock", () => ({
 }));
 vi.mock("@/lib/db", () => ({
   db: {
+    auditEvent: { create: m.audit },
     restaurant: { findUnique: m.restaurant },
     terminalDevice: { findMany: m.devices },
     simpleInvoice: { findUnique: m.invoiceRow },
@@ -165,6 +167,9 @@ describe("imprimir en el datáfono", () => {
     const texts = (call.commands as Array<{ type: string; text?: string }>).map((c) => c.text ?? c.type).join("|");
     expect(texts).toContain("PRECUENTA");
     expect(texts).toContain("cut");
+    expect(m.audit).toHaveBeenCalledWith({ data: expect.objectContaining({
+      restaurantId: "rest-1", kind: "terminal.print.completed", targetId: "SN-A", diff: { jobId: "job-1" },
+    }) });
     expect(r).toMatchObject({ ok: true, printJobId: "job-1", state: "printed", simulated: false });
   });
 
@@ -177,6 +182,7 @@ describe("imprimir en el datáfono", () => {
       state: "queued",
       printJobId: "job-1",
     });
+    expect(m.audit).not.toHaveBeenCalled();
   });
 
   it("FAILED (sin papel): print_failed con el código del datáfono", async () => {

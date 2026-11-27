@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTerminalHealthCheck } from "./useTerminalHealthCheck";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { formatMoney } from "@/lib/format";
@@ -101,6 +102,7 @@ export function TerminalAttemptActions({
    */
   onOutcome?: (message: string) => void;
 }) {
+  const healthCheck = useTerminalHealthCheck();
   const t = useTranslations("terminalAttempt");
   const locale = useLocale() as Locale;
   const apiError = useApiError();
@@ -221,6 +223,8 @@ export function TerminalAttemptActions({
     setErr(null);
     setNotice(null);
     try {
+      const target = attempt?.deviceId || fallbackDeviceId;
+      if (action === "retry" && target && tenantSlug && !await healthCheck.confirmDevice(tenantSlug, target)) return;
       const { ok, json } = await attemptAction(action, true);
       if (!ok) {
         setErr(apiError(json, t("error")));
@@ -262,6 +266,7 @@ export function TerminalAttemptActions({
 
   const feedback = (
     <>
+      {healthCheck.dialog}
       {attempt.gatewayTimedOut && <p role="status" className="text-sm">{apiError({ error: "terminal_stuck" })}</p>}
       {notice && (
         <p role="status" className="text-[11px] text-op-muted leading-snug">

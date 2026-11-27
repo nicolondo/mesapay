@@ -11,6 +11,7 @@ import { onlineMethodsInOrder } from "@/lib/payments/defaultOnlineMethod";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useApiError } from "@/lib/useApiError";
 import { useChargeDeclineText } from "@/lib/useChargeDeclineText";
+import { useTerminalHealthCheck } from "@/components/payments/useTerminalHealthCheck";
 import { TerminalPicker, useTerminalChoice } from "@/components/payments/TerminalPicker";
 import type { TerminalDeviceOption } from "@/lib/payments/terminalAvailability";
 import { useRouter } from "next/navigation";
@@ -386,9 +387,10 @@ export function PayClient({
   // Motivo del rechazo con tarjeta / Apple Pay (código del servidor → texto).
   const declineText = useChargeDeclineText();
   // A qué datáfono va el cobro del staff (ver lib/payments/terminalChoice.ts).
+  const healthCheck = useTerminalHealthCheck();
   const terminalChoice = useTerminalChoice(terminalDevices, tenantSlug);
   const [tipPct, setTipPct] = useState<number>(initialTipPct ?? DEFAULT_TIP_PCT);
-  const [busy, setBusy] = useState<MethodKind | null>(null);
+  const [busy, setBusy] = useState<MethodKind | "terminal_health" | null>(null);
   const terminalWatch = useRef<ReturnType<typeof watchStaffTerminal> | null>(null);
   const [lastTerminalRequest, setLastTerminalRequest] = useState<{ id: string; method: MethodKind; amount: number; tip: number; deviceId: string | null } | null>(null);
   const [watchedPaymentId, setWatchedPaymentId] = useState<string | null>(null);
@@ -896,6 +898,13 @@ export function PayClient({
       const result = await previous.check();
       if (result?.status === "declined" && !result.nextPaymentId) retryingSameRequest = false;
       else if (result || terminalWatch.current !== previous) return;
+    }
+    if (target) {
+      setBusy("terminal_health");
+      if (!await healthCheck.confirmDevice(tenantSlug, target.id)) {
+        setBusy(null);
+        return;
+      }
     }
     const attemptId = operatorMode ? (retryingSameRequest && prior ? prior.id : crypto.randomUUID()) : null;
     if (attemptId) setLastTerminalRequest({ id: attemptId, method, amount: amountCents, tip: amountTip, deviceId: target?.id ?? null });
@@ -1435,6 +1444,7 @@ export function PayClient({
 
   return (
     <main className="flex flex-1 flex-col max-w-lg mx-auto w-full px-5 py-8">
+      {healthCheck.dialog}
       {operatorMode && (
         <div className="-mx-5 -mt-8 mb-5 bg-ink text-bone px-5 py-2 text-xs flex items-center justify-between gap-3">
           <span>

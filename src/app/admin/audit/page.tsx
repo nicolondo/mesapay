@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { listAuditEvents, labelForKind } from "@/lib/auditLog";
+import { TERMINAL_PRINT_COMPLETED } from "@/lib/payments/terminalHealth";
 import { fmtBogotaDateTime } from "@/lib/bogota";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,8 @@ export default async function AdminAuditPage({
     "restaurant.create",
     "restaurant.group.update",
     "restaurant.delete",
+    TERMINAL_PRINT_COMPLETED,
+    "terminal.serial.changed",
     "restaurant.archive.download",
     "restaurant.delete_blocker.payments_declined",
     "restaurant.delete_blocker.payment_links_cancelled",
@@ -73,7 +76,8 @@ export default async function AdminAuditPage({
       : labelForKind(k);
 
   const events = await listAuditEvents({
-    kind: kind || undefined,
+    // The print receipt is retained by serial for terminal health. Only list it on request.
+    kind: kind || { not: TERMINAL_PRINT_COMPLETED },
     restaurantId: restaurantId || undefined,
     actorEmail: actorEmail || undefined,
     limit: 200,
@@ -82,7 +86,9 @@ export default async function AdminAuditPage({
   // Para el dropdown de filtros — kinds y restaurants únicos en los
   // últimos 200 eventos. Suficiente para uso típico; no vale la
   // pena pegarle full a la tabla para popular un select.
-  const uniqueKinds = Array.from(new Set(events.map((e) => e.kind))).sort();
+  const kinds = new Set(events.map(e => e.kind));
+  if (!kind || kind === TERMINAL_PRINT_COMPLETED) kinds.add(TERMINAL_PRINT_COMPLETED);
+  const uniqueKinds = Array.from(kinds).sort();
   const uniqueRestaurants = Array.from(
     new Map(
       events

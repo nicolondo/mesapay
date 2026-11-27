@@ -178,7 +178,7 @@ async function POSTHandler(
   const pushedAt = new Date();
   const currency = await getCurrencyForCountry(tenant.country);
   const tracking = useRealTerminal ? await capturePaymentTrackingFields({ restaurantId: tenant.id, mode, currency, terminalBusinessCode: businessCode }) : {};
-  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal });
+  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal }, tenant.id);
   const claimed = await db.$transaction(async tx => {
     await lockOrder(tx, payment.orderId);
     const current = await tx.payment.findUniqueOrThrow({ where: { id: payment.id }, include: { order: true } });

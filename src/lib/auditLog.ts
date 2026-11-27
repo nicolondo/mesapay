@@ -287,7 +287,7 @@ export async function recordAuditEvent(args: RecordAuditArgs): Promise<void> {
  */
 export async function listAuditEvents(opts: {
   restaurantId?: string;
-  kind?: string;
+  kind?: string | { not: string };
   actorEmail?: string;
   since?: Date;
   until?: Date;

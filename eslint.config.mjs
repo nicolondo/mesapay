@@ -131,6 +131,7 @@ const MIGRATED = [
   "src/app/operator/GroupSwitcher.tsx",
   "src/components/ImpersonationBar.tsx",
   "src/app/operator/BillRequestAlert.tsx",
+  "src/app/operator/TerminalHealthBanner.tsx",
   "src/app/operator/page.tsx",
   "src/app/operator/ratings/**/*.{ts,tsx}",
   "src/app/operator/facturas/**/*.{ts,tsx}",

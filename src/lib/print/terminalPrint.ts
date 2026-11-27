@@ -28,6 +28,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { recordCompletedPrint } from "@/lib/payments/terminalHealth";
 import { refreshPreviousPrint, reservePrint, releasePrint, recordPrintFault } from "@/lib/payments/terminalPrinterLock";
 import { isTerminalBusy } from "@/lib/payments/terminalBusy";
 import { db } from "@/lib/db";
@@ -303,7 +304,7 @@ export async function printOnTerminalDevice(
   if (!built.ok) return { ok: false, error: built.error };
 
   const jobId = args.printJobId ?? randomUUID();
-  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal });
+  await refreshPreviousPrint(device, { mode, businessCode, useRealTerminal }, tenant.id);
   const reservedAt = new Date();
   const conflict = await reservePrint(device, jobId, reservedAt);
   if (conflict === "already_queued") {
@@ -315,6 +316,7 @@ export async function printOnTerminalDevice(
   if (conflict) return { ok: false, error: conflict };
 
   if (!useRealTerminal) {
+    await recordCompletedPrint(tenant.id, device, jobId);
     await releasePrint(device, jobId, reservedAt);
     console.log("[kushki/cloud-print] mock: impresión simulada", {
       restaurantId: tenant.id,
@@ -371,6 +373,7 @@ export async function printOnTerminalDevice(
     await recordPrintFault(device, jobId, reservedAt, "unconfirmed", outcome.lastStatus ?? queuedStatus);
     if (outcome.backoff) return { ok: false, error: "terminal_print_backoff", printJobId: jobId };
   } else {
+    if (outcome.state === "completed") await recordCompletedPrint(tenant.id, device, result.printJobId);
     await releasePrint(device, jobId, reservedAt);
   }
   if (outcome.state === "failed") {

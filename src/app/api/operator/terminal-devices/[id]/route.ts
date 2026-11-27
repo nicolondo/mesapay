@@ -1,3 +1,4 @@
+import { terminalSerial } from "@/lib/payments/terminalHealth";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -35,7 +36,7 @@ async function PATCHHandler(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  if (!guard(session?.user?.role)) {
+  if (!session?.user || !guard(session.user.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const restaurantId = await getActiveRestaurantId();
@@ -50,27 +51,26 @@ async function PATCHHandler(
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const device = await db.terminalDevice.findUnique({ where: { id } });
-  if (!device || device.restaurantId !== restaurantId) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-
-  const updated = await db.terminalDevice.update({
-    where: { id },
-    data: {
-      ...(parsed.data.label !== undefined && { label: parsed.data.label }),
-      ...(parsed.data.active !== undefined && { active: parsed.data.active }),
-      ...(parsed.data.serialNumber !== undefined && {
-        serialNumber: parsed.data.serialNumber,
-      }),
-    },
-    select: {
-      id: true,
-      label: true,
-      active: true,
-      serialNumber: true,
-    },
+  const updated = await db.$transaction(async tx => {
+    const [device] = await tx.$queryRaw<{ kushkiDeviceId: string; serialNumber: string | null }[]>`
+      SELECT "kushkiDeviceId", "serialNumber" FROM "TerminalDevice"
+      WHERE id = ${id} AND "restaurantId" = ${restaurantId} FOR UPDATE`;
+    if (!device) return null;
+    const { label, active, serialNumber } = parsed.data;
+    if (serialNumber !== undefined && serialNumber !== device.serialNumber) {
+      await tx.auditEvent.create({ data: {
+        restaurantId, kind: "terminal.serial.changed", targetType: "terminal", targetId: device.kushkiDeviceId,
+        actorUserId: session.user.id, actorEmail: session.user.email ?? "", actorRole: session.user.role,
+        occurredAt: new Date(), summary: `${terminalSerial(device)} → ${terminalSerial({ ...device, serialNumber })}`,
+        diff: { previousSerial: terminalSerial(device), serialNumber },
+      } });
+    }
+    return tx.terminalDevice.update({
+      where: { id }, data: { label, active, serialNumber },
+      select: { id: true, label: true, active: true, serialNumber: true },
+    });
   });
+  if (!updated) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true, device: updated });
 }

@@ -198,6 +198,15 @@ describe("terminal/charge: el equipo contestó que no, sin ser definitivo", () =
 });
 
 describe("terminal/charge: sin respuesta del equipo sigue como antes", () => {
+  it("HTTP 200 con ocupado de nube conserva el diagnóstico sin habilitar el cierre por respuesta", async () => {
+    kushkiSays(200, { type: "OTHER", code: "TERMINAL_BUSY" });
+    const { status, json } = await charge();
+    expect(status).toBe(202);
+    expect(json.terminal).not.toBe("answered");
+    expect(claim()).toMatchObject({ answerCode: "OTHER/TERMINAL_BUSY", answeredAt: null });
+    expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "pending", reconciliationRequired: true });
+  });
+
   it.each([
     ["TER-002 (no responde)", 200, { type: "TERMINAL", code: "TER-002", message: "Terminal is not responding" }],
     ["503", 503, { type: "INTERNAL", code: "UPSTREAM", message: "boom" }],

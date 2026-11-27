@@ -1,3 +1,5 @@
+import { isCloudTerminalBusy } from "@/lib/payments/terminalBusy";
+import { unresponsiveAfterBusy } from "@/lib/payments/terminalHealth";
 import { secureApi } from "@/lib/secureApi";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -7,7 +9,7 @@ import { toTerminalAmountView } from "@/lib/payments/terminalAmount";
 import { COLLECTOR_ROLES, staffForRestaurant } from "@/lib/staffAccess";
 
 async function GETHandler(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ slug: string; paymentId: string }> },
 ) {
   const { slug, paymentId } = await params;
@@ -33,10 +35,12 @@ async function GETHandler(
       : null;
   const amount = payment.status === "approved" ? toTerminalAmountView(claim) : null;
   const declined = payment.status === "declined";
-  const staff =
-    claim && payment.status === "pending"
-      ? await staffForRestaurant(payment.order.restaurantId, COLLECTOR_ROLES)
-      : null;
+  const staffDecline = declined && req.headers.get("x-mesapay-staff-checkout") === "1" && !claim?.nextPaymentId;
+  const staff = claim && (payment.status === "pending" || staffDecline)
+    ? await staffForRestaurant(payment.order.restaurantId, COLLECTOR_ROLES)
+    : null;
+  const unresponsive = staff && (staffDecline || isCloudTerminalBusy(claim?.answerCode))
+    && await unresponsiveAfterBusy(payment.order.restaurantId, payment.id);
   return NextResponse.json({
     id: payment.id,
     status: payment.status,
@@ -44,7 +48,10 @@ async function GETHandler(
     orderStatus: payment.order.status,
     ...(declined && claim?.answeredAt ? { declineReason: TERMINAL_CANCELED_REASON } : {}),
     ...(declined && claim?.nextPaymentId ? { nextPaymentId: claim.nextPaymentId } : {}),
-    ...(staff ? { terminalAttempt: toTerminalAttemptView(claim, payment.reconciliationRequired) } : {}),
+    ...(staffDecline && unresponsive ? { staffTerminalError: "terminal_unresponsive" } : {}),
+    ...(staff && payment.status === "pending" && claim ? {
+      terminalAttempt: { ...toTerminalAttemptView(claim, payment.reconciliationRequired), ...(unresponsive && { unresponsive: true }) },
+    } : {}),
     ...(amount && (amount.check === "tip" || amount.check === "partial") ? { terminalAmount: amount } : {}),
   });
 }

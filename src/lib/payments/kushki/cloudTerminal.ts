@@ -7,7 +7,7 @@ import {
 } from "crypto";
 import { env } from "../../env";
 import { getKushkiModeSync, type KushkiMode } from "../../platformConfig";
-import { isTerminalBusy } from "../terminalBusy";
+import { isCloudTerminalBusy, isTerminalBusy } from "../terminalBusy";
 import { pesosToCents } from "../terminalAmount";
 
 /**
@@ -264,9 +264,8 @@ const NO_ANSWER_CODES: ReadonlySet<string> = new Set(["TER-002", "TER-172"]);
  * respuesta" (administrador + evidencia, sin espera obligatoria).
  */
 export function isTerminalDeviceAnswer(answer: CloudTerminalAnswer | null | undefined): boolean {
-  if (answer?.busy) return true;
-  if (!answer?.code) return false;
-  if (isTerminalCancelAnswer(answer) || answer.code.trim().toUpperCase() === "TERMINAL_BUSY") return true;
+  if (!answer?.code || isCloudTerminalBusy(answer.code)) return false;
+  if (answer.busy || isTerminalCancelAnswer(answer)) return true;
   const type = answer.type?.trim().toUpperCase() ?? "";
   if (!DEVICE_ANSWER_TYPES.has(type)) return false;
   return !NO_ANSWER_CODES.has(answer.code.trim().toUpperCase());

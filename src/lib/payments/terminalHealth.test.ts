@@ -7,7 +7,23 @@ const devices = [
 ];
 const timeout = (serial: string, ms: number) => ({ kind: "timeout" as const, at: new Date(ms), serial });
 
+const busy = (serial: string, ms: number) => ({ kind: "cloud_busy" as const, at: new Date(ms), serial });
+
 describe("salud del datáfono", () => {
+  it("504 seguido de dos rechazos de la nube: avisa ya con el primero, desde el 504", () => {
+    const gateway = timeout("A", 16_000);
+    const retry = busy("A", 37_000);
+    expect(terminalWarnings(devices, [gateway])).toEqual([]);
+    expect(terminalWarnings(devices, [retry, gateway])).toMatchObject([{ count: 2, since: gateway.at.toISOString() }]);
+    expect(terminalWarnings(devices, [busy("A", 42_000), retry, gateway])).toMatchObject([{ count: 3, since: gateway.at.toISOString() }]);
+  });
+  it("un ocupado aislado, anterior al timeout o de otro serial no inicia la alerta", () => {
+    expect(terminalWarnings(devices, [busy("A", 1), busy("A", 2)])).toEqual([]);
+    expect(terminalWarnings(devices, [busy("A", 1), timeout("A", 2), busy("B", 3)])).toEqual([]);
+  });
+  it.each(["approved", "answered", "printed"] as const)("una respuesta %s despeja el aviso y el siguiente ocupado queda aislado", kind => {
+    expect(terminalWarnings(devices, [timeout("A", 1), busy("A", 2), { kind, serial: "A", at: new Date(3) }, busy("A", 4)])).toEqual([]);
+  });
   it("cuenta desde el primer timeout de gateway del mismo serial", () => {
     expect(terminalWarnings(devices, [timeout("A", 2), timeout("B", 1)])).toEqual([]);
     expect(terminalWarnings(devices, [timeout("A", 6), timeout("B", 3), timeout("A", 2)])).toEqual([

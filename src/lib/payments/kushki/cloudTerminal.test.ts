@@ -189,8 +189,14 @@ describe("pushPaymentToCloudTerminal: el datáfono canceló (Son y Melona, 2026-
     expect(await push()).toMatchObject({ status: "error", deviceAnswered: true, failure: { code: "E020", busy: true } });
   });
 
+  it.each([undefined, "INTERNAL", "TERMINAL", "OTHER"])("HTTP 200 con TERMINAL_BUSY de tipo %s no demuestra una respuesta del equipo", async type => {
+    respond(200, { type, code: "TERMINAL_BUSY", message: "Terminal is busy" });
+    const result = await push();
+    expect(result).toMatchObject({ status: "error", failure: { code: "TERMINAL_BUSY", busy: true } });
+    expect(result.deviceAnswered).toBeUndefined();
+  });
+
   it.each([
-    ["TERMINAL_BUSY", { code: "TERMINAL_BUSY", message: "Terminal is busy" }],
     ["TER-003 (ocupado con otra transacción)", { type: "TERMINAL", code: "TER-003", message: "Terminal is busy processing transaction" }],
     ["TER-001 (equipo no vinculado)", { type: "TERMINAL", code: "TER-001", message: "Terminal does not exist" }],
     ["ACQUIRER", { type: "ACQUIRER", code: "E020", message: "Either Invalid amount or Currency conversion field overflow" }],

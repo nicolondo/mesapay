@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { releaseOrderFromPaying } from "@/lib/payments/orderStatusAfterDecline";
 import { printConflict, printingUnderLock, refreshPreviousPrint } from "@/lib/payments/terminalPrinterLock";
+import { isCloudTerminalBusy } from "@/lib/payments/terminalBusy";
+import { unresponsiveAfterBusy } from "@/lib/payments/terminalHealth";
 import { lockOrder } from "@/lib/orderLock";
 import { markPaymentUncertain } from "@/lib/payments/intent";
 import { secureApi } from "@/lib/secureApi";
@@ -70,6 +72,12 @@ async function recordTerminalAnswer(paymentId: string, result: CloudTerminalChar
 async function leaveUncertain(restaurantId: string, payment: { id: string; orderId: string }) {
   await markPaymentUncertain(payment.id);
   publishOrderEvent(restaurantId, { type: "order.updated", orderId: payment.orderId });
+}
+
+async function busyDecline(restaurantId: string, paymentId: string, result: CloudTerminalChargeResult) {
+  const unresponsive = isCloudTerminalBusy(result.failure?.code)
+    && await unresponsiveAfterBusy(restaurantId, paymentId);
+  return NextResponse.json({ error: unresponsive ? "terminal_unresponsive" : "terminal_busy", status: "declined" }, { status: 409 });
 }
 
 async function POSTHandler(
@@ -336,7 +344,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return busyDecline(tenant.id, payment.id, result);
       return NextResponse.json(
         { ok: false, status: "declined", message: result.message },
         { status: 402 },
@@ -389,7 +397,7 @@ async function POSTHandler(
         await leaveUncertain(tenant.id, payment);
         return NextResponse.json({ pending: true, error: "payment_pending" }, { status: 202 });
       }
-      if (result.failure?.busy) return NextResponse.json({ error: "terminal_busy", status: "declined" }, { status: 409 });
+      if (result.failure?.busy) return busyDecline(tenant.id, payment.id, result);
       console.warn("[kushki/cloud-terminal] solicitud rechazada por validación", {
         paymentId: payment.id,
         httpStatus: result.httpStatus,
@@ -424,6 +432,15 @@ async function POSTHandler(
         { pending: true, error: "payment_pending", terminal: "answered" },
         { status: 202 },
       );
+    }
+
+    // An HTTP 200 cloud refusal without a definitive outcome leaves no decline webhook.
+    // Preserve the health signal, but leave answeredAt null for normal recovery.
+    if (result.httpStatus === 200 && isCloudTerminalBusy(result.failure?.code)) {
+      await db.financialOperation.updateMany({
+        where: { key: terminalClaimKey(payment.id), answeredAt: null },
+        data: { answerCode: terminalAnswerCode(result.failure), answerMessage: result.failure?.message?.slice(0, 300) ?? null },
+      }).catch(error => console.warn("[terminal] busy_notice_failed", { paymentId: payment.id, error }));
     }
 
     // Transport failure does not establish whether the terminal charged:

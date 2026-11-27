@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   events: [] as Array<Record<string, unknown> & { id: string; eventId: string }>,
   publish: vi.fn(),
   fetch: vi.fn(),
+  health: vi.fn(),
 }));
 
 const TENANT = {
@@ -68,6 +69,9 @@ vi.mock("@/lib/activeRestaurant", () => ({
 vi.mock("@/lib/rateLimit", () => ({ rateLimit: async () => true }));
 vi.mock("@/lib/guestAccess", () => ({ canAccessOrder: async () => true, canAccessTable: async () => true }));
 vi.mock("@/lib/payments/terminalPrinterLock", () => ({ refreshPreviousPrint: vi.fn(), printingUnderLock: vi.fn() }));
+vi.mock("@/lib/payments/terminalHealth", async importOriginal => ({
+  ...await importOriginal<typeof import("@/lib/payments/terminalHealth")>(), unresponsiveAfterBusy: h.health,
+}));
 vi.mock("@/lib/orderLock", () => ({ lockOrder: async () => {} }));
 vi.mock("@/lib/events", () => ({ publishOrderEvent: h.publish }));
 vi.mock("@/lib/invoiceOnPaid", () => ({ issueInvoiceOnPaid: async () => ({ status: "skipped" }) }));
@@ -139,6 +143,23 @@ describe("terminal/charge: Kushki rechaza la solicitud por validación (4xx)", (
     kushkiSays(400, { code: "TERMINAL_BUSY", message: "Terminal is busy" });
     expect(await charge()).toEqual({ status: 409, json: { error: "terminal_busy", status: "declined" } });
     expect(h.fake.payment(PAYMENT_ID)).toMatchObject({ status: "declined" });
+  });
+
+  it.each([
+    ["no", { approved: false, type: "INTERNAL" }, true],
+    ["rejected", {}, true],
+    ["rejected", { type: "OTHER" }, true],
+    ["rejected", {}, false],
+  ] as const)("ocupado de la nube (%s) devuelve la acción correspondiente al serial", async (event, extra, unhealthy) => {
+    h.health.mockResolvedValueOnce(unhealthy);
+    kushkiSays(400, { ...extra, code: "TERMINAL_BUSY", message: "Terminal is busy" });
+    expect(await charge()).toEqual({ status: 409, json: {
+      error: unhealthy ? "terminal_unresponsive" : "terminal_busy", status: "declined",
+    } });
+    expect(h.health).toHaveBeenCalledWith(TENANT.id, PAYMENT_ID);
+    expect(h.events[0].eventId).toContain(`:${event}:`);
+    expect(h.fake.state.financialOperations[0]).toMatchObject({ status: "failed" });
+    expect(h.fake.state.financialOperations[0].answeredAt).toBeFalsy();
   });
 
   it("muestra ocupado y conserva el código del adquirente aunque el mensaje sugiera otro", async () => {

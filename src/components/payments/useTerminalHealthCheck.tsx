@@ -38,7 +38,7 @@ export function useTerminalHealthCheck() {
       if (active.current !== request) return false;
       const warning = warnings.find(w => w.deviceIds.includes(deviceId));
       if (!warning) { active.current = null; return true; }
-      message = { time: formatDate(warning.since, { locale, timeZone, dateStyle: undefined, hourCycle: "h23" }) };
+      message = { time: formatDate(warning.since, { locale, timeZone, dateStyle: "short", hourCycle: "h23" }) };
     } catch {
       if (active.current !== request) return false;
       message = {};

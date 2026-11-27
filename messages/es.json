@@ -515,7 +515,7 @@
   },
   "pay": {
     "healthTitle": "Comprobar datáfono",
-    "healthWarning": "Este datáfono no responde desde las {time}. Abre la app de Kushki en el equipo y cierra lo que esté en pantalla, o reinicia el datáfono antes de cobrar.",
+    "healthWarning": "Este datáfono no responde desde el {time}. Abre la app de Kushki en el equipo y cierra lo que esté en pantalla, o reinicia el datáfono antes de cobrar.",
     "healthUnknown": "No se pudo consultar el estado del datáfono. Puedes elegir otro medio o intentar el cobro.",
     "healthOther": "Cobrar con otro medio",
     "healthOverride": "Intentar de todos modos",

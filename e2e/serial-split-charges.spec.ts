@@ -577,7 +577,7 @@ test("datáfono mock tras dos timeouts permite cambiar de medio o reintentar y d
   let pushes = 0;
   page.on("request", req => { if (req.url().endsWith("/terminal/charge")) pushes++; });
   await collect.click();
-  await expect(dialog).toContainText(/no responde desde las \d\d:\d\d/);
+  await expect(dialog).toContainText(/no responde desde el \d{1,2}\/\d{1,2}\/\d{2,4},? \d\d:\d\d/);
   await page.screenshot({ path: info.outputPath("cobro-390.png") });
   await dialog.getByRole("button", { name: "Cobrar con otro medio" }).click();
   await expect(page.getByRole("button", { name: /^Recibir en efectivo ·/ })).toBeEnabled();
@@ -608,6 +608,12 @@ test("la API protege el serial al reasignar un datáfono y reconoce el TER y la 
     expect(res.ok()).toBe(true);
     return (await res.json()).warnings;
   }
+  const threeDaysAgo = 3 * 24 * 60;
+  const expired = await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [threeDaysAgo + 5, threeDaysAgo]);
+  expect(await warnings()).toEqual([]);
+  // The window is measured from dispatch, even if the gateway result was recorded later.
+  await db.financialOperation.updateMany({ where: { key: { in: expired } }, data: { gatewayTimedOutAt: new Date() } });
+  expect(await warnings()).toEqual([]);
   const keys = await seedTerminalTimeouts(f.order.id, device.kushkiDeviceId, [10, 5]);
   // A positive lookup for an even older charge is historical evidence. Its
   // arrival today cannot clear the two later timeouts on the physical device.
@@ -650,3 +656,23 @@ for (const role of ["mesero", "terminal"] as const) {
     expect((await health.json()).warnings).toMatchObject([{ count: 2, deviceIds: [device.kushkiDeviceId] }]);
   });
 }
+
+test("auditoría de plataforma: las impresiones del datáfono tienen un filtro explícito", async ({ page }) => {
+  const { restaurant } = await fixture(page, { role: "platform_admin" });
+  const actor = { restaurantId: restaurant.id, actorRole: "system", actorEmail: "system" };
+  try {
+    await db.auditEvent.create({ data: { ...actor, kind: "terminal.serial.changed", summary: "Cambio de equipo de prueba",
+      occurredAt: new Date(Date.now() - 60_000) } });
+    await db.auditEvent.createMany({ data: Array.from({ length: 201 }, () => ({
+      ...actor, kind: "terminal.print.completed", summary: "Impresión de prueba",
+    })) });
+    await page.goto(`/admin/audit?restaurantId=${restaurant.id}`);
+    await expect(page.getByText("Cambio de equipo de prueba", { exact: true })).toBeVisible();
+    const receipts = page.getByText("Impresión de prueba", { exact: true });
+    await expect(receipts).toHaveCount(0);
+    await page.getByRole("link", { name: "Impresión confirmada en el datáfono", exact: true }).click();
+    await expect(receipts).toHaveCount(200);
+  } finally {
+    await db.auditEvent.deleteMany({ where: { restaurantId: restaurant.id } });
+  }
+});

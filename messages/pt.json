@@ -515,7 +515,7 @@
   },
   "pay": {
     "healthTitle": "Verificar maquininha",
-    "healthWarning": "Esta maquininha não responde desde as {time}. Abra o app da Kushki nela e feche o que estiver na tela ou reinicie a maquininha antes de cobrar.",
+    "healthWarning": "Esta maquininha não responde desde {time}. Abra o app da Kushki nela e feche o que estiver na tela ou reinicie a maquininha antes de cobrar.",
     "healthUnknown": "Não foi possível consultar o estado da maquininha. Escolha outra forma de pagamento ou tente cobrar.",
     "healthOther": "Cobrar de outra forma",
     "healthOverride": "Tentar mesmo assim",

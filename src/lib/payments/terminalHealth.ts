@@ -49,7 +49,10 @@ export function terminalWarnings(devices: Device[], evidence: Evidence[]): Termi
   return [...warnings.values()];
 }
 
-const PRINT_COMPLETED = "terminal.print.completed";
+// Prisma stores DateTime as UTC timestamps without a time zone. CURRENT_TIMESTAMP
+// is stable throughout the statement, including all the response/print lookups.
+const HEALTH_WINDOW_START = Prisma.sql`(CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '48 hours'`;
+export const TERMINAL_PRINT_COMPLETED = "terminal.print.completed";
 
 // Print reservations disappear when the job finishes. Keep the positive receipt
 // in the existing tenant audit trail, including a COMPLETED returned by a late probe.
@@ -57,7 +60,7 @@ export async function recordCompletedPrint(restaurantId: string, device: Pick<De
   const serial = terminalSerial(device);
   try {
     await db.auditEvent.create({ data: {
-      restaurantId, kind: PRINT_COMPLETED, targetType: "terminal", targetId: serial,
+      restaurantId, kind: TERMINAL_PRINT_COMPLETED, targetType: "terminal", targetId: serial,
       actorRole: "system", actorEmail: "system", summary: serial, diff: { jobId },
     } });
   } catch (error) {
@@ -73,50 +76,49 @@ export async function readTerminalWarnings(restaurantId: string) {
   if (!devices.some(d => d.active)) return [];
   // A configuration row can be reassigned to a replacement terminal. Resolve
   // its serial at push time, including for a reply received after reassignment.
-  const claims = Prisma.sql`
-    SELECT f."paymentId", f."createdAt", f."gatewayTimedOutAt", f."answeredAt", COALESCE((
-      SELECT a.diff->>'previousSerial' FROM "AuditEvent" a
-      WHERE a."restaurantId" = ${restaurantId} AND a.kind = 'terminal.serial.changed'
-        AND a."targetId" = f."deviceId" AND a."occurredAt" > f."createdAt"
-      ORDER BY a."occurredAt" LIMIT 1
-    ), NULLIF(d."serialNumber", ''), 'mock:' || d."kushkiDeviceId") AS serial
-    FROM "Order" o JOIN "Payment" p ON p."orderId" = o.id
-    JOIN "FinancialOperation" f ON f.key = 'terminal:' || p.id
-    JOIN "TerminalDevice" d ON d."kushkiDeviceId" = f."deviceId" AND d."restaurantId" = o."restaurantId"
-    WHERE o."restaurantId" = ${restaurantId} AND p.method = 'kushki_card_terminal' AND f.kind = 'terminal'`;
-  const timeouts = await db.$queryRaw<Evidence[]>`
-    WITH claims AS (${claims})
-    SELECT serial, "gatewayTimedOutAt" AS at, 'timeout' AS kind
-    FROM claims WHERE "gatewayTimedOutAt" IS NOT NULL`;
-  const candidates = terminalWarnings(devices, timeouts);
-  if (!candidates.length) return [];
-  const serials = candidates.map(w => w.serial || `mock:${w.deviceIds[0]}`);
-  const since = new Date(Math.min(...candidates.map(w => Date.parse(w.since))));
-  // Some synchronous bank declines settle via webhook without setting answeredAt.
-  // A search can confirm an OLD charge after two newer timeouts. Attribute
-  // that evidence to its original attempt, never to the time of the lookup.
-  const responses = await db.$queryRaw<Evidence[]>`
-    WITH claims AS (${claims}), replies AS (
-      SELECT serial, "answeredAt" AS at FROM claims WHERE "answeredAt" >= ${since}
+  const evidence = await db.$queryRaw<Evidence[]>`
+    WITH claims AS MATERIALIZED (
+      SELECT f."paymentId", f."createdAt", f."gatewayTimedOutAt", f."answeredAt", COALESCE((
+        SELECT a.diff->>'previousSerial' FROM "AuditEvent" a
+        WHERE a."restaurantId" = ${restaurantId} AND a.kind = 'terminal.serial.changed'
+          AND a."targetId" = f."deviceId" AND a."occurredAt" >= ${HEALTH_WINDOW_START} AND a."occurredAt" > f."createdAt"
+        ORDER BY a."occurredAt" LIMIT 1
+      ), NULLIF(d."serialNumber", ''), 'mock:' || d."kushkiDeviceId") AS serial
+      FROM "Order" o JOIN "Payment" p ON p."orderId" = o.id
+      JOIN "FinancialOperation" f ON f.key = 'terminal:' || p.id
+      JOIN "TerminalDevice" d ON d."kushkiDeviceId" = f."deviceId" AND d."restaurantId" = o."restaurantId"
+      WHERE o."restaurantId" = ${restaurantId} AND p.method = 'kushki_card_terminal' AND f.kind = 'terminal'
+        AND f."createdAt" >= ${HEALTH_WINDOW_START}
+    ), candidates AS (
+      SELECT serial FROM claims WHERE "gatewayTimedOutAt" IS NOT NULL
+      GROUP BY serial HAVING COUNT(*) >= 2
+    ), affected AS (
+      SELECT f.* FROM claims f JOIN candidates USING (serial)
+    ), replies AS (
+      -- A late search describes the original attempt, not the time of the lookup.
+      SELECT serial, "answeredAt" AS at FROM affected WHERE "answeredAt" >= ${HEALTH_WINDOW_START}
       UNION ALL
       SELECT f.serial, CASE WHEN w.payload->>'message' = 'transaction_search_online'
         THEN COALESCE(f."gatewayTimedOutAt", f."createdAt") ELSE w."createdAt" END
       FROM "KushkiWebhookEvent" w
-      JOIN claims f ON f."paymentId" = w.payload->>'paymentId'
+      JOIN affected f ON f."paymentId" = w.payload->>'paymentId'
       WHERE (w."restaurantId" IS NULL OR w."restaurantId" = ${restaurantId}) AND w."processedAt" IS NOT NULL
-        AND w."createdAt" >= ${since} AND (w.type = 'terminal.approved' OR (w.type = 'terminal.declined'
+        AND w."createdAt" >= ${HEALTH_WINDOW_START} AND (w.type = 'terminal.approved' OR (w.type = 'terminal.declined'
           AND (w."eventId" LIKE 'cloudterm:' || f."paymentId" || ':no:%'
             OR w."eventId" LIKE 'cloudterm:' || f."paymentId" || ':search-declined:%' OR w."eventId" LIKE 'mock-%')))
       UNION ALL
       SELECT f.serial, CASE WHEN a.diff->>'source' = 'transaction_search_online'
         THEN COALESCE(f."gatewayTimedOutAt", f."createdAt") ELSE a."occurredAt" END
-      FROM "AuditEvent" a JOIN claims f ON f."paymentId" = a."targetId"
-      WHERE a."restaurantId" = ${restaurantId} AND a.kind = 'payment.terminal_amount_mismatch' AND a."occurredAt" >= ${since}
+      FROM "AuditEvent" a JOIN affected f ON f."paymentId" = a."targetId"
+      WHERE a."restaurantId" = ${restaurantId} AND a.kind = 'payment.terminal_amount_mismatch' AND a."occurredAt" >= ${HEALTH_WINDOW_START}
     )
-    SELECT serial, MAX(at) AS at, 'answered' AS kind FROM replies WHERE serial IN (${Prisma.join(serials)}) GROUP BY serial
+    SELECT serial, "gatewayTimedOutAt" AS at, 'timeout' AS kind FROM affected WHERE "gatewayTimedOutAt" IS NOT NULL
     UNION ALL
-    SELECT "targetId" AS serial, MAX("occurredAt") AS at, 'printed' AS kind FROM "AuditEvent"
-    WHERE "restaurantId" = ${restaurantId} AND kind = ${PRINT_COMPLETED} AND "occurredAt" >= ${since}
-      AND "targetId" IN (${Prisma.join(serials)}) GROUP BY "targetId"`;
-  return terminalWarnings(devices, [...timeouts, ...responses]);
+    SELECT serial, MAX(at) AS at, 'answered' AS kind FROM replies GROUP BY serial
+    UNION ALL
+    SELECT a."targetId" AS serial, MAX(a."occurredAt") AS at, 'printed' AS kind
+    FROM "AuditEvent" a JOIN candidates c ON c.serial = a."targetId"
+    WHERE a."restaurantId" = ${restaurantId} AND a.kind = ${TERMINAL_PRINT_COMPLETED} AND a."occurredAt" >= ${HEALTH_WINDOW_START}
+    GROUP BY a."targetId"`;
+  return terminalWarnings(devices, evidence);
 }

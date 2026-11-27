@@ -102,6 +102,8 @@ export type TerminalPrintResult =
   | {
       ok: false;
       error: TerminalPrintError;
+      retryAfterMs?: number;
+      deviceId?: string;
       devices?: Array<{ id: string; label: string }>;
       /** Detalle de Kushki (timeout, network_error, http_400…). */
       reason?: string;
@@ -313,6 +315,7 @@ export async function printOnTerminalDevice(
       printJobId: jobId, state: "queued", simulated: !useRealTerminal, reference: built.reference,
     };
   }
+  if (conflict && typeof conflict === "object") return { ok: false, ...conflict, deviceId: device.kushkiDeviceId, printJobId: jobId };
   if (conflict) return { ok: false, error: conflict };
 
   if (!useRealTerminal) {

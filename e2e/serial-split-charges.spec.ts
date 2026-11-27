@@ -449,11 +449,22 @@ test.describe("mesero en un navegador Android sin impresión local", () => {
       if (flow === "factura previa") {
         await expect(page).toHaveURL(/\/done(?:\?|$)/);
         await page.getByRole("radio", { name: "Datáfono", exact: true }).click();
-        await page.getByRole("button", { name: "Imprimir factura", exact: true }).click();
-        const notice = page.getByText(/Espera un minuto desde la aprobación/);
-        await expect(notice).toBeVisible();
-        await notice.scrollIntoViewIfNeeded();
-        await page.screenshot({ path: info.outputPath("despues-aprobacion.png") });
+        const button = page.getByRole("button", { name: "Imprimir factura", exact: true });
+        const printResults: number[] = [];
+        page.on("response", response => {
+          if (response.url().endsWith("/print/terminal") && response.request().method() === "POST") printResults.push(response.status());
+        });
+        await button.click();
+        const countdown = page.getByRole("timer").filter({ hasText: /Se imprimirá en \d+ s/ });
+        await expect(countdown).toHaveText(/^Se imprimirá en (?:[1-9]|1[0-5]) s\.$/);
+        await expect(button).toBeDisabled();
+        await expect(page.getByRole("button", { name: "Cancelar impresión" })).toBeEnabled();
+        await expect(page.getByRole("button", { name: "Enviar a la impresora de caja" })).toBeEnabled();
+        await countdown.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: info.outputPath("cuenta-regresiva-390.png") });
+        await expect(page.getByText("Impresa en el datáfono POS de prueba ✓", { exact: true })).toBeVisible({ timeout: 30_000 });
+        expect(printResults).toEqual([409, 200]);
+        expect(await db.auditEvent.count({ where: { restaurantId: f.restaurant.id, kind: "terminal.print.completed" } })).toBe(1);
       }
     });
   }
@@ -504,9 +515,10 @@ test("la API protege el serial cuando coinciden una impresión y un cobro", asyn
   await expect.poll(async () => (await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).status)
     .not.toBe("pending");
   if (process.env.KUSHKI_MOCK_TERMINAL_AUTHORIZED === "+0") {
+    await db.payment.update({ where: { id: paymentId }, data: { settledAt: new Date(Date.now() - 10_000) } });
     expect(await (await print(device.kushkiDeviceId)).json()).toMatchObject({ error: "terminal_post_approval" });
     expect((await print(second.kushkiDeviceId)).ok()).toBe(true);
-    await db.payment.update({ where: { id: paymentId }, data: { settledAt: new Date(Date.now() - 61_000) } });
+    await db.payment.update({ where: { id: paymentId }, data: { settledAt: new Date(Date.now() - 15_000) } });
     expect((await print(device.kushkiDeviceId)).ok()).toBe(true);
 
     // Deliberately seed unresolved snapshots. None may hold printing indefinitely.

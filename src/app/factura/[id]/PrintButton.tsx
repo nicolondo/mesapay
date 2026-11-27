@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DeferredPrintNotice, useDeferredTerminalPrint } from "@/components/print/DeferredPrintNotice";
 import { useTranslations } from "next-intl";
 import { isEmbeddedFrame } from "@/lib/printInBrowser";
 import { fitPageToContent } from "@/lib/print/fitPageToContent";
@@ -19,7 +20,6 @@ import {
   watchPrintDialog,
 } from "@/lib/print/devicePrint";
 import {
-  printOnTerminal,
   readRememberedPrintTerminal,
   rememberPrintTerminal,
   terminalPrintMessage,
@@ -94,6 +94,7 @@ export function PrintButton({
   const t = useTranslations("emailInvoice");
   const ts = useTranslations("staffPrint");
   const pref = usePrintPreference(viewer);
+  const { schedule, phase } = useDeferredTerminalPrint(agent, pref);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const stopWatch = useRef<(() => void) | null>(null);
@@ -162,14 +163,11 @@ export function PrintButton({
 
   /** En el datáfono (Kushki): el Smart POS imprime; aquí, el aviso. */
   async function sendToTerminal(doc: StaffPrintDoc, deviceId?: string, printJobId?: string) {
-    if (busy) return;
-    setBusy(true);
-    setNote({ tone: "ok", text: ts("terminalSending") });
+    if (busy || phase !== null) return;
+    setNote(null);
     try {
-      const r = await printOnTerminal(doc, {
-        deviceId: deviceId ?? readRememberedPrintTerminal(pref.scope),
-        printJobId,
-      });
+      const r = await schedule.run(doc, deviceId ?? readRememberedPrintTerminal(pref.scope), printJobId);
+      if (!r) return;
       if (r.via === "terminal") {
         rememberPrintTerminal(pref.scope, r.deviceId);
         // «Impresa ✓» sólo si el datáfono respondió COMPLETED.
@@ -199,8 +197,6 @@ export function PrintButton({
       }
     } catch {
       setNote({ tone: "error", text: ts("terminalFailed") });
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -240,7 +236,7 @@ export function PrintButton({
       printHere();
       return;
     }
-    if (busy || !pref.ready) return;
+    if (busy || phase !== null || !pref.ready) return;
     // «Datáfono» (y «Este dispositivo» del usuario Datáfono): Kushki.
     if (destination === "terminal" || (destination === "device" && isTerminal)) {
       void sendToTerminal(agent);
@@ -256,16 +252,24 @@ export function PrintButton({
   return (
     <>
       {agent && !deviceView && (
-        <PrintDestinationPicker pref={pref} disabled={busy} variant="receipt" className="print-dest" />
+        <PrintDestinationPicker pref={pref} disabled={busy || phase === "sending"} variant="receipt" className="print-dest" />
       )}
       {agent && deviceView && <span className="print-note">{ts("deviceViewHint")}</span>}
-      <button type="button" onClick={onClick} disabled={busy || (!!agent && !pref.ready)}>
-        {busy ? ts("sending") : t("print")}
+      <button type="button" onClick={onClick} disabled={busy || phase !== null || (!!agent && !pref.ready)}>
+        {busy || phase === "sending" ? ts("sending") : t("print")}
       </button>
       {agent && deviceView && (
         <button type="button" className="secondary-btn" onClick={() => window.history.back()}>
           {ts("back")}
         </button>
+      )}
+      {agent && typeof phase === "number" && (
+        <DeferredPrintNotice seconds={phase} onCancel={schedule.cancelWaiting} className="print-note" onCaja={() => {
+          if (schedule.sending) return;
+          schedule.cancel();
+          pref.setDestination("caja");
+          void sendToCaja(agent);
+        }} />
       )}
       {note && (
         <span role="status" className={`print-note ${note.tone}`}>

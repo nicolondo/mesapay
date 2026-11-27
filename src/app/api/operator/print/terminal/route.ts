@@ -77,6 +77,7 @@ async function POSTHandler(req: Request) {
     return NextResponse.json(
       {
         error: result.error,
+        ...(result.retryAfterMs !== undefined && { retryAfterMs: result.retryAfterMs, deviceId: result.deviceId }),
         ...(result.devices && { devices: result.devices }),
         ...(result.reason && { reason: result.reason }),
         ...(result.errorCode && { errorCode: result.errorCode }),

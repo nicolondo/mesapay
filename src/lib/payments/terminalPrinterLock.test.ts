@@ -29,13 +29,15 @@ beforeEach(() => {
 });
 
 describe("exclusión por serial físico", () => {
-  it.each([["pending", "terminal_charging"], ["approved", "terminal_post_approval"]])(
-    "la consulta bloquea %s solo en el serial afectado", async (status, conflict) => {
-      mocks.charge.mockImplementation((_query, id) => id === a.kushkiDeviceId ? [{ status }] : []);
-      expect(await reservePrint(a, "job-A")).toBe(conflict);
-      expect(mocks.create).not.toHaveBeenCalled();
-      expect(await reservePrint(b, "job-B")).toBeNull();
-    });
+  it.each(["pending", "approved"])("bloquea %s sólo en su serial y devuelve el margen restante", async status => {
+    const settledAt = new Date("2026-01-01T00:00:00Z");
+    const now = new Date(settledAt.getTime() + 10_000);
+    mocks.charge.mockImplementation((_query, id) => id === a.kushkiDeviceId ? [{ status, settledAt }] : []);
+    expect(await reservePrint(a, "job-A", now)).toEqual(status === "approved"
+      ? { error: "terminal_post_approval", retryAfterMs: 5000 } : "terminal_charging");
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(await reservePrint(b, "job-B", now)).toBeNull();
+  });
 
   it("la misma impresión en curso no se vuelve a enviar", async () => {
     const row = { serial: a.serialNumber, jobId: "job-A", createdAt: new Date() };

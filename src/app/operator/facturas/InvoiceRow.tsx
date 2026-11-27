@@ -187,7 +187,7 @@ function useInvoiceRow(row: InvoiceListRow) {
 
   const label: Record<InvoiceActionId, string> = {
     view: tOrders("viewInvoice"),
-    reprint: print.busy ? tPrint("sending") : tOrders("reprintInvoice"),
+    reprint: print.busy && print.remaining === null ? tPrint("sending") : tOrders("reprintInvoice"),
     resend: resend.busy ? tOrders("resending") : tOrders("resendEmail"),
     retry: retry.busy ? t("retrying") : t("retry"),
     recover: recover.label,
@@ -217,7 +217,7 @@ function useInvoiceRow(row: InvoiceListRow) {
   // La principal lleva el verbo corto («Reimprimir»): la fila ya dice de
   // qué factura se trata; el nombre completo queda como nombre accesible.
   const shortLabel: Partial<Record<InvoiceActionId, string>> = {
-    reprint: print.busy ? tPrint("sending") : t("actionReprintShort"),
+    reprint: print.busy && print.remaining === null ? tPrint("sending") : t("actionReprintShort"),
     resend: resend.busy ? tOrders("resending") : t("actionResendShort"),
     retry: retry.busy ? t("retrying") : t("actionRetryShort"),
   };
@@ -261,7 +261,7 @@ function useInvoiceRow(row: InvoiceListRow) {
   const compactMenu = attention ? menu : [detailItem, menuItem(plan.primary), ...plan.menu.map(menuItem)];
 
   const feedback: ReactNode[] = [];
-  if (print.notice) {
+  if (print.notice || print.remaining !== null) {
     feedback.push(
       <StaffPrintNotice key="print" print={print} className="block text-xs" canConfigurePrinters />,
     );

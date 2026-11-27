@@ -466,6 +466,7 @@ export function TableDetailSheet({
   const prebillPrint = useStaffPrint(
     { kind: "prebill", orderId, href: prebillHref },
     {
+      visible: open,
       // Si el navegador no deja imprimir embebido se cae a lo de antes: en
       // la PWA del mesero no hay pestañas, así que se navega in-app a la
       // vista imprimible (scope /mesero/), que se imprime sola; en el
@@ -478,6 +479,7 @@ export function TableDetailSheet({
         : undefined,
     },
   );
+
 
   /**
    * El mesero avisa a caja que la mesa quiere pagar. Dispara el aviso de
@@ -1287,7 +1289,7 @@ export function TableDetailSheet({
                     <div className="space-y-1.5">
                       <PrintDestinationPicker
                         pref={prebillPrint.pref}
-                        disabled={prebillPrint.busy}
+                        disabled={prebillPrint.busy && prebillPrint.remaining === null}
                       />
                       <button
                         type="button"
@@ -1295,7 +1297,7 @@ export function TableDetailSheet({
                         disabled={prebillPrint.busy || !prebillPrint.pref.ready}
                         className="mp-btn mp-btn--secondary mp-btn--block"
                       >
-                        {prebillPrint.busy ? tr("prebillPrinting") : tr("prebillPrint")}
+                        {prebillPrint.busy && prebillPrint.remaining === null ? tr("prebillPrinting") : tr("prebillPrint")}
                       </button>
                       <div className="flex items-center justify-between gap-2 px-1 font-mono text-[10px] text-op-muted">
                         <span className="min-w-0 leading-snug">
